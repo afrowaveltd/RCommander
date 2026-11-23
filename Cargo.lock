@@ -3037,6 +3037,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui_kittest",
+ "image",
  "rc-agent",
  "rc-archive",
  "rc-core",

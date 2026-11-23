@@ -318,3 +318,39 @@ fn the_net_menu_offers_ftp_and_agents() {
         "the Net menu is in the menu bar"
     );
 }
+
+#[test]
+fn ctrl_shift_f1_switches_to_the_thumbnail_grid() {
+    let (left, right) = fixture();
+    // A real PNG so the thumbnail decoder has something to work with.
+    {
+        let rgba: Vec<u8> = (0..16 * 16 * 4).map(|i| (i % 251) as u8).collect();
+        let image: image::RgbaImage = image::ImageBuffer::from_raw(16, 16, rgba).unwrap();
+        image.save(left.path().join("thumb.png")).unwrap();
+    }
+    let mut app = app(left.path(), right.path());
+    app.model.refresh_active();
+    let mut harness = harness(app);
+    harness.key_press_modifiers(
+        egui::Modifiers {
+            ctrl: true,
+            shift: true,
+            ..Default::default()
+        },
+        egui::Key::F1,
+    );
+    harness.run();
+    assert_eq!(
+        harness.state().model.left.view_mode,
+        rcommander::model::ViewMode::Thumbnails,
+        "Ctrl+Shift+F1 selects the thumbnail view"
+    );
+    // The grid renders the entries as accessible labels, and the image is
+    // decodable so a thumbnail is produced.
+    harness.run();
+    assert!(harness.root().query_all_by_label("thumb.png").count() > 0);
+    assert!(
+        harness.root().query_all_by_label("sub").count() > 0,
+        "directories also appear in the grid"
+    );
+}

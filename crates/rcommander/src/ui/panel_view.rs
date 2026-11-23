@@ -2,6 +2,7 @@
 
 use crate::model::{Model, Side, ViewMode};
 use crate::theme::{Palette, RowStyle};
+use crate::ui::thumbs::{self, ThumbnailCache};
 use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, Ui, Vec2};
 use rc_core::entry::Entry;
 use rc_core::format;
@@ -25,7 +26,13 @@ const DATE_W: f32 = 128.0;
 const ATTR_W: f32 = 64.0;
 
 /// Draw the whole panel: tabs, path bar, column header and the file list.
-pub fn show(ui: &mut Ui, model: &mut Model, side: Side, palette: &Palette) -> Vec<PanelAction> {
+pub fn show(
+    ui: &mut Ui,
+    model: &mut Model,
+    side: Side,
+    palette: &Palette,
+    thumbnails: &mut ThumbnailCache,
+) -> Vec<PanelAction> {
     let mut actions = Vec::new();
     let rtl = model.direction().is_rtl();
     let active = model.focus == side;
@@ -44,8 +51,12 @@ pub fn show(ui: &mut Ui, model: &mut Model, side: Side, palette: &Palette) -> Ve
     frame.show(ui, |ui| {
         tabs_row(ui, model, side, palette, active, rtl, &mut actions);
         path_row(ui, model, side, palette, active, rtl, &mut actions);
-        list_header(ui, model, side, palette, rtl, &mut actions);
-        file_list(ui, model, side, palette, active, rtl, &mut actions);
+        if model.panel(side).view_mode == ViewMode::Thumbnails {
+            thumbnail_grid(ui, model, side, palette, rtl, thumbnails, &mut actions);
+        } else {
+            list_header(ui, model, side, palette, rtl, &mut actions);
+            file_list(ui, model, side, palette, active, rtl, &mut actions);
+        }
     });
     actions
 }
@@ -367,6 +378,160 @@ fn file_list(
     if let Some(error) = error {
         ui.separator();
         ui.colored_label(palette.readonly, error);
+    }
+}
+
+/// Thumbnail grid used by the `Ctrl+Shift+F1` view mode.
+fn thumbnail_grid(
+    ui: &mut Ui,
+    model: &mut Model,
+    side: Side,
+    palette: &Palette,
+    rtl: bool,
+    thumbnails: &mut ThumbnailCache,
+    actions: &mut Vec<PanelAction>,
+) {
+    let entries: Vec<Entry> = model.panel(side).entries().to_vec();
+    let cursor = model.panel(side).cursor();
+    let selected: Vec<bool> = entries
+        .iter()
+        .map(|e| model.panel(side).selection.contains(&e.name))
+        .collect();
+    let thumb = model.settings.display.thumbnail_size.max(32) as f32;
+    let cell_w = thumb + 16.0;
+    let cell_h = thumb + 34.0;
+    let columns = ((ui.available_width() / cell_w).floor() as usize).max(1);
+    let rows = entries.len().div_ceil(columns);
+    let font_id = FontId::proportional(model.settings.display.font_size - 1.0);
+    let active = model.focus == side;
+    let mut clicked: Option<(usize, ClickKind)> = None;
+
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .id_salt(("thumbs", side))
+        .show_rows(ui, cell_h, rows, |ui, range| {
+            for row in range {
+                ui.horizontal(|ui| {
+                    for column in 0..columns {
+                        let index = row * columns + column;
+                        let Some(entry) = entries.get(index) else {
+                            break;
+                        };
+                        let (rect, response) =
+                            ui.allocate_exact_size(Vec2::new(cell_w, cell_h), Sense::click());
+                        response.widget_info(|| {
+                            egui::WidgetInfo::labeled(egui::Role::Label, true, &entry.name)
+                        });
+                        let is_cursor = index == cursor;
+                        if ui.is_rect_visible(rect) {
+                            let painter =
+                                ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+                            if is_cursor && active {
+                                painter.rect_filled(rect, 2, palette.cursor_background);
+                            } else if selected[index] {
+                                painter.rect_filled(rect, 2, palette.selected_background);
+                            }
+                            let image_rect = Rect::from_min_size(
+                                rect.min + Vec2::new(8.0, 4.0),
+                                Vec2::splat(thumb),
+                            );
+                            if entry.is_dir() {
+                                painter.text(
+                                    image_rect.center(),
+                                    Align2::CENTER_CENTER,
+                                    "[DIR]",
+                                    font_id.clone(),
+                                    palette.directory,
+                                );
+                            } else if thumbs::looks_like_image(&entry.name) {
+                                match thumbnails.thumbnail(ui.ctx(), &entry.path, thumb as u32) {
+                                    Some(texture) => {
+                                        let size = texture.size_vec2();
+                                        let scale = (thumb / size.x).min(thumb / size.y).min(1.0);
+                                        let draw = Rect::from_center_size(
+                                            image_rect.center(),
+                                            size * scale,
+                                        );
+                                        painter.image(
+                                            texture.id(),
+                                            draw,
+                                            Rect::from_min_max(
+                                                egui::pos2(0.0, 0.0),
+                                                egui::pos2(1.0, 1.0),
+                                            ),
+                                            Color32::WHITE,
+                                        );
+                                    }
+                                    None => {
+                                        painter.text(
+                                            image_rect.center(),
+                                            Align2::CENTER_CENTER,
+                                            "?",
+                                            font_id.clone(),
+                                            palette.hidden,
+                                        );
+                                    }
+                                }
+                            } else {
+                                let style = RowStyle::for_entry(entry);
+                                painter.text(
+                                    image_rect.center(),
+                                    Align2::CENTER_CENTER,
+                                    entry.extension().to_uppercase(),
+                                    font_id.clone(),
+                                    style.color(palette),
+                                );
+                            }
+                            let label_rect = Rect::from_min_size(
+                                egui::pos2(rect.left() + 2.0, image_rect.bottom() + 4.0),
+                                Vec2::new(cell_w - 4.0, 16.0),
+                            );
+                            let color = if is_cursor && active {
+                                palette.cursor_foreground
+                            } else if selected[index] {
+                                palette.selected_foreground
+                            } else {
+                                RowStyle::for_entry(entry).color(palette)
+                            };
+                            let align = if rtl {
+                                Align2::RIGHT_TOP
+                            } else {
+                                Align2::LEFT_TOP
+                            };
+                            let anchor = if rtl {
+                                egui::pos2(label_rect.right(), label_rect.top())
+                            } else {
+                                label_rect.left_top()
+                            };
+                            painter.text(
+                                anchor,
+                                align,
+                                elide(&entry.name, cell_w - 4.0, font_id.size),
+                                font_id.clone(),
+                                color,
+                            );
+                        }
+                        if response.clicked() {
+                            clicked = Some((index, ClickKind::Select));
+                        }
+                        if response.double_clicked() {
+                            clicked = Some((index, ClickKind::Open));
+                        }
+                    }
+                });
+            }
+        });
+
+    if let Some((index, kind)) = clicked {
+        if active {
+            model.focus = side;
+        }
+        model.panel_mut(side).set_cursor(index);
+        if kind == ClickKind::Open
+            && let crate::model::CommandOutcome::OpenFile(path) = model.enter()
+        {
+            actions.push(PanelAction::OpenFile(path))
+        }
     }
 }
 

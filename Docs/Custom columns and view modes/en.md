@@ -24,3 +24,15 @@ reused, so browsing a photo directory stays fast.
 
 Specific masks can be given their own colour — useful to make `*.log` grey,
 `*.bak` red or archives green. Rules are evaluated in order, first match wins.
+
+## Thumbnails
+
+`Ctrl+Shift+F1` switches the panel to a thumbnail grid. Images are decoded with a
+pixel budget and downscaled once, then cached as GPU textures keyed by path and
+size, so scrolling through a directory with thousands of photos does not decode
+anything twice. The cache is bounded (512 thumbnails, least-recently-used
+entries are dropped), which keeps memory flat.
+
+Directories show as `[DIR]` and everything that is not a decodable image falls
+back to its extension, so the grid never stalls on a huge or broken file. The
+thumbnail size is configurable (*Configuration ▸ Options ▸ Display*).

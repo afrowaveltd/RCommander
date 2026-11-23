@@ -149,7 +149,7 @@ protocol on stdio.
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **134 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **138 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -158,7 +158,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **13 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **14 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -179,8 +179,11 @@ Copy, move and delete can now run **in the background** (`ops_runner` worker
 threads): the status bar shows aggregate progress plus the current file, *Cancel*
 stops the job, and an end-to-end UI test drives F5 → dialog → OK → finished copy.
 
-Simplified / not yet implemented: thumbnail grid, button-bar editor, custom
-columns and view-mode editor, search results table, drag & drop, a separate
+The thumbnail grid (`Ctrl+Shift+F1`) is implemented with a bounded LRU texture
+cache fed by `rc-viewer`'s pixel-budgeted decoder.
+
+Simplified / not yet implemented: button-bar editor, custom columns and
+view-mode editor, the search results table, drag & drop, a separate
 background-transfer-manager window.
 
 ## Phase 11 — Platforms (partial)
@@ -196,7 +199,7 @@ background-transfer-manager window.
 - `cargo test --workspace`: see the per-crate numbers above.
   Totals by crate: `rc-core` 147, `rc-i18n` 81, `rc-viewer` 161 (+6 doctests),
   `rc-archive` 130 (+4 integration), `rc-help` 68, `rc-agent` 96,
-  `rc-remote` 111 (+3 doctests), `rcommander` 134 (+13 UI) — **≈958 tests**.
+  `rc-remote` 111 (+3 doctests), `rcommander` 138 (+14 UI) — **≈963 tests**.
 - `cargo clippy` and `cargo fmt --check` are clean for `rc-core`, `rc-i18n`,
   `rc-viewer`, `rc-archive`, `rc-help`, `rc-agent`; `rcommander` is formatted and
   warning-free except for the documented simplifications.
@@ -208,7 +211,7 @@ background-transfer-manager window.
 ## Next steps (in priority order)
 
 1. Route remote (FTP) transfers through the same background queue.
-2. Thumbnail grid view and a search-results table.
+2. A search-results table with in-dialog navigation.
 3. Button-bar editor, custom columns, view modes and the thumbnail grid
    (model stubs exist in `rc-core::config`).
 4. Background transfer manager dialog on top of `ops_runner`.

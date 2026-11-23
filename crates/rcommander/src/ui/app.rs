@@ -10,6 +10,7 @@ use crate::ui::dialogs::DialogAction;
 use crate::ui::editor_window::EditorUi;
 use crate::ui::help_window::HelpUi;
 use crate::ui::panel_view::{self, PanelAction};
+use crate::ui::thumbs::ThumbnailCache;
 use crate::ui::viewer_window::ViewerUi;
 use egui::{Context, Key, Modifiers};
 use rc_core::config::Settings;
@@ -132,6 +133,8 @@ pub struct RCommanderApp {
     quick_view_path: Option<std::path::PathBuf>,
     /// The MCP client panel state.
     agent_ui: AgentUi,
+    /// Thumbnail textures for the thumbnail view mode.
+    thumbnails: ThumbnailCache,
 }
 
 impl RCommanderApp {
@@ -150,6 +153,7 @@ impl RCommanderApp {
             quick_viewer: ViewerUi::default(),
             quick_view_path: None,
             agent_ui: AgentUi::default(),
+            thumbnails: ThumbnailCache::new(),
         };
         app.help_ui.reload(&paths::docs_dir());
         app
@@ -483,6 +487,7 @@ impl RCommanderApp {
                             &mut self.model,
                             target_side.other(),
                             &palette,
+                            &mut self.thumbnails,
                         ));
                     },
                 );
@@ -516,7 +521,13 @@ impl RCommanderApp {
                     egui::vec2(widths[index], available.y),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
-                        actions.extend(panel_view::show(ui, &mut self.model, *side, &palette));
+                        actions.extend(panel_view::show(
+                            ui,
+                            &mut self.model,
+                            *side,
+                            &palette,
+                            &mut self.thumbnails,
+                        ));
                     },
                 );
             }
