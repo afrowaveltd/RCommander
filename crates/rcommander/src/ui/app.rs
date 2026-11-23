@@ -89,6 +89,9 @@ pub struct RCommanderApp {
     thumbnails: ThumbnailCache,
     /// Index of the search result the user picked.
     search_hit_selection: usize,
+    /// Screen rectangles of the two panels, used to resolve drop targets.
+    /// Screen rectangles of the two panels, used to resolve drop targets.
+    pub panel_rects: [Option<egui::Rect>; 2],
 }
 
 impl RCommanderApp {
@@ -109,6 +112,7 @@ impl RCommanderApp {
             agent_ui: AgentUi::default(),
             thumbnails: ThumbnailCache::new(),
             search_hit_selection: 0,
+            panel_rects: [None, None],
         };
         app.help_ui.reload(&paths::docs_dir());
         app
@@ -222,6 +226,26 @@ impl RCommanderApp {
 
     fn sync_theme(&mut self) {
         self.palette = Palette::by_name(&self.model.settings.colors.theme);
+    }
+
+    /// Files dragged from another application onto a panel are copied there.
+    fn handle_dropped_files(&mut self, ctx: &Context) {
+        let (dropped, pointer) =
+            ctx.input(|i| (i.raw.dropped_files.clone(), i.pointer.hover_pos()));
+        if dropped.is_empty() {
+            return;
+        }
+        let paths: Vec<std::path::PathBuf> = dropped
+            .iter()
+            .map(|file| file.path().to_path_buf())
+            .collect();
+        if paths.is_empty() {
+            return;
+        }
+        let side = resolve_drop_side(self.panel_rects, pointer, self.model.focus);
+        if let CommandOutcome::Failed(message) = self.model.drop_files_into(side, paths) {
+            self.model.report_error(message);
+        }
     }
 
     fn handle_shortcuts(&mut self, ctx: &Context) {
@@ -533,13 +557,15 @@ impl RCommanderApp {
                     egui::vec2(widths[index], available.y),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
-                        actions.extend(panel_view::show(
+                        let response = panel_view::show(
                             ui,
                             &mut self.model,
                             *side,
                             &palette,
                             &mut self.thumbnails,
-                        ));
+                        );
+                        self.panel_rects[*side as usize] = Some(ui.min_rect());
+                        actions.extend(response);
                     },
                 );
             }
@@ -741,6 +767,21 @@ impl RCommanderApp {
     }
 }
 
+/// Which panel a drop at `pointer` belongs to; unknown positions use the
+/// focused panel, so a drop is never silently ignored.
+pub fn resolve_drop_side(
+    rects: [Option<egui::Rect>; 2],
+    pointer: Option<egui::Pos2>,
+    focus: Side,
+) -> Side {
+    let Some(pos) = pointer else { return focus };
+    match (rects[0], rects[1]) {
+        (Some(left), _) if left.contains(pos) => Side::Left,
+        (_, Some(right)) if right.contains(pos) => Side::Right,
+        _ => focus,
+    }
+}
+
 fn modifiers_are_plain(ctx: &Context) -> bool {
     ctx.input(|i| !(i.modifiers.ctrl || i.modifiers.alt || i.modifiers.command))
 }
@@ -758,6 +799,7 @@ impl eframe::App for RCommanderApp {
             self.fonts_installed = true;
         }
         self.pending_command = None;
+        self.handle_dropped_files(ctx);
         if self.model.poll_transfers() {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));
         }
@@ -870,5 +912,56 @@ impl RCommanderApp {
 
     pub fn key_stub() -> Shortcut {
         Shortcut::new("F1")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rect(x: f32) -> egui::Rect {
+        egui::Rect::from_min_size(egui::pos2(x, 0.0), egui::vec2(100.0, 100.0))
+    }
+
+    #[test]
+    fn a_drop_inside_a_panel_targets_that_panel() {
+        let rects = [Some(rect(0.0)), Some(rect(200.0))];
+        assert_eq!(
+            resolve_drop_side(rects, Some(egui::pos2(50.0, 50.0)), Side::Right),
+            Side::Left
+        );
+        assert_eq!(
+            resolve_drop_side(rects, Some(egui::pos2(250.0, 50.0)), Side::Left),
+            Side::Right
+        );
+    }
+
+    #[test]
+    fn a_drop_outside_both_panels_falls_back_to_the_focused_panel() {
+        let rects = [Some(rect(0.0)), Some(rect(200.0))];
+        assert_eq!(
+            resolve_drop_side(rects, Some(egui::pos2(500.0, 500.0)), Side::Left),
+            Side::Left
+        );
+        assert_eq!(
+            resolve_drop_side(rects, Some(egui::pos2(500.0, 500.0)), Side::Right),
+            Side::Right
+        );
+    }
+
+    #[test]
+    fn an_unknown_pointer_position_uses_the_focus() {
+        assert_eq!(
+            resolve_drop_side([None, None], None, Side::Right),
+            Side::Right
+        );
+        assert_eq!(
+            resolve_drop_side(
+                [Some(rect(0.0)), None],
+                Some(egui::pos2(50.0, 50.0)),
+                Side::Right
+            ),
+            Side::Left
+        );
     }
 }

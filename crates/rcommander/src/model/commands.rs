@@ -1279,6 +1279,52 @@ impl Model {
         !self.transfers.is_empty()
     }
 
+    // ----- drag & drop -------------------------------------------------
+
+    /// Copy files dropped onto a panel into that panel's directory.
+    ///
+    /// Existing files are never overwritten: a colliding name gets a ` (2)`
+    /// suffix instead, so an accidental drop cannot destroy data.
+    pub fn drop_files_into(&mut self, side: Side, paths: Vec<PathBuf>) -> CommandOutcome {
+        let Some(destination) = self
+            .panel(side)
+            .location()
+            .as_path()
+            .map(|p| p.to_path_buf())
+        else {
+            return CommandOutcome::Failed(
+                "dropping is only supported on local directories".to_string(),
+            );
+        };
+        if paths.is_empty() {
+            return CommandOutcome::None;
+        }
+        let cancel = CancelToken::new();
+        let options = TransferOptions {
+            overwrite: OverwriteMode::Rename,
+            ..Default::default()
+        };
+        let mut copied = 0u64;
+        let mut failures: Vec<String> = Vec::new();
+        for source in paths {
+            let name = source.file_name().map(|n| n.to_owned()).unwrap_or_default();
+            let target = destination.join(name);
+            match ops::copy(&source, &target, &options, &cancel, None) {
+                Ok(outcome) => copied += outcome.files.max(1),
+                Err(e) => failures.push(format!("{}: {e}", source.display())),
+            }
+        }
+        self.refresh_active();
+        if failures.is_empty() {
+            self.report(self.tf("status.done", &[("count", &copied.to_string())]));
+            CommandOutcome::Ok
+        } else {
+            let message = failures.join("; ");
+            self.report_error(&message);
+            CommandOutcome::Failed(message)
+        }
+    }
+
     // ----- button bar --------------------------------------------------
 
     /// Apply the editor: store the draft button and refresh the bar.

@@ -1327,3 +1327,74 @@ fn moving_or_removing_without_a_selection_does_nothing() {
         CommandOutcome::None
     );
 }
+
+// ---------------- drag & drop ----------------
+
+#[test]
+fn dropping_files_copies_them_into_the_panel_directory() {
+    let (left_dir, right_dir, mut model) = fixture();
+    let external = tempfile::tempdir().unwrap();
+    write(&external.path().join("dropped.txt"), b"from outside");
+    write(&external.path().join("other.bin"), b"0123456789");
+    let paths = vec![
+        external.path().join("dropped.txt"),
+        external.path().join("other.bin"),
+    ];
+    assert!(model.drop_files_into(Side::Right, paths).is_ok());
+    assert_eq!(
+        fs::read(right_dir.path().join("dropped.txt")).unwrap(),
+        b"from outside"
+    );
+    assert_eq!(
+        fs::metadata(right_dir.path().join("other.bin"))
+            .unwrap()
+            .len(),
+        10
+    );
+    assert!(model.status.contains("status.done"));
+    assert!(left_dir.path().exists());
+}
+
+#[test]
+fn dropping_onto_an_existing_name_renames_instead_of_overwriting() {
+    let (_l, right_dir, mut model) = fixture();
+    write(&right_dir.path().join("target.txt"), b"existing");
+    let external = tempfile::tempdir().unwrap();
+    write(&external.path().join("target.txt"), b"new content");
+    assert!(
+        model
+            .drop_files_into(Side::Right, vec![external.path().join("target.txt")])
+            .is_ok()
+    );
+    assert_eq!(
+        fs::read(right_dir.path().join("target.txt")).unwrap(),
+        b"existing",
+        "the original is untouched"
+    );
+    assert_eq!(
+        fs::read(right_dir.path().join("target (2).txt")).unwrap(),
+        b"new content"
+    );
+}
+
+#[test]
+fn dropping_nothing_is_a_no_op_and_non_local_panels_are_refused() {
+    let (_l, _r, mut model) = fixture();
+    assert_eq!(
+        model.drop_files_into(Side::Left, Vec::new()),
+        CommandOutcome::None
+    );
+    let remote = Location::remote("ftp", "example.com", None, "/pub");
+    model.left.listing = rc_core::listing::Listing::from_entries(
+        remote,
+        Vec::new(),
+        &rc_core::listing::ReadOptions::default(),
+        Default::default(),
+    );
+    let external = tempfile::tempdir().unwrap();
+    write(&external.path().join("x.txt"), b"x");
+    assert!(matches!(
+        model.drop_files_into(Side::Left, vec![external.path().join("x.txt")]),
+        CommandOutcome::Failed(_)
+    ));
+}

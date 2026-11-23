@@ -47,3 +47,13 @@ Tick *background* in the copy/move dialog (or set it as the default under
 stay usable, the status bar shows aggregate progress with the file currently being
 written, and *Cancel* stops the job. Every job checks a cancellation token between
 chunks, so stopping is immediate and the partial result stays on disk.
+
+## Drag and drop
+
+Files dragged from another application (a desktop file manager, an archive tool, a
+browser download) onto a panel are copied into that panel's directory. The panel
+under the pointer is the target; dropping outside both panels falls back to the
+active panel, so a drop is never lost.
+
+Existing names are **never overwritten** by a drop: the incoming file is stored as
+`name (2).ext` instead, which makes an accidental drop harmless.

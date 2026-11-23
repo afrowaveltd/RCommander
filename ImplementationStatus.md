@@ -149,7 +149,7 @@ protocol on stdio.
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **160 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **166 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -191,8 +191,13 @@ dry-run, ignore-dates and newer-wins semantics.
 rendered by the tool bar, and *Configuration ▸ Button Bar* edits it (add, edit,
 delete, reorder) with validation against the real command catalogue.
 
-Simplified / not yet implemented: custom columns and view-mode editor, drag &
-drop, a separate background-transfer-manager window.
+Drag & drop works: files dragged from another application onto a panel are copied
+into that panel's directory (the panel under the pointer wins, both panels missing
+falls back to the focused one) and colliding names are renamed instead of
+overwritten — 3 model tests plus a unit test for the target resolution.
+
+Simplified / not yet implemented: custom columns and view-mode editor, a separate
+background-transfer-manager window.
 
 ## Phase 11 — Platforms (partial)
 
@@ -221,6 +226,6 @@ with `cargo test --workspace`).
 
 1. Route remote (FTP) transfers through the same background queue.
 2. Custom columns and view modes (model stubs exist in `rc-core::config`).
-3. Drag & drop and a separate background-transfer-manager window.
+3. A separate background-transfer-manager window with per-job rows.
 4. Background transfer manager dialog on top of `ops_runner`.
 6. Windows cross-build and Android APK build once the toolchains are available.

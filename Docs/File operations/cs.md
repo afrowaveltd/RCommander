@@ -44,3 +44,13 @@ výchozí v *Konfigurace ▸ Možnosti*) a přenos poběží ve vlákně na poza
 zůstanou použitelné, stavový řádek ukazuje souhrnný průběh a právě zapisovaný
 soubor, a tlačítko *Zrušit* úlohu zastaví. Každá úloha kontroluje token zrušení
 mezi bloky, takže zastavení je okamžité a částečný výsledek zůstane na disku.
+
+## Drag & drop
+
+Soubory přetažené z jiné aplikace (souborový manažer, archivátor, stažený soubor
+z prohlížeče) na panel se zkopírují do adresáře toho panelu. Cílem je panel pod
+kurzorem myši; přetažení mimo oba panely použije aktivní panel, takže se přetažení
+nikdy neztratí.
+
+Existující názvy se přetažením **nikdy nepřepíší**: příchozí soubor se uloží jako
+`název (2).přípona`, takže nechtěné přetažení nic nezničí.
