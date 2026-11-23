@@ -52,7 +52,7 @@ cargo test --workspace
 
 ## Phase 2 — `rc-core` (done)
 
-`cargo test -p rc-core` → **147 tests, 0 failures.**
+`cargo test -p rc-core` → **151 tests, 0 failures.**
 
 | Step | Module | Covered by tests |
 | --- | --- | --- |
@@ -149,7 +149,7 @@ protocol on stdio.
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **138 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **160 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -158,7 +158,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **14 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **15 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -182,9 +182,17 @@ stops the job, and an end-to-end UI test drives F5 → dialog → OK → finishe
 The thumbnail grid (`Ctrl+Shift+F1`) is implemented with a bounded LRU texture
 cache fed by `rc-viewer`'s pixel-budgeted decoder.
 
-Simplified / not yet implemented: button-bar editor, custom columns and
-view-mode editor, the search results table, drag & drop, a separate
-background-transfer-manager window.
+**Search and synchronisation are now functional** (they were dialogs whose action
+buttons did nothing): search runs on a worker thread with live results, *Stop*, and
+click-to-navigate; *Compare* + *Synchronize* work on the paths in the dialog with
+dry-run, ignore-dates and newer-wins semantics.
+
+**The button bar is configurable**: `[button_bar] buttons` in the settings file is
+rendered by the tool bar, and *Configuration ▸ Button Bar* edits it (add, edit,
+delete, reorder) with validation against the real command catalogue.
+
+Simplified / not yet implemented: custom columns and view-mode editor, drag &
+drop, a separate background-transfer-manager window.
 
 ## Phase 11 — Platforms (partial)
 
@@ -212,8 +220,7 @@ with `cargo test --workspace`).
 ## Next steps (in priority order)
 
 1. Route remote (FTP) transfers through the same background queue.
-2. A search-results table with in-dialog navigation.
-3. Button-bar editor, custom columns, view modes and the thumbnail grid
-   (model stubs exist in `rc-core::config`).
+2. Custom columns and view modes (model stubs exist in `rc-core::config`).
+3. Drag & drop and a separate background-transfer-manager window.
 4. Background transfer manager dialog on top of `ops_runner`.
 6. Windows cross-build and Android APK build once the toolchains are available.

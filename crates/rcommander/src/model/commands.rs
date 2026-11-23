@@ -4,6 +4,7 @@
 //! funnelled through [`Model::execute`], which takes a command identifier such
 //! as `cm_Copy` and returns what the view layer should do next.
 
+use crate::model::dialogs::SearchHit;
 use crate::model::dialogs::*;
 use crate::model::{CommandOutcome, Model, Side, ViewMode};
 use crate::ops_runner::{OpKind, OpResult};
@@ -164,10 +165,10 @@ impl Model {
             }
             "cm_matchsrc" => self.match_target_to_source(),
             // ---- tabs -------------------------------------------------
-            "cm_newtab" => self.new_tab(),
-            "cm_closetab" => self.close_tab(),
-            "cm_nexttab" => self.cycle_tab(true),
-            "cm_prevtab" => self.cycle_tab(false),
+            "cm_opennewtab" | "cm_newtab" => self.new_tab(),
+            "cm_closecurrenttab" | "cm_closetab" => self.close_tab(),
+            "cm_switchtonexttab" | "cm_nexttab" => self.cycle_tab(true),
+            "cm_switchtoprevioustab" | "cm_prevtab" => self.cycle_tab(false),
 
             // ---- extra panels ----------------------------------------
             "cm_srcquickview" => {
@@ -177,7 +178,7 @@ impl Model {
                 }
                 CommandOutcome::Ok
             }
-            "cm_separatetree1" => {
+            "cm_toggleseparatetree1" | "cm_separatetree1" => {
                 self.tree_view = !self.tree_view;
                 if self.tree_view {
                     self.quick_view = false;
@@ -186,7 +187,7 @@ impl Model {
             }
 
             // ---- dialogs ---------------------------------------------
-            "cm_historylist" => {
+            "cm_directoryhistory" | "cm_historylist" => {
                 let side = self.focus;
                 let rows: Vec<HistoryRow> = self
                     .panel(side)
@@ -219,7 +220,9 @@ impl Model {
                 CommandOutcome::Ok
             }
             "cm_opendiropenarchive" | "cm_opendirorarchive" => self.enter(),
-            "cm_openincommandline" => self.insert_cursor_into_command_line(),
+            "cm_addfilenametocmdline" | "cm_openincommandline" => {
+                self.insert_cursor_into_command_line()
+            }
 
             "cm_switchpanel" => {
                 self.switch_focus();
@@ -235,7 +238,7 @@ impl Model {
             "cm_srctree" => self.set_view_mode(ViewMode::Tree),
             "cm_srcallfiles" => self.set_filter("*.*"),
             "cm_srcexecs" => self.set_filter("*"),
-            "cm_branchview" => self.set_branch_view(),
+            "cm_dirbranch" | "cm_branchview" => self.set_branch_view(),
 
             // ---- sorting ----------------------------------------------
             "cm_srcbyname" => self.sort_active(SortField::Name),
@@ -273,8 +276,8 @@ impl Model {
                 self.active_mut().toggle_and_advance();
                 CommandOutcome::Ok
             }
-            "cm_selectsameext" => self.select_same_extension(true),
-            "cm_deselectsameext" => self.select_same_extension(false),
+            "cm_selectcurrentnameext" | "cm_selectsameext" => self.select_same_extension(true),
+            "cm_unselectcurrentnameext" | "cm_deselectsameext" => self.select_same_extension(false),
             "cm_restoreselection" => {
                 self.report(self.t("status.ready"));
                 CommandOutcome::Ok
@@ -289,7 +292,7 @@ impl Model {
                 self.open_dialog(Dialog::MakeDir(MakeDirState::default()));
                 CommandOutcome::Ok
             }
-            "cm_mkdirtarget" => {
+            "cm_mkdirother" | "cm_mkdirtarget" => {
                 self.open_dialog(Dialog::MakeDir(MakeDirState {
                     in_target_panel: true,
                     ..Default::default()
@@ -300,7 +303,7 @@ impl Model {
             "cm_deletepermanent" => self.open_delete_dialog(false),
             "cm_list" | "cm_listinternalonly" => self.open_viewer(),
             "cm_edit" => self.open_editor(false),
-            "cm_editnew" => self.open_editor(true),
+            "cm_editnewfile" | "cm_editnew" => self.open_editor(true),
             "cm_printfile" => {
                 self.report("printing is not implemented yet");
                 CommandOutcome::None
@@ -329,7 +332,7 @@ impl Model {
                 CommandOutcome::Ok
             }
             "cm_testarchive" => self.test_archive(),
-            "cm_multirename" => {
+            "cm_multirenamefiles" | "cm_multirename" => {
                 let sources = self.active().selected_names();
                 let mut state = MultiRenameState::new(sources);
                 state.refresh_preview();
@@ -347,6 +350,10 @@ impl Model {
             "cm_editcomment" => self.open_comment_dialog(),
             "cm_directoryhotlist" => {
                 self.open_dialog(Dialog::Hotlist(HotlistState::default()));
+                CommandOutcome::Ok
+            }
+            "cm_buttonconfig" => {
+                self.open_dialog(Dialog::ButtonBar(ButtonBarState::new()));
                 CommandOutcome::Ok
             }
             "cm_config" => {
@@ -373,11 +380,11 @@ impl Model {
                     Err(e) => CommandOutcome::Failed(e.to_string()),
                 }
             }
-            "cm_ftpconnect" | "cm_ftpnewconnection" => {
+            "cm_ftpconnect" | "cm_ftpnew" | "cm_ftpnewconnection" => {
                 self.open_dialog(Dialog::FtpConnect(FtpConnectState::default()));
                 CommandOutcome::Ok
             }
-            "cm_synchronizedirs" => {
+            "cm_filesync" | "cm_synchronizedirs" => {
                 let left = self.panel(Side::Left).location().display();
                 let right = self.panel(Side::Right).location().display();
                 self.open_dialog(Dialog::Synchronize(SyncState {
@@ -398,7 +405,7 @@ impl Model {
             }
             "cm_exit" => CommandOutcome::Quit,
             "cm_minimize" => CommandOutcome::Minimize,
-            "cm_savesettings" => {
+            "cm_configsavesettings" | "cm_savesettings" => {
                 match self.settings.save(&rc_core::config::default_config_path()) {
                     Ok(()) => CommandOutcome::Ok,
                     Err(e) => CommandOutcome::Failed(e.to_string()),
@@ -410,7 +417,7 @@ impl Model {
                 self.command_line.clear();
                 CommandOutcome::Ok
             }
-            "cm_commandlinehistory" => {
+            "cm_showcmdlinehistory" | "cm_commandlinehistory" => {
                 if let Some(last) = self.command_history.last().cloned() {
                     self.command_line = last;
                 }
@@ -1270,6 +1277,304 @@ impl Model {
     /// True while a background operation runs.
     pub fn is_busy(&self) -> bool {
         !self.transfers.is_empty()
+    }
+
+    // ----- button bar --------------------------------------------------
+
+    /// Apply the editor: store the draft button and refresh the bar.
+    pub fn apply_button_bar(&mut self, state: &mut ButtonBarState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let draft = state.draft();
+        let bar = &mut self.settings.button_bar;
+        match state.selected {
+            Some(index) if index < bar.buttons.len() => {
+                bar.buttons[index] = draft;
+            }
+            _ => {
+                let index = bar.add(draft);
+                state.selected = Some(index);
+            }
+        }
+        state.adding = false;
+        CommandOutcome::Ok
+    }
+
+    /// Remove the selected button from the bar.
+    pub fn remove_button_bar(&mut self, state: &mut ButtonBarState) -> CommandOutcome {
+        let Some(index) = state.selected else {
+            return CommandOutcome::None;
+        };
+        match self.settings.button_bar.remove(index) {
+            Some(_) => {
+                state.selected = None;
+                CommandOutcome::Ok
+            }
+            None => CommandOutcome::None,
+        }
+    }
+
+    /// Move the selected button one slot up or down.
+    pub fn move_button_bar(&mut self, state: &mut ButtonBarState, up: bool) -> CommandOutcome {
+        let Some(index) = state.selected else {
+            return CommandOutcome::None;
+        };
+        let moved = if up {
+            self.settings.button_bar.move_up(index)
+        } else {
+            self.settings.button_bar.move_down(index)
+        };
+        if moved {
+            state.selected = Some(if up { index - 1 } else { index + 1 });
+            CommandOutcome::Ok
+        } else {
+            CommandOutcome::None
+        }
+    }
+
+    // ----- synchronisation -------------------------------------------
+
+    /// Fill `state.rows` by comparing the two directories it names.
+    pub fn sync_compare(&mut self, state: &mut SyncState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let left = match self.read_dir_entries(&state.left) {
+            Ok(entries) => entries,
+            Err(message) => return CommandOutcome::Failed(message),
+        };
+        let right = match self.read_dir_entries(&state.right) {
+            Ok(entries) => entries,
+            Err(message) => return CommandOutcome::Failed(message),
+        };
+        let mut rows: Vec<SyncRow> = Vec::new();
+        let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for entry in left.iter().filter(|e| e.name != "..") {
+            let other = right.iter().find(|e| e.name == entry.name);
+            let row = match other {
+                None => SyncRow {
+                    name: entry.name.clone(),
+                    left_size: Some(entry.size),
+                    right_size: None,
+                    left_time: entry.mtime,
+                    right_time: None,
+                    status: "->".to_string(),
+                },
+                Some(other) => {
+                    let same_size = entry.size == other.size;
+                    let same_time = match (state.ignore_dates, entry.mtime, other.mtime) {
+                        (true, _, _) => true,
+                        (false, Some(a), Some(b)) => a == b,
+                        (false, None, None) => true,
+                        _ => false,
+                    };
+                    let equal = same_size && same_time && entry.is_dir() == other.is_dir();
+                    SyncRow {
+                        name: entry.name.clone(),
+                        left_size: Some(entry.size),
+                        right_size: Some(other.size),
+                        left_time: entry.mtime,
+                        right_time: other.mtime,
+                        status: if equal { "=" } else { "!=" }.to_string(),
+                    }
+                }
+            };
+            seen.insert(entry.name.clone());
+            rows.push(row);
+        }
+        for entry in right
+            .iter()
+            .filter(|e| e.name != ".." && !seen.contains(&e.name))
+        {
+            rows.push(SyncRow {
+                name: entry.name.clone(),
+                left_size: None,
+                right_size: Some(entry.size),
+                left_time: None,
+                right_time: entry.mtime,
+                status: "<-".to_string(),
+            });
+        }
+        rows.sort_by_key(|a| a.name.to_lowercase());
+        state.rows = rows;
+        let pending = state.pending();
+        let snapshot = state.rows.clone();
+        if let Some(Dialog::Synchronize(dialog)) = self.top_dialog_mut() {
+            dialog.rows = snapshot;
+        }
+        self.report(self.tf("dialog.search.progress", &[("count", &pending.to_string())]));
+        CommandOutcome::Ok
+    }
+
+    /// Copy the differing entries in the direction the comparison found.
+    /// `state.dry_run` only reports what would happen.
+    pub fn sync_execute(&mut self, state: &SyncState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let left_root = PathBuf::from(&state.left);
+        let right_root = PathBuf::from(&state.right);
+        let mut copied = 0u64;
+        let mut failures: Vec<String> = Vec::new();
+        let mut plans: Vec<(PathBuf, PathBuf)> = Vec::new();
+        for row in &state.rows {
+            let (from, to) = match row.status.as_str() {
+                "->" => (left_root.join(&row.name), right_root.join(&row.name)),
+                "<-" => (right_root.join(&row.name), left_root.join(&row.name)),
+                "!=" => {
+                    // Overwrite the older copy with the newer one.
+                    match (row.left_time, row.right_time) {
+                        (Some(a), Some(b)) if a >= b => {
+                            (left_root.join(&row.name), right_root.join(&row.name))
+                        }
+                        (Some(_), Some(_)) => {
+                            (right_root.join(&row.name), left_root.join(&row.name))
+                        }
+                        _ => continue,
+                    }
+                }
+                _ => continue,
+            };
+            plans.push((from, to));
+        }
+        if state.dry_run {
+            self.report(self.tf(
+                "dialog.search.results_count",
+                &[("count", &plans.len().to_string())],
+            ));
+            return CommandOutcome::Ok;
+        }
+        let cancel = CancelToken::new();
+        let options = TransferOptions {
+            overwrite: OverwriteMode::Overwrite,
+            ..Default::default()
+        };
+        for (from, to) in plans {
+            match ops::copy(&from, &to, &options, &cancel, None) {
+                Ok(outcome) => copied += outcome.files.max(1),
+                Err(e) => failures.push(format!("{}: {e}", from.display())),
+            }
+        }
+        self.close_dialogs();
+        self.refresh_all();
+        if failures.is_empty() {
+            self.report(self.tf("status.done", &[("count", &copied.to_string())]));
+            CommandOutcome::Ok
+        } else {
+            let message = failures.join("; ");
+            self.report_error(&message);
+            CommandOutcome::Failed(message)
+        }
+    }
+
+    /// Read one directory into entries, or explain why that failed.
+    fn read_dir_entries(&self, path: &str) -> Result<Vec<Entry>, String> {
+        let location = Location::parse(path).map_err(|e| e.to_string())?;
+        let options = crate::model::default_read_options(&self.settings);
+        rc_core::listing::Listing::read(&location, &options, SortSpec::default())
+            .map(|listing| listing.entries().to_vec())
+            .map_err(|e| e.to_string())
+    }
+
+    // ----- search ----------------------------------------------------
+
+    /// Start a search in the background. The dialog keeps showing progress and
+    /// its result list is filled as matches arrive.
+    pub fn start_search(&mut self, state: &SearchState) -> bool {
+        if let Some(job) = self.search_job.take() {
+            job.cancel();
+        }
+        match crate::model::search::SearchJob::spawn(state) {
+            Some(job) => {
+                self.search_job = Some(job);
+                if let Some(Dialog::Search(dialog)) = self.top_dialog_mut() {
+                    dialog.running = true;
+                    dialog.results.clear();
+                }
+                self.report(self.t("dialog.search.progress"));
+                true
+            }
+            None => {
+                self.report_error("invalid search request");
+                false
+            }
+        }
+    }
+
+    /// Stop the running search.
+    pub fn cancel_search(&mut self) {
+        if let Some(job) = self.search_job.take() {
+            job.cancel();
+            let hits = job.wait().0;
+            self.finish_search(hits, false);
+        }
+    }
+
+    /// Advance the running search and copy new results into the dialog.
+    /// Returns true while the search is still running.
+    pub fn poll_search(&mut self) -> bool {
+        let running = match self.search_job.as_mut() {
+            Some(job) => job.poll(),
+            None => return false,
+        };
+        let (hits, truncated) = match self.search_job.as_ref() {
+            Some(job) => (job.hits.clone(), job.truncated),
+            None => return false,
+        };
+        if let Some(Dialog::Search(dialog)) = self.top_dialog_mut() {
+            dialog.results = hits.clone();
+            dialog.truncated = truncated;
+            dialog.running = running;
+        }
+        if !running {
+            self.search_job = None;
+            self.finish_search(hits, truncated);
+        }
+        running
+    }
+
+    fn finish_search(&mut self, hits: Vec<SearchHit>, truncated: bool) {
+        if let Some(Dialog::Search(dialog)) = self.top_dialog_mut() {
+            dialog.results = hits.clone();
+            dialog.running = false;
+            dialog.truncated = truncated;
+        }
+        if hits.is_empty() {
+            self.report(self.t("dialog.search.not_found"));
+        } else {
+            self.report(self.tf(
+                "dialog.search.results_count",
+                &[("count", &hits.len().to_string())],
+            ));
+        }
+    }
+
+    /// Show the directory of a search result in the other panel and put the
+    /// cursor on the file.
+    pub fn goto_search_hit(&mut self, index: usize) -> CommandOutcome {
+        let hit = match self.top_dialog() {
+            Some(Dialog::Search(dialog)) => dialog.results.get(index).cloned(),
+            _ => None,
+        };
+        let Some(hit) = hit else {
+            return CommandOutcome::None;
+        };
+        let path = PathBuf::from(&hit.path);
+        let Some(parent) = path.parent() else {
+            return CommandOutcome::None;
+        };
+        let target = self.focus.other();
+        let outcome = self.open_in(target, Location::local(parent.to_path_buf()));
+        if let Err(e) = outcome {
+            return CommandOutcome::Failed(e.to_string());
+        }
+        if let Some(name) = path.file_name().map(|n| n.to_string_lossy().to_string())
+            && let Some(index) = self.panel(target).listing.find(&name)
+        {
+            self.panel_mut(target).set_cursor(index);
+        }
+        CommandOutcome::Ok
     }
 
     /// Switch the UI language.

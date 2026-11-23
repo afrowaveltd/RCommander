@@ -21,3 +21,30 @@ příkazů, je tlačítko pohodlný způsob, jak dát automatizaci tvář.
 
 `Alt+Shift+F11` zaměří vodorovnou lištu, `Alt+Shift+F12` svislou; šipky pak
 přecházejí mezi tlačítky a `Enter` spustí to zaměřené.
+
+## Úprava lišty
+
+*Konfigurace ▸ Tlačítková lišta* (nebo tlačítko `…` na pravém konci lišty)
+otevře editor. Kliknutím na tlačítko se jeho údaje načtou do polí, tlačítkem `+`
+vytvoříte nové:
+
+- **popisek** — co tlačítko zobrazuje; prázdný znamená název příkazu,
+- **příkaz** — interní příkaz (`cm_Copy`, `cm_FileSync`, …), adresář nebo externí
+  program,
+- **parametry** — volitelné, se zástupnými symboly `%P` (zdrojová cesta),
+  `%T` (cílová cesta), `%N` (soubor pod kurzorem).
+
+`apply` změnu uloží, `-` označené tlačítko smaže a `up`/`down` ho přesune. Lišta
+se kreslí z `[button_bar] buttons` v `settings.toml`, takže stejný soubor lze
+upravovat i ručně:
+
+```toml
+[[button_bar.buttons]]
+caption = "Sync"
+command = "cm_FileSync"
+parameters = ""
+separator = false
+```
+
+Každé výchozí tlačítko odkazuje na skutečný interní příkaz; tlačítko s prázdným
+příkazem je odmítnuto, aby nevznikalo mrtvé tlačítko.

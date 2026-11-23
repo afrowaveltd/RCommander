@@ -31,3 +31,12 @@ místo aby zrušily celou dávku.
 Je-li jedna strana FTP server, může mít server jiné časové pásmo. Pokud server
 neposkytuje spolehlivý čas změny, mohou se data u shodných souborů jevit jako
 rozdílná — v takovém případě porovnávejte podle obsahu.
+
+## V dialogu
+
+*Porovnat* (stejný algoritmus jako `Shift+F2`, ale na dvou cestách zadaných
+v dialogu) naplní tabulku; *Synchronizovat* poté zkopíruje každý řádek se značkou
+`->`, `<-` nebo `!=` ve směru, kterým značka ukazuje. U `!=` vyhrává novější kopie.
+*Zkušební běh* ukáže plán a na žádný soubor nesáhne. *Ignorovat data* považuje
+položky se stejnou velikostí za shodné, což se hodí, když jsou časy nespolehlivé —
+například hned po kopírování bez zachování časů.

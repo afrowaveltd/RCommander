@@ -31,3 +31,12 @@ the whole batch.
 When one side is an FTP server, the server's time zone may differ from yours. If
 the server offers no reliable modification time, dates can appear to differ for
 files that are in fact identical — compare by content in that case.
+
+## In the dialog
+
+*Compare* (the same algorithm as `Shift+F2`, but on the two paths typed in the
+dialog) fills the table; *Synchronize* then copies every row whose marker is
+`->`, `<-` or `!=` in the direction the marker points. With `!=` the newer copy
+wins. *Dry run* shows the plan and touches no file. *Ignore dates* treats entries
+with equal size as identical, which is useful when timestamps are unreliable —
+for example right after copying without preserving times.

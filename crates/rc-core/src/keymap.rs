@@ -237,7 +237,7 @@ impl KeyMap {
         bind("alt+f6", "cm_UnpackFiles");
         bind("alt+shift+f9", "cm_TestArchive");
         bind("f7", "cm_MkDir");
-        bind("shift+f7", "cm_MkDirTarget");
+        bind("shift+f7", "cm_MkDirOther");
         bind("alt+f7", "cm_SearchFor");
         bind("shift+alt+f7", "cm_SearchStandalone");
         bind("f8", "cm_Delete");
@@ -245,13 +245,13 @@ impl KeyMap {
         bind("f9", "cm_MenuSource");
         bind("f10", "cm_MenuLeft");
         bind("alt+f4", "cm_Exit");
-        bind("alt+f8", "cm_CommandLineHistory");
+        bind("alt+f8", "cm_ShowCmdLineHistory");
         bind("alt+f10", "cm_CDtree");
         bind("alt+f11", "cm_SrcBreadcrumbar");
         bind("alt+f12", "cm_TrgBreadcrumbar");
         bind("shift+f1", "cm_CustomColumnViewMenu");
         bind("shift+f2", "cm_CompareDirs");
-        bind("shift+f4", "cm_EditNew");
+        bind("shift+f4", "cm_EditNewFile");
         bind("shift+f10", "cm_ContextMenu");
         bind("shift+esc", "cm_Minimize");
         // Panel display
@@ -269,29 +269,29 @@ impl KeyMap {
         bind("ctrl+f10", "cm_SrcAllFiles");
         bind("ctrl+f11", "cm_SrcExecs");
         bind("ctrl+f12", "cm_SrcUserDef");
-        bind("ctrl+shift+f8", "cm_SeparateTree1");
+        bind("ctrl+shift+f8", "cm_ToggleSeparateTree1");
         // Navigation
         bind("ctrl+pgup", "cm_GoToParent");
         bind("backspace", "cm_GoToParent");
         bind("ctrl+pgdn", "cm_OpenDirOrArchive");
         bind("alt+left", "cm_GoBack");
         bind("alt+right", "cm_GoForward");
-        bind("alt+down", "cm_HistoryList");
+        bind("alt+down", "cm_DirectoryHistory");
         bind("ctrl+left", "cm_OpenDirInOtherPanel");
         bind("ctrl+right", "cm_OpenDirInOtherPanel");
         bind("tab", "cm_SwitchPanel");
         bind("ctrl+u", "cm_Exchange");
         bind("ctrl+shift+u", "cm_MatchSrc");
         bind("ctrl+r", "cm_RereadSource");
-        bind("ctrl+t", "cm_NewTab");
-        bind("ctrl+w", "cm_CloseTab");
-        bind("ctrl+shift+tab", "cm_PrevTab");
-        bind("ctrl+tab", "cm_NextTab");
-        bind("ctrl+b", "cm_BranchView");
+        bind("ctrl+t", "cm_OpenNewTab");
+        bind("ctrl+w", "cm_CloseCurrentTab");
+        bind("ctrl+shift+tab", "cm_SwitchToPreviousTab");
+        bind("ctrl+tab", "cm_SwitchToNextTab");
+        bind("ctrl+b", "cm_DirBranch");
         bind("ctrl+q", "cm_SrcQuickView");
         bind("ctrl+d", "cm_DirectoryHotlist");
         bind("ctrl+l", "cm_GetFileSpace");
-        bind("ctrl+m", "cm_MultiRename");
+        bind("ctrl+m", "cm_MultiRenameFiles");
         bind("ctrl+z", "cm_EditComment");
         bind("alt+enter", "cm_VersionInfo");
         // Selection
@@ -304,15 +304,15 @@ impl KeyMap {
         bind("ctrl+numpadsubtract", "cm_Clearall");
         bind("ctrl+numminus", "cm_Clearall");
         bind("numdivide", "cm_RestoreSelection");
-        bind("alt+numpadadd", "cm_SelectSameExt");
-        bind("alt+numminus", "cm_DeselectSameExt");
+        bind("alt+numpadadd", "cm_SelectCurrentNameExt");
+        bind("alt+numminus", "cm_UnselectCurrentNameExt");
         // Misc
         bind("ctrl+shift+f5", "cm_CreateShortcut");
-        bind("ctrl+n", "cm_FtpNewConnection");
+        bind("ctrl+n", "cm_FtpNew");
         bind("ctrl+f", "cm_FtpConnect");
         bind("ctrl+shift+f", "cm_FtpDisconnect");
         bind("ctrl+shift+enter", "cm_OpenCommandLineInDir");
-        bind("ctrl+enter", "cm_OpenInCommandLine");
+        bind("ctrl+enter", "cm_AddFileNameToCmdline");
         km
     }
 

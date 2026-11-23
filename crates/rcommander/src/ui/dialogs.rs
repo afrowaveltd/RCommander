@@ -48,6 +48,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::MaskPrompt(state) => mask_prompt(ui, model, state),
                 Dialog::Compare(state) => compare(ui, model, state),
                 Dialog::Tree(state) => tree(ui, model, state),
+                Dialog::ButtonBar(state) => button_bar(ui, model, state),
                 Dialog::About => about(ui, model),
                 Dialog::Confirm {
                     message,
@@ -108,6 +109,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::MaskPrompt(_) => "cmd.select_user_spec",
         Dialog::Compare(_) => "cmd.compare_dirs",
         Dialog::Tree(_) => "cmd.cd_tree",
+        Dialog::ButtonBar(_) => "cmd.button_bar",
         Dialog::FtpConnect(_) => "ftp.connect",
         Dialog::Synchronize(_) => "cmd.sync_dirs",
         Dialog::About => "cmd.about",
@@ -291,8 +293,16 @@ fn search(ui: &mut egui::Ui, model: &mut Model, state: &mut SearchState) -> Dial
     );
     let mut action = DialogAction::None;
     ui.horizontal(|ui| {
-        if ui.button(model.t("dialog.search.start")).clicked() {
-            if let Err(message) = state.validate() {
+        let running = state.running;
+        let start_label = if running {
+            model.t("dialog.search.stop")
+        } else {
+            model.t("dialog.search.start")
+        };
+        if ui.button(start_label).clicked() {
+            if running {
+                action = DialogAction::Command("rc_StopSearch".to_string());
+            } else if let Err(message) = state.validate() {
                 model.report_error(message);
             } else {
                 action = DialogAction::Command("rc_RunSearch".to_string());
@@ -893,6 +903,102 @@ fn tree(ui: &mut egui::Ui, model: &mut Model, state: &mut TreeState) -> DialogAc
     action
 }
 
+fn button_bar(ui: &mut egui::Ui, model: &mut Model, state: &mut ButtonBarState) -> DialogAction {
+    let buttons = model.settings.button_bar.buttons.clone();
+    ui.label(model.t("cmd.button_bar"));
+    egui::ScrollArea::vertical()
+        .max_height(200.0)
+        .id_salt("buttonbar_scroll")
+        .show(ui, |ui| {
+            for (index, button) in buttons.iter().enumerate() {
+                let selected = state.selected == Some(index);
+                if ui
+                    .selectable_label(selected, format!("{} — {}", button.label(), button.command))
+                    .clicked()
+                {
+                    state.edit(index, button);
+                }
+            }
+        });
+    ui.separator();
+    egui::Grid::new("buttonbar_grid")
+        .num_columns(2)
+        .show(ui, |ui| {
+            ui.label("caption");
+            ui.add(egui::TextEdit::singleline(&mut state.edit_caption).desired_width(260.0));
+            ui.end_row();
+            ui.label("command");
+            ui.add(
+                egui::TextEdit::singleline(&mut state.edit_command)
+                    .desired_width(260.0)
+                    .hint_text("cm_Copy"),
+            );
+            ui.end_row();
+            ui.label("parameters");
+            ui.add(
+                egui::TextEdit::singleline(&mut state.edit_parameters)
+                    .desired_width(260.0)
+                    .hint_text("%P %N"),
+            );
+            ui.end_row();
+        });
+    ui.horizontal(|ui| {
+        if ui.button("+").clicked() {
+            state.start_add();
+        }
+        if ui.button("apply").clicked() {
+            let mut snapshot = state.clone();
+            if let crate::model::CommandOutcome::Failed(message) =
+                model.apply_button_bar(&mut snapshot)
+            {
+                model.report_error(message);
+            }
+            *state = snapshot;
+        }
+        if ui.button("-").clicked() {
+            let mut snapshot = state.clone();
+            let _ = model.remove_button_bar(&mut snapshot);
+            *state = snapshot;
+        }
+        if ui.button("up").clicked() {
+            let mut snapshot = state.clone();
+            let _ = model.move_button_bar(&mut snapshot, true);
+            *state = snapshot;
+        }
+        if ui.button("down").clicked() {
+            let mut snapshot = state.clone();
+            let _ = model.move_button_bar(&mut snapshot, false);
+            *state = snapshot;
+        }
+    });
+    let (ok, cancel) = buttons_close(ui, model);
+    if cancel {
+        return DialogAction::Close;
+    }
+    if ok {
+        model
+            .settings
+            .save(&rc_core::config::default_config_path())
+            .unwrap_or_else(|e| model.report_error(e));
+        return DialogAction::Close;
+    }
+    DialogAction::None
+}
+
+fn buttons_close(ui: &mut egui::Ui, model: &Model) -> (bool, bool) {
+    let mut ok = false;
+    let mut cancel = false;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.ok")).clicked() {
+            ok = true;
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            cancel = true;
+        }
+    });
+    (ok, cancel)
+}
+
 fn sync(ui: &mut egui::Ui, model: &mut Model, state: &mut SyncState) -> DialogAction {
     ui.horizontal(|ui| {
         ui.label(model.t("panel.source"));
@@ -912,6 +1018,9 @@ fn sync(ui: &mut egui::Ui, model: &mut Model, state: &mut SyncState) -> DialogAc
         } else {
             action = DialogAction::Command("rc_RunSync".to_string());
         }
+    }
+    if ui.button(model.t("cmd.sync_dirs")).clicked() {
+        action = DialogAction::Command("rc_ExecuteSync".to_string());
     }
     if !state.rows.is_empty() {
         ui.separator();

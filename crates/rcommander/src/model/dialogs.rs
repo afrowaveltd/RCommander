@@ -49,6 +49,8 @@ pub enum Dialog {
     Compare(CompareState),
     /// Directory tree browser (`Alt+F10`).
     Tree(TreeState),
+    /// Button bar editor (`Configuration ▸ Button Bar`).
+    ButtonBar(ButtonBarState),
     /// About box.
     About,
     /// Generic confirmation (used by the view layer).
@@ -704,6 +706,57 @@ pub struct TreeState {
 impl TreeState {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+}
+
+/// Button bar editor state.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ButtonBarState {
+    pub selected: Option<usize>,
+    pub edit_caption: String,
+    pub edit_command: String,
+    pub edit_parameters: String,
+    pub adding: bool,
+}
+
+impl ButtonBarState {
+    pub fn new() -> Self {
+        ButtonBarState::default()
+    }
+
+    /// Start editing the button at `index`.
+    pub fn edit(&mut self, index: usize, button: &rc_core::config::BarButton) {
+        self.selected = Some(index);
+        self.adding = false;
+        self.edit_caption = button.caption.clone();
+        self.edit_command = button.command.clone();
+        self.edit_parameters = button.parameters.clone();
+    }
+
+    /// Start adding a new button.
+    pub fn start_add(&mut self) {
+        self.adding = true;
+        self.selected = None;
+        self.edit_caption = String::new();
+        self.edit_command = String::new();
+        self.edit_parameters = String::new();
+    }
+
+    /// The button described by the editor fields.
+    pub fn draft(&self) -> rc_core::config::BarButton {
+        rc_core::config::BarButton {
+            caption: self.edit_caption.trim().to_string(),
+            command: self.edit_command.trim().to_string(),
+            parameters: self.edit_parameters.trim().to_string(),
+            separator: false,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.edit_command.trim().is_empty() {
+            return Err("a button needs a command".to_string());
+        }
+        Ok(())
     }
 }
 

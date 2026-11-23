@@ -1045,3 +1045,285 @@ fn a_failing_background_copy_reports_the_error() {
     }
     assert!(model.last_error.is_some(), "a failure must be reported");
 }
+
+// ---------------- search through the model ----------------
+
+#[test]
+fn a_background_search_fills_the_dialog_and_can_be_navigated() {
+    let (left, _r, mut model) = fixture();
+    let search_root = left.path().to_string_lossy().to_string();
+    let mut state = SearchState::new(search_root);
+    state.name_mask = "*.txt".to_string();
+    model.open_dialog(Dialog::Search(state.clone()));
+    assert!(model.start_search(&state));
+    let mut guard = 0;
+    while model.poll_search() {
+        guard += 1;
+        assert!(guard < 3000, "search did not finish");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    let results = match model.top_dialog() {
+        Some(Dialog::Search(dialog)) => dialog.results.clone(),
+        other => panic!("expected the search dialog, got {other:?}"),
+    };
+    assert!(!results.is_empty(), "the fixture contains .txt files");
+    assert!(results.iter().any(|h| h.path.ends_with("alpha.txt")));
+    assert!(!results.iter().any(|h| h.path.ends_with("beta.log")));
+    assert!(model.status.contains("dialog.search.results_count"));
+
+    // Navigating to a result opens its directory in the other panel.
+    let index = results
+        .iter()
+        .position(|h| h.path.ends_with("nested.txt"))
+        .expect("nested result");
+    assert_eq!(model.goto_search_hit(index), CommandOutcome::Ok);
+    assert_eq!(
+        model.right.location().as_path().unwrap(),
+        left.path().join("sub")
+    );
+    assert_eq!(model.right.cursor_entry().unwrap().name, "nested.txt");
+}
+
+#[test]
+fn a_search_without_matches_reports_not_found() {
+    let (left, _r, mut model) = fixture();
+    let mut state = SearchState::new(left.path().to_string_lossy().to_string());
+    state.name_mask = "*.nothing-here".to_string();
+    model.open_dialog(Dialog::Search(state.clone()));
+    model.start_search(&state);
+    let mut guard = 0;
+    while model.poll_search() {
+        guard += 1;
+        assert!(guard < 3000);
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(
+        model.status.contains("dialog.search.not_found"),
+        "status: {}",
+        model.status
+    );
+}
+
+#[test]
+fn a_started_search_can_be_cancelled() {
+    let (left, _r, mut model) = fixture();
+    let mut state = SearchState::new(left.path().to_string_lossy().to_string());
+    state.name_mask = "*.txt".to_string();
+    model.open_dialog(Dialog::Search(state.clone()));
+    model.start_search(&state);
+    model.cancel_search();
+    assert!(model.search_job.is_none());
+    let running = match model.top_dialog() {
+        Some(Dialog::Search(dialog)) => dialog.running,
+        _ => false,
+    };
+    assert!(!running, "the dialog must stop claiming it is running");
+}
+
+#[test]
+fn an_invalid_search_is_rejected() {
+    let (_l, _r, mut model) = fixture();
+    let state = SearchState::new("");
+    assert!(!model.start_search(&state));
+    assert!(model.search_job.is_none());
+    assert!(model.last_error.is_some());
+}
+
+// ---------------- synchronise directories ----------------
+
+fn sync_fixture() -> (tempfile::TempDir, tempfile::TempDir, Model) {
+    let left = tempfile::tempdir().unwrap();
+    let right = tempfile::tempdir().unwrap();
+    write(&left.path().join("both.txt"), b"same");
+    write(&right.path().join("both.txt"), b"same");
+    write(&left.path().join("left-only.txt"), b"left");
+    write(&right.path().join("right-only.txt"), b"right");
+    write(&left.path().join("newer.txt"), b"left version");
+    write(&right.path().join("newer.txt"), b"right version");
+    let model = Model::for_test(
+        Settings::default(),
+        Location::local(left.path()),
+        Location::local(right.path()),
+    );
+    (left, right, model)
+}
+
+#[test]
+fn sync_compare_classifies_differences() {
+    let (left, right, mut model) = sync_fixture();
+    let mut state = SyncState {
+        left: left.path().to_string_lossy().to_string(),
+        right: right.path().to_string_lossy().to_string(),
+        ..Default::default()
+    };
+    assert!(model.sync_compare(&mut state).is_ok());
+    let status = |name: &str| {
+        state
+            .rows
+            .iter()
+            .find(|r| r.name == name)
+            .map(|r| r.status.clone())
+            .unwrap_or_default()
+    };
+    assert_eq!(status("both.txt"), "=");
+    assert_eq!(status("left-only.txt"), "->");
+    assert_eq!(status("right-only.txt"), "<-");
+    assert_eq!(status("newer.txt"), "!=");
+    assert_eq!(state.pending(), 3);
+}
+
+#[test]
+fn sync_ignore_dates_can_make_entries_equal() {
+    let (left, right, mut model) = sync_fixture();
+    // Same size, different timestamps.
+    write(&left.path().join("twin.txt"), b"abcd");
+    write(&right.path().join("twin.txt"), b"abcd");
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    write(&right.path().join("twin.txt"), b"abcd");
+    let mut state = SyncState {
+        left: left.path().to_string_lossy().to_string(),
+        right: right.path().to_string_lossy().to_string(),
+        ..Default::default()
+    };
+    model.sync_compare(&mut state).is_ok();
+    let with_dates = state
+        .rows
+        .iter()
+        .find(|r| r.name == "twin.txt")
+        .map(|r| r.status.clone());
+    assert_eq!(
+        with_dates.as_deref(),
+        Some("!="),
+        "different timestamps differ"
+    );
+    state.ignore_dates = true;
+    model.sync_compare(&mut state).is_ok();
+    let without_dates = state
+        .rows
+        .iter()
+        .find(|r| r.name == "twin.txt")
+        .map(|r| r.status.clone());
+    assert_eq!(without_dates.as_deref(), Some("="));
+}
+
+#[test]
+fn sync_dry_run_reports_without_copying() {
+    let (left, right, mut model) = sync_fixture();
+    let mut state = SyncState {
+        left: left.path().to_string_lossy().to_string(),
+        right: right.path().to_string_lossy().to_string(),
+        dry_run: true,
+        ..Default::default()
+    };
+    model.sync_compare(&mut state).is_ok();
+    assert!(model.sync_execute(&state).is_ok());
+    assert!(
+        !right.path().join("left-only.txt").exists(),
+        "a dry run must not copy"
+    );
+    assert!(left.path().join("left-only.txt").exists());
+}
+
+#[test]
+fn sync_execute_copies_in_both_directions() {
+    let (left, right, mut model) = sync_fixture();
+    let mut state = SyncState {
+        left: left.path().to_string_lossy().to_string(),
+        right: right.path().to_string_lossy().to_string(),
+        ..Default::default()
+    };
+    model.open_dialog(Dialog::Synchronize(state.clone()));
+    model.sync_compare(&mut state).is_ok();
+    assert!(model.sync_execute(&state).is_ok());
+    assert!(
+        right.path().join("left-only.txt").exists(),
+        "left-only travelled right"
+    );
+    assert!(
+        left.path().join("right-only.txt").exists(),
+        "right-only travelled left"
+    );
+    assert!(model.status.contains("status.done") || model.status.contains("count"));
+}
+
+#[test]
+fn sync_compare_rejects_invalid_directories() {
+    let (_l, _r, mut model) = fixture();
+    let mut state = SyncState {
+        left: "/does/not/exist".into(),
+        right: "/tmp".into(),
+        ..Default::default()
+    };
+    assert!(matches!(
+        model.sync_compare(&mut state),
+        CommandOutcome::Failed(_)
+    ));
+    let empty = SyncState::default();
+    assert!(matches!(
+        model.sync_execute(&empty),
+        CommandOutcome::Failed(_)
+    ));
+}
+
+// ---------------- configurable button bar ----------------
+
+#[test]
+fn the_button_bar_editor_adds_edits_removes_and_reorders() {
+    let (_l, _r, mut model) = fixture();
+    let initial = model.settings.button_bar.buttons.len();
+    assert!(model.execute("cm_ButtonConfig").is_ok());
+    let mut state = match model.top_dialog() {
+        Some(Dialog::ButtonBar(state)) => state.clone(),
+        other => panic!("expected the button bar dialog, got {other:?}"),
+    };
+    // Add a new button.
+    state.start_add();
+    state.edit_caption = "My".to_string();
+    state.edit_command = "cm_MultiRenameFiles".to_string();
+    assert!(model.apply_button_bar(&mut state).is_ok());
+    assert_eq!(model.settings.button_bar.buttons.len(), initial + 1);
+    let added = model.settings.button_bar.buttons.last().cloned().unwrap();
+    assert_eq!(added.caption, "My");
+    assert_eq!(added.command, "cm_MultiRenameFiles");
+    // Edit the same button.
+    let index = model.settings.button_bar.buttons.len() - 1;
+    assert_eq!(state.selected, Some(index));
+    state.edit_caption = "Renamed".to_string();
+    assert!(model.apply_button_bar(&mut state).is_ok());
+    assert_eq!(model.settings.button_bar.buttons[index].caption, "Renamed");
+    // Move it up and back.
+    assert!(model.move_button_bar(&mut state, true).is_ok());
+    assert_eq!(state.selected, Some(index - 1));
+    assert!(model.move_button_bar(&mut state, false).is_ok());
+    // Remove it again.
+    assert!(model.remove_button_bar(&mut state).is_ok());
+    assert_eq!(model.settings.button_bar.buttons.len(), initial);
+    assert_eq!(state.selected, None);
+}
+
+#[test]
+fn a_button_without_a_command_is_rejected() {
+    let (_l, _r, mut model) = fixture();
+    let mut state = ButtonBarState::new();
+    state.start_add();
+    state.edit_caption = "no command".to_string();
+    assert!(matches!(
+        model.apply_button_bar(&mut state),
+        CommandOutcome::Failed(_)
+    ));
+    assert_eq!(
+        model.settings.button_bar.buttons.len(),
+        rc_core::config::ButtonBar::default().buttons.len()
+    );
+}
+
+#[test]
+fn moving_or_removing_without_a_selection_does_nothing() {
+    let (_l, _r, mut model) = fixture();
+    let mut state = ButtonBarState::new();
+    assert_eq!(model.remove_button_bar(&mut state), CommandOutcome::None);
+    assert_eq!(
+        model.move_button_bar(&mut state, true),
+        CommandOutcome::None
+    );
+}

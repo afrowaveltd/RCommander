@@ -8,6 +8,7 @@
 pub mod commands;
 pub mod dialogs;
 pub mod remote;
+pub mod search;
 
 use crate::i18n::{Direction, Strings};
 use crate::ops_runner::OpHandle;
@@ -370,6 +371,8 @@ pub struct Model {
     pub next_job_id: u64,
     /// The MCP client panel is open.
     pub show_agent_panel: bool,
+    /// Running search, if any.
+    pub search_job: Option<search::SearchJob>,
 }
 
 /// An open F3 viewer.
@@ -449,6 +452,7 @@ impl Model {
             transfers: Vec::new(),
             next_job_id: 1,
             show_agent_panel: false,
+            search_job: None,
             keymap,
             settings,
             strings,

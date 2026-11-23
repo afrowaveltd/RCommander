@@ -67,14 +67,22 @@ fn the_main_window_renders_both_panels() {
 fn tool_bar_and_function_keys_are_rendered() {
     let (left, right) = fixture();
     let harness = harness(app(left.path(), right.path()));
-    // Tool bar buttons use the localisation keys of the deterministic translator.
+    // The bar is rendered from `settings.button_bar`, whose defaults are real captions.
     assert!(
-        harness.root().query_all_by_label("cmd.pack").count() > 0,
+        harness.root().query_all_by_label("Pack").count() > 0,
         "pack button present"
     );
     assert!(
-        harness.root().query_all_by_label("cmd.search").count() > 0,
+        harness.root().query_all_by_label("Search").count() > 0,
         "search button present"
+    );
+    assert!(
+        harness.root().query_all_by_label("Options").count() > 0,
+        "options button present"
+    );
+    assert!(
+        harness.root().query_all_by_role(egui::Role::Button).count() >= 10,
+        "the bar is populated"
     );
     assert!(
         harness.root().query_all_by_label_contains("F3").count() > 0,
@@ -352,5 +360,55 @@ fn ctrl_shift_f1_switches_to_the_thumbnail_grid() {
     assert!(
         harness.root().query_all_by_label("sub").count() > 0,
         "directories also appear in the grid"
+    );
+}
+
+#[test]
+fn alt_f7_opens_the_search_dialog_and_runs_a_search() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.key_press_modifiers(
+        egui::Modifiers {
+            alt: true,
+            ..Default::default()
+        },
+        egui::Key::F7,
+    );
+    harness.run();
+    assert!(
+        matches!(
+            harness.state().dialog(),
+            Some(rcommander::model::Dialog::Search(_))
+        ),
+        "Alt+F7 opens the search dialog"
+    );
+    // Narrow the search to one file name and start it.
+    if let Some(rcommander::model::Dialog::Search(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.name_mask = "alpha.txt".to_string();
+    }
+    {
+        let node = harness.root().get_by_label("dialog.search.start");
+        node.click();
+    }
+    for _ in 0..400 {
+        harness.run();
+        let running = match harness.state().dialog() {
+            Some(rcommander::model::Dialog::Search(state)) => state.running,
+            _ => false,
+        };
+        if !running {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let results = match harness.state().dialog() {
+        Some(rcommander::model::Dialog::Search(state)) => state.results.clone(),
+        other => panic!("expected the search dialog, got {other:?}"),
+    };
+    assert!(
+        results.iter().any(|h| h.path.ends_with("alpha.txt")),
+        "results: {results:?}"
     );
 }

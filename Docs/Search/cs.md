@@ -22,3 +22,13 @@ a postaví kurzor na soubor, takže můžete hned jednat.
 Hledání se zastaví po nastavitelném počtu výsledků (výchozí 10 000) a lze je
 kdykoli přerušit. Skryté soubory a symbolické odkazy se procházejí jen na
 výslovné zapnutí, což brání nekonečným smyčkám.
+
+## Spuštění hledání
+
+Stiskněte *Start*. Hledání běží ve vlákně na pozadí: seznam výsledků roste, okno
+zůstává ovladatelné a tlačítko se změní na *Stop*, takže hledání lze kdykoli
+přerušit. Dvojklikem (nebo kliknutím) na výsledek se otevře jeho adresář v druhém
+panelu s kurzorem na souboru, připravený pro `F3`, `F5` nebo `F8`.
+
+Režim regulárního výrazu používá syntaxi knihovny `regex`; neplatný výraz prostě
+nic nenajde, místo aby hledání selhalo.

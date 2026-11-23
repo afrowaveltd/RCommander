@@ -26,6 +26,7 @@ pub struct Settings {
     pub lister: Lister,
     pub editor: Editor,
     pub packer: Packer,
+    pub button_bar: ButtonBar,
     pub ftp: Ftp,
     pub agent: Agent,
     /// Keyboard shortcut overrides: `"ctrl+shift+f5" = "cm_CreateShortcuts"`.
@@ -50,6 +51,7 @@ impl Default for Settings {
             lister: Lister::default(),
             editor: Editor::default(),
             packer: Packer::default(),
+            button_bar: ButtonBar::default(),
             ftp: Ftp::default(),
             agent: Agent::default(),
             shortcuts: BTreeMap::new(),
@@ -368,6 +370,117 @@ impl Default for Packer {
     }
 }
 
+/// One button of the button bar.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BarButton {
+    /// Label shown on the button (falls back to the command name).
+    pub caption: String,
+    /// Internal command (`cm_Copy`), a directory to open, or an external program.
+    pub command: String,
+    /// Optional parameters; `%P` source path, `%T` target path, `%N` cursor file.
+    pub parameters: String,
+    /// Optional separation line before the button.
+    pub separator: bool,
+}
+
+impl BarButton {
+    pub fn new(caption: impl Into<String>, command: impl Into<String>) -> Self {
+        BarButton {
+            caption: caption.into(),
+            command: command.into(),
+            parameters: String::new(),
+            separator: false,
+        }
+    }
+
+    /// Text shown on the button.
+    pub fn label(&self) -> String {
+        if self.caption.trim().is_empty() {
+            self.command.clone()
+        } else {
+            self.caption.clone()
+        }
+    }
+
+    /// A button is usable when it names a command or a directory.
+    pub fn is_valid(&self) -> bool {
+        !self.command.trim().is_empty()
+    }
+}
+
+/// The configurable button bar.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ButtonBar {
+    pub buttons: Vec<BarButton>,
+    /// Show the bar above the file lists instead of below them.
+    pub on_top: bool,
+}
+
+impl Default for ButtonBar {
+    fn default() -> Self {
+        ButtonBar {
+            on_top: false,
+            buttons: vec![
+                BarButton::new("Brief", "cm_SrcShort"),
+                BarButton::new("Full", "cm_SrcLong"),
+                BarButton::new("Search", "cm_SearchFor"),
+                BarButton::new("Pack", "cm_PackFiles"),
+                BarButton::new("Unpack", "cm_UnpackFiles"),
+                BarButton::new("Multi-rename", "cm_MultiRenameFiles"),
+                BarButton::new("Compare", "cm_CompareDirs"),
+                BarButton::new("Synchronize", "cm_FileSync"),
+                BarButton::new("Hotlist", "cm_DirectoryHotlist"),
+                BarButton::new("Size", "cm_GetFileSpace"),
+                BarButton::new("Options", "cm_Config"),
+            ],
+        }
+    }
+}
+
+impl ButtonBar {
+    /// Append a button.
+    pub fn add(&mut self, button: BarButton) -> usize {
+        self.buttons.push(button);
+        self.buttons.len() - 1
+    }
+
+    /// Remove the button at `index`.
+    pub fn remove(&mut self, index: usize) -> Option<BarButton> {
+        if index < self.buttons.len() {
+            Some(self.buttons.remove(index))
+        } else {
+            None
+        }
+    }
+
+    /// Move a button one position towards the start.
+    pub fn move_up(&mut self, index: usize) -> bool {
+        if index == 0 || index >= self.buttons.len() {
+            return false;
+        }
+        self.buttons.swap(index, index - 1);
+        true
+    }
+
+    /// Move a button one position towards the end.
+    pub fn move_down(&mut self, index: usize) -> bool {
+        if index + 1 >= self.buttons.len() {
+            return false;
+        }
+        self.buttons.swap(index, index + 1);
+        true
+    }
+
+    /// Drop buttons that name no command.
+    pub fn retain_valid(&mut self) -> usize {
+        let before = self.buttons.len();
+        self.buttons.retain(|b| b.is_valid());
+        before - self.buttons.len()
+    }
+}
+
 /// FTP/SFTP connection defaults and saved connection list.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -633,6 +746,81 @@ mod tests {
         assert!(s.is_archive_name("data.tar.gz"));
         assert!(!s.is_archive_name("notes.txt"));
         assert!(s.archive_extensions().contains(&"7z".to_string()));
+    }
+
+    #[test]
+    fn the_default_button_bar_offers_working_commands() {
+        let bar = ButtonBar::default();
+        assert!(!bar.buttons.is_empty());
+        assert!(bar.buttons.iter().all(|b| b.is_valid()));
+        assert!(
+            bar.buttons
+                .iter()
+                .any(|b| b.command == "cm_Copy" || b.command == "cm_SearchFor")
+        );
+        assert!(!bar.on_top);
+        // Every default command must exist in the command catalogue.
+        for button in &bar.buttons {
+            assert!(
+                crate::command::resolve(&button.command).is_some(),
+                "unknown default command {}",
+                button.command
+            );
+        }
+    }
+
+    #[test]
+    fn button_bar_editing_operations() {
+        let mut bar = ButtonBar {
+            buttons: vec![
+                BarButton::new("a", "cm_Copy"),
+                BarButton::new("b", "cm_SrcLong"),
+            ],
+            on_top: false,
+        };
+        let index = bar.add(BarButton::new("c", "cm_Config"));
+        assert_eq!(index, 2);
+        assert!(bar.move_up(2));
+        assert_eq!(bar.buttons[1].caption, "c");
+        assert!(!bar.move_up(0));
+        assert!(bar.move_down(0));
+        assert!(!bar.move_down(2));
+        // Order after the operations above: [c, a, b]; removing the first leaves c.
+        assert_eq!(bar.remove(0).map(|b| b.caption), Some("c".to_string()));
+        assert!(bar.remove(99).is_none());
+    }
+
+    #[test]
+    fn invalid_buttons_are_dropped() {
+        let mut bar = ButtonBar {
+            buttons: vec![BarButton::new("ok", "cm_Copy"), BarButton::new("bad", "  ")],
+            on_top: false,
+        };
+        assert_eq!(bar.retain_valid(), 1);
+        assert_eq!(bar.buttons.len(), 1);
+        assert_eq!(BarButton::new("", "cm_Copy").label(), "cm_Copy");
+        assert_eq!(BarButton::new("Copy", "cm_Copy").label(), "Copy");
+    }
+
+    #[test]
+    fn the_button_bar_round_trips_through_toml() {
+        let mut settings = Settings {
+            button_bar: ButtonBar {
+                buttons: vec![BarButton::new("My", "cm_Copy")],
+                on_top: true,
+            },
+            ..Settings::default()
+        };
+        settings.button_bar.add(BarButton {
+            caption: "Sec".into(),
+            command: "cm_SrcLong".into(),
+            parameters: String::new(),
+            separator: true,
+        });
+        let text = settings.to_toml().unwrap();
+        let back = Settings::from_toml(&text).unwrap();
+        assert_eq!(back.button_bar, settings.button_bar);
+        assert!(text.contains("cm_SrcLong"));
     }
 
     #[test]

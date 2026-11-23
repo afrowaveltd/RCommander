@@ -68,54 +68,6 @@ const FUNCTION_KEYS: [FunctionKey; 8] = [
 ];
 
 /// One entry of the button bar.
-struct ToolButton {
-    label_key: &'static str,
-    command: &'static str,
-}
-
-const TOOL_BUTTONS: [ToolButton; 10] = [
-    ToolButton {
-        label_key: "panel.source",
-        command: "cm_SrcShort",
-    },
-    ToolButton {
-        label_key: "panel.target",
-        command: "cm_SrcLong",
-    },
-    ToolButton {
-        label_key: "cmd.search",
-        command: "cm_SearchFor",
-    },
-    ToolButton {
-        label_key: "cmd.pack",
-        command: "cm_PackFiles",
-    },
-    ToolButton {
-        label_key: "cmd.unpack",
-        command: "cm_UnpackFiles",
-    },
-    ToolButton {
-        label_key: "cmd.multi_rename",
-        command: "cm_MultiRename",
-    },
-    ToolButton {
-        label_key: "cmd.sync_dirs",
-        command: "cm_SynchronizeDirs",
-    },
-    ToolButton {
-        label_key: "cmd.hotlist",
-        command: "cm_DirectoryHotlist",
-    },
-    ToolButton {
-        label_key: "cmd.calculate_size",
-        command: "cm_GetFileSpace",
-    },
-    ToolButton {
-        label_key: "cmd.config",
-        command: "cm_Config",
-    },
-];
-
 /// The eframe application.
 pub struct RCommanderApp {
     pub model: Model,
@@ -135,6 +87,8 @@ pub struct RCommanderApp {
     agent_ui: AgentUi,
     /// Thumbnail textures for the thumbnail view mode.
     thumbnails: ThumbnailCache,
+    /// Index of the search result the user picked.
+    search_hit_selection: usize,
 }
 
 impl RCommanderApp {
@@ -154,6 +108,7 @@ impl RCommanderApp {
             quick_view_path: None,
             agent_ui: AgentUi::default(),
             thumbnails: ThumbnailCache::new(),
+            search_hit_selection: 0,
         };
         app.help_ui.reload(&paths::docs_dir());
         app
@@ -189,6 +144,48 @@ impl RCommanderApp {
                 }
             }
             self.model.close_dialogs();
+            return;
+        }
+        if command == "rc_RunSearch" {
+            if let Some(Dialog::Search(state)) = self.model.top_dialog().cloned() {
+                self.model.start_search(&state);
+            }
+            return;
+        }
+        if command == "rc_StopSearch" {
+            self.model.cancel_search();
+            return;
+        }
+        if command == "rc_RunSync" {
+            if let Some(Dialog::Synchronize(mut state)) = self.model.top_dialog().cloned() {
+                match self.model.sync_compare(&mut state) {
+                    CommandOutcome::Failed(message) => self.model.report_error(message),
+                    _ => {
+                        if let Some(Dialog::Synchronize(dialog)) = self.model.top_dialog_mut() {
+                            dialog.rows = state.rows;
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        if command == "rc_ExecuteSync" {
+            let state = match self.model.top_dialog() {
+                Some(Dialog::Synchronize(state)) => state.clone(),
+                _ => return,
+            };
+            if let CommandOutcome::Failed(message) = self.model.sync_execute(&state) {
+                self.model.report_error(message);
+            }
+            return;
+        }
+        if let Some(rest) = command.strip_prefix("rc_SearchHit:") {
+            if let Ok(index) = rest.parse::<usize>() {
+                self.search_hit_selection = index;
+                if let CommandOutcome::Failed(message) = self.model.goto_search_hit(index) {
+                    self.model.report_error(message);
+                }
+            }
             return;
         }
         if command == "rc_Quit" {
@@ -447,11 +444,26 @@ impl RCommanderApp {
 
     fn tool_bar(&mut self, ui: &mut egui::Ui) {
         let mut command: Option<String> = None;
+        let buttons = self.model.settings.button_bar.buttons.clone();
         ui.horizontal_wrapped(|ui| {
-            for button in TOOL_BUTTONS.iter() {
-                if ui.button(self.model.t(button.label_key)).clicked() {
-                    command = Some(button.command.to_string());
+            for button in buttons.iter() {
+                if button.separator {
+                    ui.separator();
                 }
+                if ui
+                    .button(button.label())
+                    .on_hover_text(&button.command)
+                    .clicked()
+                {
+                    command = Some(button.command.clone());
+                }
+            }
+            if ui
+                .small_button("…")
+                .on_hover_text(self.model.t("cmd.button_bar"))
+                .clicked()
+            {
+                command = Some("cm_ButtonConfig".to_string());
             }
         });
         if let Some(command) = command {
@@ -748,6 +760,9 @@ impl eframe::App for RCommanderApp {
         self.pending_command = None;
         if self.model.poll_transfers() {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));
+        }
+        if self.model.poll_search() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
         self.handle_shortcuts(ctx);
 
