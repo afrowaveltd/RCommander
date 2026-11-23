@@ -1,0 +1,520 @@
+//! Rendering and mouse handling of one file panel.
+
+use crate::model::{Model, Side, ViewMode};
+use crate::theme::{Palette, RowStyle};
+use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, Ui, Vec2};
+use rc_core::entry::Entry;
+use rc_core::format;
+
+/// Something the panel wants the application to do.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PanelAction {
+    /// Run an internal command (e.g. after a header click).
+    Command(String),
+    /// Preview the file (F3 semantics).
+    OpenFile(std::path::PathBuf),
+    /// Open the directory the user double-clicked.
+    Enter,
+    /// Show a context menu for the cursor row.
+    ContextMenu,
+}
+
+/// Width of the numeric columns in full view.
+const SIZE_W: f32 = 92.0;
+const DATE_W: f32 = 128.0;
+const ATTR_W: f32 = 64.0;
+
+/// Draw the whole panel: tabs, path bar, column header and the file list.
+pub fn show(ui: &mut Ui, model: &mut Model, side: Side, palette: &Palette) -> Vec<PanelAction> {
+    let mut actions = Vec::new();
+    let rtl = model.direction().is_rtl();
+    let active = model.focus == side;
+
+    let frame = egui::Frame::new()
+        .fill(palette.background)
+        .stroke(Stroke::new(
+            if active { 2.0 } else { 1.0 },
+            if active {
+                palette.accent
+            } else {
+                palette.panel_border
+            },
+        ))
+        .inner_margin(egui::Margin::same(2));
+    frame.show(ui, |ui| {
+        tabs_row(ui, model, side, palette, active, rtl, &mut actions);
+        path_row(ui, model, side, palette, active, rtl, &mut actions);
+        list_header(ui, model, side, palette, rtl, &mut actions);
+        file_list(ui, model, side, palette, active, rtl, &mut actions);
+    });
+    actions
+}
+
+fn font(model: &Model) -> FontId {
+    FontId::proportional(model.settings.display.font_size)
+}
+
+fn tabs_row(
+    ui: &mut Ui,
+    model: &mut Model,
+    side: Side,
+    palette: &Palette,
+    active: bool,
+    rtl: bool,
+    actions: &mut Vec<PanelAction>,
+) {
+    if !model.settings.layout.show_tabs {
+        return;
+    }
+    let labels: Vec<(usize, String, bool)> = model
+        .panel(side)
+        .tabs
+        .tabs()
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (i, t.label(), i == model.panel(side).tabs.active_index()))
+        .collect();
+    let mut clicked: Option<usize> = None;
+    let mut close: Option<usize> = None;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 2.0;
+        for (index, label, is_active) in labels {
+            let text = if is_active {
+                format!("[{label}]")
+            } else {
+                label
+            };
+            let response = ui.add(egui::Button::new(text).frame(false).fill(if is_active {
+                palette.header_background
+            } else {
+                palette.background
+            }));
+            if response.clicked() && !is_active {
+                clicked = Some(index);
+            }
+            if response.middle_clicked() {
+                close = Some(index);
+            }
+        }
+        if rtl {
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |_| {});
+        }
+        if ui.small_button("+").clicked() {
+            actions.push(PanelAction::Command("cm_NewTab".to_string()));
+        }
+    });
+    if let Some(index) = clicked {
+        let settings = model.settings.clone();
+        let _ = model.panel_mut(side).activate_tab(index, &settings);
+        if active {
+            model.focus = side;
+        }
+    }
+    if let Some(index) = close
+        && model.panel_mut(side).tabs.close(index)
+    {
+        let location = model.panel(side).tabs.active().location.clone();
+        if active {
+            let settings = model.settings.clone();
+            let _ = model.panel_mut(side).open(location, &settings);
+        }
+    }
+}
+
+fn path_row(
+    ui: &mut Ui,
+    model: &mut Model,
+    side: Side,
+    palette: &Palette,
+    active: bool,
+    rtl: bool,
+    actions: &mut Vec<PanelAction>,
+) {
+    let path = model.panel(side).location().display();
+    let editing = model.panel(side).path_edit.is_some();
+    let mut submitted = false;
+    ui.horizontal(|ui| {
+        if editing {
+            let mut text = model.panel(side).path_edit.clone().unwrap_or_default();
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut text)
+                    .hint_text(model.t("panel.path"))
+                    .desired_width(f32::INFINITY),
+            );
+            if let Some(panel) = Some(model.panel_mut(side)) {
+                panel.path_edit = Some(text.clone());
+            }
+            if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                submitted = true;
+            }
+            response.request_focus();
+        } else {
+            let response =
+                ui.add(
+                    egui::Label::new(egui::RichText::new(&path).font(font(model)).color(
+                        if active {
+                            palette.foreground
+                        } else {
+                            palette.hidden
+                        },
+                    ))
+                    .truncate()
+                    .sense(Sense::click()),
+                );
+            if response.clicked() {
+                model.panel_mut(side).path_edit = Some(path.clone());
+                if active {
+                    model.focus = side;
+                }
+            }
+        }
+        if rtl {
+            ui.allocate_space(Vec2::ZERO);
+        }
+        if ui.small_button("<").on_hover_text("..").clicked() {
+            actions.push(PanelAction::Command("cm_GoToParent".to_string()));
+        }
+        if ui.small_button("R").on_hover_text("reread").clicked() {
+            actions.push(PanelAction::Command("cm_RereadSource".to_string()));
+        }
+    });
+    if submitted {
+        let text = model.panel(side).path_edit.clone().unwrap_or_default();
+        model.panel_mut(side).path_edit = None;
+        if let Ok(location) = rc_core::location::Location::parse(&text) {
+            let settings = model.settings.clone();
+            let _ = model.panel_mut(side).open(location, &settings);
+        }
+    }
+}
+
+fn list_header(
+    ui: &mut Ui,
+    model: &mut Model,
+    side: Side,
+    palette: &Palette,
+    _rtl: bool,
+    actions: &mut Vec<PanelAction>,
+) {
+    if model.panel(side).view_mode == ViewMode::Brief {
+        return;
+    }
+    let spec = model.panel(side).sort();
+    let header_bg = palette.header_background;
+    let _rect = ui
+        .available_rect_before_wrap()
+        .with_max_y(ui.cursor().min.y + 18.0);
+    let (rect, _response) =
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0), Sense::hover());
+    let painter = ui.painter();
+    painter.rect_filled(rect, 0, header_bg);
+    let font_id = FontId::proportional(model.settings.display.font_size - 1.0);
+    let columns = [
+        ("panel.path", 0.0f32, None, "cm_SrcByName"),
+        (
+            "col.size",
+            SIZE_W,
+            Some(rc_core::sorting::SortField::Size),
+            "cm_SrcBySize",
+        ),
+        (
+            "col.date",
+            DATE_W,
+            Some(rc_core::sorting::SortField::ModifiedTime),
+            "cm_SrcByDateTime",
+        ),
+        ("col.attrs", ATTR_W, None, "cm_SrcByName"),
+    ];
+    let mut x = rect.left() + 4.0;
+    let name_width = (rect.width() - SIZE_W - DATE_W - ATTR_W - 12.0).max(40.0);
+    for (index, (key, width, field, command)) in columns.iter().enumerate() {
+        let column_width = if index == 0 { name_width } else { *width };
+        let mut label = model.t(key).to_string();
+        if let Some(field) = field
+            && spec.field == *field
+        {
+            label.push_str(if spec.reversed { " v" } else { " ^" });
+        }
+        let column_rect = Rect::from_min_size(
+            egui::pos2(x, rect.top()),
+            Vec2::new(column_width, rect.height()),
+        );
+        painter.text(
+            column_rect.left_top() + Vec2::new(2.0, 2.0),
+            Align2::LEFT_TOP,
+            &label,
+            font_id.clone(),
+            palette.foreground,
+        );
+        let hit = ui.interact(
+            column_rect,
+            ui.scope_id().with(("hdr", side, index)),
+            Sense::click(),
+        );
+        if hit.clicked() {
+            actions.push(PanelAction::Command(command.to_string()));
+        }
+        x += column_width;
+    }
+}
+
+fn file_list(
+    ui: &mut Ui,
+    model: &mut Model,
+    side: Side,
+    palette: &Palette,
+    active: bool,
+    rtl: bool,
+    actions: &mut Vec<PanelAction>,
+) {
+    let row_height = model.settings.display.row_height.max(12.0);
+    let view_mode = model.panel(side).view_mode;
+    let entries: Vec<Entry> = model.panel(side).entries().to_vec();
+    let cursor = model.panel(side).cursor();
+    let selected: Vec<bool> = entries
+        .iter()
+        .map(|e| model.panel(side).selection.contains(&e.name))
+        .collect();
+    let error = model.panel(side).error.clone();
+    let font_id = font(model);
+    let mut clicked: Option<(usize, ClickKind)> = None;
+
+    let scroll = egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .id_salt(("panel_scroll", side));
+    scroll.show_rows(ui, row_height, entries.len(), |ui, range| {
+        for index in range {
+            let entry = &entries[index];
+            let row_rect = ui
+                .available_rect_before_wrap()
+                .with_max_y(ui.cursor().min.y + row_height);
+            let (rect, response) =
+                ui.allocate_exact_size(Vec2::new(ui.available_width(), row_height), Sense::click());
+            let _ = row_rect;
+            // Expose every row to assistive technology (and to UI tests).
+            response
+                .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, &entry.name));
+            let is_cursor = index == cursor;
+            let is_selected = selected[index];
+            if ui.is_rect_visible(rect) {
+                let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+                if is_cursor && active {
+                    painter.rect_filled(rect, 0, palette.cursor_background);
+                } else if is_selected {
+                    painter.rect_filled(rect, 0, palette.selected_background);
+                } else if is_cursor {
+                    painter.rect_filled(rect, 0, palette.header_background);
+                }
+                let style = RowStyle::for_entry(entry);
+                let color: Color32 = if is_cursor && active {
+                    palette.cursor_foreground
+                } else if is_selected {
+                    palette.selected_foreground
+                } else {
+                    style.color(palette)
+                };
+                draw_row(
+                    painter, rect, entry, view_mode, &font_id, color, palette, rtl,
+                );
+            }
+            if response.clicked() {
+                let with_ctrl = ui.input(|i| i.modifiers.ctrl || i.modifiers.command);
+                clicked = Some((
+                    index,
+                    if with_ctrl {
+                        ClickKind::Toggle
+                    } else {
+                        ClickKind::Select
+                    },
+                ));
+            }
+            if response.double_clicked() {
+                clicked = Some((index, ClickKind::Open));
+            }
+            if response.secondary_clicked() {
+                clicked = Some((index, ClickKind::ContextMenu));
+            }
+        }
+    });
+    if let Some((index, kind)) = clicked {
+        if active {
+            model.focus = side;
+        }
+        let name = entries.get(index).map(|e| e.name.clone());
+        match kind {
+            ClickKind::Select => model.panel_mut(side).set_cursor(index),
+            ClickKind::Toggle => {
+                model.panel_mut(side).set_cursor(index);
+                model.panel_mut(side).toggle_current();
+            }
+            ClickKind::Open => {
+                model.panel_mut(side).set_cursor(index);
+                if model.focus != side {
+                    model.focus = side;
+                }
+                match model.enter() {
+                    crate::model::CommandOutcome::OpenFile(path) => {
+                        actions.push(PanelAction::OpenFile(path))
+                    }
+                    crate::model::CommandOutcome::Ok => {}
+                    _ => {}
+                }
+                let _ = name;
+            }
+            ClickKind::ContextMenu => actions.push(PanelAction::ContextMenu),
+        }
+    }
+    if let Some(error) = error {
+        ui.separator();
+        ui.colored_label(palette.readonly, error);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ClickKind {
+    Select,
+    Toggle,
+    Open,
+    ContextMenu,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_row(
+    painter: egui::Painter,
+    rect: Rect,
+    entry: &Entry,
+    view_mode: ViewMode,
+    font: &FontId,
+    color: Color32,
+    palette: &Palette,
+    rtl: bool,
+) {
+    let y = rect.center().y;
+    let ctrl_y = rect.top() + rect.height() / 2.0 - 2.0;
+    let _ = ctrl_y;
+
+    if view_mode == ViewMode::Brief {
+        let column_width = (rect.width() / 3.0).max(80.0);
+        let columns = ((rect.width() / column_width).floor() as usize).max(1);
+        let index = 0;
+        let _ = index;
+        let x = if rtl {
+            rect.right() - 4.0
+        } else {
+            rect.left() + 4.0
+        };
+        let align = if rtl {
+            Align2::RIGHT_CENTER
+        } else {
+            Align2::LEFT_CENTER
+        };
+        painter.text(
+            egui::pos2(x, y),
+            align,
+            entry.name.as_str(),
+            font.clone(),
+            color,
+        );
+        let _ = columns;
+        return;
+    }
+
+    let margin = 4.0;
+    let size_text = if entry.is_dir() {
+        "<DIR>".to_string()
+    } else {
+        format::format_size_bytes(entry.size)
+    };
+    let date_text = format::format_datetime(entry.mtime);
+    let attr_text = entry.attr_string();
+    let name_width = (rect.width() - SIZE_W - DATE_W - ATTR_W - 2.0 * margin).max(40.0);
+
+    let cells: [(&str, f32, Align2); 4] = [
+        (&entry.name, name_width, Align2::LEFT_CENTER),
+        (&size_text, SIZE_W, Align2::RIGHT_CENTER),
+        (&date_text, DATE_W, Align2::LEFT_CENTER),
+        (&attr_text, ATTR_W, Align2::LEFT_CENTER),
+    ];
+    let order: Vec<usize> = if rtl {
+        (0..4).rev().collect()
+    } else {
+        (0..4).collect()
+    };
+    let mut x = if rtl {
+        rect.right() - margin
+    } else {
+        rect.left() + margin
+    };
+    for index in order {
+        let (text, width, align) = cells[index];
+        let (anchor_x, text_align) = if rtl {
+            let a = egui::pos2(x - if index == 0 { 0.0 } else { width }, y);
+            x -= width;
+            (a, flip_align(align))
+        } else {
+            let a = egui::pos2(x, y);
+            x += width;
+            (a, align)
+        };
+        let shown = elide(text, width, font.size);
+        painter.text(
+            anchor_x,
+            text_align,
+            shown,
+            font.clone(),
+            if index == 3 { palette.hidden } else { color },
+        );
+    }
+}
+
+fn flip_align(align: Align2) -> Align2 {
+    if align.x() == egui::Align::LEFT {
+        Align2::RIGHT_CENTER
+    } else if align.x() == egui::Align::RIGHT {
+        Align2::LEFT_CENTER
+    } else {
+        align
+    }
+}
+
+fn elide(text: &str, width: f32, font_size: f32) -> String {
+    let approx = (width / (font_size * 0.55)).floor().max(3.0) as usize;
+    if text.chars().count() <= approx {
+        return text.to_string();
+    }
+    let keep = approx.saturating_sub(1);
+    let mut out: String = text.chars().take(keep).collect();
+    out.push('…');
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn elide_keeps_short_names() {
+        assert_eq!(elide("abc", 100.0, 14.0), "abc");
+        assert_eq!(elide("", 100.0, 14.0), "");
+    }
+
+    #[test]
+    fn elide_truncates_long_names_with_an_ellipsis() {
+        let out = elide("a-very-long-file-name.txt", 40.0, 14.0);
+        assert!(out.ends_with('…'));
+        assert!(out.chars().count() < "a-very-long-file-name.txt".chars().count());
+    }
+
+    #[test]
+    fn elide_never_produces_an_empty_result_for_long_input() {
+        let out = elide(&"x".repeat(200), 10.0, 14.0);
+        assert!(!out.is_empty());
+    }
+
+    #[test]
+    fn align_flipping_mirrors_horizontal_alignment() {
+        assert_eq!(flip_align(Align2::LEFT_CENTER), Align2::RIGHT_CENTER);
+        assert_eq!(flip_align(Align2::RIGHT_CENTER), Align2::LEFT_CENTER);
+        assert_eq!(flip_align(Align2::CENTER_CENTER), Align2::CENTER_CENTER);
+    }
+}
