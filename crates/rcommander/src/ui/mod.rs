@@ -1,5 +1,6 @@
 //! egui view layer (filled in by the widget modules below).
 
+pub mod agent_panel;
 pub mod app;
 pub mod dialogs;
 pub mod editor_window;

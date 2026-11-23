@@ -5,6 +5,7 @@ use crate::keys;
 use crate::model::{CommandOutcome, Dialog, Model, Side};
 use crate::paths;
 use crate::theme::{self, Palette};
+use crate::ui::agent_panel::AgentUi;
 use crate::ui::dialogs::DialogAction;
 use crate::ui::editor_window::EditorUi;
 use crate::ui::help_window::HelpUi;
@@ -129,6 +130,8 @@ pub struct RCommanderApp {
     /// Content of the quick-view panel (`Ctrl+Q`).
     quick_viewer: ViewerUi,
     quick_view_path: Option<std::path::PathBuf>,
+    /// The MCP client panel state.
+    agent_ui: AgentUi,
 }
 
 impl RCommanderApp {
@@ -146,6 +149,7 @@ impl RCommanderApp {
             pending_command: None,
             quick_viewer: ViewerUi::default(),
             quick_view_path: None,
+            agent_ui: AgentUi::default(),
         };
         app.help_ui.reload(&paths::docs_dir());
         app
@@ -407,6 +411,18 @@ impl RCommanderApp {
                 }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
+                }
+            });
+            ui.menu_button(self.model.t("menu.net"), |ui| {
+                if ui.button(self.model.t("ftp.connect")).clicked() {
+                    command = Some("cm_FtpConnect".into());
+                }
+                if ui.button(self.model.t("ftp.disconnect")).clicked() {
+                    command = Some("cm_FtpDisconnect".into());
+                }
+                ui.separator();
+                if ui.button(self.model.t("agent.panel")).clicked() {
+                    self.model.show_agent_panel = true;
                 }
             });
             ui.menu_button(self.model.t("menu.help"), |ui| {
@@ -755,6 +771,13 @@ impl eframe::App for RCommanderApp {
         }
         if self.model.help.is_some() {
             crate::ui::help_window::show(ctx, &mut self.model, &mut self.help_ui, &palette);
+        }
+        if self.model.show_agent_panel {
+            let closed =
+                crate::ui::agent_panel::show(ctx, &mut self.model, &mut self.agent_ui, &palette);
+            if closed {
+                self.model.show_agent_panel = false;
+            }
         }
         if self.model.quit_requested {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);

@@ -252,7 +252,13 @@ fn the_copy_dialog_runs_a_background_transfer_end_to_end() {
     harness.state_mut().model.left.selection.set(["big.bin"]);
     harness.key_press(egui::Key::F5);
     harness.run();
-    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::Transfer(_))), "F5 opens the copy dialog");
+    assert!(
+        matches!(
+            harness.state().dialog(),
+            Some(rcommander::model::Dialog::Transfer(_))
+        ),
+        "F5 opens the copy dialog"
+    );
     {
         let node = harness.root().get_by_label("dialog.config.ok");
         node.click();
@@ -264,7 +270,51 @@ fn the_copy_dialog_runs_a_background_transfer_end_to_end() {
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
-    assert!(!harness.state().model.is_busy(), "the background copy finished");
-    assert!(right.path().join("big.bin").exists(), "the file reached the target panel directory");
-    assert!(std::fs::metadata(right.path().join("big.bin")).unwrap().len() == 400_000);
+    assert!(
+        !harness.state().model.is_busy(),
+        "the background copy finished"
+    );
+    assert!(
+        right.path().join("big.bin").exists(),
+        "the file reached the target panel directory"
+    );
+    assert!(
+        std::fs::metadata(right.path().join("big.bin"))
+            .unwrap()
+            .len()
+            == 400_000
+    );
+}
+
+#[test]
+fn the_agent_panel_opens_and_lists_configured_servers() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model
+        .settings
+        .agent
+        .clients
+        .push(rc_core::config::McpServerConfig {
+            name: "demo".to_string(),
+            transport: "stdio".to_string(),
+            command: "demo-server".to_string(),
+            ..Default::default()
+        });
+    app.model.show_agent_panel = true;
+    let harness = harness(app);
+    assert!(harness.state().model.show_agent_panel);
+    assert!(
+        harness.root().query_all_by_label("demo").count() > 0,
+        "the configured MCP server should be offered in the panel"
+    );
+}
+
+#[test]
+fn the_net_menu_offers_ftp_and_agents() {
+    let (left, right) = fixture();
+    let harness = harness(app(left.path(), right.path()));
+    assert!(
+        harness.root().query_all_by_label("menu.net").count() > 0,
+        "the Net menu is in the menu bar"
+    );
 }

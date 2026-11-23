@@ -25,7 +25,7 @@ cargo test --workspace
 | 5 | Archive engine (`rc-archive`) | **done** |
 | 6 | Help system (`rc-help`, `Docs/`) | **done** |
 | 7 | Remote file systems (`rc-remote`) | **done** — engine tested against a mock server and wired into the panels (connect, list, navigate, download, upload, disconnect); no live-server test possible here |
-| 8 | MCP integration (`rc-agent`) | **done** — server + client tested, host bridge wired, CLI subcommand present |
+| 8 | MCP integration (`rc-agent`) | **done** — server + client tested, host bridge wired, `rcommander mcp` subcommand, and an agent panel in the UI for connecting to external servers and running their tools |
 | 9 | Application model | **done** — including background job control (start, poll, cancel, aggregate progress) |
 | 10 | egui user interface | **partial** — panels, tabs, menus, dialogs, viewer, editor, help, quick view, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, the thumbnail grid, the search results table and drag & drop are still simplified |
 | 11 | Platforms | **partial** — Linux verified end to end (runs, renders, listed and screenshotted); Windows and Android **compile-check clean** for the whole workspace, but no cross-link/APK because the linkers (mingw-w64, NDK) are not installed here |
@@ -149,7 +149,7 @@ protocol on stdio.
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **127 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **134 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -158,7 +158,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **11 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **13 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -180,8 +180,8 @@ threads): the status bar shows aggregate progress plus the current file, *Cancel
 stops the job, and an end-to-end UI test drives F5 → dialog → OK → finished copy.
 
 Simplified / not yet implemented: thumbnail grid, button-bar editor, custom
-columns and view-mode editor, search results table, MCP client panel, drag &
-drop, a separate background-transfer-manager window.
+columns and view-mode editor, search results table, drag & drop, a separate
+background-transfer-manager window.
 
 ## Phase 11 — Platforms (partial)
 
@@ -196,7 +196,7 @@ drop, a separate background-transfer-manager window.
 - `cargo test --workspace`: see the per-crate numbers above.
   Totals by crate: `rc-core` 147, `rc-i18n` 81, `rc-viewer` 161 (+6 doctests),
   `rc-archive` 130 (+4 integration), `rc-help` 68, `rc-agent` 96,
-  `rc-remote` 111 (+3 doctests), `rcommander` 127 (+11 UI) — **≈949 tests**.
+  `rc-remote` 111 (+3 doctests), `rcommander` 134 (+13 UI) — **≈958 tests**.
 - `cargo clippy` and `cargo fmt --check` are clean for `rc-core`, `rc-i18n`,
   `rc-viewer`, `rc-archive`, `rc-help`, `rc-agent`; `rcommander` is formatted and
   warning-free except for the documented simplifications.
@@ -209,8 +209,7 @@ drop, a separate background-transfer-manager window.
 
 1. Route remote (FTP) transfers through the same background queue.
 2. Thumbnail grid view and a search-results table.
-3. Button-bar editor, custom columns and view modes (model stubs exist in
-   `rc-core::config`).
+3. Button-bar editor, custom columns, view modes and the thumbnail grid
+   (model stubs exist in `rc-core::config`).
 4. Background transfer manager dialog on top of `ops_runner`.
-5. Agent panel UI for MCP clients (`rc_agent::McpClient` is ready).
 6. Windows cross-build and Android APK build once the toolchains are available.

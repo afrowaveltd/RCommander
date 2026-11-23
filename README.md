@@ -221,9 +221,18 @@ policy.
 
 ### As a client
 
-The agent panel connects to any MCP server (stdio command or HTTP endpoint) and
-lets you run its tools from inside the file manager. Configure servers in the
-`[agent.clients]` section of `settings.toml`.
+*Net ▸ MCP agents* opens the agent panel. It connects to any MCP server — a
+stdio command or an HTTP endpoint — lists the tools the server publishes and lets
+you run one with JSON arguments, showing the result or the server's error right
+there. Servers are configured in `settings.toml`:
+
+```toml
+[[agent.clients]]
+name = "filesystem"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
+```
 
 ---
 

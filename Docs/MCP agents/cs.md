@@ -40,3 +40,23 @@ Server zpřístupňuje jen to, co protokol inzeruje; nic se nespustí, dokud nen
 nástroj zavolán. Každé volání je vidět ve stavovém řádku a politiku potvrzování
 si určujete sami. HTTP přenos berte jako každou jinou místní službu: připojte ho
 na localhost a použijte token.
+
+## Panel agenta
+
+*Síť ▸ MCP agenti* otevře panel. Každá položka `[[agent.clients]]`
+v `settings.toml` se stane tlačítkem; stiskem se aplikace připojí k danému
+serveru, vypíše jeho nástroje a umožní jeden vybrat, upravit jeho JSON argumenty
+a spustit. Výsledek (nebo chyba vrácená serverem) se zobrazí pod volbou nástroje.
+
+```toml
+[[agent.clients]]
+name = "filesystem"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
+```
+
+Přenos je `stdio` (spustí se příkaz a komunikuje se přes standardní vstup/výstup)
+nebo `http` (koncový bod JSON-RPC, vyžaduje `url`). Položky, kterým chybí povinné
+pole, se ignorují, takže překlep nemůže panel rozbít. Pomalé či nedostupné
+servery hlásí časový limit místo zablokování okna.

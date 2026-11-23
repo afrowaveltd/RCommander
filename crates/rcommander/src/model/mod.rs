@@ -368,6 +368,8 @@ pub struct Model {
     pub transfers: Vec<OpHandle>,
     /// Counter for operation ids.
     pub next_job_id: u64,
+    /// The MCP client panel is open.
+    pub show_agent_panel: bool,
 }
 
 /// An open F3 viewer.
@@ -446,6 +448,7 @@ impl Model {
             tree_view: false,
             transfers: Vec::new(),
             next_job_id: 1,
+            show_agent_panel: false,
             keymap,
             settings,
             strings,

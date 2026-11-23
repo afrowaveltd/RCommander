@@ -40,3 +40,23 @@ The server only exposes what the protocol advertises; nothing runs unless a tool
 is called. Every call is shown in the status line, and the confirmation policy is
 yours to configure. Treat the HTTP transport like any other local service: bind
 it to localhost and use a token.
+
+## The agent panel
+
+*Net ▸ MCP agents* opens the panel. Each entry of `[[agent.clients]]` in
+`settings.toml` becomes a button; pressing it connects to that server, lists the
+tools it publishes and lets you pick one, edit its JSON arguments and run it. The
+result (or the error the server returned) is shown below the tool selector.
+
+```toml
+[[agent.clients]]
+name = "filesystem"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
+```
+
+A transport is `stdio` (a command is started and spoken to over stdin/stdout) or
+`http` (a JSON-RPC endpoint, `url` is required). Entries that lack the required
+field are ignored, so a typo cannot break the panel. Servers that are slow or
+unreachable report a timeout instead of blocking the window.
