@@ -1,4 +1,10 @@
 //! RCommander entry point.
+//!
+//! The release Windows build is a GUI application: without this attribute the
+//! linker produces a console binary and every start would open a black window
+//! next to the file manager. Debug builds keep the console so panics and logs
+//! stay visible.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use rc_core::config::Settings;
 use rc_core::location::Location;

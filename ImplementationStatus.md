@@ -28,7 +28,7 @@ cargo test --workspace
 | 8 | MCP integration (`rc-agent`) | **done** — server + client tested, host bridge wired, `rcommander mcp` subcommand, and an agent panel in the UI for connecting to external servers and running their tools |
 | 9 | Application model | **done** — including background job control (start, poll, cancel, aggregate progress) |
 | 10 | egui user interface | **partial** — panels, tabs, menus, dialogs, viewer, editor, help, quick view, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, the thumbnail grid, the search results table and drag & drop are still simplified |
-| 11 | Platforms | **partial** — Linux verified end to end (runs, renders, listed and screenshotted); Windows and Android **compile-check clean** for the whole workspace, but no cross-link/APK because the linkers (mingw-w64, NDK) are not installed here |
+| 11 | Platforms | **partial** — Linux verified end to end (runs, renders); with mingw-w64 installed the **Windows release `.exe` links and is a GUI-subsystem binary** (`target/x86_64-pc-windows-gnu/release/rcommander.exe`, 15.8 MB); the Android APK still needs the SDK/NDK |
 | 12 | Verification | **done** for everything marked done above |
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **pending** — planned in Phase 13; the plain-text password in `settings.toml` is the first thing to fix |
 | 14 | Colour themes | **pending** — planned in Phase 14; today the palette is two hardcoded variants |
@@ -240,8 +240,8 @@ are not reimplemented — a cross-platform plugin format would be a separate des
 | Target | State |
 | --- | --- |
 | Linux x86_64 | **verified** — `cargo build --release` succeeds, the application starts, renders a 1100×700 window, lists directories and stays healthy (checked on a live X display) |
-| Windows x86_64 | **compile-checked** — `cargo check --target x86_64-pc-windows-gnu --workspace` passes, which exercised the `cfg(windows)` code paths (volume enumeration, `GetDiskFreeSpaceEx`, home directory) and found two real defects that were fixed. Linking an `.exe` needs mingw-w64, not installed here |
-| Android aarch64 | **compile-checked** — `cargo check --target aarch64-linux-android -p rcommander` passes with `eframe`'s NativeActivity backend; the desktop-only clipboard/opener dependencies were removed so the target is clean. Producing an APK needs the SDK/NDK (`android/README.md`) |
+| Windows x86_64 | **links** — after installing mingw-w64, `cargo build --release --target x86_64-pc-windows-gnu -p rcommander` produces a 15.8 MB PE32+ executable and `objdump -p` reports `Subsystem 2 (Windows GUI)`, so no console window opens. The earlier `cargo check` had already found and fixed two `cfg(windows)` defects (unsafe `extern` blocks, home-directory lookup) |
+| Android aarch64 | **compile-checked** — `cargo check --target aarch64-linux-android -p rcommander` passes with `eframe`'s NativeActivity backend; the desktop-only clipboard/opener dependencies were removed so the target is clean. Producing an APK needs the Android SDK + NDK and `cargo-apk` (`android/README.md`) |
 
 
 ## Command coverage against the reference catalogue
