@@ -155,6 +155,37 @@ Headless and fully testable; the UI is only a view over it.
 
 ---
 
+## Phase 13 — Secure remote access (SFTP/SSH, sessions, credentials)
+
+Today the FTP/SFTP engine exists (`rc-remote`) and FTP is wired into the panels, but
+two things are not acceptable for SSH use: the SFTP transport is untested against a
+live server and, more importantly, **passwords are currently stored in plain text**
+in `settings.toml` (`SavedConnection::password`). This phase fixes both, and turns
+SFTP into a first-class transport with saved sessions and safe credential storage.
+
+| # | Step | Output | DoD (definition of done) |
+| --- | --- | --- | --- |
+| 13.1 | Host-key verification for SSH | `known_hosts` model: `HostKeyStore` (host, port, algorithm, fingerprint), first-use ("trust on first use") confirmation, hard refusal on a changed key, per-session override | tests for unknown host, trusted host, changed key (must refuse), and for a corrupted store file; the refusal message names host and both fingerprints |
+| 13.2 | Authentication methods | password, key file (with optional passphrase), `ssh-agent` delegation, keyboard-interactive fallback; auth method is a property of the session, not of the transport | tests: each method builds the right libssh2 call; missing key file and wrong passphrase produce a clear error; agent absence degrades gracefully |
+| 13.3 | Saved sessions | named session profiles stored separately from the settings file (`sessions.toml`), each with host, port, user, protocol, initial remote/local dirs, encoding, MLSD/passive flags, auth method and key reference | round-trip tests, rename/duplicate/delete, a session without credentials is still listed, and an import of an OpenSSH `ssh_config` fixture (aliases, `HostName`, `User`, `Port`, `IdentityFile`) |
+| 13.4 | **Secure credential storage** | never plain text: OS keyring first (Secret Service/libsecret on Linux, DPAPI/Credential Manager on Windows, Android Keystore), encrypted portable fallback (Argon2id + AES-256-GCM, master passphrase) for environments without a keyring; one-time migration of existing plain-text passwords with a warning; secrets zeroed after use | tests: the crypto envelope round trip, wrong passphrase rejected, tampered ciphertext rejected, and an assertion that no saved file in a fixture configuration contains the password string; migration test that the plain value is removed from `settings.toml` |
+| 13.5 | SFTP wired into the panel | SFTP through the existing `RemoteBackend`/background queue, `sftp` feature enabled by default on desktop, host-key prompt shown before the first connection | panel-level tests with an in-process SFTP double; documented manual verification against a real server (the test suite stays offline) |
+| 13.6 | Documentation | a threat-model section in the remote-connections help topic: what is stored where, what a compromised machine still exposes, why host keys matter, how to rotate a session | help topic updated in both languages; the status file links the threat model |
+
+## Phase 14 — Colour themes
+
+Colours exist, but as two hardcoded palettes (`Palette::light`/`Palette::dark`)
+selected by a string. This phase makes them data: themes are files, users can edit
+them, and every window uses the same semantic roles.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 14.1 | Theme file format | `themes/<name>.toml` with `[meta]` (name, base = light/dark, author, version) and one entry per semantic role (`background`, `foreground`, `cursor_*`, `selected_*`, `directory`, `hidden`, `readonly`, `archive`, `symlink`, `header_background`, `panel_border`, `status_background`, `accent`), plus `[file_types]` colour rules | parser + validation tests: unknown role rejected, bad hex rejected, missing role inherited from the base theme, duplicate names resolved deterministically |
+| 14.2 | Built-in themes | classic light, dark and a high-contrast variant shipped in `themes/`, discovered at runtime exactly like `locales/` and `Docs/` | tests that all shipped themes parse, that every role is present after inheritance, and that a theme dropped into the directory appears without recompiling |
+| 14.3 | Theme editor | dialog to edit every role with a live preview, duplicate/save/delete/import/export, plus contrast warnings (foreground vs background, cursor vs selection) | model tests for add/edit/delete/validation and a UI test that editing a role changes the rendered palette |
+| 14.4 | One palette everywhere | every window (panels, dialogs, viewer text/hex/image chrome, editor, help, transfer manager, agent panel) reads the active theme instead of `Palette::by_name` | UI tests for at least two windows asserting the applied colour, and no remaining hardcoded `Color32` literals outside the theme module |
+| 14.5 | Documentation | a "Themes" help topic describing the file format, the roles, how to add a theme and how per-file-type colours are evaluated | topic present in English and Czech |
+
 ## Working rules
 
 1. **Tests first.** A step's tests exist before its implementation; a step is done

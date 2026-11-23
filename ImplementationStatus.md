@@ -30,6 +30,8 @@ cargo test --workspace
 | 10 | egui user interface | **partial** — panels, tabs, menus, dialogs, viewer, editor, help, quick view, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, the thumbnail grid, the search results table and drag & drop are still simplified |
 | 11 | Platforms | **partial** — Linux verified end to end (runs, renders, listed and screenshotted); Windows and Android **compile-check clean** for the whole workspace, but no cross-link/APK because the linkers (mingw-w64, NDK) are not installed here |
 | 12 | Verification | **done** for everything marked done above |
+| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **pending** — planned in Phase 13; the plain-text password in `settings.toml` is the first thing to fix |
+| 14 | Colour themes | **pending** — planned in Phase 14; today the palette is two hardcoded variants |
 
 ---
 
@@ -292,10 +294,23 @@ with `cargo test --workspace`).
 
 ---
 
+## Known gaps that the next phases address
+
+| Gap | Where it is tracked |
+| --- | --- |
+| SSH host keys are **not** verified and `SavedConnection::password` is stored as plain text in `settings.toml` — unacceptable for SSH use | Phase 13 (13.1–13.4): host-key store, key/agent auth, saved sessions, OS-keyring + encrypted-fallback credential storage with migration of the existing plain value |
+| Colours are two hardcoded palettes chosen by name (`Palette::light`/`dark`); they cannot be edited or shipped as data | Phase 14 (14.1–14.5): `themes/*.toml` with semantic roles, runtime discovery, a theme editor with live preview and contrast warnings |
+| SFTP compiles behind a cargo feature and is unit-covered but has never been tested against a live server | Phase 13.5, together with the manual verification step |
+
 ## Next steps (in priority order)
 
 1. Route remote (FTP) transfers through the same background queue.
 2. An in-panel directory tree (currently the tree opens as a dialog).
-3. A cross-platform plugin format to replace the reference product's DLL plugins.
+3. Phase 13 — secure SFTP/SSH: host-key verification, key/agent auth, saved sessions
+   and credential storage (OS keyring with an encrypted portable fallback), then
+   wiring SFTP into the panel and the background queue.
+4. Phase 14 — data-driven colour themes with a runtime `themes/` directory and an
+   editor with live preview.
+5. A cross-platform plugin format to replace the reference product's DLL plugins.
 4. Background transfer manager dialog on top of `ops_runner`.
 6. Windows cross-build and Android APK build once the toolchains are available.
