@@ -271,14 +271,22 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: see the per-crate numbers above.
+- `cargo test --workspace`: **1073 tests, 0 failures** (see the per-crate numbers
+  above).
   Totals by crate: `rc-core` 147, `rc-i18n` 81, `rc-viewer` 161 (+6 doctests),
   `rc-archive` 130 (+4 integration), `rc-help` 68, `rc-agent` 96,
   `rc-remote` 111 (+3 doctests), `rcommander` 138 (+14 UI) — **959 tests** (measured
 with `cargo test --workspace`).
-- `cargo clippy` and `cargo fmt --check` are clean for `rc-core`, `rc-i18n`,
-  `rc-viewer`, `rc-archive`, `rc-help`, `rc-agent`; `rcommander` is formatted and
-  warning-free except for the documented simplifications.
+- `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
+  every crate.
+- `cargo fmt --all --check`: clean.
+- `cargo build --release -p rcommander`: succeeds; the binary starts on a live X
+  display, renders an 1100×700 window and writes nothing to stderr.
+- `cargo check --target x86_64-pc-windows-gnu --workspace` and
+  `cargo check --target aarch64-linux-android -p rcommander`: clean.
+- MCP server, verified against the release binary with a JSON-RPC probe:
+  `initialize` → 21 tools, `list_directory` on a real path, `help_read` returning
+  the Czech *File utilities* page, and **44 help resources**; clean exit.
 - No proprietary artifact is committed: `work/` (extracted binaries, Ghidra
   project, decompiled output) is git-ignored.
 
