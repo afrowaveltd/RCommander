@@ -151,10 +151,22 @@ fn ctrl_t_adds_a_tab_and_ctrl_w_closes_it() {
     let (left, right) = fixture();
     let mut harness = harness(app(left.path(), right.path()));
     assert_eq!(harness.state().model.left.tabs.len(), 1);
-    harness.key_press_modifiers(egui::Modifiers { ctrl: true, ..Default::default() }, egui::Key::T);
+    harness.key_press_modifiers(
+        egui::Modifiers {
+            ctrl: true,
+            ..Default::default()
+        },
+        egui::Key::T,
+    );
     harness.run();
     assert_eq!(harness.state().model.left.tabs.len(), 2);
-    harness.key_press_modifiers(egui::Modifiers { ctrl: true, ..Default::default() }, egui::Key::W);
+    harness.key_press_modifiers(
+        egui::Modifiers {
+            ctrl: true,
+            ..Default::default()
+        },
+        egui::Key::W,
+    );
     harness.run();
     assert_eq!(harness.state().model.left.tabs.len(), 1);
 }
@@ -164,9 +176,21 @@ fn ctrl_q_renders_the_quick_view_of_the_cursor_file() {
     let (left, right) = fixture();
     let mut harness = harness(app(left.path(), right.path()));
     // Put the cursor on alpha.txt, whose content is "hello".
-    let index = harness.state().model.left.listing.find("alpha.txt").unwrap();
+    let index = harness
+        .state()
+        .model
+        .left
+        .listing
+        .find("alpha.txt")
+        .unwrap();
     harness.state_mut().model.left.set_cursor(index);
-    harness.key_press_modifiers(egui::Modifiers { ctrl: true, ..Default::default() }, egui::Key::Q);
+    harness.key_press_modifiers(
+        egui::Modifiers {
+            ctrl: true,
+            ..Default::default()
+        },
+        egui::Key::Q,
+    );
     harness.run();
     assert!(harness.state().model.quick_view);
     assert!(
@@ -181,7 +205,13 @@ fn shift_f2_opens_the_directory_comparison() {
     // Make sure the two panels differ.
     write(&right.path().join("only-right.txt"), "x");
     let mut harness = harness(app(left.path(), right.path()));
-    harness.key_press_modifiers(egui::Modifiers { shift: true, ..Default::default() }, egui::Key::F2);
+    harness.key_press_modifiers(
+        egui::Modifiers {
+            shift: true,
+            ..Default::default()
+        },
+        egui::Key::F2,
+    );
     harness.run();
     match harness.state().dialog() {
         Some(rcommander::model::Dialog::Compare(state)) => {
@@ -195,7 +225,46 @@ fn shift_f2_opens_the_directory_comparison() {
 fn alt_down_opens_the_directory_history() {
     let (left, right) = fixture();
     let mut harness = harness(app(left.path(), right.path()));
-    harness.key_press_modifiers(egui::Modifiers { alt: true, ..Default::default() }, egui::Key::ArrowDown);
+    harness.key_press_modifiers(
+        egui::Modifiers {
+            alt: true,
+            ..Default::default()
+        },
+        egui::Key::ArrowDown,
+    );
     harness.run();
-    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::History(_))));
+    assert!(matches!(
+        harness.state().dialog(),
+        Some(rcommander::model::Dialog::History(_))
+    ));
+}
+
+#[test]
+fn the_copy_dialog_runs_a_background_transfer_end_to_end() {
+    let (left, right) = fixture();
+    write(&left.path().join("big.bin"), &"x".repeat(400_000));
+    let mut app = app(left.path(), right.path());
+    app.model.settings.copy.background = true;
+    let mut harness = harness(app);
+    // Mark a file, press F5, accept the destination pre-filled from the target panel.
+    let index = harness.state().model.left.listing.find("big.bin").unwrap();
+    harness.state_mut().model.left.set_cursor(index);
+    harness.state_mut().model.left.selection.set(["big.bin"]);
+    harness.key_press(egui::Key::F5);
+    harness.run();
+    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::Transfer(_))), "F5 opens the copy dialog");
+    {
+        let node = harness.root().get_by_label("dialog.config.ok");
+        node.click();
+    }
+    for _ in 0..400 {
+        harness.run();
+        if !harness.state().model.is_busy() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(!harness.state().model.is_busy(), "the background copy finished");
+    assert!(right.path().join("big.bin").exists(), "the file reached the target panel directory");
+    assert!(std::fs::metadata(right.path().join("big.bin")).unwrap().len() == 400_000);
 }

@@ -10,6 +10,8 @@ pub mod dialogs;
 pub mod remote;
 
 use crate::i18n::{Direction, Strings};
+use crate::ops_runner::OpHandle;
+pub use crate::ops_runner::OpResult;
 use rc_core::config::Settings;
 use rc_core::drive::Space;
 use rc_core::entry::{Entry, EntryKind};
@@ -362,6 +364,10 @@ pub struct Model {
     pub quick_view: bool,
     /// Directory tree panel replaces the inactive panel.
     pub tree_view: bool,
+    /// Running background operations (copies, moves, deletes).
+    pub transfers: Vec<OpHandle>,
+    /// Counter for operation ids.
+    pub next_job_id: u64,
 }
 
 /// An open F3 viewer.
@@ -438,6 +444,8 @@ impl Model {
             remote_sessions: [None, None],
             quick_view: false,
             tree_view: false,
+            transfers: Vec::new(),
+            next_job_id: 1,
             keymap,
             settings,
             strings,

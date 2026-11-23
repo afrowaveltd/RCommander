@@ -654,6 +654,24 @@ impl RCommanderApp {
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         let palette = self.palette.clone();
+        if self.model.is_busy() {
+            let progress = self.model.transfer_progress();
+            ui.horizontal(|ui| {
+                if let Some((fraction, current)) = progress {
+                    ui.add(
+                        egui::ProgressBar::new(fraction)
+                            .desired_width(160.0)
+                            .text(format!("{}%", (fraction * 100.0).round() as u32)),
+                    );
+                    if !current.is_empty() {
+                        ui.label(egui::RichText::new(current).small().color(palette.hidden));
+                    }
+                }
+                if ui.small_button(self.model.t("dialog.cancel")).clicked() {
+                    self.model.cancel_transfers();
+                }
+            });
+        }
         let text = self.model.status_text();
         let side = match self.model.focus {
             Side::Left => self.model.t("panel.source"),
@@ -701,6 +719,9 @@ impl eframe::App for RCommanderApp {
             self.fonts_installed = true;
         }
         self.pending_command = None;
+        if self.model.poll_transfers() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(120));
+        }
         self.handle_shortcuts(ctx);
 
         egui::Panel::top("menu").show(root_ui, |ui| self.menu_bar(ui));

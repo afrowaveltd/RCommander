@@ -6,6 +6,7 @@
 
 use crate::model::dialogs::*;
 use crate::model::{CommandOutcome, Model, Side, ViewMode};
+use crate::ops_runner::{OpKind, OpResult};
 use rc_core::entry::Entry;
 use rc_core::error::CoreError;
 use rc_core::keymap::Shortcut;
@@ -1166,6 +1167,109 @@ impl Model {
         self.report(state.summary());
         self.open_dialog(Dialog::Compare(state));
         CommandOutcome::Ok
+    }
+
+    // ----- background operations -------------------------------------
+
+    /// Start a copy or move in the background and return the job id.
+    ///
+    /// The job is then advanced by [`Model::poll_transfers`], so the UI keeps
+    /// running while gigabytes are copied.
+    pub fn start_transfer(&mut self, state: &TransferDialogState) -> Option<u64> {
+        if state.validate().is_err() {
+            return None;
+        }
+        let id = self.next_job_id;
+        self.next_job_id += 1;
+        let sources: Vec<PathBuf> = state.sources.iter().map(PathBuf::from).collect();
+        let destination = PathBuf::from(state.destination.trim());
+        let kind = if state.move_it {
+            OpKind::Move
+        } else {
+            OpKind::Copy
+        };
+        let handle =
+            crate::ops_runner::spawn_transfer(id, kind, sources, destination, state.overwrite);
+        self.transfers.push(handle);
+        self.close_dialogs();
+        self.report(self.t("status.copying"));
+        Some(id)
+    }
+
+    /// Start a delete in the background.
+    pub fn start_delete(&mut self, state: &DeleteState) -> u64 {
+        let id = self.next_job_id;
+        self.next_job_id += 1;
+        let targets: Vec<PathBuf> = state.paths.iter().map(PathBuf::from).collect();
+        self.transfers
+            .push(crate::ops_runner::spawn_delete(id, targets));
+        self.close_dialogs();
+        id
+    }
+
+    /// Advance the running jobs and drop the finished ones. Returns true while
+    /// at least one job is still running.
+    pub fn poll_transfers(&mut self) -> bool {
+        let mut finished: Vec<OpResult> = Vec::new();
+        for handle in self.transfers.iter_mut() {
+            if !handle.poll() {
+                finished.push(handle.result.clone().unwrap_or(OpResult::Cancelled));
+            }
+        }
+        self.transfers.retain(|handle| !handle.is_finished());
+        let mut refresh = false;
+        for result in finished {
+            match result {
+                OpResult::Finished { files, bytes } => {
+                    let text = format!(
+                        "{} ({})",
+                        self.t("status.done"),
+                        rc_core::format::format_size_bytes(bytes)
+                    );
+                    self.report(text);
+                    let _ = files;
+                    refresh = true;
+                }
+                OpResult::Cancelled => {
+                    self.report(self.t("status.cancelled"));
+                    refresh = true;
+                }
+                OpResult::Failed(message) => self.report_error(message),
+            }
+        }
+        if refresh && self.settings.behavior.refresh_after_operation {
+            self.refresh_all();
+        }
+        !self.transfers.is_empty()
+    }
+
+    /// Cancel every running operation.
+    pub fn cancel_transfers(&mut self) {
+        for handle in self.transfers.iter() {
+            handle.cancel();
+        }
+    }
+
+    /// Aggregate progress of the running jobs: (fraction 0..1, current file).
+    pub fn transfer_progress(&self) -> Option<(f32, String)> {
+        if self.transfers.is_empty() {
+            return None;
+        }
+        let total: f32 = self.transfers.iter().map(|h| h.progress.fraction()).sum();
+        let fraction = total / self.transfers.len() as f32;
+        let current = self.transfers.iter().find_map(|h| {
+            if h.progress.current_file.is_empty() {
+                None
+            } else {
+                Some(h.progress.current_file.clone())
+            }
+        });
+        Some((fraction, current.unwrap_or_default()))
+    }
+
+    /// True while a background operation runs.
+    pub fn is_busy(&self) -> bool {
+        !self.transfers.is_empty()
     }
 
     /// Switch the UI language.

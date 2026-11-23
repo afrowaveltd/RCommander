@@ -166,7 +166,13 @@ fn transfer(ui: &mut egui::Ui, model: &mut Model, state: &mut TransferDialogStat
             return DialogAction::None;
         }
         let state = state.clone();
-        let _ = model.run_transfer(&state);
+        if state.background {
+            // Run in the background queue; the status bar reports progress and
+            // the panels stay usable while the data is transferred.
+            model.start_transfer(&state);
+        } else {
+            let _ = model.run_transfer(&state);
+        }
         return DialogAction::Close;
     }
     DialogAction::None
@@ -249,7 +255,9 @@ fn delete(ui: &mut egui::Ui, model: &mut Model, state: &mut DeleteState) -> Dial
     }
     if ok {
         let state = state.clone();
-        if let CommandOutcome::Failed(message) = model.run_delete(&state) {
+        if model.settings.copy.background {
+            model.start_delete(&state);
+        } else if let CommandOutcome::Failed(message) = model.run_delete(&state) {
             model.report_error(message);
         }
         return DialogAction::Close;

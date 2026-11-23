@@ -36,3 +36,11 @@ také unixová práva. `Ctrl+Z` upraví komentář souboru, který se ukládá d
 
 Každá dlouhá operace zobrazuje průběh a lze ji přerušit; částečný výsledek
 zůstane na disku a stavový řádek hlásí, co bylo dokončeno.
+
+## Přenosy na pozadí
+
+Zaškrtněte *na pozadí* v dialogu kopírování/přesunu (nebo si to nastavte jako
+výchozí v *Konfigurace ▸ Možnosti*) a přenos poběží ve vlákně na pozadí: panely
+zůstanou použitelné, stavový řádek ukazuje souhrnný průběh a právě zapisovaný
+soubor, a tlačítko *Zrušit* úlohu zastaví. Každá úloha kontroluje token zrušení
+mezi bloky, takže zastavení je okamžité a částečný výsledek zůstane na disku.

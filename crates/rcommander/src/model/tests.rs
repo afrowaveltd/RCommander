@@ -920,3 +920,128 @@ fn exit_and_minimise_outcomes_are_distinct() {
     assert_eq!(model.execute("cm_Exit"), CommandOutcome::Quit);
     assert_eq!(model.execute("cm_Minimize"), CommandOutcome::Minimize);
 }
+
+// ---------------- background operations ----------------
+
+#[test]
+fn a_background_copy_runs_and_reports_completion() {
+    let (left_dir, right_dir, mut model) = fixture();
+    model.left.selection.set(["alpha.txt", "beta.log"]);
+    let state = TransferDialogState {
+        ask_overwrite: false,
+        background: true,
+        overwrite: rc_core::ops::OverwriteMode::Overwrite,
+        ..TransferDialogState::new(
+            false,
+            model.selected_paths(),
+            right_dir.path().to_string_lossy().to_string(),
+        )
+    };
+    let job = model.start_transfer(&state).expect("job started");
+    assert!(job > 0);
+    assert!(
+        model.is_busy(),
+        "the job must be running right after it was started"
+    );
+    assert!(model.transfer_progress().is_some());
+    // Poll until the worker finishes (bounded wait).
+    let mut guard = 0;
+    while model.poll_transfers() {
+        guard += 1;
+        if guard > 2000 {
+            panic!("background copy did not finish");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(!model.is_busy());
+    assert!(right_dir.path().join("alpha.txt").exists());
+    assert!(right_dir.path().join("beta.log").exists());
+    assert_eq!(
+        fs::read(right_dir.path().join("alpha.txt")).unwrap(),
+        b"aaa"
+    );
+    assert!(
+        model.status.contains("status.done"),
+        "status: {}",
+        model.status
+    );
+    assert!(left_dir.path().exists());
+}
+
+#[test]
+fn a_background_move_removes_the_sources() {
+    let (left_dir, right_dir, mut model) = fixture();
+    model.left.selection.set(["gamma.txt"]);
+    let state = TransferDialogState {
+        ask_overwrite: false,
+        ..TransferDialogState::new(
+            true,
+            model.selected_paths(),
+            right_dir.path().to_string_lossy().to_string(),
+        )
+    };
+    model.start_transfer(&state).expect("job started");
+    let mut guard = 0;
+    while model.poll_transfers() {
+        guard += 1;
+        assert!(guard < 2000, "move did not finish");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(!left_dir.path().join("gamma.txt").exists());
+    assert!(right_dir.path().join("gamma.txt").exists());
+}
+
+#[test]
+fn a_background_delete_removes_the_targets() {
+    let (left_dir, _r, mut model) = fixture();
+    let state = DeleteState::new(
+        vec![
+            left_dir
+                .path()
+                .join("alpha.txt")
+                .to_string_lossy()
+                .to_string(),
+        ],
+        true,
+    );
+    let job = model.start_delete(&state);
+    assert!(job > 0);
+    let mut guard = 0;
+    while model.poll_transfers() {
+        guard += 1;
+        assert!(guard < 2000, "delete did not finish");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(!left_dir.path().join("alpha.txt").exists());
+}
+
+#[test]
+fn an_invalid_transfer_is_not_started() {
+    let (_l, _r, mut model) = fixture();
+    let state = TransferDialogState::new(false, Vec::new(), "/tmp");
+    assert!(model.start_transfer(&state).is_none());
+    assert!(!model.is_busy());
+    assert!(model.transfer_progress().is_none());
+}
+
+#[test]
+fn a_failing_background_copy_reports_the_error() {
+    let (_l, _r, mut model) = fixture();
+    model.left.selection.set(["alpha.txt"]);
+    let state = TransferDialogState {
+        ask_overwrite: false,
+        ..TransferDialogState::new(
+            false,
+            model.selected_paths(),
+            "/proc/definitely/not/writable",
+        )
+    };
+    model.start_transfer(&state).expect("job started");
+    let mut guard = 0;
+    while model.poll_transfers() {
+        guard += 1;
+        assert!(guard < 2000, "failing copy did not finish");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(model.last_error.is_some(), "a failure must be reported");
+}

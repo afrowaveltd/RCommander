@@ -39,3 +39,11 @@ your files.
 
 Every long operation shows progress and can be cancelled; the partial result
 stays on disk and the status line reports what was completed.
+
+## Background transfers
+
+Tick *background* in the copy/move dialog (or set it as the default under
+*Configuration ▸ Options*) and the transfer runs on a worker thread: the panels
+stay usable, the status bar shows aggregate progress with the file currently being
+written, and *Cancel* stops the job. Every job checks a cancellation token between
+chunks, so stopping is immediate and the partial result stays on disk.
