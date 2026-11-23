@@ -306,7 +306,7 @@ with `cargo test --workspace`).
 | SFTP compiles behind a cargo feature and is unit-covered but has never been tested against a live server | Phase 13.5, together with the manual verification step |
 | A Git repository cannot be browsed as a panel and files cannot be copied out of a branch/tag/commit without checking it out | Phase 15 (read-only first), which reuses the Phase 13.4 credential store for keys and tokens instead of storing them itself |
 
-| No conversational agent panel, Ollama/model provider abstraction or scoped propose/diff/apply workflow; no UnderstandMe dictionary panel or opt-in Git watcher | Phase 16 (16.1–16.9): local-first AI chat as a pane, explicit file permissions, validated edit proposals, virtual data providers and approved GitHub issue drafts |
+| No conversational agent panel, Ollama/model provider abstraction or scoped propose/diff/apply workflow; no UnderstandMe dictionary panel or opt-in Git watcher | Phase 16 (16.1–16.15): bidirectional agent/file panels, configurable AI/MCP/data providers, scoped permission policies, reviewed edits, project creation, remote SSH and approved GitHub actions |
 
 ## Next steps (in priority order)
 
@@ -323,6 +323,6 @@ with `cargo test --workspace`).
    dry runs and confirmations. Steps 15.1–15.3 are local-only and can run in
    parallel with Phase 13, but anything authenticating must use 13.4's store.
 6. A cross-platform plugin format to replace the reference product's DLL plugins.
-4. Background transfer manager dialog on top of `ops_runner`.
-6. Windows cross-build and Android APK build once the toolchains are available.
-7. Phase 16 — interactive agent chat in either panel with local Ollama or an explicitly selected remote model; safe, reviewed editing of selected JSON dictionaries, documents and configuration files; later UnderstandMe virtual panels and an opt-in Git issue assistant. This builds on MCP but is **not implemented** by the existing MCP tool window.
+7. Background transfer manager dialog on top of `ops_runner`.
+8. Windows cross-build and Android APK build once the toolchains are available.
+9. Phase 16 — interactive agent chat in either panel with local Ollama or an explicitly selected remote model; safe, reviewed editing of selected JSON dictionaries, documents and configuration files; live output/F3 preview in the opposite pane, configurable permission-scoped model/MCP/data plugins, project creation and Git workflows, remote SSH, later UnderstandMe virtual panels and an opt-in Git issue assistant. Desktop first; Android parity is optional. This builds on MCP but is **not implemented** by the existing MCP tool window.
