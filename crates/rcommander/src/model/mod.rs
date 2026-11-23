@@ -377,6 +377,8 @@ pub struct Model {
     pub show_transfer_manager: bool,
     /// Selection captured by "save selection" (in-memory restore).
     pub saved_selection: Option<Selection>,
+    /// Text the view layer should put on the clipboard (drained every frame).
+    pub clipboard: Vec<String>,
 }
 
 /// An open F3 viewer.
@@ -459,6 +461,7 @@ impl Model {
             search_job: None,
             show_transfer_manager: false,
             saved_selection: None,
+            clipboard: Vec::new(),
             keymap,
             settings,
             strings,

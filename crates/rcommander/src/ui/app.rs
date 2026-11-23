@@ -915,6 +915,11 @@ impl eframe::App for RCommanderApp {
             self.fonts_installed = true;
         }
         self.pending_command = None;
+        // Text requested by the clipboard commands goes to the system clipboard.
+        if !self.model.clipboard.is_empty() {
+            let parts: Vec<String> = self.model.clipboard.drain(..).collect();
+            ctx.copy_text(parts.join("\n"));
+        }
         self.handle_dropped_files(ctx);
         if self.model.poll_transfers() {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));

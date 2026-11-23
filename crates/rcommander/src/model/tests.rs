@@ -1853,3 +1853,140 @@ fn utility_dialog_validation_for_encoding_and_selections() {
         CommandOutcome::Failed(_)
     ));
 }
+
+// ---------------- per-panel command families ----------------
+
+#[test]
+fn left_and_right_command_variants_act_on_their_panel() {
+    let (_l, _r, mut model) = fixture();
+    assert_eq!(model.focus, Side::Left);
+    // cm_RightLong makes the right panel full detail and activates it.
+    assert!(model.execute("cm_RightLong").is_ok());
+    assert_eq!(model.focus, Side::Right);
+    assert_eq!(model.right.view_mode, ViewMode::Full);
+    // cm_LeftShort is the brief view of the left panel.
+    assert!(model.execute("cm_LeftShort").is_ok());
+    assert_eq!(model.focus, Side::Left);
+    assert_eq!(model.left.view_mode, ViewMode::Brief);
+    // Sorting families work per panel too.
+    assert!(model.execute("cm_RightBySize").is_ok());
+    assert_eq!(model.focus, Side::Right);
+    assert_eq!(model.right.sort().field, SortField::Size);
+    assert_eq!(
+        model.left.sort().field,
+        SortField::Name,
+        "the other panel is untouched"
+    );
+    // Filters and quick view as well.
+    assert!(model.execute("cm_LeftComments").is_ok());
+    assert_eq!(model.left.view_mode, ViewMode::Comments);
+    assert!(model.execute("cm_LeftQuickView").is_ok());
+    assert!(model.quick_view);
+    assert!(model.execute("cm_DirBranch").is_ok());
+    assert_eq!(model.left.view_mode, ViewMode::Tree);
+}
+
+#[test]
+fn numbered_command_families_work() {
+    let (_l, _r, mut model) = fixture();
+    // Tabs: cm_ActivateTab2 opens/activates the second tab.
+    assert!(model.execute("cm_ActivateTab2").is_ok());
+    assert_eq!(model.left.tabs.len(), 2);
+    assert_eq!(model.left.tabs.active_index(), 1);
+    assert!(model.execute("cm_ActivateTab1").is_ok());
+    assert_eq!(model.left.tabs.active_index(), 0);
+    assert_eq!(model.execute("cm_ActivateTab0"), CommandOutcome::None);
+
+    // Sorting by column position follows the configured columns.
+    // Default columns: 1 name, 2 size, 3 date, 4 attrs.
+    assert!(model.execute("cm_SortByCol2").is_ok());
+    assert_eq!(model.left.sort().field, SortField::Size);
+    assert!(model.execute("cm_SrcSortByCol3").is_ok());
+    assert_eq!(model.left.sort().field, SortField::ModifiedTime);
+    assert_eq!(model.execute("cm_SortByCol99"), CommandOutcome::None);
+    // The attributes column has no sort field.
+    assert_eq!(model.execute("cm_SortByCol4"), CommandOutcome::None);
+
+    // View modes are addressed by their index.
+    let mut state = ViewModeDialogState {
+        name: "Shots".into(),
+        kind: "thumbnails".into(),
+        mask: "*.png".into(),
+        ..Default::default()
+    };
+    assert!(model.save_view_mode(&state).is_ok());
+    assert!(model.execute("cm_ViewMode1").is_ok());
+    assert_eq!(model.left.view_mode, ViewMode::Thumbnails);
+    assert_eq!(model.execute("cm_ViewMode9"), CommandOutcome::None);
+    state.name = "Texts".into();
+    state.kind = "full".into();
+    state.mask = "*.txt".into();
+    assert!(model.save_view_mode(&state).is_ok());
+    assert!(model.execute("cm_SrcViewMode2").is_ok());
+    assert_eq!(model.left.view_mode, ViewMode::Full);
+}
+
+// ---------------- clipboard and layout toggles ----------------
+
+#[test]
+fn clipboard_commands_queue_text_for_the_view_layer() {
+    let (_l, _r, mut model) = fixture();
+    model.left.selection.set(["alpha.txt", "beta.log"]);
+    assert!(model.execute("cm_CopyNamesToClip").is_ok());
+    assert_eq!(model.clipboard.len(), 1);
+    let text = model.clipboard[0].clone();
+    let mut lines: Vec<&str> = text.lines().collect();
+    lines.sort();
+    assert_eq!(lines, ["alpha.txt", "beta.log"]);
+
+    model.clipboard.clear();
+    assert!(model.execute("cm_CopyFullNamesToClip").is_ok());
+    assert!(
+        model.clipboard[0].contains('/'),
+        "full paths are copied: {}",
+        model.clipboard[0]
+    );
+
+    model.clipboard.clear();
+    assert!(model.execute("cm_CopyTrgPathToClip").is_ok());
+    assert!(!model.clipboard[0].is_empty());
+
+    // Nothing selected and no cursor entry: nothing is copied.
+    model.clipboard.clear();
+    model.left.selection.clear();
+    model.left.cursor_home();
+    model.left.listing = rc_core::listing::Listing::from_entries(
+        Location::local("/tmp"),
+        Vec::new(),
+        &rc_core::listing::ReadOptions::default(),
+        Default::default(),
+    );
+    assert_eq!(model.execute("cm_CopyNamesToClip"), CommandOutcome::None);
+    assert!(model.clipboard.is_empty());
+}
+
+#[test]
+fn layout_visibility_commands_toggle_the_chrome() {
+    let (_l, _r, mut model) = fixture();
+    assert!(model.settings.layout.show_command_line);
+    assert!(model.execute("cm_VisCmdLine").is_ok());
+    assert!(!model.settings.layout.show_command_line);
+    assert!(model.execute("cm_VisCmdLine").is_ok());
+    assert!(model.settings.layout.show_command_line);
+
+    assert!(model.settings.layout.show_status_bar);
+    assert!(model.execute("cm_VisStatusBar").is_ok());
+    assert!(!model.settings.layout.show_status_bar);
+
+    assert!(model.execute("cm_VisButtonBar").is_ok());
+    assert!(!model.settings.layout.show_button_bar);
+    assert!(model.execute("cm_VisKeyButtons").is_ok());
+    assert!(!model.settings.layout.show_function_key_bar);
+    assert!(model.execute("cm_VisDirTabs").is_ok());
+    assert!(!model.settings.layout.show_tabs);
+    assert!(model.execute("cm_VisDriveButtons").is_ok());
+    assert!(!model.settings.layout.show_drive_bar);
+    assert!(model.status.contains("drivebuttons"));
+    // An unknown element is inert.
+    assert_eq!(model.execute("cm_VisNonsense"), CommandOutcome::None);
+}

@@ -145,7 +145,37 @@ fn counter_spec(spec: &str, counter: u64, digits: usize) -> String {
 impl Model {
     /// Execute one internal command by name.
     pub fn execute(&mut self, command: &str) -> CommandOutcome {
+        // `cm_Left…`/`cm_Right…` are the same commands bound to one panel and
+        // activating it, exactly like `cm_Src…` acting on the source panel.
         let normalized = normalize_command(command);
+        let (forced_side, normalized) = match panel_prefix(&normalized) {
+            Some((side, rewritten)) => (Some(side), rewritten),
+            None => (None, normalized),
+        };
+        if let Some(side) = forced_side {
+            self.focus = side;
+        }
+        // Numbered families: `cm_ActivateTab3`, `cm_SortByCol2`, `cm_ViewMode4`.
+        if let Some(number) = trailing_number(&normalized) {
+            if normalized.starts_with("cm_activatetab")
+                || normalized.starts_with("cm_srcactivatetab")
+                || normalized.starts_with("cm_trgactivatetab")
+            {
+                return self.activate_tab_number(number);
+            }
+            if normalized.starts_with("cm_sortbycol")
+                || normalized.starts_with("cm_srcsortbycol")
+                || normalized.starts_with("cm_trgsortbycol")
+            {
+                return self.sort_by_column_number(number);
+            }
+            if normalized.starts_with("cm_viewmode")
+                || normalized.starts_with("cm_srcviewmode")
+                || normalized.starts_with("cm_trgviewmode")
+            {
+                return self.apply_view_mode_number(number);
+            }
+        }
         let outcome = match normalized.as_str() {
             // ---- panel navigation -------------------------------------
             "cm_gotoparent" => match self.go_parent() {
@@ -455,6 +485,32 @@ impl Model {
                 self.open_dialog(Dialog::ViewModes(ViewModeDialogState::default()));
                 CommandOutcome::Ok
             }
+            "cm_copynamestoclip" => self.copy_names_to_clipboard(false, false),
+            "cm_copyfullnamestoclip" | "cm_copynetnamestoclip" => {
+                self.copy_names_to_clipboard(true, false)
+            }
+            "cm_copyfilestoclip" | "cm_copydetailstoclip" | "cm_copyfpfiledetailstoclip" => {
+                self.copy_names_to_clipboard(true, true)
+            }
+            "cm_copysrcpathtoclip" => {
+                let path = self.panel(Side::Left).location().display();
+                self.copy_to_clipboard(path);
+                CommandOutcome::Ok
+            }
+            "cm_copytrgpathtoclip" => {
+                let path = self.panel(Side::Right).location().display();
+                self.copy_to_clipboard(path);
+                CommandOutcome::Ok
+            }
+            "cm_visbuttonbar" | "cm_visbuttonbar2" => self.toggle_layout("buttonbar"),
+            "cm_visdrivebuttons"
+            | "cm_vistwodrivebuttons"
+            | "cm_visflatdrivebuttons"
+            | "cm_visdrivecombo" => self.toggle_layout("drivebuttons"),
+            "cm_viscmdline" => self.toggle_layout("cmdline"),
+            "cm_viskeybuttons" => self.toggle_layout("keybuttons"),
+            "cm_visstatusbar" => self.toggle_layout("statusbar"),
+            "cm_visdirtabs" => self.toggle_layout("dirtabs"),
             "cm_buttonconfig" => {
                 self.open_dialog(Dialog::ButtonBar(ButtonBarState::new()));
                 CommandOutcome::Ok
@@ -1387,6 +1443,127 @@ impl Model {
         !self.transfers.is_empty()
     }
 
+    // ----- clipboard and layout toggles -------------------------------
+
+    /// Request the view layer to copy `text` to the system clipboard.
+    pub fn copy_to_clipboard(&mut self, text: impl Into<String>) {
+        self.clipboard.push(text.into());
+    }
+
+    /// Copy the names of the marked files (or the cursor file) to the clipboard.
+    pub fn copy_names_to_clipboard(
+        &mut self,
+        with_path: bool,
+        with_details: bool,
+    ) -> CommandOutcome {
+        let entries = self.active().operation_targets();
+        if entries.is_empty() {
+            return CommandOutcome::None;
+        }
+        let lines: Vec<String> = entries
+            .iter()
+            .map(|entry| {
+                let mut line = if with_path {
+                    entry.path.to_string_lossy().to_string()
+                } else {
+                    entry.name.clone()
+                };
+                if with_details {
+                    line.push_str(&format!(
+                        " {}",
+                        rc_core::format::format_size_bytes(entry.size)
+                    ));
+                    let date = rc_core::format::format_datetime(entry.mtime);
+                    if !date.is_empty() {
+                        line.push_str(&format!(" {date}"));
+                    }
+                }
+                line
+            })
+            .collect();
+        let count = lines.len();
+        self.copy_to_clipboard(lines.join(
+            "
+",
+        ));
+        self.report(self.tf("panel.selection_of", &[("count", &count.to_string())]));
+        CommandOutcome::Ok
+    }
+
+    /// Toggle one layout element and report the new state.
+    fn toggle_layout(&mut self, element: &str) -> CommandOutcome {
+        let layout = &mut self.settings.layout;
+        let value = match element {
+            "buttonbar" | "buttonbar2" => &mut layout.show_button_bar,
+            "drivebuttons" | "twodrivebuttons" | "flatdrivebuttons" | "drivecombo" => {
+                &mut layout.show_drive_bar
+            }
+            "cmdline" => &mut layout.show_command_line,
+            "keybuttons" => &mut layout.show_function_key_bar,
+            "statusbar" => &mut layout.show_status_bar,
+            "dirtabs" => &mut layout.show_tabs,
+            _ => return CommandOutcome::None,
+        };
+        *value = !*value;
+        let state = if *value { "on" } else { "off" };
+        self.report(format!("{element}: {state}"));
+        CommandOutcome::Ok
+    }
+
+    // ----- numbered command families ----------------------------------
+
+    /// Activate tab `number` (1-based) of the active panel.
+    pub fn activate_tab_number(&mut self, number: usize) -> CommandOutcome {
+        if number == 0 {
+            return CommandOutcome::None;
+        }
+        let index = number - 1;
+        let settings = self.settings.clone();
+        let panel = self.active_mut();
+        if index >= panel.tabs.len() {
+            // A number beyond the last tab opens a new tab, like the reference does.
+            let location = panel.location().clone();
+            panel
+                .tabs
+                .add(rc_core::tabs::PanelTab::new(location), false);
+        }
+        let side = self.focus;
+        match self.panel_mut(side).activate_tab(index, &settings) {
+            Ok(()) => CommandOutcome::Ok,
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    /// Sort by the column at position `number` (1-based) of the configured columns.
+    pub fn sort_by_column_number(&mut self, number: usize) -> CommandOutcome {
+        let columns = self.settings.display.columns.clone();
+        let Some(column) = number.checked_sub(1).and_then(|index| columns.get(index)) else {
+            return CommandOutcome::None;
+        };
+        let field = match column.id.as_str() {
+            "ext" => SortField::Extension,
+            "size" => SortField::Size,
+            "date" => SortField::ModifiedTime,
+            "name" => SortField::Name,
+            _ => return CommandOutcome::None,
+        };
+        self.sort_active(field);
+        CommandOutcome::Ok
+    }
+
+    /// Apply the `number`-th saved view mode (1-based).
+    pub fn apply_view_mode_number(&mut self, number: usize) -> CommandOutcome {
+        let modes = self.settings.display.view_modes.clone();
+        match number
+            .checked_sub(1)
+            .and_then(|index| modes.get(index))
+            .map(|mode| mode.name.clone())
+        {
+            Some(name) => self.apply_view_mode(&name),
+            None => CommandOutcome::None,
+        }
+    }
+
     // ----- encode / decode and saved selections ------------------------
 
     /// Encode the selected files as MIME/UUE/XXE text.
@@ -2233,6 +2410,32 @@ impl Model {
         self.settings.language = code.to_string();
         self.report(self.t("status.ready"));
     }
+}
+
+/// Trailing decimal number of a numbered command family (`cm_ActivateTab3` → 3).
+fn trailing_number(command: &str) -> Option<usize> {
+    let digits: String = command
+        .chars()
+        .rev()
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let digits: String = digits.chars().rev().collect();
+    digits.parse().ok()
+}
+
+/// Split a `cm_Left…`/`cm_Right…` identifier into the panel it targets and the
+/// equivalent `cm_Src…` command.
+fn panel_prefix(command: &str) -> Option<(Side, String)> {
+    if let Some(rest) = command.strip_prefix("cm_left") {
+        return Some((Side::Left, format!("cm_src{rest}")));
+    }
+    if let Some(rest) = command.strip_prefix("cm_right") {
+        return Some((Side::Right, format!("cm_src{rest}")));
+    }
+    None
 }
 
 /// Normalise a command identifier: trim, map a numeric id to its name, and

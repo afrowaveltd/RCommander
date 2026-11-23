@@ -163,7 +163,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **187 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **191 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -240,6 +240,34 @@ are not reimplemented — a cross-platform plugin format would be a separate des
 | Linux x86_64 | **verified** — `cargo build --release` succeeds, the application starts, renders a 1100×700 window, lists directories and stays healthy (checked on a live X display) |
 | Windows x86_64 | **compile-checked** — `cargo check --target x86_64-pc-windows-gnu --workspace` passes, which exercised the `cfg(windows)` code paths (volume enumeration, `GetDiskFreeSpaceEx`, home directory) and found two real defects that were fixed. Linking an `.exe` needs mingw-w64, not installed here |
 | Android aarch64 | **compile-checked** — `cargo check --target aarch64-linux-android -p rcommander` passes with `eframe`'s NativeActivity backend; the desktop-only clipboard/opener dependencies were removed so the target is clean. Producing an APK needs the SDK/NDK (`android/README.md`) |
+
+
+## Command coverage against the reference catalogue
+
+The extracted catalogue has 594 internal commands. The application handles a
+command either by its own name or through a family rule:
+
+| Rule | Commands covered |
+| --- | --- |
+| exact command arms in `Model::execute` | 119 |
+| `cm_Left…`/`cm_Right…` variants of an implemented `cm_Src…` command (panel-targeted, activating) | +40 |
+| numbered families `cm_ActivateTab<n>`, `cm_SortByCol<n>`, `cm_ViewMode<n>` (also with `Src`/`Trg`/`Left`/`Right` prefixes) | +93 |
+| **total handled of 594** | **252 (42 %)** |
+
+<details>
+<summary>What the remaining 342 commands are, and why they are not implemented</summary>
+
+| Section | Unhandled | Reason |
+| --- | --- | --- |
+| custom column views | 49 | the reference uses numbered, separately configured column sets; RCommander has one configurable column list plus named view modes, so these identifiers collapse into `cm_ViewMode<n>` |
+| mark / clipboard | 46 | numbered mark variants and further clipboard formats; the main commands (`cm_CopyNamesToClip`, `cm_CopyFullNamesToClip`, `cm_CopySrcPathToClip`, `cm_CopyTrgPathToClip`, details variants) are implemented |
+| view / configuration / navigation / tabs | ~128 | numbered toolbars, per-view-mode visibility presets, `cm_*Config` pages that the options dialog covers as tabs, and tab numbering beyond the implemented families |
+| network, parallel port, security | 15 | Windows-specific: drive mapping (`WNetAddConnection`), direct cable connection, NTFS ACL editing — a cross-platform reimplementation would need a different model, documented as unsupported |
+| print | 2 | no cross-platform print subsystem is wired |
+| user menu | 10 | local `usercmd.ini` menus are a separate feature and are not implemented |
+| plugin registries | — | the reference product's WCX/WLX/WDX/WFX DLL interfaces cannot work off Windows; a new plugin format would be a separate design |
+
+</details>
 
 ## Phase 12 — Verification (done for the implemented scope)
 
