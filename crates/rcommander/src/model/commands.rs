@@ -356,6 +356,63 @@ impl Model {
                 self.show_transfer_manager = true;
                 CommandOutcome::Ok
             }
+            "cm_split" | "cm_splitfile" => {
+                let source = self
+                    .active()
+                    .current()
+                    .map(|e| e.path.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let destination = self.active().location().display();
+                self.open_dialog(Dialog::Split(SplitState::new(source, destination)));
+                CommandOutcome::Ok
+            }
+            "cm_combine" | "cm_combinefiles" => {
+                let first = self
+                    .active()
+                    .current()
+                    .map(|e| e.path.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let destination = rc_core::split::combined_name(std::path::Path::new(&first))
+                    .to_string_lossy()
+                    .to_string();
+                self.open_dialog(Dialog::Combine(CombineState::new(first, destination)));
+                CommandOutcome::Ok
+            }
+            "cm_crccreate" | "cm_createchecksumfile" | "cm_checksums" => {
+                let sources = self.selected_paths();
+                let base = self.active().location().display();
+                self.open_dialog(Dialog::Checksum(ChecksumState::new(sources, base)));
+                CommandOutcome::Ok
+            }
+            "cm_crccheck" | "cm_verifychecksums" => {
+                let file = self
+                    .active()
+                    .current()
+                    .map(|e| e.path.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let base = self.active().location().display();
+                self.open_dialog(Dialog::VerifyChecksum(VerifyChecksumState::new(file, base)));
+                CommandOutcome::Ok
+            }
+            "cm_comparefilesbycontent" => {
+                let left = self
+                    .active()
+                    .current()
+                    .map(|e| e.path.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let right = self
+                    .panel(self.focus.other())
+                    .current()
+                    .map(|e| e.path.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                self.open_dialog(Dialog::CompareFiles(CompareFilesState::new(left, right)));
+                CommandOutcome::Ok
+            }
+            "cm_findduplicates" | "cm_duplicates" => {
+                let root = self.active().location().display();
+                self.open_dialog(Dialog::Duplicates(DuplicatesState::new(root)));
+                CommandOutcome::Ok
+            }
             "cm_customcolumnviewmenu" | "cm_configcustomcolumns" => {
                 self.open_dialog(Dialog::ViewModes(ViewModeDialogState::default()));
                 CommandOutcome::Ok
@@ -1296,6 +1353,172 @@ impl Model {
     /// True while a background operation runs.
     pub fn is_busy(&self) -> bool {
         !self.transfers.is_empty()
+    }
+
+    // ----- file utilities ---------------------------------------------
+
+    /// Split the cursor file (or every marked file) into numbered parts.
+    pub fn run_split(&mut self, state: &SplitState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let source = PathBuf::from(&state.source);
+        let destination = if state.destination.trim().is_empty() {
+            None
+        } else {
+            Some(PathBuf::from(&state.destination))
+        };
+        let cancel = CancelToken::new();
+        match rc_core::split::split_file(&source, state.part_size, destination.as_deref(), &cancel)
+        {
+            Ok(parts) => {
+                let count = parts.len();
+                if let Some(Dialog::Split(dialog)) = self.top_dialog_mut() {
+                    dialog.parts_created = count;
+                }
+                self.report(self.tf("status.done", &[("count", &count.to_string())]));
+                self.refresh_all();
+                CommandOutcome::Ok
+            }
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    /// Combine numbered parts into one file.
+    pub fn run_combine(&mut self, state: &CombineState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let first = PathBuf::from(&state.first_part);
+        let destination = PathBuf::from(&state.destination);
+        let cancel = CancelToken::new();
+        let parts = match rc_core::split::discover_parts(&first) {
+            Ok(parts) => parts,
+            Err(e) => return CommandOutcome::Failed(e.to_string()),
+        };
+        if let Some(Dialog::Combine(dialog)) = self.top_dialog_mut() {
+            dialog.discovered = parts.len();
+        }
+        match rc_core::split::combine_files(&parts, &destination, &cancel) {
+            Ok(bytes) => {
+                self.close_dialogs();
+                self.report(self.tf("status.done", &[("count", &bytes.to_string())]));
+                self.refresh_all();
+                CommandOutcome::Ok
+            }
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    /// Write a checksum file for the selected files.
+    pub fn run_create_checksums(&mut self, state: &ChecksumState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let Some(algorithm) = state.parsed_algorithm() else {
+            return CommandOutcome::Failed("unknown algorithm".to_string());
+        };
+        let base = PathBuf::from(&state.base);
+        let out = base.join(state.file_name.trim());
+        let files: Vec<PathBuf> = state.sources.iter().map(PathBuf::from).collect();
+        let cancel = CancelToken::new();
+        match rc_core::checksum::create_checksum_file(&files, &out, &base, algorithm, &cancel) {
+            Ok((_path, count)) => {
+                self.close_dialogs();
+                self.report(self.tf("status.done", &[("count", &count.to_string())]));
+                self.refresh_all();
+                CommandOutcome::Ok
+            }
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    /// Verify the checksums of the selected file.
+    pub fn run_verify_checksums(&mut self, state: &mut VerifyChecksumState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let file = PathBuf::from(&state.checksum_file);
+        let base = if state.base.trim().is_empty() {
+            file.parent().map(|p| p.to_path_buf()).unwrap_or_default()
+        } else {
+            PathBuf::from(&state.base)
+        };
+        let cancel = CancelToken::new();
+        match rc_core::checksum::verify_checksum_file(&file, &base, &cancel) {
+            Ok(report) => {
+                state.checked = report.checked;
+                state.ok = report.ok;
+                state.failures = report.failures.clone();
+                let summary = report.summary();
+                if let Some(Dialog::VerifyChecksum(dialog)) = self.top_dialog_mut() {
+                    dialog.checked = state.checked;
+                    dialog.ok = state.ok;
+                    dialog.failures = state.failures.clone();
+                }
+                if report.failures.is_empty() {
+                    self.report(summary);
+                } else {
+                    self.report_error(summary);
+                }
+                CommandOutcome::Ok
+            }
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    /// Compare two files byte by byte.
+    pub fn run_compare_files(&mut self, state: &mut CompareFilesState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let cancel = CancelToken::new();
+        let left = PathBuf::from(&state.left);
+        let right = PathBuf::from(&state.right);
+        match rc_core::compare::first_difference(&left, &right, &cancel) {
+            Ok(result) => {
+                state.result = Some(result);
+                if let Some(Dialog::CompareFiles(dialog)) = self.top_dialog_mut() {
+                    dialog.result = state.result;
+                }
+                self.report(state.result_text());
+                CommandOutcome::Ok
+            }
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    /// Search the current directory for duplicate files.
+    pub fn run_duplicates(&mut self, state: &mut DuplicatesState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let Some(algorithm) = state.parsed_algorithm() else {
+            return CommandOutcome::Failed("unknown algorithm".to_string());
+        };
+        let cancel = CancelToken::new();
+        let root = PathBuf::from(&state.root);
+        match rc_core::dupes::find_duplicates(
+            &root,
+            state.min_size,
+            algorithm,
+            state.include_hidden,
+            &cancel,
+            None,
+        ) {
+            Ok(report) => {
+                state.groups = report.groups.clone();
+                state.scanned = report.scanned;
+                let summary = report.summary();
+                if let Some(Dialog::Duplicates(dialog)) = self.top_dialog_mut() {
+                    dialog.groups = report.groups;
+                    dialog.scanned = report.scanned;
+                }
+                self.report(summary);
+                CommandOutcome::Ok
+            }
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
     }
 
     // ----- columns and view modes -------------------------------------

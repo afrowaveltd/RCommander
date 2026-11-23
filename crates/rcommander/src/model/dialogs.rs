@@ -53,6 +53,18 @@ pub enum Dialog {
     ButtonBar(ButtonBarState),
     /// Columns and view modes editor.
     ViewModes(ViewModeDialogState),
+    /// Split a file (`Files ▸ Split File`).
+    Split(SplitState),
+    /// Combine parts (`Files ▸ Combine Files`).
+    Combine(CombineState),
+    /// Create checksums (`Files ▸ Create Checksum File`).
+    Checksum(ChecksumState),
+    /// Verify checksums from a file.
+    VerifyChecksum(VerifyChecksumState),
+    /// Compare two files by content.
+    CompareFiles(CompareFilesState),
+    /// Duplicate finder.
+    Duplicates(DuplicatesState),
     /// About box.
     About,
     /// Generic confirmation (used by the view layer).
@@ -827,6 +839,234 @@ impl ViewModeDialogState {
                 self.mask.trim().to_string()
             },
         }
+    }
+}
+
+/// Split-file dialog.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SplitState {
+    pub source: String,
+    pub part_size: u64,
+    pub destination: String,
+    /// Number of parts reported by the last run.
+    pub parts_created: usize,
+}
+
+impl SplitState {
+    pub fn new(source: impl Into<String>, destination: impl Into<String>) -> Self {
+        SplitState {
+            source: source.into(),
+            part_size: rc_core::split::DEFAULT_PART_SIZE,
+            destination: destination.into(),
+            parts_created: 0,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.source.trim().is_empty() {
+            return Err("no file selected".to_string());
+        }
+        if self.part_size == 0 {
+            return Err("part size must be greater than zero".to_string());
+        }
+        Ok(())
+    }
+
+    /// Part size in a human readable form.
+    pub fn size_label(&self) -> String {
+        rc_core::format::format_size_unit(self.part_size)
+    }
+}
+
+/// Combine-parts dialog.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CombineState {
+    /// The first part (`.001`) whose siblings are combined.
+    pub first_part: String,
+    pub destination: String,
+    pub discovered: usize,
+}
+
+impl CombineState {
+    pub fn new(first_part: impl Into<String>, destination: impl Into<String>) -> Self {
+        CombineState {
+            first_part: first_part.into(),
+            destination: destination.into(),
+            discovered: 0,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.first_part.trim().is_empty() {
+            return Err("no part selected".to_string());
+        }
+        if self.destination.trim().is_empty() {
+            return Err("empty destination".to_string());
+        }
+        Ok(())
+    }
+}
+
+/// Create-checksums dialog.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChecksumState {
+    pub algorithm: String,
+    pub file_name: String,
+    pub sources: Vec<String>,
+    pub base: String,
+}
+
+impl ChecksumState {
+    pub fn new(sources: Vec<String>, base: impl Into<String>) -> Self {
+        let algorithm = rc_core::checksum::Algorithm::Md5;
+        let paths: Vec<std::path::PathBuf> = sources.iter().map(std::path::PathBuf::from).collect();
+        ChecksumState {
+            algorithm: algorithm.id().to_string(),
+            file_name: rc_core::checksum::suggested_name(&paths, algorithm),
+            sources,
+            base: base.into(),
+        }
+    }
+
+    pub fn parsed_algorithm(&self) -> Option<rc_core::checksum::Algorithm> {
+        rc_core::checksum::Algorithm::parse(&self.algorithm)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.sources.is_empty() {
+            return Err("no files selected".to_string());
+        }
+        if self.parsed_algorithm().is_none() {
+            return Err(format!("unknown checksum algorithm {:?}", self.algorithm));
+        }
+        if self.file_name.trim().is_empty() {
+            return Err("empty checksum file name".to_string());
+        }
+        Ok(())
+    }
+}
+
+/// Verify-checksums dialog.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct VerifyChecksumState {
+    pub checksum_file: String,
+    pub base: String,
+    pub checked: usize,
+    pub ok: usize,
+    pub failures: Vec<(String, String)>,
+}
+
+impl VerifyChecksumState {
+    pub fn new(checksum_file: impl Into<String>, base: impl Into<String>) -> Self {
+        VerifyChecksumState {
+            checksum_file: checksum_file.into(),
+            base: base.into(),
+            ..Default::default()
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.checksum_file.trim().is_empty() {
+            return Err("no checksum file selected".to_string());
+        }
+        Ok(())
+    }
+
+    pub fn summary(&self) -> String {
+        if self.checked == 0 {
+            "no checksums read yet".to_string()
+        } else {
+            format!(
+                "{} ok, {} failed of {}",
+                self.ok,
+                self.failures.len(),
+                self.checked
+            )
+        }
+    }
+}
+
+/// Compare-two-files dialog.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct CompareFilesState {
+    pub left: String,
+    pub right: String,
+    /// `None` = not compared yet, `Some(None)` = identical, `Some(Some(n))` = differ at n.
+    pub result: Option<Option<u64>>,
+}
+
+impl CompareFilesState {
+    pub fn new(left: impl Into<String>, right: impl Into<String>) -> Self {
+        CompareFilesState {
+            left: left.into(),
+            right: right.into(),
+            result: None,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.left.trim().is_empty() || self.right.trim().is_empty() {
+            return Err("both files are required".to_string());
+        }
+        Ok(())
+    }
+
+    /// Text describing the comparison result.
+    pub fn result_text(&self) -> String {
+        match self.result {
+            None => "not compared yet".to_string(),
+            Some(None) => "the files are identical".to_string(),
+            Some(Some(offset)) => format!("the files differ at byte {offset}"),
+        }
+    }
+}
+
+/// Duplicate finder dialog.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DuplicatesState {
+    pub root: String,
+    pub min_size: u64,
+    pub algorithm: String,
+    pub include_hidden: bool,
+    pub groups: Vec<rc_core::dupes::DuplicateGroup>,
+    pub scanned: u64,
+}
+
+impl DuplicatesState {
+    pub fn new(root: impl Into<String>) -> Self {
+        DuplicatesState {
+            root: root.into(),
+            min_size: 1,
+            algorithm: rc_core::checksum::Algorithm::Md5.id().to_string(),
+            include_hidden: false,
+            groups: Vec::new(),
+            scanned: 0,
+        }
+    }
+
+    pub fn parsed_algorithm(&self) -> Option<rc_core::checksum::Algorithm> {
+        rc_core::checksum::Algorithm::parse(&self.algorithm)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.root.trim().is_empty() {
+            return Err("empty directory".to_string());
+        }
+        if self.parsed_algorithm().is_none() {
+            return Err(format!("unknown checksum algorithm {:?}", self.algorithm));
+        }
+        Ok(())
+    }
+
+    pub fn summary(&self) -> String {
+        let files: usize = self.groups.iter().map(|g| g.paths.len()).sum();
+        let wasted: u64 = self.groups.iter().map(|g| g.wasted_bytes()).sum();
+        format!(
+            "{} group(s), {} file(s), {}",
+            self.groups.len(),
+            files,
+            rc_core::format::format_size_unit(wasted)
+        )
     }
 }
 

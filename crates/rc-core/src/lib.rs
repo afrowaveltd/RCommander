@@ -9,10 +9,13 @@
 //! async runtime or network dependency so that it can be reused by the desktop
 //! app, the Android front-end and the MCP server.
 
+pub mod checksum;
 pub mod command;
 pub mod comment;
+pub mod compare;
 pub mod config;
 pub mod drive;
+pub mod dupes;
 pub mod entry;
 pub mod error;
 pub mod format;
@@ -26,6 +29,7 @@ pub mod ops;
 pub mod quicksearch;
 pub mod selection;
 pub mod sorting;
+pub mod split;
 pub mod tabs;
 
 pub use entry::{Attrs, Entry, EntryKind};

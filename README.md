@@ -54,6 +54,7 @@ text files you can extend without recompiling anything.
 | **FTP / SFTP** | remote panels: `Ctrl+F` connects and turns a panel into the server (`Ctrl+Shift+F` disconnects); passive/active FTP, MLSD with LIST fallback, download/upload of marked entries, cancellable recursive transfers; FTPS/SFTP behind cargo features |
 | **Compare / synchronise** | `Shift+F2` compares the panels and marks the differences; the dialog copies both directions with dry run and newer-wins rules |
 | **Multi-rename** | placeholder language (`[N]`, `[E]`, `[C]`, `[P]`, `[T1]`, date parts), live preview, search & replace |
+| **File utilities** | split/combine, checksums (CRC32/MD5/SHA1/SHA256) with verification in md5sum *and* SFV formats, compare by content, duplicate finder |
 | **Automation** | 594-entry internal command catalogue (`cm_*`), command line, **configurable button bar with an editor**, **MCP server and client** |
 | **Localisation** | TOML language packs (English + Czech included), RTL layouts, per-topic help in any language |
 

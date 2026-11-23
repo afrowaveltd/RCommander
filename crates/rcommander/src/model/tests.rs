@@ -1523,3 +1523,195 @@ fn invalid_view_modes_are_rejected() {
     ));
     assert!(model.settings.display.view_modes.is_empty());
 }
+
+// ---------------- file utilities ----------------
+
+#[test]
+fn the_split_command_opens_and_produces_parts() {
+    let (left, _r, mut model) = fixture();
+    write(&left.path().join("payload.bin"), &vec![9u8; 5000]);
+    model.refresh_active();
+    model
+        .left
+        .set_cursor(model.left.listing.find("payload.bin").unwrap());
+    assert!(model.execute("cm_Split").is_ok());
+    let mut state = match model.top_dialog() {
+        Some(Dialog::Split(state)) => state.clone(),
+        other => panic!("expected the split dialog, got {other:?}"),
+    };
+    state.part_size = 2000;
+    assert!(model.run_split(&state).is_ok());
+    assert!(left.path().join("payload.001").exists());
+    assert!(left.path().join("payload.002").exists());
+    assert!(left.path().join("payload.003").exists());
+    assert_eq!(
+        fs::metadata(left.path().join("payload.001")).unwrap().len(),
+        2000
+    );
+    assert!(model.status.contains("status.done"));
+}
+
+#[test]
+fn combine_restores_the_original_content() {
+    let (left, _r, mut model) = fixture();
+    let content: Vec<u8> = (0..3000u32).map(|i| (i % 251) as u8).collect();
+    write(&left.path().join("payload.bin"), &content);
+    model.refresh_active();
+    model
+        .left
+        .set_cursor(model.left.listing.find("payload.bin").unwrap());
+    let split = SplitState {
+        part_size: 1000,
+        ..SplitState::new(
+            left.path()
+                .join("payload.bin")
+                .to_string_lossy()
+                .to_string(),
+            left.path().to_string_lossy().to_string(),
+        )
+    };
+    assert!(model.run_split(&split).is_ok());
+    let first = left.path().join("payload.001");
+    let joined = left.path().join("joined.bin");
+    let state = CombineState::new(
+        first.to_string_lossy().to_string(),
+        joined.to_string_lossy().to_string(),
+    );
+    assert!(model.run_combine(&state).is_ok());
+    assert_eq!(fs::read(&joined).unwrap(), content);
+}
+
+#[test]
+fn creating_and_verifying_checksums_through_the_model() {
+    let (left, _r, mut model) = fixture();
+    model.left.selection.set(["alpha.txt", "gamma.txt"]);
+    assert!(model.execute("cm_CRCcreate").is_ok());
+    let mut state = match model.top_dialog() {
+        Some(Dialog::Checksum(state)) => state.clone(),
+        other => panic!("expected the checksum dialog, got {other:?}"),
+    };
+    state.algorithm = "sha256".to_string();
+    state.file_name = "check.sha256".to_string();
+    assert!(model.run_create_checksums(&state).is_ok());
+    let written = left.path().join("check.sha256");
+    assert!(written.exists());
+    let text = fs::read_to_string(&written).unwrap();
+    assert!(text.contains("alpha.txt") && text.contains("gamma.txt"));
+
+    // Verify passes, then fails after a file changes.
+    let mut verify = VerifyChecksumState::new(
+        written.to_string_lossy().to_string(),
+        left.path().to_string_lossy().to_string(),
+    );
+    assert!(model.run_verify_checksums(&mut verify).is_ok());
+    assert_eq!(verify.checked, 2);
+    assert_eq!(verify.ok, 2);
+    assert!(verify.failures.is_empty());
+    write(&left.path().join("alpha.txt"), b"tampered");
+    let mut verify2 = VerifyChecksumState::new(
+        written.to_string_lossy().to_string(),
+        left.path().to_string_lossy().to_string(),
+    );
+    assert!(model.run_verify_checksums(&mut verify2).is_ok());
+    assert_eq!(verify2.ok, 1);
+    assert_eq!(verify2.failures.len(), 1);
+    assert!(
+        model.last_error.is_some(),
+        "a failed verification is reported"
+    );
+}
+
+#[test]
+fn compare_files_by_content_reports_identity_and_offsets() {
+    let (left, _r, mut model) = fixture();
+    let left_file = left.path().join("alpha.txt");
+    let right_file = left.path().join("gamma.txt");
+    model.open_dialog(Dialog::CompareFiles(CompareFilesState::new(
+        left_file.to_string_lossy().to_string(),
+        right_file.to_string_lossy().to_string(),
+    )));
+    let mut state = match model.top_dialog() {
+        Some(Dialog::CompareFiles(state)) => state.clone(),
+        other => panic!("expected the compare dialog, got {other:?}"),
+    };
+    assert!(model.run_compare_files(&mut state).is_ok());
+    assert!(
+        matches!(state.result, Some(Some(_))),
+        "the files differ: {:?}",
+        state.result
+    );
+    assert!(state.result_text().contains("differ at byte"));
+
+    // Identical files report identity.
+    let copy = left.path().join("alpha-copy.txt");
+    fs::copy(&left_file, &copy).unwrap();
+    let mut same = CompareFilesState::new(
+        left_file.to_string_lossy().to_string(),
+        copy.to_string_lossy().to_string(),
+    );
+    assert!(model.run_compare_files(&mut same).is_ok());
+    assert_eq!(same.result, Some(None));
+    assert!(same.result_text().contains("identical"));
+}
+
+#[test]
+fn the_duplicate_finder_reports_groups() {
+    let (left, _r, mut model) = fixture();
+    write(&left.path().join("dup1.txt"), b"duplicate content");
+    write(&left.path().join("dup2.txt"), b"duplicate content");
+    model.refresh_active();
+    assert!(model.execute("cm_FindDuplicates").is_ok());
+    let mut state = match model.top_dialog() {
+        Some(Dialog::Duplicates(state)) => state.clone(),
+        other => panic!("expected the duplicates dialog, got {other:?}"),
+    };
+    assert!(model.run_duplicates(&mut state).is_ok());
+    assert_eq!(state.groups.len(), 1);
+    assert_eq!(state.groups[0].paths.len(), 2);
+    assert!(state.summary().contains("group"));
+    assert!(model.status.contains("group"));
+    // An invalid algorithm is rejected.
+    state.algorithm = "magic".into();
+    assert!(matches!(
+        model.run_duplicates(&mut state),
+        CommandOutcome::Failed(_)
+    ));
+}
+
+#[test]
+fn utility_dialogs_validate_their_input() {
+    let (_l, _r, mut model) = fixture();
+    let split = SplitState {
+        part_size: 0,
+        ..SplitState::new("/tmp/a", "/tmp")
+    };
+    assert!(matches!(model.run_split(&split), CommandOutcome::Failed(_)));
+    let combine = CombineState::new("", "");
+    assert!(matches!(
+        model.run_combine(&combine),
+        CommandOutcome::Failed(_)
+    ));
+    let checksum = ChecksumState {
+        algorithm: "magic".into(),
+        ..ChecksumState::new(vec!["/tmp/a".into()], "/tmp")
+    };
+    assert!(matches!(
+        model.run_create_checksums(&checksum),
+        CommandOutcome::Failed(_)
+    ));
+    let empty = ChecksumState::new(Vec::new(), "/tmp");
+    assert!(matches!(
+        model.run_create_checksums(&empty),
+        CommandOutcome::Failed(_)
+    ));
+    let mut verify = VerifyChecksumState::default();
+    assert!(matches!(
+        model.run_verify_checksums(&mut verify),
+        CommandOutcome::Failed(_)
+    ));
+    let mut compare = CompareFilesState::default();
+    assert!(matches!(
+        model.run_compare_files(&mut compare),
+        CommandOutcome::Failed(_)
+    ));
+}

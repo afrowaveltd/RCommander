@@ -509,3 +509,64 @@ fn the_transfer_manager_lists_a_running_job() {
     // empty state is shown instead. Either way the window must be open.
     assert!(harness.state().model.show_transfer_manager);
 }
+
+#[test]
+fn the_split_dialog_runs_from_the_ui() {
+    let (left, right) = fixture();
+    write(&left.path().join("payload.bin"), &"z".repeat(4500));
+    let mut app = app(left.path(), right.path());
+    app.model.refresh_active();
+    let index = app.model.left.listing.find("payload.bin").unwrap();
+    app.model.left.set_cursor(index);
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_Split");
+    harness.run();
+    assert!(
+        matches!(
+            harness.state().dialog(),
+            Some(rcommander::model::Dialog::Split(_))
+        ),
+        "the split dialog opens"
+    );
+    if let Some(rcommander::model::Dialog::Split(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.part_size = 1500;
+    }
+    {
+        let node = harness.root().get_by_label("dialog.config.apply");
+        node.click();
+    }
+    harness.run();
+    harness.run();
+    assert!(
+        left.path().join("payload.001").exists(),
+        "parts were written"
+    );
+    assert!(left.path().join("payload.002").exists());
+}
+
+#[test]
+fn the_duplicate_finder_dialog_reports_a_group() {
+    let (left, right) = fixture();
+    write(&left.path().join("d1.txt"), "same bytes");
+    write(&left.path().join("d2.txt"), "same bytes");
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.state_mut().execute("cm_FindDuplicates");
+    harness.run();
+    assert!(matches!(
+        harness.state().dialog(),
+        Some(rcommander::model::Dialog::Duplicates(_))
+    ));
+    {
+        let node = harness.root().get_by_label("dialog.search.start");
+        node.click();
+    }
+    harness.run();
+    match harness.state().dialog() {
+        Some(rcommander::model::Dialog::Duplicates(state)) => {
+            assert_eq!(state.groups.len(), 1, "the group is listed");
+        }
+        other => panic!("expected the duplicates dialog, got {other:?}"),
+    }
+}

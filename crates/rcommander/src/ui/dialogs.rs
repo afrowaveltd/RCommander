@@ -50,6 +50,12 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::Tree(state) => tree(ui, model, state),
                 Dialog::ButtonBar(state) => button_bar(ui, model, state),
                 Dialog::ViewModes(state) => view_modes(ui, model, state),
+                Dialog::Split(state) => split(ui, model, state),
+                Dialog::Combine(state) => combine(ui, model, state),
+                Dialog::Checksum(state) => checksum(ui, model, state),
+                Dialog::VerifyChecksum(state) => verify_checksum(ui, model, state),
+                Dialog::CompareFiles(state) => compare_files(ui, model, state),
+                Dialog::Duplicates(state) => duplicates(ui, model, state),
                 Dialog::About => about(ui, model),
                 Dialog::Confirm {
                     message,
@@ -112,6 +118,12 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::Tree(_) => "cmd.cd_tree",
         Dialog::ButtonBar(_) => "cmd.button_bar",
         Dialog::ViewModes(_) => "cmd.custom_column_view",
+        Dialog::Split(_) => "cmd.split_file",
+        Dialog::Combine(_) => "cmd.combine_files",
+        Dialog::Checksum(_) => "cmd.checksums",
+        Dialog::VerifyChecksum(_) => "cmd.verify_checksums",
+        Dialog::CompareFiles(_) => "cmd.compare_by_content",
+        Dialog::Duplicates(_) => "cmd.duplicates",
         Dialog::FtpConnect(_) => "ftp.connect",
         Dialog::Synchronize(_) => "cmd.sync_dirs",
         Dialog::About => "cmd.about",
@@ -1091,6 +1103,198 @@ fn view_modes(
     if ui.button(model.t("dialog.config.ok")).clicked() {
         action = DialogAction::Close;
     }
+    action
+}
+
+fn split(ui: &mut egui::Ui, model: &mut Model, state: &mut SplitState) -> DialogAction {
+    ui.label(&state.source);
+    ui.horizontal(|ui| {
+        ui.label(model.t("col.size"));
+        ui.add(
+            egui::DragValue::new(&mut state.part_size)
+                .range(1024..=u32::MAX as u64)
+                .speed(1024.0),
+        );
+        ui.label(state.size_label());
+    });
+    ui.horizontal(|ui| {
+        ui.label(model.t("dialog.copy.to"));
+        ui.add(egui::TextEdit::singleline(&mut state.destination).desired_width(f32::INFINITY));
+    });
+    if state.parts_created > 0 {
+        ui.label(model.tf(
+            "status.done",
+            &[("count", &state.parts_created.to_string())],
+        ));
+    }
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.apply")).clicked() {
+            action = DialogAction::Command("rc_RunSplit".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+fn combine(ui: &mut egui::Ui, model: &mut Model, state: &mut CombineState) -> DialogAction {
+    ui.label(&state.first_part);
+    if state.discovered > 0 {
+        ui.label(format!("{} part(s) found", state.discovered));
+    }
+    ui.horizontal(|ui| {
+        ui.label(model.t("dialog.copy.to"));
+        ui.add(egui::TextEdit::singleline(&mut state.destination).desired_width(f32::INFINITY));
+    });
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.apply")).clicked() {
+            action = DialogAction::Command("rc_RunCombine".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+fn checksum(ui: &mut egui::Ui, model: &mut Model, state: &mut ChecksumState) -> DialogAction {
+    ui.label(model.tf(
+        "panel.selected",
+        &[("count", &state.sources.len().to_string())],
+    ));
+    ui.horizontal(|ui| {
+        ui.label("algorithm");
+        egui::ComboBox::from_id_salt("checksum_algo")
+            .selected_text(state.algorithm.clone())
+            .show_ui(ui, |ui| {
+                for id in ["md5", "sha1", "sha256", "crc32"] {
+                    ui.selectable_value(&mut state.algorithm, id.to_string(), id);
+                }
+            });
+        ui.add(egui::TextEdit::singleline(&mut state.file_name).desired_width(200.0));
+    });
+    ui.label(&state.base);
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.apply")).clicked() {
+            action = DialogAction::Command("rc_RunChecksum".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+fn verify_checksum(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut VerifyChecksumState,
+) -> DialogAction {
+    ui.label(&state.checksum_file);
+    ui.horizontal(|ui| {
+        ui.label(model.t("panel.path"));
+        ui.add(egui::TextEdit::singleline(&mut state.base).desired_width(f32::INFINITY));
+    });
+    if state.checked > 0 {
+        ui.label(state.summary());
+        egui::ScrollArea::vertical()
+            .max_height(160.0)
+            .id_salt("verify_scroll")
+            .show(ui, |ui| {
+                for (name, problem) in &state.failures {
+                    ui.label(
+                        egui::RichText::new(format!("{name}: {problem}"))
+                            .color(egui::Color32::from_rgb(0xa0, 0x00, 0x00)),
+                    );
+                }
+            });
+    }
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.apply")).clicked() {
+            action = DialogAction::Command("rc_RunVerify".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+fn compare_files(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut CompareFilesState,
+) -> DialogAction {
+    ui.horizontal(|ui| {
+        ui.label(model.t("panel.source"));
+        ui.add(egui::TextEdit::singleline(&mut state.left).desired_width(f32::INFINITY));
+    });
+    ui.horizontal(|ui| {
+        ui.label(model.t("panel.target"));
+        ui.add(egui::TextEdit::singleline(&mut state.right).desired_width(f32::INFINITY));
+    });
+    ui.label(state.result_text());
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.apply")).clicked() {
+            action = DialogAction::Command("rc_RunCompareFiles".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+fn duplicates(ui: &mut egui::Ui, model: &mut Model, state: &mut DuplicatesState) -> DialogAction {
+    ui.horizontal(|ui| {
+        ui.label(model.t("panel.path"));
+        ui.add(egui::TextEdit::singleline(&mut state.root).desired_width(f32::INFINITY));
+    });
+    ui.horizontal(|ui| {
+        ui.label(model.t("col.size"));
+        ui.add(egui::DragValue::new(&mut state.min_size).range(0..=u32::MAX as u64));
+        ui.label("algorithm");
+        egui::ComboBox::from_id_salt("dupe_algo")
+            .selected_text(state.algorithm.clone())
+            .show_ui(ui, |ui| {
+                for id in ["md5", "sha1", "sha256", "crc32"] {
+                    ui.selectable_value(&mut state.algorithm, id.to_string(), id);
+                }
+            });
+        ui.checkbox(&mut state.include_hidden, model.t("panel.all_files"));
+    });
+    if state.scanned > 0 || !state.groups.is_empty() {
+        ui.label(state.summary());
+        egui::ScrollArea::vertical()
+            .max_height(220.0)
+            .id_salt("dupe_scroll")
+            .show(ui, |ui| {
+                for group in &state.groups {
+                    ui.label(
+                        egui::RichText::new(rc_core::format::format_size_unit(group.size)).strong(),
+                    );
+                    for path in &group.paths {
+                        ui.label(format!("  {}", path.display()));
+                    }
+                    ui.separator();
+                }
+            });
+    }
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.search.start")).clicked() {
+            action = DialogAction::Command("rc_RunDuplicates".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
     action
 }
 

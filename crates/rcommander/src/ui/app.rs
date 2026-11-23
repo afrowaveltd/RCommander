@@ -150,6 +150,54 @@ impl RCommanderApp {
             self.model.close_dialogs();
             return;
         }
+        if command == "rc_RunSplit" {
+            if let Some(Dialog::Split(state)) = self.model.top_dialog().cloned()
+                && let CommandOutcome::Failed(message) = self.model.run_split(&state)
+            {
+                self.model.report_error(message);
+            }
+            return;
+        }
+        if command == "rc_RunCombine" {
+            if let Some(Dialog::Combine(state)) = self.model.top_dialog().cloned()
+                && let CommandOutcome::Failed(message) = self.model.run_combine(&state)
+            {
+                self.model.report_error(message);
+            }
+            return;
+        }
+        if command == "rc_RunChecksum" {
+            if let Some(Dialog::Checksum(state)) = self.model.top_dialog().cloned()
+                && let CommandOutcome::Failed(message) = self.model.run_create_checksums(&state)
+            {
+                self.model.report_error(message);
+            }
+            return;
+        }
+        if command == "rc_RunVerify" {
+            if let Some(Dialog::VerifyChecksum(mut state)) = self.model.top_dialog().cloned()
+                && let CommandOutcome::Failed(message) = self.model.run_verify_checksums(&mut state)
+            {
+                self.model.report_error(message);
+            }
+            return;
+        }
+        if command == "rc_RunCompareFiles" {
+            if let Some(Dialog::CompareFiles(mut state)) = self.model.top_dialog().cloned()
+                && let CommandOutcome::Failed(message) = self.model.run_compare_files(&mut state)
+            {
+                self.model.report_error(message);
+            }
+            return;
+        }
+        if command == "rc_RunDuplicates" {
+            if let Some(Dialog::Duplicates(mut state)) = self.model.top_dialog().cloned()
+                && let CommandOutcome::Failed(message) = self.model.run_duplicates(&mut state)
+            {
+                self.model.report_error(message);
+            }
+            return;
+        }
         if command == "rc_RunSearch" {
             if let Some(Dialog::Search(state)) = self.model.top_dialog().cloned() {
                 self.model.start_search(&state);
@@ -361,6 +409,26 @@ impl RCommanderApp {
                 }
                 if ui.button(self.model.t("cmd.unpack")).clicked() {
                     command = Some("cm_UnpackFiles".into());
+                }
+                ui.separator();
+                if ui.button(self.model.t("cmd.split_file")).clicked() {
+                    command = Some("cm_Split".into());
+                }
+                if ui.button(self.model.t("cmd.combine_files")).clicked() {
+                    command = Some("cm_Combine".into());
+                }
+                ui.separator();
+                if ui.button(self.model.t("cmd.checksums")).clicked() {
+                    command = Some("cm_CRCcreate".into());
+                }
+                if ui.button(self.model.t("cmd.verify_checksums")).clicked() {
+                    command = Some("cm_CRCcheck".into());
+                }
+                if ui.button(self.model.t("cmd.compare_by_content")).clicked() {
+                    command = Some("cm_CompareFilesByContent".into());
+                }
+                if ui.button(self.model.t("cmd.duplicates")).clicked() {
+                    command = Some("cm_FindDuplicates".into());
                 }
                 ui.separator();
                 if ui.button(self.model.t("cmd.attributes")).clicked() {
