@@ -23,17 +23,19 @@ rc-help = { path = "../rc-help" }
 rc-agent = { path = "../rc-agent" }
 rc-remote = { path = "../rc-remote" }
 serde = { workspace = true }
-serde_json = { workspace = true }
 toml = { workspace = true }
 chrono = { workspace = true }
-thiserror = { workspace = true }
-crossbeam-channel = { workspace = true }
 egui = "0.37"
-eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
-egui_extras = { version = "0.37", features = ["image"] }
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
-arboard = "3.7"
-open = "5"
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
+
+# Desktop windowing backends; kept target-scoped so the Android build does not
+# inherit X11/Wayland/AccessKit features that do not exist there.
+[target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))'.dependencies]
+eframe = { version = "0.37", default-features = false, features = ["wayland", "x11", "accesskit", "clipboard", "links"] }
+
+# On Android the window shell comes from winit's NativeActivity backend.
+[target.'cfg(target_os = "android")'.dependencies]
+eframe = { version = "0.37", default-features = false, features = ["android-native-activity"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -99,6 +99,11 @@ cargo build --release --target x86_64-pc-windows-gnu   # with mingw-w64 installe
 cargo build --release
 ```
 
+Both non-Linux targets are **compile-checked** in this repository
+(`cargo check --target x86_64-pc-windows-gnu --workspace` and
+`cargo check --target aarch64-linux-android -p rcommander`); producing the final
+artefacts needs the linkers below.
+
 ### Android
 
 The application is written against `eframe`, which supports Android through

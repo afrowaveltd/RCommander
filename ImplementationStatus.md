@@ -28,7 +28,7 @@ cargo test --workspace
 | 8 | MCP integration (`rc-agent`) | **done** — server + client tested, host bridge wired, CLI subcommand present |
 | 9 | Application model | **done** |
 | 10 | egui user interface | **partial** — panels, menus, dialogs, viewer, editor, help, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, thumbnails, quick view and the search results table are simplified |
-| 11 | Platforms | **partial** — Linux verified end to end; Windows and Android build configurations documented, not executed here (toolchains unavailable in this environment) |
+| 11 | Platforms | **partial** — Linux verified end to end (runs, renders, listed and screenshotted); Windows and Android **compile-check clean** for the whole workspace, but no cross-link/APK because the linkers (mingw-w64, NDK) are not installed here |
 | 12 | Verification | **done** for everything marked done above |
 
 ---
@@ -176,9 +176,9 @@ agent panel UI, drag & drop, background transfer manager dialog.
 
 | Target | State |
 | --- | --- |
-| Linux x86_64 | **verified** — `cargo build --release` succeeds and the application starts, lists directories and is screenshot-addressable on a live X display |
-| Windows x86_64 | configuration only — no mingw-w64/Windows toolchain in this environment; instructions in the README |
-| Android | configuration only — `android/` manifest and build instructions present; needs the SDK/NDK to produce an APK |
+| Linux x86_64 | **verified** — `cargo build --release` succeeds, the application starts, renders a 1100×700 window, lists directories and stays healthy (checked on a live X display) |
+| Windows x86_64 | **compile-checked** — `cargo check --target x86_64-pc-windows-gnu --workspace` passes, which exercised the `cfg(windows)` code paths (volume enumeration, `GetDiskFreeSpaceEx`, home directory) and found two real defects that were fixed. Linking an `.exe` needs mingw-w64, not installed here |
+| Android aarch64 | **compile-checked** — `cargo check --target aarch64-linux-android -p rcommander` passes with `eframe`'s NativeActivity backend; the desktop-only clipboard/opener dependencies were removed so the target is clean. Producing an APK needs the SDK/NDK (`android/README.md`) |
 
 ## Phase 12 — Verification (done for the implemented scope)
 

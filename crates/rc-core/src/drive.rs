@@ -79,22 +79,7 @@ impl Space {
 pub fn home_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     {
-        let mut buf = [0u16; 260];
-        // SAFETY: correct pointer/length for the API; no aliasing.
-        let n = unsafe {
-            let win = get_win();
-            match (win.shell_folder)(&mut buf) {
-                true => {
-                    let len = buf.iter().position(|c| *c == 0).unwrap_or(0);
-                    if len == 0 {
-                        return None;
-                    }
-                    len
-                }
-                false => return None,
-            }
-        };
-        return Some(PathBuf::from(String::from_utf16_lossy(&buf[..n])));
+        return win_home_dir();
     }
     #[cfg(not(windows))]
     {
@@ -105,32 +90,21 @@ pub fn home_dir() -> Option<PathBuf> {
 }
 
 #[cfg(windows)]
-struct WinShell {
-    shell_folder: unsafe fn(&mut [u16; 260]) -> bool,
-}
-
-#[cfg(windows)]
-fn get_win() -> &'static WinShell {
-    use std::sync::OnceLock;
-    static W: OnceLock<WinShell> = OnceLock::new();
-    W.get_or_init(|| WinShell {
-        shell_folder: win_shell_folder,
-    })
-}
-
-#[cfg(windows)]
-unsafe fn win_shell_folder(buf: &mut [u16; 260]) -> bool {
-    // CSIDL_PERSONAL is out of scope here; USERPROFILE is read instead.
-    let Ok(profile) = std::env::var("USERPROFILE") else {
-        return false;
-    };
-    let wide: Vec<u16> = profile.encode_utf16().collect();
-    if wide.len() >= 260 {
-        return false;
+fn win_home_dir() -> Option<PathBuf> {
+    if let Some(profile) = std::env::var_os("USERPROFILE") {
+        let p = PathBuf::from(profile);
+        if p.is_dir() {
+            return Some(p);
+        }
     }
-    buf[..wide.len()].copy_from_slice(&wide);
-    buf[wide.len()] = 0;
-    true
+    match (std::env::var_os("HOMEDRIVE"), std::env::var_os("HOMEPATH")) {
+        (Some(drive), Some(path)) => {
+            let mut p = PathBuf::from(drive);
+            p.push(path);
+            if p.is_dir() { Some(p) } else { None }
+        }
+        _ => None,
+    }
 }
 
 /// Enumerate the volumes the user can open.
@@ -254,7 +228,7 @@ pub fn volumes() -> Vec<Volume> {
 #[cfg(windows)]
 fn win_get_drive_type(letter: u8) -> u32 {
     #[link(name = "kernel32")]
-    extern "system" {
+    unsafe extern "system" {
         fn GetDriveTypeW(lp_root_path_name: *const u16) -> u32;
     }
     let mut path: Vec<u16> = format!("{}:\\", letter as char).encode_utf16().collect();
@@ -286,7 +260,7 @@ pub fn free_space(path: &Path) -> Option<Space> {
     #[cfg(windows)]
     {
         #[link(name = "kernel32")]
-        extern "system" {
+        unsafe extern "system" {
             fn GetDiskFreeSpaceExW(
                 lpDirectoryName: *const u16,
                 lpFreeBytesAvailable: *mut u64,
