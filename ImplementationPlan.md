@@ -212,6 +212,76 @@ Phase 13.4** instead of inventing its own.
 | 15.7 | Documentation | a "Git repositories" help topic (English + Czech): what the virtual folders are, how copying out of a revision works, and the security note about keys and tokens | topic present in both languages and linked from the keyboard overview |
 | 15.8 | Write operations (**next round, explicitly deferred**) | stage/unstage, commit, branch create/switch, merge, pull, push, a log view and a diff viewer; every destructive action behind a dry run and a confirmation, never rewriting history automatically | planned only after 15.1–15.7 are green; safety rules (dry run first, confirmation, no automatic force-push, refuse to touch a dirty tree without asking) are part of the DoD when it is implemented |
 
+## Phase 16 — Interactive AI workspace (agent chat as a panel)
+
+**Goal:** keep the familiar two-pane commander workflow, but allow either pane
+(or a tab inside it) to become an interactive **agent/chat view**. For example,
+the left pane is a conversation with a local Ollama model and the right pane
+shows a directory of JSON translation dictionaries. The user can ask the agent
+to fill missing translations in the *same schema*, translate a document, or
+propose a configuration-file change. The same workflow must also work with
+remote directories, Git revisions and eventually virtual providers such as
+UnderstandMe — without giving the model unrestricted access to the machine.
+
+This phase extends the existing Phase 8 MCP client/server and Phase 10 agent
+tool window; it does **not** redefine MCP as a language-model API. An Ollama
+(or other LLM) connection supplies conversation/inference, whereas MCP tools
+supply explicit, permission-checked capabilities. A model endpoint alone is not
+an MCP server. RCommander should also remain fully usable without any AI.
+
+Example user journey:
+
+1. Open **Agent chat** in the left pane; choose a locally running Ollama model
+   or an explicitly configured remote model provider. The right pane stays a
+   normal local, SFTP or virtual directory panel.
+2. Select \`locales/*.json\` in the right pane and choose **Share selection with
+   agent** (or grant read access to that directory for this task). The chat
+   displays the exact scope and filenames before the agent sees file contents.
+3. Ask: "Compare these dictionaries with \`en.json\`; add missing keys to the
+   Czech and Swahili dictionaries, preserve keys, nesting, placeholders and
+   formatting, and show what you changed." Another task might be: "Translate
+   this Markdown document" or "Suggest a safe edit to this TOML config".
+4. RCommander inventories the files, reads only approved inputs, and asks the
+   agent for a **proposed change set**, not an immediate overwrite. JSON/TOML
+   parsers and task-specific validators check the result.
+5. The other pane offers a diff / before-after preview, individual file/hunk
+   approval, **Apply**, **Reject** and **Undo**. Approved changes are saved
+   safely; rejected changes do not touch the originals.
+
+| # | Step | Output | DoD (definition of done) |
+| --- | --- | --- | --- |
+| 16.1 | Agent chat panel and session model | \`AgentChatSession\` in the headless model, conversation history, model/provider selector, streaming replies, cancellation, chat-as-pane/tab and a switch back to file listing | UI test shows chat in either pane while the other pane remains navigable; a session can attach/detach without losing the current directory or selection; no model running means a useful error, not a frozen UI |
+| 16.2 | Pluggable model connections | an \`AgentProvider\` abstraction with an **Ollama HTTP adapter** first, then configurable remote/OpenAI-compatible endpoints; model discovery, timeout/cancel, token/context budgets, clear local/remote indicators | in-process fake HTTP provider covers streaming, cancellation, malformed/timeout responses and reconnection; no cloud connection is made by default; credentials use the Phase 13.4 secret store and are never written to chat logs or settings in plain text |
+| 16.3 | Explicit tool and file-scope permissions | connect chat sessions to existing \`rc-agent\` MCP tools and a constrained workspace-file adapter; read-only by default, per-task path/operation allowlist, optional approval before writes, visible tool-call log | tests refuse access outside the approved roots, symlink escapes and unapproved destructive commands; the model cannot acquire wider permissions merely by asking; remote files and untrusted documents are treated as **data**, never as tool instructions |
+| 16.4 | Safe proposal / review / apply pipeline | \`ChangeSet\` with original hashes, textual/binary classification, diff view, syntax/format validation, per-file approval, atomic replace where supported, backup/undo and conflict detection | tests prove a declined change leaves bytes untouched, stale inputs cannot be silently overwritten, valid changes preserve encoding/newlines when requested, invalid JSON/TOML or cancelled writes do not corrupt originals; multi-file partial failure is reported with recoverable backups |
+| 16.5 | Dictionary and document workflows | local directory comparison keyed by a chosen source locale; discover missing/extra keys, ask the agent to translate only missing values, preserve JSON structure, placeholders and escape sequences; translate selected text/Markdown with a preview | fixtures cover nested JSON, arrays, placeholders (\`{name}\`, \`{0}\`, etc.), Unicode/RTL, already-translated entries, invalid output and schema differences; existing translations are not replaced without explicit instruction; output is validated before Apply |
+| 16.6 | UnderstandMe and other virtual data sources | a **provider interface** to list/read/write *capabilities* of a data source independently of the panel; a future UnderstandMe adapter can display projects/languages/dictionaries in a pane and compare/synchronise with local JSON via its API or an MCP bridge | offline provider fixture lists languages and entries, distinguishes read-only/writeable actions, previews proposed synchronisation, handles version conflicts and missing authentication; do not pretend an arbitrary MCP server automatically implements a filesystem |
+| 16.7 | General editing tasks | select one or more Markdown, text, code or configuration files and request a translation, explanation, refactor or structured edit; show a scoped diff and optionally run explicitly configured validation commands | headless tests cover multi-file selections, unsupported/binary files, file-size/context limits, no-op proposals, malformed output and failures of optional validators; **no automatic arbitrary shell execution** and no silent write to config files |
+| 16.8 | Opt-in Git working-tree assistant | watch an approved local repository for changes (debounce/coalesce events), inspect \`git status\` and diffs, optionally run allowlisted checks, summarise problems and **draft** GitHub issues or fixes; coordinate with Phase 15 Git panels | deterministic tests cover duplicate file events, untracked/ignored files, issue deduplication, offline mode and credentials; creating an issue, changing branches, committing or pushing requires separate approval; no automatic force-push |
+| 16.9 | Async work, portability and documentation | bounded queues, cancellable operations, progress/diagnostics, clear provider capability indicators; English/Czech help topic with task examples, trust boundaries and privacy notes | UI/model tests with an in-process mock model and mock MCP server; no dependence on a live Ollama, GitHub or UnderstandMe account; desktop tested first, Android capability limitations documented honestly |
+
+**Important boundaries and dependencies:**
+
+- **Local-first:** Ollama is an option, not a requirement; a self-hosted or remote
+  provider can be selected. Do not send a file, prompt or API secret to a remote
+  provider without clearly showing which provider is selected and what data is
+  being shared.
+- **Capabilities, not a fake filesystem:** ordinary local/remote panels and
+  future Git/UnderstandMe virtual panels can share a browsing abstraction, but
+  each provider advertises its supported operations. MCP is one possible
+  transport/tool bridge, not a mandatory backend for all panels.
+- **Human control:** chat may *propose* changes; users approve the exact scope
+  and final diff. Reading a file and writing it are separate permissions.
+  Watchers and automatic issue drafting are opt-in, and publication is approved.
+- **Context discipline:** large files are processed with bounded reads/chunks,
+  explicit truncation notices and task-scoped context; a token limit is not
+  silently bypassed by submitting unrelated private files.
+- **Ordering:** 16.1–16.5 and 16.7 can be developed against local fixtures and
+  mocked providers using Phase 8's existing tool interfaces. Secrets and remote
+  authentication reuse Phase 13.4; Git integration builds on Phase 15; the
+  UnderstandMe provider requires a separately defined API/contract. No part of
+  this phase is implemented merely by having the current MCP tools.
+
 ## Working rules
 
 1. **Tests first.** A step's tests exist before its implementation; a step is done
