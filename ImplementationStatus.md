@@ -199,7 +199,8 @@ background-transfer-manager window.
 - `cargo test --workspace`: see the per-crate numbers above.
   Totals by crate: `rc-core` 147, `rc-i18n` 81, `rc-viewer` 161 (+6 doctests),
   `rc-archive` 130 (+4 integration), `rc-help` 68, `rc-agent` 96,
-  `rc-remote` 111 (+3 doctests), `rcommander` 138 (+14 UI) — **≈963 tests**.
+  `rc-remote` 111 (+3 doctests), `rcommander` 138 (+14 UI) — **959 tests** (measured
+with `cargo test --workspace`).
 - `cargo clippy` and `cargo fmt --check` are clean for `rc-core`, `rc-i18n`,
   `rc-viewer`, `rc-archive`, `rc-help`, `rc-agent`; `rcommander` is formatted and
   warning-free except for the documented simplifications.
