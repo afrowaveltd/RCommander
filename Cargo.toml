@@ -1,0 +1,46 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/*",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+authors = ["RCommander contributors"]
+repository = "https://example.invalid/rcommander"
+
+[workspace.dependencies]
+rc-core = { path = "crates/rc-core" }
+rc-i18n = { path = "crates/rc-i18n" }
+rc-viewer = { path = "crates/rc-viewer" }
+rc-archive = { path = "crates/rc-archive" }
+rc-remote = { path = "crates/rc-remote" }
+rc-agent = { path = "crates/rc-agent" }
+rc-help = { path = "crates/rc-help" }
+
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+unicode-segmentation = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+walkdir = "2"
+tempfile = "3"
+crossbeam-channel = "0.5"
+rayon = "1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

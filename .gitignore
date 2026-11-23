@@ -1,0 +1,30 @@
+# Build artifacts
+/target
+**/target
+*.rs.bk
+*.pdb
+
+# Reverse-engineering workspace (proprietary artifacts must not be committed)
+/work/
+# generated analysis output dumps
+/analysis/raw/
+
+# Local app state during development / tests
+/.rcommander-dev/
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# Android build outputs
+/android/app/build/
+/android/.gradle/
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# The reference distribution used for behavioural analysis (not redistributed)
+tcmd*.exe
+*.exe

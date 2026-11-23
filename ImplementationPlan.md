@@ -1,0 +1,169 @@
+# Implementation Plan
+
+This plan describes how RCommander is built, step by step. Each step lists what
+is produced and its **definition of done** (DoD). A step may only be marked
+complete in [`ImplementationStatus.md`](ImplementationStatus.md) when its DoD is
+met — normally "the listed tests pass and the behaviour works end to end".
+
+Development is **test-first**: for every step the tests are written (or extended)
+before the implementation, and no step is accepted with a failing or skipped
+test.
+
+---
+
+## Phase 0 — Reconstruction of the feature set
+
+The product functionality is reconstructed from a shipped Windows binary
+distribution using static analysis, not from source code.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 0.1 | Unpack the distribution (self-extracting installer → payload cabinet) | extracted application binaries, data files, help | payload extracted, file inventory reproducible from a documented command sequence |
+| 0.2 | Extract machine-readable behaviour data: internal command catalogue, menu layout, string tables, dialog resources, keyboard map, help topics | `analysis/` raw data + parsed JSON | command catalogue parsed (name/id/section), menu tree parsed, help TOC parsed |
+| 0.3 | Decompile the application with Ghidra (headless) and locate the subsystems behind the interesting strings (viewer, masks, sorting, transfers) | decompiled function inventory + selected functions | analysis completes, function/string cross-reference list produced, findings recorded |
+| 0.4 | Write the behavioural specifications from the documentation and the binary evidence | `analysis/spec-01…04.md`, `analysis/reverse-engineering.md` | every spec section cites its evidence source; the clean-room boundary is documented |
+
+## Phase 1 — Project foundation
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 1.1 | Local git repository, workspace manifest, `.gitignore` excluding proprietary artifacts | repo, `Cargo.toml` | `git status` clean of build output and of the original binaries |
+| 1.2 | Quality gates | `rust-toolchain.toml`, clippy/fmt expectations documented | `cargo fmt --check` and `cargo clippy` run clean on every crate |
+| 1.3 | Documentation skeleton | `README.md`, `ImplementationPlan.md`, `ImplementationStatus.md`, `LICENSE` | documents exist, plan and status agree |
+
+## Phase 2 — `rc-core`, the headless engine
+
+No GUI, no network, no async: everything here is usable from the desktop app, the
+CLI and the MCP server alike.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 2.1 | Entry model and formatting helpers | `entry.rs`, `format.rs`, `error.rs` | attribute rendering, size/date formatting, date-filter parsing tested |
+| 2.2 | Locations (local / archive / remote) and path arithmetic | `location.rs` | parent/child/display round trips and URL parsing tested |
+| 2.3 | Wildcards and mask sets | `mask.rs` | `*`, `?`, `[a-z]`, `[!…]`, separators, escapes, error cases tested |
+| 2.4 | Sorting | `sorting.rs` | natural order, dirs-first, reversed, per-field sorting tested |
+| 2.5 | Selection model | `selection.rs` | select/invert/expand-by-mask/same-extension/statistics/serialisation tested |
+| 2.6 | Listings | `listing.rs` | read, filter, hidden files, `..` row, cursor movement, re-read keeps cursor, error paths tested |
+| 2.7 | File operations | `ops.rs` | copy/move/delete/mkdir/rename incl. overwrite modes, cancellation, progress, symlink preservation, cross-device move tested |
+| 2.8 | Configuration model | `config.rs` | defaults, TOML round trip, unknown-key tolerance, portable config dir tested |
+| 2.9 | Histories, hotlist, tabs | `history.rs`, `hotlist.rs`, `tabs.rs` | MRU ordering, thinning, capacity, tab lifetime rules tested |
+| 2.10 | Command catalogue and keyboard map | `command.rs`, `keymap.rs` | 594-entry catalogue resolves by name and id; classic key map binds correctly; user overrides tested |
+| 2.11 | Volumes, comments, quick search | `drive.rs`, `comment.rs`, `quicksearch.rs` | free-space arithmetic, `descript.ion` round trip, quick-search cycling tested |
+
+## Phase 3 — Localisation (`rc-i18n`)
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 3.1 | Language-pack format and parser | `Locale`, `Translator` | TOML packs parse, invalid packs report errors, missing keys fall back to English |
+| 3.2 | Direction model | `Direction`, `direction_for_code`, `text_is_rtl` | RTL languages detected; mixed text resolves by first strong character |
+| 3.3 | Bundled packs | `en.toml`, `cs.toml` | identical key sets, no empty values, completeness report works |
+| 3.4 | Runtime loading | `Translator::load_dir` | packs can be dropped in at runtime without recompiling |
+
+## Phase 4 — Previewer engine (`rc-viewer`)
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 4.1 | Content detection by magic bytes | `detect`, `probe` | images, text, archives, executables, media, empty and unknown binaries classified correctly; extension alone never decides |
+| 4.2 | Text decoding | `load_text`, `decode_text` | UTF-8/16/32, legacy code pages, truncation and RTL handled |
+| 4.3 | Hex dump model | `hex_document`, `load_hex` | exact formatting, configurable width, offsets and ASCII gutter tested |
+| 4.4 | Image decoding | `load_image` | RGBA output, corrupt input rejected, pixel budget enforced |
+| 4.5 | Unified loader | `load`, `open_bytes`, `describe` | unknown binaries fall back to hex, status text never panics |
+
+## Phase 5 — Archive engine (`rc-archive`)
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 5.1 | Format detection and readers | `detect`, `open` | ZIP/TAR/TAR.GZ/TAR.BZ2/TAR.XZ/TAR.ZST readable; unsupported formats say so clearly |
+| 5.2 | Virtual directory listing | `list_dir`, `is_dir` | intermediate directories synthesized; panel can render archive contents |
+| 5.3 | Extraction with path safety | `extract_all`, `extract_members` | zip-slip, absolute paths and `..` refused; cancellation honoured |
+| 5.4 | Creation and tests | `create`, `add_to_zip`, `remove_from_zip`, `test` | atomic writes, corrupt archives reported, round trips verified |
+
+## Phase 6 — Help system (`rc-help` + `Docs/`)
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 6.1 | Help index over `Docs/<Topic>/<lang>.md` | `HelpIndex`, `HelpTopic` | topics discovered in any depth, languages and titles read from the first heading |
+| 6.2 | Markdown model | `parse_markdown`, `Block`, `Span` | headings, lists, tables, code, quotes, inline styles, tolerance of malformed input |
+| 6.3 | Fallback and search | `body`, `resolve_link`, `search`, `missing_translations` | English fallback, cross-topic links, completeness report |
+| 6.4 | Content | `Docs/` tree in English and Czech | every implemented feature has a topic in both languages |
+
+## Phase 7 — Remote file systems (`rc-remote`)
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 7.1 | Connection model | `ConnectionSpec`, `SavedConnection` bridge | validation and round trip tested |
+| 7.2 | Listing parsers | `parse_list_line`, `parse_mlsd_line` | unix/MLSD fixtures incl. symlinks, spaces, year-vs-time, garbage |
+| 7.3 | FTP client | `RemoteFs` over FTP | connect/list/transfer/delete/rename against an in-process mock server |
+| 7.4 | Recursive transfers and cancellation | `get_tree`, `put_tree` | trees transferred, cancellation safe |
+| 7.5 | SFTP and FTPS | feature-gated implementations | default build unaffected when disabled; limitations documented |
+
+## Phase 8 — MCP integration (`rc-agent`)
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 8.1 | JSON-RPC layer | request/response handling | initialize, ping, unknown-method, parse-error, notification behaviour tested |
+| 8.2 | Server tools | `tools/list`, `tools/call` | ≥15 tools with valid JSON Schemas, destructive tools identified |
+| 8.3 | Host bridge and confirmation gate | `FileManagerHost`, `Confirmer` | refused actions do not execute; approved actions do |
+| 8.4 | Client | `McpClient` over stdio/HTTP | handshake, tool discovery, calls, error propagation, timeout |
+| 8.5 | Resources | help topics as `rcommander://` resources | round trip tested |
+| 8.6 | Application wiring | `rcommander mcp` subcommand, agent panel | the app raises as a server and can drive an external server |
+
+## Phase 9 — Application model (`rcommander::model`)
+
+Headless and fully testable; the UI is only a view over it.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 9.1 | Panels and navigation | `Panel`, `Model`, `Side` | open/enter/parent/swap/match, cursor keeping, error reporting tested |
+| 9.2 | Dialog state models | `dialogs.rs` | every dialog validates its input; invalid names/paths rejected |
+| 9.3 | Command dispatch | `commands.rs` | every implemented `cm_*` command performs its action; unknown commands are inert |
+| 9.4 | Operations from dialogs | transfer/delete/mkdir/rename/attributes/comment/multi-rename | real temp-dir effects asserted by tests |
+| 9.5 | Keyboard and command line | `handle_key`, `run_command_line` | shortcuts dispatch through the key map; `cd`/`cm_*`/unknown handled |
+| 9.6 | Background operations | `ops_runner.rs` | progress, cancellation and failure reporting tested |
+
+## Phase 10 — User interface (`egui`)
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 10.1 | Window shell and theme | `ui/app.rs`, `theme.rs` | menu bar, button bar, both panels, command line, function-key bar, status line render |
+| 10.2 | File list rendering | panel widget | brief/full/comments views, colours by entry type, marks, cursor, mouse and keyboard |
+| 10.3 | Dialogs | dialog rendering | copy/move/delete/mkdir/rename/search/attributes/comment/multi-rename/options/pack |
+| 10.4 | Previewer window | `ui/viewer_window.rs` | text, hex and image modes bound to `rc-viewer`, keyboard handled |
+| 10.5 | Editor window | `ui/editor_window.rs` | edit, save, unsaved-change prompt |
+| 10.6 | Help window | `ui/help_window.rs` | topic list, rendering of `rc-help` blocks, language switch, RTL layout |
+| 10.7 | Archive and FTP panels | integration | archives open as directories; remote panel lists and transfers |
+| 10.8 | Agent panel | integration | MCP server toggle, client connections, tool calls |
+| 10.9 | UI tests | `tests/ui_*.rs` with `egui_kittest` | toolbar interactions produce the expected model state |
+
+## Phase 11 — Platforms and packaging
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 11.1 | Linux verification | release build + smoke run | app starts, lists directories, copies a file |
+| 11.2 | Windows build | cross-compilation instructions/CI config | `cargo build --target x86_64-pc-windows-gnu` succeeds where the toolchain is available; documented otherwise |
+| 11.3 | Android build | `cargo-apk` configuration and manifest | build configuration present and documented; desktop core shared |
+| 11.4 | Release hygiene | versioning, `--help`, error messages | CLI surface complete and tested |
+
+## Phase 12 — Final verification
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 12.1 | Full test suite | `cargo test --workspace` | all tests pass |
+| 12.2 | Static checks | clippy + fmt | clean |
+| 12.3 | Documentation audit | README/plan/status/Docs | every implemented feature documented; status matches reality |
+| 12.4 | Repository state | commits | history readable, no proprietary artifacts committed |
+
+---
+
+## Working rules
+
+1. **Tests first.** A step's tests exist before its implementation; a step is done
+   only when they pass.
+2. **Headless first.** Behaviour belongs in a library crate so it can be tested
+   without a window system; the UI stays a thin view.
+3. **No unspecified data in the repository.** Proprietary binaries, extracted
+   resources and decompiled output stay outside the git history; only behavioural
+   facts and original code/docs are committed.
+4. **Honest status.** `ImplementationStatus.md` records what is verified, with the
+   evidence (test counts, commands). Pending work is listed, never implied to be
+   finished.
