@@ -1,0 +1,36 @@
+//! `rc-core` — platform-independent model and engine for RCommander.
+//!
+//! This crate contains everything that is not UI and not platform-specific:
+//! directory listing model, sorting, masks/wildcards, selection, file
+//! operations, configuration, histories, hotlists, tabs, the internal command
+//! catalogue and the default keyboard map.
+//!
+//! Every module is unit-tested; the crate is deliberately free of any GUI,
+//! async runtime or network dependency so that it can be reused by the desktop
+//! app, the Android front-end and the MCP server.
+
+pub mod command;
+pub mod comment;
+pub mod config;
+pub mod drive;
+pub mod entry;
+pub mod error;
+pub mod format;
+pub mod history;
+pub mod hotlist;
+pub mod keymap;
+pub mod listing;
+pub mod location;
+pub mod mask;
+pub mod ops;
+pub mod quicksearch;
+pub mod selection;
+pub mod sorting;
+pub mod tabs;
+
+pub use entry::{Attrs, Entry, EntryKind};
+pub use error::{CoreError, CoreResult};
+pub use location::Location;
+pub use mask::{MaskSet, Pattern};
+pub use selection::Selection;
+pub use sorting::{SortField, SortSpec};

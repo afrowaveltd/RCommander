@@ -1,0 +1,202 @@
+# RCommander language pack — English (built-in reference pack)
+#
+# This file is the authoritative key list: every other pack is expected to
+# translate all of these keys. Values may contain {name} placeholders that the
+# GUI fills in with Translator::t_args(); unknown placeholders are left alone.
+#
+# Format:
+#   [meta]    — describes the pack itself
+#   [strings] — "dotted.key" = "translated text"
+
+[meta]
+code = "en"
+name = "English"
+native_name = "English"
+direction = "ltr"
+version = 1
+authors = ["RCommander contributors"]
+
+[strings]
+
+# Application ---------------------------------------------------------------
+"app.title" = "RCommander"
+"app.version" = "Version {version}"
+
+# Main menu -----------------------------------------------------------------
+"menu.file" = "&File"
+"menu.mark" = "&Mark"
+"menu.commands" = "&Commands"
+"menu.net" = "&Net"
+"menu.show" = "&Show"
+"menu.configuration" = "&Configuration"
+"menu.help" = "&Help"
+"menu.start" = "&Start"
+
+# Commands (also used as button bar tooltips) -------------------------------
+"cmd.copy" = "Copy"
+"cmd.move" = "Move"
+"cmd.delete" = "Delete"
+"cmd.rename" = "Rename"
+"cmd.mkdir" = "New folder"
+"cmd.view" = "View"
+"cmd.edit" = "Edit"
+"cmd.search" = "Find files"
+"cmd.pack" = "Pack"
+"cmd.unpack" = "Unpack"
+"cmd.test_archive" = "Test archive"
+"cmd.compare_dirs" = "Compare directories"
+"cmd.sync_dirs" = "Synchronize directories"
+"cmd.multi_rename" = "Multi-rename"
+"cmd.attributes" = "Change attributes"
+"cmd.properties" = "Properties"
+"cmd.quit" = "Quit"
+"cmd.refresh" = "Refresh"
+"cmd.select_all" = "Select all"
+"cmd.deselect_all" = "Deselect all"
+"cmd_deselect_all" = "Deselect all"
+"cmd.invert_selection" = "Invert selection"
+"cmd.new_tab" = "New tab"
+"cmd.close_tab" = "Close tab"
+"cmd.next_tab" = "Next tab"
+"cmd.prev_tab" = "Previous tab"
+"cmd.history" = "History"
+"cmd.hotlist" = "Directory hotlist"
+"cmd.open_command_line" = "Open command line"
+"cmd.calculate_size" = "Calculate size"
+"cmd.duplicates" = "Find duplicates"
+"cmd.split_file" = "Split file"
+"cmd.combine_files" = "Combine files"
+"cmd.checksums" = "Create checksums"
+"cmd.verify_checksums" = "Verify checksums"
+"cmd.print" = "Print"
+
+# Panels --------------------------------------------------------------------
+"panel.source" = "Source"
+"panel.target" = "Target"
+"panel.path" = "Path"
+"panel.selection_of" = "{count} of {total} selected"
+"panel.free_space" = "{size} free"
+"panel.files" = "{count} files"
+"panel.dirs" = "{count} folders"
+"panel.bytes" = "{size}"
+"panel.all_files" = "All files"
+"panel.empty" = "Empty"
+
+# Columns -------------------------------------------------------------------
+"col.name" = "Name"
+"col.ext" = "Ext"
+"col.size" = "Size"
+"col.date" = "Date"
+"col.attrs" = "Attr"
+"col.comment" = "Comment"
+"col.permissions" = "Permissions"
+
+# Copy dialog ---------------------------------------------------------------
+"dialog.copy.title" = "Copy"
+"dialog.copy.to" = "Copy to:"
+"dialog.copy.options" = "Options"
+"dialog.copy.overwrite_all" = "Overwrite all"
+"dialog.copy.skip_all" = "Skip all"
+"dialog.copy.append" = "Append to existing files"
+"dialog.copy.verify" = "Verify after copying"
+"dialog.copy.background" = "Copy in background"
+"dialog.move.title" = "Move"
+"dialog.delete.title" = "Delete"
+"dialog.delete.confirm" = "Delete {name}?"
+"dialog.delete.to_trash" = "Move to recycle bin"
+"dialog.delete.permanent" = "Delete permanently"
+"dialog.mkdir.title" = "Create folder"
+"dialog.rename.title" = "Rename"
+"dialog.multi_rename.title" = "Multi-rename tool"
+"dialog.rename_pattern" = "Pattern"
+"dialog.rename_preview" = "Preview"
+"dialog.overwrite.title" = "Overwrite"
+"dialog.overwrite.question" = "Overwrite {name}?"
+"dialog.overwrite.newer" = "The existing file is newer"
+"dialog.overwrite.size_differs" = "The sizes differ"
+
+# Search dialog -------------------------------------------------------------
+"dialog.search.title" = "Find files"
+"dialog.search.name" = "Search for"
+"dialog.search.text" = "Text to find"
+"dialog.search.in_files" = "Search in files"
+"dialog.search.case_sensitive" = "Case sensitive"
+"dialog.search.regex" = "Regular expression"
+"dialog.search.subdirs" = "Include subdirectories"
+"dialog.search.include_archives" = "Search archives"
+"dialog.search.options" = "Options"
+"dialog.search.start" = "Start search"
+"dialog.search.stop" = "Stop"
+"dialog.search.not_found" = "Nothing found"
+
+# Configuration -------------------------------------------------------------
+"dialog.config.title" = "Configuration"
+"dialog.config.language" = "Language"
+"dialog.config.display" = "Display"
+"dialog.config.colors" = "Colors"
+"dialog.config.editor" = "Editor"
+"dialog.config.packer" = "Packer"
+"dialog.config.ftp" = "FTP"
+"dialog.config.agent" = "Agent"
+"dialog.config.shortcuts" = "Keyboard"
+"dialog.config.apply" = "Apply"
+"dialog.config.ok" = "OK"
+"dialog.config.cancel" = "Cancel"
+
+# Help ----------------------------------------------------------------------
+"dialog.help.title" = "Help"
+"dialog.help.contents" = "Contents"
+"dialog.help.no_topic" = "No help topic for this window"
+"dialog.help.missing_translation" = "This language pack is incomplete"
+
+# Viewer --------------------------------------------------------------------
+"viewer.text" = "Text"
+"viewer.hex" = "Hex"
+"viewer.image" = "Image"
+"viewer.media" = "Media"
+"viewer.binary" = "Binary"
+"viewer.encoding" = "Encoding"
+"viewer.find" = "Find"
+"viewer.find_next" = "Find next"
+"viewer.wrap" = "Wrap lines"
+"viewer.zoom_in" = "Zoom in"
+"viewer.zoom_out" = "Zoom out"
+"viewer.fit" = "Fit to window"
+"viewer.offset" = "Offset {offset}"
+
+# Status bar ----------------------------------------------------------------
+"status.ready" = "Ready"
+"status.copying" = "Copying {count} of {total}"
+"status.done" = "Done"
+"status.cancelled" = "Cancelled"
+"status.error" = "Error"
+"status.connected" = "Connected to {host}"
+"status.disconnected" = "Disconnected"
+
+# FTP -----------------------------------------------------------------------
+"ftp.connect" = "Connect"
+"ftp.disconnect" = "Disconnect"
+"ftp.new_connection" = "New connection"
+"ftp.host" = "Host"
+"ftp.port" = "Port"
+"ftp.user" = "User name"
+"ftp.password" = "Password"
+"ftp.anonymous" = "Anonymous login"
+"ftp.passive" = "Passive mode"
+"ftp.remote_dir" = "Remote directory"
+
+# Agent (built-in assistant) ------------------------------------------------
+"agent.panel" = "Agent"
+"agent.server_enabled" = "MCP server enabled"
+"agent.tools" = "Tools"
+"agent.ask" = "Ask the agent"
+"agent.thinking" = "Thinking…"
+"agent.error" = "The agent reported an error"
+
+# Errors --------------------------------------------------------------------
+"error.not_found" = "File not found"
+"error.access_denied" = "Access denied"
+"error.exists" = "The file already exists"
+"error.disk_full" = "Not enough space on the target drive"
+"error.invalid_name" = "Invalid file name"
+"error.unknown" = "Unknown error"

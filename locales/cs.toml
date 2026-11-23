@@ -1,0 +1,198 @@
+# RCommander language pack — Czech
+#
+# Kompletní česká lokalizace. Klíče musí odpovídat en.toml; zástupné symboly
+# ve složených závorkách ({count}, {total}, …) se doplňují za běhu a nesmějí
+# se překládat.
+
+[meta]
+code = "cs"
+name = "Czech"
+native_name = "Čeština"
+direction = "ltr"
+version = 1
+authors = ["RCommander contributors"]
+
+[strings]
+
+# Aplikace ------------------------------------------------------------------
+"app.title" = "RCommander"
+"app.version" = "Verze {version}"
+
+# Hlavní nabídka ------------------------------------------------------------
+"menu.file" = "&Soubor"
+"menu.mark" = "&Označit"
+"menu.commands" = "&Příkazy"
+"menu.net" = "&Síť"
+"menu.show" = "&Zobrazit"
+"menu.configuration" = "&Konfigurace"
+"menu.help" = "&Nápověda"
+"menu.start" = "&Start"
+
+# Příkazy (též tipy tlačítek) -----------------------------------------------
+"cmd.copy" = "Kopírovat"
+"cmd.move" = "Přesunout"
+"cmd.delete" = "Smazat"
+"cmd.rename" = "Přejmenovat"
+"cmd.mkdir" = "Nový adresář"
+"cmd.view" = "Zobrazit"
+"cmd.edit" = "Upravit"
+"cmd.search" = "Hledat soubory"
+"cmd.pack" = "Zabalit"
+"cmd.unpack" = "Rozbalit"
+"cmd.test_archive" = "Otestovat archiv"
+"cmd.compare_dirs" = "Porovnat adresáře"
+"cmd.sync_dirs" = "Synchronizovat adresáře"
+"cmd.multi_rename" = "Hromadné přejmenování"
+"cmd.attributes" = "Změnit atributy"
+"cmd.properties" = "Vlastnosti"
+"cmd.quit" = "Ukončit"
+"cmd.refresh" = "Obnovit"
+"cmd.select_all" = "Vybrat vše"
+"cmd.deselect_all" = "Odznačit vše"
+"cmd_deselect_all" = "Odznačit vše"
+"cmd.invert_selection" = "Invertovat výběr"
+"cmd.new_tab" = "Nová karta"
+"cmd.close_tab" = "Zavřít kartu"
+"cmd.next_tab" = "Další karta"
+"cmd.prev_tab" = "Předchozí karta"
+"cmd.history" = "Historie"
+"cmd.hotlist" = "Oblíbené adresáře"
+"cmd.open_command_line" = "Otevřít příkazový řádek"
+"cmd.calculate_size" = "Spočítat velikost"
+"cmd.duplicates" = "Najít duplikáty"
+"cmd.split_file" = "Rozdělit soubor"
+"cmd.combine_files" = "Sloučit soubory"
+"cmd.checksums" = "Vytvořit kontrolní součty"
+"cmd.verify_checksums" = "Ověřit kontrolní součty"
+"cmd.print" = "Tisknout"
+
+# Panely --------------------------------------------------------------------
+"panel.source" = "Zdroj"
+"panel.target" = "Cíl"
+"panel.path" = "Cesta"
+"panel.selection_of" = "{count} z {total} vybráno"
+"panel.free_space" = "Volné místo: {size}"
+"panel.files" = "{count} souborů"
+"panel.dirs" = "{count} adresářů"
+"panel.bytes" = "{size}"
+"panel.all_files" = "Všechny soubory"
+"panel.empty" = "Prázdné"
+
+# Sloupce -------------------------------------------------------------------
+"col.name" = "Název"
+"col.ext" = "Přípona"
+"col.size" = "Velikost"
+"col.date" = "Datum"
+"col.attrs" = "Atr."
+"col.comment" = "Komentář"
+"col.permissions" = "Oprávnění"
+
+# Kopírování ----------------------------------------------------------------
+"dialog.copy.title" = "Kopírovat"
+"dialog.copy.to" = "Kopírovat do:"
+"dialog.copy.options" = "Možnosti"
+"dialog.copy.overwrite_all" = "Přepsat vše"
+"dialog.copy.skip_all" = "Přeskočit vše"
+"dialog.copy.append" = "Připojit k existujícím souborům"
+"dialog.copy.verify" = "Po kopírování ověřit"
+"dialog.copy.background" = "Kopírovat na pozadí"
+"dialog.move.title" = "Přesunout"
+"dialog.delete.title" = "Smazat"
+"dialog.delete.confirm" = "Smazat {name}?"
+"dialog.delete.to_trash" = "Přesunout do koše"
+"dialog.delete.permanent" = "Smazat trvale"
+"dialog.mkdir.title" = "Vytvořit adresář"
+"dialog.rename.title" = "Přejmenovat"
+"dialog.multi_rename.title" = "Hromadné přejmenování"
+"dialog.rename_pattern" = "Vzor"
+"dialog.rename_preview" = "Náhled"
+"dialog.overwrite.title" = "Přepsat"
+"dialog.overwrite.question" = "Přepsat soubor {name}?"
+"dialog.overwrite.newer" = "Existující soubor je novější"
+"dialog.overwrite.size_differs" = "Velikosti souborů se liší"
+
+# Hledání -------------------------------------------------------------------
+"dialog.search.title" = "Hledat soubory"
+"dialog.search.name" = "Hledat"
+"dialog.search.text" = "Hledaný text"
+"dialog.search.in_files" = "Prohledávat soubory"
+"dialog.search.case_sensitive" = "Rozlišovat velikost písmen"
+"dialog.search.regex" = "Regulární výraz"
+"dialog.search.subdirs" = "Včetně podadresářů"
+"dialog.search.include_archives" = "Prohledávat archivy"
+"dialog.search.options" = "Možnosti"
+"dialog.search.start" = "Spustit hledání"
+"dialog.search.stop" = "Zastavit"
+"dialog.search.not_found" = "Nic nebylo nalezeno"
+
+# Konfigurace ---------------------------------------------------------------
+"dialog.config.title" = "Konfigurace"
+"dialog.config.language" = "Jazyk"
+"dialog.config.display" = "Zobrazení"
+"dialog.config.colors" = "Barvy"
+"dialog.config.editor" = "Editor"
+"dialog.config.packer" = "Archivátor"
+"dialog.config.ftp" = "FTP"
+"dialog.config.agent" = "Agent"
+"dialog.config.shortcuts" = "Klávesové zkratky"
+"dialog.config.apply" = "Použít"
+"dialog.config.ok" = "OK"
+"dialog.config.cancel" = "Zrušit"
+
+# Nápověda ------------------------------------------------------------------
+"dialog.help.title" = "Nápověda"
+"dialog.help.contents" = "Obsah"
+"dialog.help.no_topic" = "K tomuto oknu není nápověda"
+"dialog.help.missing_translation" = "Tento jazykový balíček není úplný"
+
+# Prohlížeč -----------------------------------------------------------------
+"viewer.text" = "Text"
+"viewer.hex" = "Hex"
+"viewer.image" = "Obrázek"
+"viewer.media" = "Multimédia"
+"viewer.binary" = "Binární data"
+"viewer.encoding" = "Kódování"
+"viewer.find" = "Hledat"
+"viewer.find_next" = "Hledat další"
+"viewer.wrap" = "Zalamovat řádky"
+"viewer.zoom_in" = "Přiblížit"
+"viewer.zoom_out" = "Oddálit"
+"viewer.fit" = "Přizpůsobit oknu"
+"viewer.offset" = "Posun {offset}"
+
+# Stavový řádek -------------------------------------------------------------
+"status.ready" = "Připraven"
+"status.copying" = "Kopíruje se {count} z {total}"
+"status.done" = "Hotovo"
+"status.cancelled" = "Zrušeno"
+"status.error" = "Chyba"
+"status.connected" = "Připojeno k {host}"
+"status.disconnected" = "Odpojeno"
+
+# FTP -----------------------------------------------------------------------
+"ftp.connect" = "Připojit"
+"ftp.disconnect" = "Odpojit"
+"ftp.new_connection" = "Nové připojení"
+"ftp.host" = "Server"
+"ftp.port" = "Port"
+"ftp.user" = "Uživatelské jméno"
+"ftp.password" = "Heslo"
+"ftp.anonymous" = "Anonymní přihlášení"
+"ftp.passive" = "Pasivní režim"
+"ftp.remote_dir" = "Vzdálený adresář"
+
+# Agent (vestavěný asistent) ------------------------------------------------
+"agent.panel" = "Agent"
+"agent.server_enabled" = "Server MCP je zapnutý"
+"agent.tools" = "Nástroje"
+"agent.ask" = "Zeptat se agenta"
+"agent.thinking" = "Přemýšlím…"
+"agent.error" = "Agent ohlásil chybu"
+
+# Chyby ---------------------------------------------------------------------
+"error.not_found" = "Soubor nebyl nalezen"
+"error.access_denied" = "Přístup zamítnut"
+"error.exists" = "Soubor již existuje"
+"error.disk_full" = "Na cílovém disku není dost místa"
+"error.invalid_name" = "Neplatný název souboru"
+"error.unknown" = "Neznámá chyba"
