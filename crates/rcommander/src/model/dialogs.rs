@@ -51,6 +51,8 @@ pub enum Dialog {
     Tree(TreeState),
     /// Button bar editor (`Configuration ▸ Button Bar`).
     ButtonBar(ButtonBarState),
+    /// Columns and view modes editor.
+    ViewModes(ViewModeDialogState),
     /// About box.
     About,
     /// Generic confirmation (used by the view layer).
@@ -757,6 +759,74 @@ impl ButtonBarState {
             return Err("a button needs a command".to_string());
         }
         Ok(())
+    }
+}
+
+/// Columns / view modes editor state.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ViewModeDialogState {
+    pub name: String,
+    pub kind: String,
+    pub mask: String,
+    pub sort_field: String,
+    pub sort_reversed: bool,
+    /// Column ids the mode shows (empty = keep the panel's columns).
+    pub columns: Vec<String>,
+    pub selected_mode: Option<usize>,
+}
+
+impl Default for ViewModeDialogState {
+    fn default() -> Self {
+        ViewModeDialogState {
+            name: String::new(),
+            kind: "full".to_string(),
+            mask: "*.*".to_string(),
+            sort_field: "name".to_string(),
+            sort_reversed: false,
+            columns: Vec::new(),
+            selected_mode: None,
+        }
+    }
+}
+
+impl ViewModeDialogState {
+    /// Build the state from an existing mode.
+    pub fn from_mode(mode: &rc_core::config::ViewModeSpec, index: usize) -> Self {
+        ViewModeDialogState {
+            name: mode.name.clone(),
+            kind: mode.kind.clone(),
+            mask: mode.mask.clone(),
+            sort_field: mode.sort_field.clone(),
+            sort_reversed: mode.sort_reversed,
+            columns: mode.columns.iter().map(|c| c.id.clone()).collect(),
+            selected_mode: Some(index),
+        }
+    }
+
+    /// Convert the editor fields into a validated view mode.
+    pub fn to_mode(&self) -> rc_core::config::ViewModeSpec {
+        rc_core::config::ViewModeSpec {
+            name: self.name.trim().to_string(),
+            kind: self.kind.clone(),
+            columns: self
+                .columns
+                .iter()
+                .enumerate()
+                .map(|(index, id)| {
+                    rc_core::config::ColumnSpec::new(
+                        id.clone(),
+                        if index == 0 { 0.0 } else { 90.0 },
+                    )
+                })
+                .collect(),
+            sort_field: self.sort_field.clone(),
+            sort_reversed: self.sort_reversed,
+            mask: if self.mask.trim().is_empty() {
+                "*.*".to_string()
+            } else {
+                self.mask.trim().to_string()
+            },
+        }
     }
 }
 

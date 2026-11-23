@@ -398,6 +398,9 @@ impl RCommanderApp {
                 if ui.button(self.model.t("cmd.hotlist")).clicked() {
                     command = Some("cm_DirectoryHotlist".into());
                 }
+                if ui.button(self.model.t("dialog.copy.background")).clicked() {
+                    self.model.show_transfer_manager = true;
+                }
                 if ui.button(self.model.t("cmd.duplicates")).clicked() {
                     command = Some("cm_GetFileSpace".into());
                 }
@@ -839,6 +842,12 @@ impl eframe::App for RCommanderApp {
         }
         if self.model.help.is_some() {
             crate::ui::help_window::show(ctx, &mut self.model, &mut self.help_ui, &palette);
+        }
+        if self.model.show_transfer_manager {
+            let palette = self.palette.clone();
+            if crate::ui::transfer_window::show(ctx, &mut self.model, &palette) {
+                self.model.show_transfer_manager = false;
+            }
         }
         if self.model.show_agent_panel {
             let closed =

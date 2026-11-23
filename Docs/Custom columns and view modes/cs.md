@@ -37,3 +37,34 @@ konstantní.
 Adresáře se zobrazují jako `[DIR]`, vše, co není dekódovatelný obrázek, se
 zobrazí podle přípony, takže mřížka se nikdy nezasekne na obřím nebo poškozeném
 souboru. Velikost náhledu je nastavitelná (*Konfigurace ▸ Možnosti ▸ Zobrazení*).
+
+## Editor sloupců
+
+*Zobrazení ▸ Vlastní sloupce* otevře editor. Aktuální sloupce jsou zobrazeny jako
+odstranitelné štítky; kliknutím se sloupec odebere a tlačítky `+ název` přidáte
+sloupec, který zobrazený není. K dispozici jsou:
+
+| Sloupec | Zobrazuje |
+| --- | --- |
+| `name` | název souboru (vždy přítomen, zabírá zbývající šířku) |
+| `ext` | příponu |
+| `size` | velikost, u adresářů `<DIR>` |
+| `date` | čas změny |
+| `attrs` | písmena DOS atributů a unixová práva |
+| `mode` | unixová práva ve tvaru `rwxr-xr-x` |
+| `comment` | komentář z `descript.ion` |
+| `link` | cíl symbolického odkazu |
+
+Seznam, pořadí i šířky jsou v `settings.toml` v `[[display.columns]]`, takže je lze
+upravit i ručně. Kliknutím na záhlaví sloupce se podle něj řadí; dalším kliknutím
+se pořadí obrátí.
+
+## Uložení režimu zobrazení
+
+Pod seznamem sloupců je editor režimů. Zadejte **název**, zvolte **druh** (stručný,
+podrobný, komentáře, náhledy, strom), volitelnou **masku**, **pole řazení** a zda
+má být pořadí obrácené, a stiskněte *Apply*. Uložené režimy se objeví v nabídce
+*Zobrazení* i v editoru, kde mají tlačítka *apply* a `×`.
+
+Režim je celá konfigurace panelu jedním příkazem, takže přepínání mezi
+„fotografie podle data“ a „zdrojové soubory podle názvu“ je jedno kliknutí.

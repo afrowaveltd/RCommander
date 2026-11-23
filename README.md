@@ -43,10 +43,10 @@ text files you can extend without recompiling anything.
 
 | Area | What you get |
 | --- | --- |
-| **Panels** | independent tabs, sort orders, filters and histories per panel; brief / full / comments / thumbnail-grid / tree views; quick view (`Ctrl+Q`) |
+| **Panels** | independent tabs, sort orders, filters and histories per panel; brief / full / comments / thumbnail-grid / tree views; **configurable columns and saved view modes**; quick view (`Ctrl+Q`) |
 | **Navigation** | natural sorting, quick search by typing, directory history with `Alt+Left`/`Alt+Right`, drive/volume selector, hotlist (`Ctrl+D`) |
 | **Selection** | `Insert`, `Space`, `Num +`/`-`/`*`, extension groups, marks that survive a re-read |
-| **File operations** | copy, move, delete, rename, create directory, attributes, comments (`descript.ion`); background transfers with progress and cancel; drag & drop from other applications |
+| **File operations** | copy, move, delete, rename, create directory, attributes, comments (`descript.ion`); background transfers with a **transfer manager window**; drag & drop from other applications |
 | **Previewer (F3)** | images as images, text with encoding detection, RTL aware, **integrated hex dump** for unknown binaries, byte and pixel budgets for huge files |
 | **Editor (F4)** | internal editor with encoding- and line-ending-preserving saves |
 | **Search** | mask + content + regular-expression search on a worker thread, live results, click to navigate, result limit and cancellation |

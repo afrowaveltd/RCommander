@@ -352,6 +352,14 @@ impl Model {
                 self.open_dialog(Dialog::Hotlist(HotlistState::default()));
                 CommandOutcome::Ok
             }
+            "cm_opentransfermanager" => {
+                self.show_transfer_manager = true;
+                CommandOutcome::Ok
+            }
+            "cm_customcolumnviewmenu" | "cm_configcustomcolumns" => {
+                self.open_dialog(Dialog::ViewModes(ViewModeDialogState::default()));
+                CommandOutcome::Ok
+            }
             "cm_buttonconfig" => {
                 self.open_dialog(Dialog::ButtonBar(ButtonBarState::new()));
                 CommandOutcome::Ok
@@ -1250,6 +1258,17 @@ impl Model {
         !self.transfers.is_empty()
     }
 
+    /// Cancel one operation by its job id.
+    pub fn cancel_transfer(&mut self, id: u64) -> bool {
+        match self.transfers.iter().find(|handle| handle.id == id) {
+            Some(handle) => {
+                handle.cancel();
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Cancel every running operation.
     pub fn cancel_transfers(&mut self) {
         for handle in self.transfers.iter() {
@@ -1277,6 +1296,149 @@ impl Model {
     /// True while a background operation runs.
     pub fn is_busy(&self) -> bool {
         !self.transfers.is_empty()
+    }
+
+    // ----- columns and view modes -------------------------------------
+
+    /// Append a column to the full view.
+    pub fn add_column(&mut self, id: &str) -> CommandOutcome {
+        let spec = rc_core::config::ColumnSpec::new(id, 90.0);
+        if !spec.is_known() {
+            return CommandOutcome::Failed(format!("unknown column {id:?}"));
+        }
+        if self.settings.display.columns.iter().any(|c| c.id == id) {
+            return CommandOutcome::Ok;
+        }
+        self.settings.display.columns.push(spec);
+        CommandOutcome::Ok
+    }
+
+    /// Remove a column; the name column cannot be removed.
+    pub fn remove_column(&mut self, id: &str) -> CommandOutcome {
+        if id == "name" {
+            return CommandOutcome::Failed("the name column is required".to_string());
+        }
+        let before = self.settings.display.columns.len();
+        self.settings.display.columns.retain(|c| c.id != id);
+        if self.settings.display.columns.len() == before {
+            CommandOutcome::None
+        } else {
+            CommandOutcome::Ok
+        }
+    }
+
+    /// Move a column one slot towards the start (`up`) or the end.
+    pub fn move_column(&mut self, id: &str, up: bool) -> CommandOutcome {
+        let index = match self
+            .settings
+            .display
+            .columns
+            .iter()
+            .position(|c| c.id == id)
+        {
+            Some(index) => index,
+            None => return CommandOutcome::None,
+        };
+        let target = if up {
+            if index == 0 {
+                return CommandOutcome::None;
+            }
+            index - 1
+        } else {
+            if index + 1 >= self.settings.display.columns.len() {
+                return CommandOutcome::None;
+            }
+            index + 1
+        };
+        self.settings.display.columns.swap(index, target);
+        CommandOutcome::Ok
+    }
+
+    /// Set the width of a column.
+    pub fn set_column_width(&mut self, id: &str, width: f32) -> CommandOutcome {
+        match self
+            .settings
+            .display
+            .columns
+            .iter_mut()
+            .find(|c| c.id == id)
+        {
+            Some(column) => {
+                column.width = width.clamp(20.0, 800.0);
+                CommandOutcome::Ok
+            }
+            None => CommandOutcome::Failed(format!("unknown column {id:?}")),
+        }
+    }
+
+    /// Save the editor state as a view mode (replacing a mode of the same name).
+    pub fn save_view_mode(&mut self, state: &ViewModeDialogState) -> CommandOutcome {
+        let mode = state.to_mode();
+        if let Err(message) = mode.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        match self
+            .settings
+            .display
+            .view_modes
+            .iter_mut()
+            .find(|m| m.name == mode.name)
+        {
+            Some(existing) => *existing = mode,
+            None => self.settings.display.view_modes.push(mode),
+        }
+        CommandOutcome::Ok
+    }
+
+    /// Apply a saved view mode to the active panel.
+    pub fn apply_view_mode(&mut self, name: &str) -> CommandOutcome {
+        let Some(mode) = self
+            .settings
+            .display
+            .view_modes
+            .iter()
+            .find(|m| m.name == name)
+            .cloned()
+        else {
+            return CommandOutcome::None;
+        };
+        self.settings.display.view_mode = mode.kind.clone();
+        let panel = self.active_mut();
+        panel.view_mode = crate::model::ViewMode::from_str(&mode.kind);
+        panel.mask_spec = mode.mask.clone();
+        let field = match mode.sort_field.as_str() {
+            "ext" => SortField::Extension,
+            "size" => SortField::Size,
+            "date" => SortField::ModifiedTime,
+            "unsorted" => SortField::Unsorted,
+            _ => SortField::Name,
+        };
+        let spec = SortSpec {
+            field,
+            reversed: mode.sort_reversed,
+            ..panel.sort()
+        };
+        panel.set_sort(spec);
+        if !mode.columns.is_empty() {
+            let current = self.settings.display.columns.clone();
+            self.settings.display.columns = mode.columns.clone();
+            if current.is_empty() {
+                self.settings.display.columns = mode.columns.clone();
+            }
+        }
+        self.refresh_active();
+        CommandOutcome::Ok
+    }
+
+    /// Delete a saved view mode.
+    pub fn remove_view_mode(&mut self, name: &str) -> CommandOutcome {
+        let before = self.settings.display.view_modes.len();
+        self.settings.display.view_modes.retain(|m| m.name != name);
+        if self.settings.display.view_modes.len() == before {
+            CommandOutcome::None
+        } else {
+            CommandOutcome::Ok
+        }
     }
 
     // ----- drag & drop -------------------------------------------------

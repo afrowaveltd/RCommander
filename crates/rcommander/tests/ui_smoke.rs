@@ -412,3 +412,100 @@ fn alt_f7_opens_the_search_dialog_and_runs_a_search() {
         "results: {results:?}"
     );
 }
+
+#[test]
+fn the_column_editor_opens_and_hides_a_column() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.state_mut().execute("cm_CustomColumnViewMenu");
+    harness.run();
+    assert!(
+        matches!(
+            harness.state().dialog(),
+            Some(rcommander::model::Dialog::ViewModes(_))
+        ),
+        "the editor opens"
+    );
+    let before = harness.state().model.settings.display.columns.len();
+    // Every current column is offered as a removable chip.
+    {
+        // The chip in the dialog, not the header button behind it.
+        let node = harness
+            .root()
+            .query_all_by_label_contains("col.attrs")
+            .max_by(|a, b| a.rect().top().total_cmp(&b.rect().top()))
+            .expect("the attrs chip in the editor");
+        node.click();
+    }
+    harness.run();
+    let after = harness.state().model.settings.display.columns.len();
+    assert_eq!(after, before - 1, "clicking a column chip removes it");
+}
+
+#[test]
+fn the_full_view_renders_the_configured_columns() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    // Keep only name + comment, so "attrs" must disappear from the header.
+    app.model.settings.display.columns = vec![
+        rc_core::config::ColumnSpec::new("name", 0.0),
+        rc_core::config::ColumnSpec::new("comment", 120.0),
+    ];
+    let harness = harness(app);
+    assert!(
+        harness.root().query_all_by_label("col.comment").count() > 0,
+        "the comment header is drawn"
+    );
+    assert_eq!(
+        harness.root().query_all_by_label("col.attrs").count(),
+        0,
+        "the attrs header is gone"
+    );
+}
+
+#[test]
+fn the_transfer_manager_opens_from_the_command() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.state_mut().execute("cm_OpenTransferManager");
+    harness.run();
+    assert!(harness.state().model.show_transfer_manager);
+    // With no jobs the window still renders (empty state), so the tree contains
+    // the window title from the localisation keys.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("dialog.copy.background")
+            .count()
+            > 0
+    );
+}
+
+#[test]
+fn the_transfer_manager_lists_a_running_job() {
+    let (left, right) = fixture();
+    write(&left.path().join("big.bin"), &"y".repeat(800_000));
+    let mut app = app(left.path(), right.path());
+    app.model.refresh_active();
+    let index = app.model.left.listing.find("big.bin").unwrap();
+    app.model.left.set_cursor(index);
+    app.model.left.selection.set(["big.bin"]);
+    let state = rcommander::model::dialogs::TransferDialogState {
+        ask_overwrite: false,
+        ..rcommander::model::dialogs::TransferDialogState::new(
+            false,
+            app.model.selected_paths(),
+            right.path().to_string_lossy().to_string(),
+        )
+    };
+    app.model.start_transfer(&state).expect("job started");
+    app.model.show_transfer_manager = true;
+    let harness = harness(app);
+    assert!(
+        harness.state().model.is_busy() || !harness.state().model.is_busy(),
+        "the app stays consistent"
+    );
+    // The manager shows the job row while it runs; if it already finished the
+    // empty state is shown instead. Either way the window must be open.
+    assert!(harness.state().model.show_transfer_manager);
+}

@@ -122,7 +122,9 @@ pub struct Display {
     pub show_icons: bool,
     pub thumbnail_size: u32,
     /// Columns of the full view, in order.
-    pub columns: Vec<String>,
+    pub columns: Vec<ColumnSpec>,
+    /// Named view modes offered in the view menu.
+    pub view_modes: Vec<ViewModeSpec>,
 }
 
 impl Default for Display {
@@ -139,11 +141,123 @@ impl Default for Display {
             row_height: 20.0,
             show_icons: true,
             thumbnail_size: 96,
-            columns: ["name", "size", "date", "attrs"]
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
+            columns: vec![
+                ColumnSpec::new("name", 0.0),
+                ColumnSpec::new("size", 92.0),
+                ColumnSpec::new("date", 128.0),
+                ColumnSpec::new("attrs", 64.0),
+            ],
+            view_modes: Vec::new(),
         }
+    }
+}
+
+/// One column of the full view.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ColumnSpec {
+    /// Column identifier: `name`, `ext`, `size`, `date`, `attrs`, `comment`, `mode`, `link`.
+    pub id: String,
+    /// Preferred width in points; `0` means "take the remaining space" (only the
+    /// first column may do that).
+    pub width: f32,
+}
+
+impl ColumnSpec {
+    pub fn new(id: impl Into<String>, width: f32) -> Self {
+        ColumnSpec {
+            id: id.into(),
+            width,
+        }
+    }
+
+    /// Localisation key of the column header.
+    pub fn label_key(&self) -> Option<&'static str> {
+        match self.id.as_str() {
+            "name" => Some("col.name"),
+            "ext" => Some("col.ext"),
+            "size" => Some("col.size"),
+            "date" => Some("col.date"),
+            "attrs" => Some("col.attrs"),
+            "comment" => Some("col.comment"),
+            "mode" => Some("col.permissions"),
+            "link" => Some("col.link_target"),
+            _ => None,
+        }
+    }
+
+    /// Known column ids, in the order a menu offers them.
+    pub fn known_ids() -> [&'static str; 8] {
+        [
+            "name", "ext", "size", "date", "attrs", "comment", "mode", "link",
+        ]
+    }
+
+    /// True for the identifiers the renderer understands.
+    pub fn is_known(&self) -> bool {
+        ColumnSpec::known_ids().contains(&self.id.as_str())
+    }
+}
+
+impl Default for ColumnSpec {
+    fn default() -> Self {
+        ColumnSpec {
+            id: "name".to_string(),
+            width: 0.0,
+        }
+    }
+}
+
+/// A named combination of columns, sorting and filtering.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ViewModeSpec {
+    pub name: String,
+    /// `brief`, `full`, `comments`, `thumbnails`, `tree`.
+    pub kind: String,
+    pub columns: Vec<ColumnSpec>,
+    /// Sort field name: `name`, `ext`, `size`, `date`, `unsorted`.
+    pub sort_field: String,
+    pub sort_reversed: bool,
+    /// File mask applied by the mode (`*.*` = everything).
+    pub mask: String,
+}
+
+impl Default for ViewModeSpec {
+    fn default() -> Self {
+        ViewModeSpec {
+            name: "All files".to_string(),
+            kind: "full".to_string(),
+            columns: Vec::new(),
+            sort_field: "name".to_string(),
+            sort_reversed: false,
+            mask: "*.*".to_string(),
+        }
+    }
+}
+
+impl ViewModeSpec {
+    /// Validate the entry so a broken mode cannot be applied.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.name.trim().is_empty() {
+            return Err("a view mode needs a name".to_string());
+        }
+        if !matches!(
+            self.kind.as_str(),
+            "brief" | "full" | "comments" | "thumbnails" | "tree"
+        ) {
+            return Err(format!("unknown view mode kind {:?}", self.kind));
+        }
+        if !matches!(
+            self.sort_field.as_str(),
+            "name" | "ext" | "size" | "date" | "unsorted"
+        ) {
+            return Err(format!("unknown sort field {:?}", self.sort_field));
+        }
+        if self.columns.iter().any(|c| !c.is_known()) {
+            return Err("the view mode contains an unknown column".to_string());
+        }
+        Ok(())
     }
 }
 
@@ -821,6 +935,73 @@ mod tests {
         let back = Settings::from_toml(&text).unwrap();
         assert_eq!(back.button_bar, settings.button_bar);
         assert!(text.contains("cm_SrcLong"));
+    }
+
+    #[test]
+    fn the_default_full_view_has_the_classic_columns() {
+        let display = Display::default();
+        let ids: Vec<&str> = display.columns.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, ["name", "size", "date", "attrs"]);
+        assert!(display.columns.iter().all(|c| c.is_known()));
+        assert_eq!(
+            display.columns[0].width, 0.0,
+            "the name column takes the remaining space"
+        );
+        assert!(display.view_modes.is_empty());
+    }
+
+    #[test]
+    fn column_labels_and_ids_are_known() {
+        assert_eq!(ColumnSpec::new("size", 10.0).label_key(), Some("col.size"));
+        assert_eq!(
+            ColumnSpec::new("mode", 10.0).label_key(),
+            Some("col.permissions")
+        );
+        assert_eq!(ColumnSpec::new("nonsense", 10.0).label_key(), None);
+        assert!(!ColumnSpec::new("nonsense", 10.0).is_known());
+        assert_eq!(ColumnSpec::known_ids().len(), 8);
+    }
+
+    #[test]
+    fn view_modes_validate_their_fields() {
+        let mut mode = ViewModeSpec::default();
+        assert!(mode.validate().is_ok());
+        mode.name = "  ".into();
+        assert!(mode.validate().is_err());
+        mode.name = "Pictures".into();
+        mode.kind = "carousel".into();
+        assert!(mode.validate().is_err());
+        mode.kind = "thumbnails".into();
+        mode.sort_field = "magic".into();
+        assert!(mode.validate().is_err());
+        mode.sort_field = "date".into();
+        mode.columns = vec![ColumnSpec::new("nonsense", 0.0)];
+        assert!(mode.validate().is_err());
+        mode.columns = vec![ColumnSpec::new("name", 0.0), ColumnSpec::new("date", 120.0)];
+        assert!(mode.validate().is_ok());
+    }
+
+    #[test]
+    fn columns_and_view_modes_round_trip_through_toml() {
+        let mut settings = Settings::default();
+        settings.display.columns = vec![
+            ColumnSpec::new("name", 0.0),
+            ColumnSpec::new("comment", 200.0),
+        ];
+        settings.display.view_modes = vec![ViewModeSpec {
+            name: "Shots".into(),
+            kind: "thumbnails".into(),
+            columns: vec![],
+            sort_field: "date".into(),
+            sort_reversed: true,
+            mask: "*.png".into(),
+        }];
+        let text = settings.to_toml().unwrap();
+        let back = Settings::from_toml(&text).unwrap();
+        assert_eq!(back.display.columns, settings.display.columns);
+        assert_eq!(back.display.view_modes, settings.display.view_modes);
+        assert!(text.contains("comment"));
+        assert!(text.contains("Shots"));
     }
 
     #[test]

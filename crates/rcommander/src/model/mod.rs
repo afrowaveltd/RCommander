@@ -373,6 +373,8 @@ pub struct Model {
     pub show_agent_panel: bool,
     /// Running search, if any.
     pub search_job: Option<search::SearchJob>,
+    /// The background transfer manager window is open.
+    pub show_transfer_manager: bool,
 }
 
 /// An open F3 viewer.
@@ -453,6 +455,7 @@ impl Model {
             next_job_id: 1,
             show_agent_panel: false,
             search_job: None,
+            show_transfer_manager: false,
             keymap,
             settings,
             strings,

@@ -57,3 +57,14 @@ active panel, so a drop is never lost.
 
 Existing names are **never overwritten** by a drop: the incoming file is stored as
 `name (2).ext` instead, which makes an accidental drop harmless.
+
+## The background transfer manager
+
+*Commands ▸ Background Transfer* opens a window listing every running job with its
+own progress bar, the file being written, the number of completed files and a `×`
+button that cancels just that job; the button in the header cancels all of them.
+The window stays usable while transfers run, so you can start a second copy and
+watch both.
+
+The status bar shows the aggregate progress of all jobs with a single cancel
+button, which is enough for the common case of one transfer at a time.

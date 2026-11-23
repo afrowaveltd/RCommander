@@ -107,6 +107,11 @@ impl OpHandle {
         }
     }
 
+    /// Localisation key describing the job kind.
+    pub fn kind_title(&self) -> &'static str {
+        self.kind.title_key()
+    }
+
     pub fn cancel(&self) {
         self.cancel.cancel();
     }

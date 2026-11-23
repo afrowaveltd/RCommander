@@ -52,7 +52,7 @@ cargo test --workspace
 
 ## Phase 2 — `rc-core` (done)
 
-`cargo test -p rc-core` → **151 tests, 0 failures.**
+`cargo test -p rc-core` → **155 tests, 0 failures.**
 
 | Step | Module | Covered by tests |
 | --- | --- | --- |
@@ -149,7 +149,7 @@ protocol on stdio.
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **166 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **173 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -158,7 +158,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **15 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **19 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -196,8 +196,17 @@ into that panel's directory (the panel under the pointer wins, both panels missi
 falls back to the focused one) and colliding names are renamed instead of
 overwritten — 3 model tests plus a unit test for the target resolution.
 
-Simplified / not yet implemented: custom columns and view-mode editor, a separate
-background-transfer-manager window.
+**Custom columns and view modes are editable**: `[[display.columns]]` drives both
+the header and the rows of the full view (add, remove, reorder, width), and named
+view modes bundle kind + columns + sort + mask and are applied from the *Show*
+menu — rendered by a dedicated dialog with tests.
+
+**The background transfer manager window** lists every running job with its own
+progress and cancel button (plus cancel-all).
+
+Remaining simplifications: the thumbnail view has no per-file cache controls, the
+tree view is a dialog rather than an in-panel tree, and the search results table
+lives inside the dialog.
 
 ## Phase 11 — Platforms (partial)
 
@@ -225,7 +234,7 @@ with `cargo test --workspace`).
 ## Next steps (in priority order)
 
 1. Route remote (FTP) transfers through the same background queue.
-2. Custom columns and view modes (model stubs exist in `rc-core::config`).
-3. A separate background-transfer-manager window with per-job rows.
+2. An in-panel directory tree (currently the tree opens as a dialog).
+3. Per-file cache controls for the thumbnail view.
 4. Background transfer manager dialog on top of `ops_runner`.
 6. Windows cross-build and Android APK build once the toolchains are available.

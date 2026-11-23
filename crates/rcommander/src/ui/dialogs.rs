@@ -49,6 +49,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::Compare(state) => compare(ui, model, state),
                 Dialog::Tree(state) => tree(ui, model, state),
                 Dialog::ButtonBar(state) => button_bar(ui, model, state),
+                Dialog::ViewModes(state) => view_modes(ui, model, state),
                 Dialog::About => about(ui, model),
                 Dialog::Confirm {
                     message,
@@ -110,6 +111,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::Compare(_) => "cmd.compare_dirs",
         Dialog::Tree(_) => "cmd.cd_tree",
         Dialog::ButtonBar(_) => "cmd.button_bar",
+        Dialog::ViewModes(_) => "cmd.custom_column_view",
         Dialog::FtpConnect(_) => "ftp.connect",
         Dialog::Synchronize(_) => "cmd.sync_dirs",
         Dialog::About => "cmd.about",
@@ -983,6 +985,113 @@ fn button_bar(ui: &mut egui::Ui, model: &mut Model, state: &mut ButtonBarState) 
         return DialogAction::Close;
     }
     DialogAction::None
+}
+
+fn view_modes(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut ViewModeDialogState,
+) -> DialogAction {
+    let mut action = DialogAction::None;
+    ui.label(model.t("cmd.custom_column_view"));
+    // --- the active column list -------------------------------------
+    let columns = model.settings.display.columns.clone();
+    ui.horizontal_wrapped(|ui| {
+        for spec in &columns {
+            let label = spec
+                .label_key()
+                .map(|k| model.t(k))
+                .unwrap_or_else(|| spec.id.clone());
+            if ui
+                .button(format!("{label} ×"))
+                .on_hover_text(format!("{} — {} pt", spec.id, spec.width))
+                .clicked()
+            {
+                let _ = model.remove_column(&spec.id);
+            }
+        }
+    });
+    ui.horizontal_wrapped(|ui| {
+        for id in rc_core::config::ColumnSpec::known_ids() {
+            if columns.iter().any(|c| c.id == id) {
+                continue;
+            }
+            if ui.small_button(format!("+ {id}")).clicked()
+                && let crate::model::CommandOutcome::Failed(message) = model.add_column(id)
+            {
+                model.report_error(message);
+            }
+        }
+    });
+    ui.separator();
+    // --- saved view modes -------------------------------------------
+    let modes = model.settings.display.view_modes.clone();
+    egui::ScrollArea::vertical()
+        .max_height(140.0)
+        .id_salt("viewmode_scroll")
+        .show(ui, |ui| {
+            for (index, mode) in modes.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    if ui
+                        .selectable_label(
+                            state.selected_mode == Some(index),
+                            format!("{} ({})", mode.name, mode.kind),
+                        )
+                        .clicked()
+                    {
+                        *state = ViewModeDialogState::from_mode(mode, index);
+                    }
+                    if ui.small_button("apply").clicked() {
+                        let _ = model.apply_view_mode(&mode.name);
+                    }
+                    if ui.small_button("×").clicked() {
+                        let _ = model.remove_view_mode(&mode.name);
+                    }
+                });
+            }
+            if modes.is_empty() {
+                ui.label(model.t("panel.empty"));
+            }
+        });
+    egui::Grid::new("viewmode_grid")
+        .num_columns(2)
+        .show(ui, |ui| {
+            ui.label("name");
+            ui.add(egui::TextEdit::singleline(&mut state.name).desired_width(200.0));
+            ui.end_row();
+            ui.label("kind");
+            egui::ComboBox::from_id_salt("viewmode_kind")
+                .selected_text(state.kind.clone())
+                .show_ui(ui, |ui| {
+                    for kind in ["brief", "full", "comments", "thumbnails", "tree"] {
+                        ui.selectable_value(&mut state.kind, kind.to_string(), kind);
+                    }
+                });
+            ui.end_row();
+            ui.label("mask");
+            ui.add(egui::TextEdit::singleline(&mut state.mask).desired_width(200.0));
+            ui.end_row();
+            ui.label("sort");
+            egui::ComboBox::from_id_salt("viewmode_sort")
+                .selected_text(state.sort_field.clone())
+                .show_ui(ui, |ui| {
+                    for field in ["name", "ext", "size", "date", "unsorted"] {
+                        ui.selectable_value(&mut state.sort_field, field.to_string(), field);
+                    }
+                });
+            ui.end_row();
+        });
+    ui.checkbox(&mut state.sort_reversed, "reversed");
+    if ui.button(model.t("dialog.config.apply")).clicked() {
+        match model.save_view_mode(state) {
+            crate::model::CommandOutcome::Failed(message) => model.report_error(message),
+            _ => model.report(model.t("status.done")),
+        }
+    }
+    if ui.button(model.t("dialog.config.ok")).clicked() {
+        action = DialogAction::Close;
+    }
+    action
 }
 
 fn buttons_close(ui: &mut egui::Ui, model: &Model) -> (bool, bool) {

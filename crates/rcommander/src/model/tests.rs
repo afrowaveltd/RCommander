@@ -1398,3 +1398,128 @@ fn dropping_nothing_is_a_no_op_and_non_local_panels_are_refused() {
         CommandOutcome::Failed(_)
     ));
 }
+
+// ---------------- custom columns and view modes ----------------
+
+#[test]
+fn columns_can_be_reordered_hidden_and_restored() {
+    let (_l, _r, mut model) = fixture();
+    let ids = |m: &Model| -> Vec<String> {
+        m.settings
+            .display
+            .columns
+            .iter()
+            .map(|c| c.id.clone())
+            .collect()
+    };
+    assert_eq!(ids(&model), ["name", "size", "date", "attrs"]);
+
+    // Hide the attributes column.
+    assert!(model.remove_column("attrs").is_ok());
+    assert_eq!(ids(&model), ["name", "size", "date"]);
+
+    // Re-adding it puts it at the end.
+    assert!(model.add_column("attrs").is_ok());
+    assert_eq!(ids(&model), ["name", "size", "date", "attrs"]);
+
+    // Move the date column up once, then once more into the first position.
+    assert!(model.move_column("date", true).is_ok());
+    assert_eq!(ids(&model), ["name", "date", "size", "attrs"]);
+    assert!(model.move_column("date", true).is_ok());
+    assert_eq!(ids(&model), ["date", "name", "size", "attrs"]);
+    assert!(model.move_column("date", false).is_ok());
+    assert_eq!(ids(&model), ["name", "date", "size", "attrs"]);
+
+    // Set a width (the date column is second again after the moves above).
+    assert!(model.set_column_width("date", 200.0).is_ok());
+    assert_eq!(model.settings.display.columns[1].width, 200.0);
+
+    // Unknown columns and no-ops are rejected.
+    assert!(matches!(
+        model.add_column("nonsense"),
+        CommandOutcome::Failed(_)
+    ));
+    assert!(matches!(
+        model.set_column_width("nonsense", 10.0),
+        CommandOutcome::Failed(_)
+    ));
+    assert_eq!(
+        model.move_column("name", true),
+        CommandOutcome::None,
+        "the first column cannot move up"
+    );
+    assert_eq!(
+        model.remove_column("name"),
+        CommandOutcome::Failed("the name column is required".to_string())
+    );
+    assert_eq!(model.remove_column("absurd"), CommandOutcome::None);
+}
+
+#[test]
+fn a_custom_column_list_is_remembered_per_settings() {
+    let (_l, _r, mut model) = fixture();
+    model.settings.display.columns = vec![
+        rc_core::config::ColumnSpec::new("name", 0.0),
+        rc_core::config::ColumnSpec::new("comment", 240.0),
+    ];
+    let text = model.settings.to_toml().unwrap();
+    let restored = Settings::from_toml(&text).unwrap();
+    assert_eq!(restored.display.columns.len(), 2);
+    assert_eq!(restored.display.columns[1].id, "comment");
+}
+
+#[test]
+fn view_modes_can_be_saved_applied_and_removed() {
+    let (left, _r, mut model) = fixture();
+    let mut state = ViewModeDialogState {
+        name: "Text files".to_string(),
+        kind: "full".to_string(),
+        mask: "*.txt".to_string(),
+        sort_field: "date".to_string(),
+        sort_reversed: true,
+        ..ViewModeDialogState::default()
+    };
+    assert!(model.save_view_mode(&state).is_ok());
+    assert_eq!(model.settings.display.view_modes.len(), 1);
+
+    assert!(model.apply_view_mode("Text files").is_ok());
+    assert_eq!(model.left.view_mode, ViewMode::Full);
+    assert_eq!(model.left.mask_spec, "*.txt");
+    assert_eq!(
+        model.left.sort().field,
+        rc_core::sorting::SortField::ModifiedTime
+    );
+    assert!(model.left.sort().reversed);
+    let names = names(&model);
+    assert!(
+        !names.contains(&"beta.log".to_string()),
+        "the mode filter applies: {names:?}"
+    );
+    assert!(left.path().exists());
+
+    // A second mode with the same name replaces the first.
+    state.mask = "*.*".to_string();
+    assert!(model.save_view_mode(&state).is_ok());
+    assert_eq!(model.settings.display.view_modes.len(), 1);
+
+    assert!(model.remove_view_mode("Text files").is_ok());
+    assert!(model.settings.display.view_modes.is_empty());
+    assert_eq!(model.apply_view_mode("Text files"), CommandOutcome::None);
+}
+
+#[test]
+fn invalid_view_modes_are_rejected() {
+    let (_l, _r, mut model) = fixture();
+    let mut state = ViewModeDialogState::default();
+    assert!(matches!(
+        model.save_view_mode(&state),
+        CommandOutcome::Failed(_)
+    ));
+    state.name = "Broken".to_string();
+    state.kind = "carousel".to_string();
+    assert!(matches!(
+        model.save_view_mode(&state),
+        CommandOutcome::Failed(_)
+    ));
+    assert!(model.settings.display.view_modes.is_empty());
+}

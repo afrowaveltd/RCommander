@@ -54,3 +54,14 @@ nikdy neztratí.
 
 Existující názvy se přetažením **nikdy nepřepíší**: příchozí soubor se uloží jako
 `název (2).přípona`, takže nechtěné přetažení nic nezničí.
+
+## Správce přenosů na pozadí
+
+*Příkazy ▸ Přenosy na pozadí* otevře okno se seznamem všech běžících úloh, každou
+s vlastním pruhem průběhu, zapisovaným souborem, počtem hotových souborů
+a tlačítkem `×`, které zruší jen tuto úlohu; tlačítko v záhlaví zruší všechny.
+Okno zůstává použitelné i během přenosů, takže můžete spustit druhou kopii a
+sledovat obě.
+
+Stavový řádek ukazuje souhrnný průběh všech úloh s jediným tlačítkem pro zrušení,
+což stačí pro obvyklý případ jednoho přenosu naráz.

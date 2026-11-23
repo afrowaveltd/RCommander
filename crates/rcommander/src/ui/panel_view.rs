@@ -5,7 +5,6 @@ use crate::theme::{Palette, RowStyle};
 use crate::ui::thumbs::{self, ThumbnailCache};
 use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, Ui, Vec2};
 use rc_core::entry::Entry;
-use rc_core::format;
 
 /// Something the panel wants the application to do.
 #[derive(Clone, Debug, PartialEq)]
@@ -20,10 +19,40 @@ pub enum PanelAction {
     ContextMenu,
 }
 
-/// Width of the numeric columns in full view.
-const SIZE_W: f32 = 92.0;
-const DATE_W: f32 = 128.0;
-const ATTR_W: f32 = 64.0;
+/// Text of one configured column for an entry.
+fn column_text(id: &str, entry: &Entry, display: &rc_core::config::Display) -> String {
+    match id {
+        "name" => entry.name.clone(),
+        "ext" => entry.extension(),
+        "size" => {
+            if entry.is_dir() {
+                "<DIR>".to_string()
+            } else if display.show_size_in_bytes {
+                rc_core::format::format_thousands(entry.size)
+            } else {
+                rc_core::format::format_size_bytes(entry.size)
+            }
+        }
+        "date" => rc_core::format::format_datetime(entry.mtime),
+        "attrs" => entry.attr_string(),
+        "comment" => entry
+            .link_target
+            .as_ref()
+            .map(|t| t.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        "mode" => entry
+            .attrs
+            .unix_mode
+            .map(rc_core::entry::unix_mode_string)
+            .unwrap_or_default(),
+        "link" => entry
+            .link_target
+            .as_ref()
+            .map(|t| t.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        _ => String::new(),
+    }
+}
 
 /// Draw the whole panel: tabs, path bar, column header and the file list.
 pub fn show(
@@ -220,27 +249,45 @@ fn list_header(
     let painter = ui.painter();
     painter.rect_filled(rect, 0, header_bg);
     let font_id = FontId::proportional(model.settings.display.font_size - 1.0);
-    let columns = [
-        ("panel.path", 0.0f32, None, "cm_SrcByName"),
-        (
-            "col.size",
-            SIZE_W,
-            Some(rc_core::sorting::SortField::Size),
-            "cm_SrcBySize",
-        ),
-        (
-            "col.date",
-            DATE_W,
-            Some(rc_core::sorting::SortField::ModifiedTime),
-            "cm_SrcByDateTime",
-        ),
-        ("col.attrs", ATTR_W, None, "cm_SrcByName"),
-    ];
+    // Column headers follow `settings.display.columns`, so hiding, adding and
+    // reordering columns also changes the header row.
+    let specs = model.settings.display.columns.clone();
+    let fixed: f32 = specs.iter().skip(1).map(|c| c.width.max(20.0)).sum();
+    let flex = (rect.width() - fixed - 12.0).max(60.0);
+    let columns: Vec<(
+        String,
+        f32,
+        Option<rc_core::sorting::SortField>,
+        &'static str,
+    )> = specs
+        .iter()
+        .enumerate()
+        .map(|(index, spec)| {
+            let width = if index == 0 {
+                flex
+            } else {
+                spec.width.max(20.0)
+            };
+            let label = spec
+                .label_key()
+                .map(|key| model.t(key))
+                .unwrap_or_else(|| spec.id.clone());
+            let (field, command) = match spec.id.as_str() {
+                "ext" => (Some(rc_core::sorting::SortField::Extension), "cm_SrcByExt"),
+                "size" => (Some(rc_core::sorting::SortField::Size), "cm_SrcBySize"),
+                "date" => (
+                    Some(rc_core::sorting::SortField::ModifiedTime),
+                    "cm_SrcByDateTime",
+                ),
+                _ => (None, "cm_SrcByName"),
+            };
+            (label, width, field, command)
+        })
+        .collect();
     let mut x = rect.left() + 4.0;
-    let name_width = (rect.width() - SIZE_W - DATE_W - ATTR_W - 12.0).max(40.0);
     for (index, (key, width, field, command)) in columns.iter().enumerate() {
-        let column_width = if index == 0 { name_width } else { *width };
-        let mut label = model.t(key).to_string();
+        let column_width = *width;
+        let mut label = key.clone();
         if let Some(field) = field
             && spec.field == *field
         {
@@ -262,6 +309,8 @@ fn list_header(
             ui.scope_id().with(("hdr", side, index)),
             Sense::click(),
         );
+        // Column headers are buttons (clicking sorts), so they get a name.
+        hit.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
         if hit.clicked() {
             actions.push(PanelAction::Command(command.to_string()));
         }
@@ -287,6 +336,7 @@ fn file_list(
         .map(|e| model.panel(side).selection.contains(&e.name))
         .collect();
     let error = model.panel(side).error.clone();
+    let display = model.settings.display.clone();
     let font_id = font(model);
     let mut clicked: Option<(usize, ClickKind)> = None;
 
@@ -325,7 +375,7 @@ fn file_list(
                     style.color(palette)
                 };
                 draw_row(
-                    painter, rect, entry, view_mode, &font_id, color, palette, rtl,
+                    painter, rect, entry, view_mode, &font_id, color, palette, rtl, &display,
                 );
             }
             if response.clicked() {
@@ -553,6 +603,7 @@ fn draw_row(
     color: Color32,
     palette: &Palette,
     rtl: bool,
+    display: &rc_core::config::Display,
 ) {
     let y = rect.center().y;
     let ctrl_y = rect.top() + rect.height() / 2.0 - 2.0;
@@ -585,25 +636,29 @@ fn draw_row(
     }
 
     let margin = 4.0;
-    let size_text = if entry.is_dir() {
-        "<DIR>".to_string()
-    } else {
-        format::format_size_bytes(entry.size)
-    };
-    let date_text = format::format_datetime(entry.mtime);
-    let attr_text = entry.attr_string();
-    let name_width = (rect.width() - SIZE_W - DATE_W - ATTR_W - 2.0 * margin).max(40.0);
-
-    let cells: [(&str, f32, Align2); 4] = [
-        (&entry.name, name_width, Align2::LEFT_CENTER),
-        (&size_text, SIZE_W, Align2::RIGHT_CENTER),
-        (&date_text, DATE_W, Align2::LEFT_CENTER),
-        (&attr_text, ATTR_W, Align2::LEFT_CENTER),
-    ];
+    // The columns come from the configuration, so the full view is user-defined.
+    let specs = &display.columns;
+    let fixed: f32 = specs.iter().skip(1).map(|c| c.width.max(20.0)).sum();
+    let flex = (rect.width() - fixed - 2.0 * margin).max(40.0);
+    let mut cells: Vec<(String, f32, Align2)> = Vec::with_capacity(specs.len());
+    for (index, spec) in specs.iter().enumerate() {
+        let width = if index == 0 {
+            flex
+        } else {
+            spec.width.max(20.0)
+        };
+        let align = if spec.id == "size" {
+            Align2::RIGHT_CENTER
+        } else {
+            Align2::LEFT_CENTER
+        };
+        cells.push((column_text(&spec.id, entry, display), width, align));
+    }
+    let count = cells.len();
     let order: Vec<usize> = if rtl {
-        (0..4).rev().collect()
+        (0..count).rev().collect()
     } else {
-        (0..4).collect()
+        (0..count).collect()
     };
     let mut x = if rtl {
         rect.right() - margin
@@ -611,23 +666,25 @@ fn draw_row(
         rect.left() + margin
     };
     for index in order {
-        let (text, width, align) = cells[index];
+        let (text, width, align) = &cells[index];
+        let width = *width;
         let (anchor_x, text_align) = if rtl {
             let a = egui::pos2(x - if index == 0 { 0.0 } else { width }, y);
             x -= width;
-            (a, flip_align(align))
+            (a, flip_align(*align))
         } else {
             let a = egui::pos2(x, y);
             x += width;
-            (a, align)
+            (a, *align)
         };
+        let muted = specs.get(index).map(|s| s.id == "attrs").unwrap_or(false);
         let shown = elide(text, width, font.size);
         painter.text(
             anchor_x,
             text_align,
             shown,
             font.clone(),
-            if index == 3 { palette.hidden } else { color },
+            if muted { palette.hidden } else { color },
         );
     }
 }
