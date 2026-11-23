@@ -234,10 +234,10 @@ Example user journey:
 1. Open **Agent chat** in the left pane; choose a locally running Ollama model
    or an explicitly configured remote model provider. The right pane stays a
    normal local, SFTP or virtual directory panel.
-2. Select \`locales/*.json\` in the right pane and choose **Share selection with
+2. Select `locales/*.json` in the right pane and choose **Share selection with
    agent** (or grant read access to that directory for this task). The chat
    displays the exact scope and filenames before the agent sees file contents.
-3. Ask: "Compare these dictionaries with \`en.json\`; add missing keys to the
+3. Ask: "Compare these dictionaries with `en.json`; add missing keys to the
    Czech and Swahili dictionaries, preserve keys, nesting, placeholders and
    formatting, and show what you changed." Another task might be: "Translate
    this Markdown document" or "Suggest a safe edit to this TOML config".
@@ -250,15 +250,110 @@ Example user journey:
 
 | # | Step | Output | DoD (definition of done) |
 | --- | --- | --- | --- |
-| 16.1 | Agent chat panel and session model | \`AgentChatSession\` in the headless model, conversation history, model/provider selector, streaming replies, cancellation, chat-as-pane/tab and a switch back to file listing | UI test shows chat in either pane while the other pane remains navigable; a session can attach/detach without losing the current directory or selection; no model running means a useful error, not a frozen UI |
-| 16.2 | Pluggable model connections | an \`AgentProvider\` abstraction with an **Ollama HTTP adapter** first, then configurable remote/OpenAI-compatible endpoints; model discovery, timeout/cancel, token/context budgets, clear local/remote indicators | in-process fake HTTP provider covers streaming, cancellation, malformed/timeout responses and reconnection; no cloud connection is made by default; credentials use the Phase 13.4 secret store and are never written to chat logs or settings in plain text |
-| 16.3 | Explicit tool and file-scope permissions | connect chat sessions to existing \`rc-agent\` MCP tools and a constrained workspace-file adapter; read-only by default, per-task path/operation allowlist, optional approval before writes, visible tool-call log | tests refuse access outside the approved roots, symlink escapes and unapproved destructive commands; the model cannot acquire wider permissions merely by asking; remote files and untrusted documents are treated as **data**, never as tool instructions |
-| 16.4 | Safe proposal / review / apply pipeline | \`ChangeSet\` with original hashes, textual/binary classification, diff view, syntax/format validation, per-file approval, atomic replace where supported, backup/undo and conflict detection | tests prove a declined change leaves bytes untouched, stale inputs cannot be silently overwritten, valid changes preserve encoding/newlines when requested, invalid JSON/TOML or cancelled writes do not corrupt originals; multi-file partial failure is reported with recoverable backups |
-| 16.5 | Dictionary and document workflows | local directory comparison keyed by a chosen source locale; discover missing/extra keys, ask the agent to translate only missing values, preserve JSON structure, placeholders and escape sequences; translate selected text/Markdown with a preview | fixtures cover nested JSON, arrays, placeholders (\`{name}\`, \`{0}\`, etc.), Unicode/RTL, already-translated entries, invalid output and schema differences; existing translations are not replaced without explicit instruction; output is validated before Apply |
+| 16.1 | Agent chat panel and session model | `AgentChatSession` in the headless model, conversation history, model/provider selector, streaming replies, cancellation, chat-as-pane/tab and a switch back to file listing | UI test shows chat in either pane while the other pane remains navigable; a session can attach/detach without losing the current directory or selection; no model running means a useful error, not a frozen UI |
+| 16.2 | Pluggable model connections | an `AgentProvider` abstraction with an **Ollama HTTP adapter** first, then configurable remote/OpenAI-compatible endpoints; model discovery, timeout/cancel, token/context budgets, clear local/remote indicators | in-process fake HTTP provider covers streaming, cancellation, malformed/timeout responses and reconnection; no cloud connection is made by default; credentials use the Phase 13.4 secret store and are never written to chat logs or settings in plain text |
+| 16.3 | Explicit tool and file-scope permissions | connect chat sessions to existing `rc-agent` MCP tools and a constrained workspace-file adapter; read-only by default, per-task path/operation allowlist, optional approval before writes, visible tool-call log | tests refuse access outside the approved roots, symlink escapes and unapproved destructive commands; the model cannot acquire wider permissions merely by asking; remote files and untrusted documents are treated as **data**, never as tool instructions |
+| 16.4 | Safe proposal / review / apply pipeline | `ChangeSet` with original hashes, textual/binary classification, diff view, syntax/format validation, per-file approval, atomic replace where supported, backup/undo and conflict detection | tests prove a declined change leaves bytes untouched, stale inputs cannot be silently overwritten, valid changes preserve encoding/newlines when requested, invalid JSON/TOML or cancelled writes do not corrupt originals; multi-file partial failure is reported with recoverable backups |
+| 16.5 | Dictionary and document workflows | local directory comparison keyed by a chosen source locale; discover missing/extra keys, ask the agent to translate only missing values, preserve JSON structure, placeholders and escape sequences; translate selected text/Markdown with a preview | fixtures cover nested JSON, arrays, placeholders (`{name}`, `{0}`, etc.), Unicode/RTL, already-translated entries, invalid output and schema differences; existing translations are not replaced without explicit instruction; output is validated before Apply |
 | 16.6 | UnderstandMe and other virtual data sources | a **provider interface** to list/read/write *capabilities* of a data source independently of the panel; a future UnderstandMe adapter can display projects/languages/dictionaries in a pane and compare/synchronise with local JSON via its API or an MCP bridge | offline provider fixture lists languages and entries, distinguishes read-only/writeable actions, previews proposed synchronisation, handles version conflicts and missing authentication; do not pretend an arbitrary MCP server automatically implements a filesystem |
 | 16.7 | General editing tasks | select one or more Markdown, text, code or configuration files and request a translation, explanation, refactor or structured edit; show a scoped diff and optionally run explicitly configured validation commands | headless tests cover multi-file selections, unsupported/binary files, file-size/context limits, no-op proposals, malformed output and failures of optional validators; **no automatic arbitrary shell execution** and no silent write to config files |
-| 16.8 | Opt-in Git working-tree assistant | watch an approved local repository for changes (debounce/coalesce events), inspect \`git status\` and diffs, optionally run allowlisted checks, summarise problems and **draft** GitHub issues or fixes; coordinate with Phase 15 Git panels | deterministic tests cover duplicate file events, untracked/ignored files, issue deduplication, offline mode and credentials; creating an issue, changing branches, committing or pushing requires separate approval; no automatic force-push |
+| 16.8 | Opt-in Git working-tree assistant | watch an approved local repository for changes (debounce/coalesce events), inspect `git status` and diffs, optionally run allowlisted checks, summarise problems and **draft** GitHub issues or fixes; coordinate with Phase 15 Git panels | deterministic tests cover duplicate file events, untracked/ignored files, issue deduplication, offline mode and credentials; creating an issue, changing branches, committing or pushing requires separate approval; no automatic force-push |
 | 16.9 | Async work, portability and documentation | bounded queues, cancellable operations, progress/diagnostics, clear provider capability indicators; English/Czech help topic with task examples, trust boundaries and privacy notes | UI/model tests with an in-process mock model and mock MCP server; no dependence on a live Ollama, GitHub or UnderstandMe account; desktop tested first, Android capability limitations documented honestly |
+| 16.10 | Bidirectional pane context and live results | pane-neutral `WorkspaceContext`, opt-in context sharing, agent-to-pane operations, refresh/highlight events, F3 preview and proposal/diff entry points | headless/UI tests: chat left and files right **and vice versa**; selected file shared only after permission; creating files refreshes the other pane; F3 shows the new file; tab switches do not widen scope; stale events and cycles are suppressed |
+| 16.11 | Permission profiles and approvals | layered global/provider/workspace/session policies, time-limited grants, operation-scoped approvals, audit trail, emergency stop/revoke | tests: deny wins, expired grants fail closed, changing pane paths never changes granted roots, no silent remote command, Git push or GitHub issue, every external write shows the destination and requires its own appropriate grant |
+| 16.12 | Model/tool/data plugin contracts | versioned adapter manifests and registries; separate model APIs (Ollama and configurable endpoints), MCP tool discovery and capability-based data providers | fake providers and fake MCP servers verify discovery, conflicts, unavailable providers, refusal of unknown privileges, tool-chain cancellation and provenance of every tool call; no untrusted extension runs by default |
+| 16.13 | Project scaffolding and approved commands | bounded project-task runner with working-directory constraints, configured commands such as `dotnet new`, `dotnet test`, `git init` and local commit, streaming logs and live file updates | temp-directory integration test creates a C# solution and test project using fixture/fake command runners; tests prohibit arbitrary commands, unsafe working paths, secrets in command/log output and unapproved external publication |
+| 16.14 | Remote SSH workspace actions | browse/preview/edit via SFTP provider, optional separately authorised SSH command transport using verified host keys, isolated command scope, per-host identity and operation logs | mock SSH/SFTP integration tests for host verification, reauthentication, network loss, stale remote file conflicts and refusal of remote shell execution without its specific grant; depends on Phase 13 |
+| 16.15 | Platform capability matrix | desktop-first feature toggles for agent chat, model runtime, MCP tools, project execution and SSH commands; optional/limited Android UI with no forced parity | Linux/Windows test matrix covers chat and tool workflows; Android build remains valid with desktop-only extensions disabled and unsupported actions hidden or clearly disabled; no requirement to ship an Android AI workstation |
+
+### Shared, bidirectional pane workspace
+
+The **two panes are peers**. The chat pane is not a separate, blind command
+console: it can be paired with a file, archive, Git, remote or virtual-provider
+pane through a **WorkspaceContext**. With the user's configurable consent, the
+agent can inspect the other pane's current location, selected items, permitted
+metadata, read-only previews and approved file contents. Its tool actions can
+then create or modify items in that pane; the pane immediately refreshes and
+highlights the result. A user can select a newly created file and press **F3**
+to view its standard preview, or open the proposed diff before saving. The
+agent can also respond to user-side navigation/selection changes *only when
+sharing is enabled*. Switching focus, moving tabs or swapping pane sides must
+not silently expand permission scopes.
+
+A **two-way event channel** publishes approved selection/context changes to the
+chat and applies operation progress, new/modified file notifications, previews
+and task results back to the opposite pane. Use bounded/debounced events,
+generation IDs and correlation IDs to prevent loops, duplicate refreshes and
+stale previews. Workspace grants belong to a session and an explicit root or
+resource identity, **not** to an arbitrary mutable "active pane" path.
+
+Concrete desktop scenario:
+
+1. In the right pane open `~/Projects` (or a chosen writable SSH/SFTP
+   destination); in the left pane open Agent chat and select a local Ollama
+   model or another configured provider. The user grants the session
+   **create/edit in this project directory**.
+2. Ask: "Create a C# solution here with a small CLI application, tests and
+   README; initialise Git, run the tests, and prepare it for GitHub."
+3. The agent plans the task, uses approved filesystem/project tools (and,
+   optionally, authorised MCP tools) to create files, invoke `dotnet` in a
+   constrained working directory, and report progress. The right pane lists
+   new directories/files as they appear; **F3** previews a selected source file
+   or README, while the chat shows what the agent has done.
+4. The user reviews the project and tool log. Creating a Git repository and a
+   *local* commit can follow an expressly granted policy; creating a remote
+   repository and **pushing** are external write/publication actions and need
+   separately granted permissions and a visible target (account/repo/branch).
+   Never silently push, force-push, expose secrets or enable unrestricted
+   command execution.
+5. Future tasks can work in either direction: select files in the pane and
+   send them to the agent, or ask the agent to create/update a file and
+   immediately inspect it in the other pane.
+
+### Agent permissions and plugin architecture
+
+Separate **model providers**, **tool providers**, and **data providers**:
+
+- **Model providers:** Ollama is the first reference adapter; independently
+  configured adapters may connect to self-hosted or cloud model APIs. Provider
+  discovery, per-profile settings, endpoints, model selection, timeouts,
+  streaming and credentials are extensible through a versioned provider API.
+  Providers are *not* necessarily MCP services.
+- **Tool providers:** built-in file/project/Git/SSH capabilities plus any
+  user-registered **MCP servers** with advertised schemas. The model can plan
+  multi-step calls across authorised tools, but RCommander centrally validates
+  every operation, its arguments and its access policy. No model or MCP tool
+  gets authority simply by advertising a capability.
+- **Data providers:** filesystem, archive, remote, Git, UnderstandMe and future
+  virtual sources expose browse/read/write/preview/watch capabilities. Their
+  operations are mediated by the same policy engine; a tool or provider may
+  be available on one platform but absent on another.
+- **Extensions:** declare capabilities, UI integration, minimum protocol/API
+  version and trust level. Avoid requiring third-party Rust code to be compiled
+  into the app; prefer isolated processes/protocol adapters for untrusted
+  extensions, with opt-in installation and disabled-by-default permissions.
+  An extension marketplace is **not** a prerequisite for Phase 16.
+
+Provide policy profiles at **global → provider → workspace → session/task**
+levels, with the most restrictive applicable rule taking precedence. Suggested
+permission classes: metadata/selection visibility; read file contents; propose
+edits; apply edits/create within an approved root; run an allowlisted command;
+remote SSH execution; use network/MCP tools; Git local writes; external actions
+such as GitHub issue creation or push. Support *ask every time*, *allow within
+this scope/session* and *deny*, explicit expiry/revocation, dry-run previews,
+audit logs and a **Stop agent / revoke grants** action. Defaults are read-only
+and minimal. Do not treat injected instructions inside README, documents or
+tool responses as authorisation.
+
+### Desktop-first platform scope
+
+The advanced two-way agent workspace is primarily a **Linux/Windows desktop**
+feature. Android can retain the ordinary two-pane file manager, previews and
+other platform-appropriate functions without implementing the full chat,
+local model runtime, shell/SSH execution or agent-plugin hosting. Share the
+headless core where useful; capability-gate or feature-gate desktop-only UI and
+integrations, and keep Android builds clean when these features are disabled.
+Avoid claiming feature parity where the OS permission model does not allow it.
 
 **Important boundaries and dependencies:**
 
