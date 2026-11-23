@@ -34,6 +34,8 @@ cargo test --workspace
 | 14 | Colour themes | **pending** — planned in Phase 14; today the palette is two hardcoded variants |
 | 15 | Git repositories as panels | **pending** — planned in Phase 15; read-only virtual folders (branches/tags/commits) and copying out of a revision come first, write operations only afterwards |
 
+| 16 | Interactive AI workspace (chat panel, Ollama/remote models, scoped file editing, dictionaries and agent workflows) | **pending** — planned in Phase 16; existing MCP panel can call tools, but is not yet an agent conversation or reviewed multi-file editor |
+
 ---
 
 ## Phase 0 — Reverse-engineering (done)
@@ -304,6 +306,8 @@ with `cargo test --workspace`).
 | SFTP compiles behind a cargo feature and is unit-covered but has never been tested against a live server | Phase 13.5, together with the manual verification step |
 | A Git repository cannot be browsed as a panel and files cannot be copied out of a branch/tag/commit without checking it out | Phase 15 (read-only first), which reuses the Phase 13.4 credential store for keys and tokens instead of storing them itself |
 
+| No conversational agent panel, Ollama/model provider abstraction or scoped propose/diff/apply workflow; no UnderstandMe dictionary panel or opt-in Git watcher | Phase 16 (16.1–16.9): local-first AI chat as a pane, explicit file permissions, validated edit proposals, virtual data providers and approved GitHub issue drafts |
+
 ## Next steps (in priority order)
 
 1. Route remote (FTP) transfers through the same background queue.
@@ -321,3 +325,4 @@ with `cargo test --workspace`).
 6. A cross-platform plugin format to replace the reference product's DLL plugins.
 4. Background transfer manager dialog on top of `ops_runner`.
 6. Windows cross-build and Android APK build once the toolchains are available.
+7. Phase 16 — interactive agent chat in either panel with local Ollama or an explicitly selected remote model; safe, reviewed editing of selected JSON dictionaries, documents and configuration files; later UnderstandMe virtual panels and an opt-in Git issue assistant. This builds on MCP but is **not implemented** by the existing MCP tool window.
