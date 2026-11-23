@@ -7,6 +7,7 @@
 
 pub mod commands;
 pub mod dialogs;
+pub mod remote;
 
 use crate::i18n::{Direction, Strings};
 use rc_core::config::Settings;
@@ -355,6 +356,8 @@ pub struct Model {
     pub free_space: Option<Space>,
     /// Files marked in the *inactive* panel are the default copy targets.
     pub last_error: Option<String>,
+    /// Connected remote panels, indexed by [`Side`].
+    pub remote_sessions: [Option<remote::RemoteSession>; 2],
 }
 
 /// An open F3 viewer.
@@ -428,6 +431,7 @@ impl Model {
             quit_requested: false,
             free_space: None,
             last_error: None,
+            remote_sessions: [None, None],
             keymap,
             settings,
             strings,
@@ -505,6 +509,16 @@ impl Model {
     /// Open `location` in `side`, keeping the cursor on the previous name when
     /// it still exists.
     pub fn open_in(&mut self, side: Side, location: Location) -> CoreResult<()> {
+        if location.is_remote() {
+            let keep = self.panel(side).cursor_entry().map(|e| e.name.clone());
+            self.open_remote(side, location)?;
+            if let Some(name) = keep
+                && let Some(index) = self.panel(side).listing.find(&name)
+            {
+                self.panel_mut(side).set_cursor(index);
+            }
+            return Ok(());
+        }
         let settings = self.settings.clone();
         let panel = self.panel_mut(side);
         let keep = panel.cursor_entry().map(|e| e.name.clone());

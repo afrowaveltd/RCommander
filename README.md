@@ -51,7 +51,7 @@ text files you can extend without recompiling anything.
 | **Editor (F4)** | internal editor with encoding- and line-ending-preserving saves |
 | **Search** | mask + content search, recursion, regular expressions, archives |
 | **Archives** | enter ZIP/TAR/TAR.GZ/TAR.BZ2/TAR.XZ/TAR.ZST like directories; pack and unpack atomically; integrity test |
-| **FTP / SFTP** | engine ready (`rc-remote`: passive/active FTP, MLSD with LIST fallback, cancellable recursive transfers; FTPS/SFTP behind features) — the remote *panel* is the next UI milestone, see the status file |
+| **FTP / SFTP** | remote panels: `Ctrl+F` connects and turns a panel into the server (`Ctrl+Shift+F` disconnects); passive/active FTP, MLSD with LIST fallback, download/upload of marked entries, cancellable recursive transfers; FTPS/SFTP behind cargo features |
 | **Synchronise dirs** | file-by-file comparison with direction markers, dry run, per-file results |
 | **Multi-rename** | placeholder language (`[N]`, `[E]`, `[C]`, `[P]`, `[T1]`, date parts), live preview, search & replace |
 | **Automation** | 594-entry internal command catalogue (`cm_*`), command line, editable button bar, **MCP server and client** |

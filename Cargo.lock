@@ -3033,6 +3033,7 @@ dependencies = [
  "rc-core",
  "rc-help",
  "rc-i18n",
+ "rc-remote",
  "rc-viewer",
  "serde",
  "serde_json",

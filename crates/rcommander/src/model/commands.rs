@@ -307,6 +307,13 @@ impl Model {
             }
             "cm_versioninfo" => self.show_properties(),
             "cm_getfilespace" => self.calculate_space(),
+            "cm_ftpdisconnect" => {
+                let side = self.focus;
+                match self.disconnect_remote(side) {
+                    Ok(()) => CommandOutcome::Ok,
+                    Err(e) => CommandOutcome::Failed(e.to_string()),
+                }
+            }
             "cm_ftpconnect" | "cm_ftpnewconnection" => {
                 self.open_dialog(Dialog::FtpConnect(FtpConnectState::default()));
                 CommandOutcome::Ok

@@ -24,10 +24,10 @@ cargo test --workspace
 | 4 | Previewer engine (`rc-viewer`) | **done** |
 | 5 | Archive engine (`rc-archive`) | **done** |
 | 6 | Help system (`rc-help`, `Docs/`) | **done** |
-| 7 | Remote file systems (`rc-remote`) | **partial** — engine complete and tested (FTP end to end against a mock server, FTPS/SFTP behind features); the remote *panel* is not wired into the UI yet |
+| 7 | Remote file systems (`rc-remote`) | **done** — engine tested against a mock server and wired into the panels (connect, list, navigate, download, upload, disconnect); no live-server test possible here |
 | 8 | MCP integration (`rc-agent`) | **done** — server + client tested, host bridge wired, CLI subcommand present |
 | 9 | Application model | **done** |
-| 10 | egui user interface | **partial** — panels, menus, dialogs, viewer, editor, help, agent bridge render and are UI-tested; button-bar editing, thumbnails, quick view and the search results table are simplified |
+| 10 | egui user interface | **partial** — panels, menus, dialogs, viewer, editor, help, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, thumbnails, quick view and the search results table are simplified |
 | 11 | Platforms | **partial** — Linux verified end to end; Windows and Android build configurations documented, not executed here (toolchains unavailable in this environment) |
 | 12 | Verification | **done** for everything marked done above |
 
@@ -123,9 +123,16 @@ path sanitisation, error mapping (550 → not found, 530 → authentication, ref
 connection → connect error). FTPS and SFTP compile behind features and are unit
 covered but are **not** tested against live servers.
 
-Not done: the remote panel in the UI. `rc-core::location::Location::Remote` and
-`rc_remote::RemoteFs` are ready to be wired; this is the first item in *Next
-steps*.
+Wired into the application: `Ctrl+F` opens the connect dialog, which builds an
+`rc_remote::ConnectionSpec`, connects and turns the active panel into a remote
+directory (listing with sizes, dates, symlink kinds and unix modes);
+`Ctrl+Shift+F` disconnects. Navigation, `download_selected` and `upload_paths`
+work through a [`RemoteBackend`] abstraction, so the behaviour is covered by
+tests with an in-memory backend while production uses the real client.
+
+Remaining gap: no test against a live FTP/SFTP server is performed here (the
+suite must stay offline), and transfers still run on the UI thread rather than
+in the background queue.
 
 ## Phase 8 — `rc-agent` (done)
 
@@ -142,7 +149,7 @@ protocol on stdio.
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **105 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **113 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -178,7 +185,7 @@ agent panel UI, drag & drop, background transfer manager dialog.
 - `cargo test --workspace`: see the per-crate numbers above.
   Totals by crate: `rc-core` 147, `rc-i18n` 81, `rc-viewer` 161 (+6 doctests),
   `rc-archive` 130 (+4 integration), `rc-help` 68, `rc-agent` 96,
-  `rc-remote` 111 (+3 doctests), `rcommander` 105 (+6 UI) — **≈900 tests**.
+  `rc-remote` 111 (+3 doctests), `rcommander` 113 (+6 UI) — **≈926 tests**.
 - `cargo clippy` and `cargo fmt --check` are clean for `rc-core`, `rc-i18n`,
   `rc-viewer`, `rc-archive`, `rc-help`, `rc-agent`; `rcommander` is formatted and
   warning-free except for the documented simplifications.
@@ -189,8 +196,8 @@ agent panel UI, drag & drop, background transfer manager dialog.
 
 ## Next steps (in priority order)
 
-1. Wire the remote panel on top of `rc-remote` (FTP/SFTP browsing, transfers in
-   the background queue).
+1. Move remote transfers into the background queue (`ops_runner`) so an upload
+   never blocks the UI.
 2. Quick-view panel and thumbnail view (uses `rc-viewer` image decoding).
 3. Button-bar editor, custom columns and view modes (model stubs exist in
    `rc-core::config`).
