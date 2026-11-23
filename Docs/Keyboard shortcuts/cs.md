@@ -27,7 +27,8 @@ tabulky `[shortcuts]` v souboru `settings.toml` jako `"ctrl+f3" = "cm_SrcByName"
 zástupce souboru, `Ctrl+M` otevře hromadné přejmenování, `Ctrl+D` oblíbené
 adresáře, `Alt+Down` historii adresářů, `Alt+F7` hledání, `Alt+F5`/`Alt+F6`
 zabalení a rozbalení, `Ctrl+T` novou kartu, `Ctrl+W` kartu zavře a `Ctrl+Tab`
-mezi nimi přepíná.
+mezi nimi přepíná. `Ctrl+Q` otevře rychlý náhled souboru pod kurzorem,
+`Ctrl+Shift+F8` strom adresářů a `Shift+F2` porovná oba panely.
 
 ## Funkční klávesy ve spodním pruhu
 

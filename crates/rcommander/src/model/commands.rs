@@ -162,6 +162,64 @@ impl Model {
                 CommandOutcome::Ok
             }
             "cm_matchsrc" => self.match_target_to_source(),
+            // ---- tabs -------------------------------------------------
+            "cm_newtab" => self.new_tab(),
+            "cm_closetab" => self.close_tab(),
+            "cm_nexttab" => self.cycle_tab(true),
+            "cm_prevtab" => self.cycle_tab(false),
+
+            // ---- extra panels ----------------------------------------
+            "cm_srcquickview" => {
+                self.quick_view = !self.quick_view;
+                if self.quick_view {
+                    self.tree_view = false;
+                }
+                CommandOutcome::Ok
+            }
+            "cm_separatetree1" => {
+                self.tree_view = !self.tree_view;
+                if self.tree_view {
+                    self.quick_view = false;
+                }
+                CommandOutcome::Ok
+            }
+
+            // ---- dialogs ---------------------------------------------
+            "cm_historylist" => {
+                let side = self.focus;
+                let rows: Vec<HistoryRow> = self
+                    .panel(side)
+                    .history
+                    .entries()
+                    .iter()
+                    .map(|e| HistoryRow {
+                        path: e.path.to_string_lossy().to_string(),
+                        cursor_name: e.cursor.clone(),
+                    })
+                    .collect();
+                self.open_dialog(Dialog::History(HistoryState::new(rows)));
+                CommandOutcome::Ok
+            }
+            "cm_cdtree" => {
+                let root = self.active().location().display();
+                let mut state = TreeState {
+                    root: root.clone(),
+                    include_files: false,
+                    ..Default::default()
+                };
+                state.entries = self.collect_tree_entries();
+                self.open_dialog(Dialog::Tree(state));
+                CommandOutcome::Ok
+            }
+            "cm_comparedirs" => self.compare_directories(),
+            "cm_srcuserdef" => {
+                let mask = self.active().mask_spec.clone();
+                self.open_dialog(Dialog::MaskPrompt(MaskPromptState::new(mask)));
+                CommandOutcome::Ok
+            }
+            "cm_opendiropenarchive" | "cm_opendirorarchive" => self.enter(),
+            "cm_openincommandline" => self.insert_cursor_into_command_line(),
+
             "cm_switchpanel" => {
                 self.switch_focus();
                 CommandOutcome::Ok
@@ -338,6 +396,7 @@ impl Model {
                 CommandOutcome::Ok
             }
             "cm_exit" => CommandOutcome::Quit,
+            "cm_minimize" => CommandOutcome::Minimize,
             "cm_savesettings" => {
                 match self.settings.save(&rc_core::config::default_config_path()) {
                     Ok(()) => CommandOutcome::Ok,
@@ -923,6 +982,190 @@ impl Model {
         } else {
             CommandOutcome::Failed(failures.join("; "))
         }
+    }
+
+    // ----- tabs ------------------------------------------------------
+
+    /// Open a new tab next to the active one, showing the same directory.
+    pub fn new_tab(&mut self) -> CommandOutcome {
+        let side = self.focus;
+        let location = self.panel(side).location().clone();
+        let tab = rc_core::tabs::PanelTab {
+            sort: self.panel(side).sort(),
+            mask: self.panel(side).mask_spec.clone(),
+            ..rc_core::tabs::PanelTab::new(location)
+        };
+        self.panel_mut(side).tabs.add(tab, true);
+        CommandOutcome::Ok
+    }
+
+    /// Close the active tab and show the tab that becomes active.
+    pub fn close_tab(&mut self) -> CommandOutcome {
+        let side = self.focus;
+        let index = self.panel(side).tabs.active_index();
+        if !self.panel_mut(side).tabs.close(index) {
+            self.report("cannot close the last tab");
+            return CommandOutcome::None;
+        }
+        let location = self.panel(side).tabs.active().location.clone();
+        let settings = self.settings.clone();
+        match self.panel_mut(side).open(location, &settings) {
+            Ok(()) => CommandOutcome::Ok,
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    /// Cycle the active tab forwards or backwards.
+    pub fn cycle_tab(&mut self, forward: bool) -> CommandOutcome {
+        let side = self.focus;
+        let tabs = &mut self.panel_mut(side).tabs;
+        if forward {
+            tabs.next();
+        } else {
+            tabs.previous();
+        }
+        let location = tabs.active().location.clone();
+        let settings = self.settings.clone();
+        match self.panel_mut(side).open(location, &settings) {
+            Ok(()) => CommandOutcome::Ok,
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    // ----- extra panels ---------------------------------------------
+
+    /// Directory names below the current directory, used by the tree dialog.
+    pub fn collect_tree_entries(&self) -> Vec<String> {
+        let Some(root) = self.active().location().as_path().map(|p| p.to_path_buf()) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        let mut stack = vec![root.clone()];
+        let mut guard = 0;
+        while let Some(dir) = stack.pop() {
+            guard += 1;
+            if guard > 2000 {
+                break;
+            }
+            let Ok(read) = std::fs::read_dir(&dir) else {
+                continue;
+            };
+            let mut children: Vec<std::path::PathBuf> = read
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_dir())
+                .collect();
+            children.sort();
+            for child in children {
+                out.push(child.to_string_lossy().to_string());
+                stack.push(child);
+            }
+        }
+        out
+    }
+
+    /// Remove a quick filter mask and show everything again.
+    pub fn clear_mask(&mut self) -> CommandOutcome {
+        self.active_mut().mask_spec = "*.*".to_string();
+        self.refresh_active();
+        CommandOutcome::Ok
+    }
+
+    /// Apply a mask from the mask dialog.
+    pub fn apply_mask(&mut self, state: &MaskPromptState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        self.active_mut().mask_spec = state.mask.trim().to_string();
+        self.close_dialogs();
+        self.refresh_active();
+        CommandOutcome::Ok
+    }
+
+    /// Put the file name under the cursor into the command line.
+    pub fn insert_cursor_into_command_line(&mut self) -> CommandOutcome {
+        let Some(entry) = self.active().current().cloned() else {
+            return CommandOutcome::None;
+        };
+        if !self.command_line.is_empty() && !self.command_line.ends_with(' ') {
+            self.command_line.push(' ');
+        }
+        self.command_line.push_str(&entry.name);
+        CommandOutcome::Ok
+    }
+
+    /// Compare the two panels name by name and report the differences.
+    pub fn compare_directories(&mut self) -> CommandOutcome {
+        let left_entries = self.panel(Side::Left).entries().to_vec();
+        let right_entries = self.panel(Side::Right).entries().to_vec();
+        let mut rows: Vec<CompareRow> = Vec::new();
+        let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for entry in left_entries.iter().filter(|e| e.name != "..") {
+            let other = right_entries.iter().find(|e| e.name == entry.name);
+            let row = match other {
+                None => CompareRow {
+                    name: entry.name.clone(),
+                    status: if entry.is_dir() {
+                        "<DIR>".to_string()
+                    } else {
+                        "<".to_string()
+                    },
+                    left_size: Some(entry.size),
+                    right_size: None,
+                },
+                Some(other) => {
+                    let equal = entry.size == other.size
+                        && entry.mtime == other.mtime
+                        && entry.is_dir() == other.is_dir();
+                    CompareRow {
+                        name: entry.name.clone(),
+                        status: if equal {
+                            "=".to_string()
+                        } else {
+                            "!=".to_string()
+                        },
+                        left_size: Some(entry.size),
+                        right_size: Some(other.size),
+                    }
+                }
+            };
+            seen.insert(entry.name.clone());
+            rows.push(row);
+        }
+        for entry in right_entries
+            .iter()
+            .filter(|e| e.name != ".." && !seen.contains(&e.name))
+        {
+            rows.push(CompareRow {
+                name: entry.name.clone(),
+                status: if entry.is_dir() { "<DIR>" } else { ">" }.to_string(),
+                left_size: None,
+                right_size: Some(entry.size),
+            });
+        }
+        rows.sort_by_key(|a| a.name.to_lowercase());
+        let _different = rows.iter().filter(|r| r.status != "=").count();
+        let state = CompareState {
+            rows,
+            mark_different: true,
+        };
+        if state.mark_different {
+            let names: Vec<String> = state
+                .rows
+                .iter()
+                .filter(|r| r.status != "=")
+                .map(|r| r.name.clone())
+                .collect();
+            let side = self.focus;
+            let panel = self.panel_mut(side);
+            panel.selection.clear();
+            for name in names {
+                panel.selection.insert(name);
+            }
+        }
+        self.report(state.summary());
+        self.open_dialog(Dialog::Compare(state));
+        CommandOutcome::Ok
     }
 
     /// Switch the UI language.

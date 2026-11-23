@@ -40,3 +40,13 @@ are sorted naturally, so `file2` comes before `file10`.
 
 A mask in the panel (`*.txt;*.md`) hides files that do not match; directories
 always stay visible. `Ctrl+F10` shows all files again.
+
+## Quick view and the tree panel
+
+`Ctrl+Q` replaces the inactive panel with a quick preview of the file under the
+cursor: images are shown as images, text as text (with the detected encoding and
+right-to-left support) and unknown binaries as a hex dump. Press `Ctrl+Q` again to
+get the file list back.
+
+`Ctrl+Shift+F8` shows a directory tree instead of the quick view, which makes
+jumping around a deep folder hierarchy much faster.

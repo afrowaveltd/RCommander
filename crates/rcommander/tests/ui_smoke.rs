@@ -145,3 +145,57 @@ fn the_help_window_opens_from_the_menu_command() {
     harness.run();
     assert!(harness.state().model.help.is_some());
 }
+
+#[test]
+fn ctrl_t_adds_a_tab_and_ctrl_w_closes_it() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    assert_eq!(harness.state().model.left.tabs.len(), 1);
+    harness.key_press_modifiers(egui::Modifiers { ctrl: true, ..Default::default() }, egui::Key::T);
+    harness.run();
+    assert_eq!(harness.state().model.left.tabs.len(), 2);
+    harness.key_press_modifiers(egui::Modifiers { ctrl: true, ..Default::default() }, egui::Key::W);
+    harness.run();
+    assert_eq!(harness.state().model.left.tabs.len(), 1);
+}
+
+#[test]
+fn ctrl_q_renders_the_quick_view_of_the_cursor_file() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    // Put the cursor on alpha.txt, whose content is "hello".
+    let index = harness.state().model.left.listing.find("alpha.txt").unwrap();
+    harness.state_mut().model.left.set_cursor(index);
+    harness.key_press_modifiers(egui::Modifiers { ctrl: true, ..Default::default() }, egui::Key::Q);
+    harness.run();
+    assert!(harness.state().model.quick_view);
+    assert!(
+        harness.root().query_all_by_label_contains("hello").count() > 0,
+        "the quick view should show the file content"
+    );
+}
+
+#[test]
+fn shift_f2_opens_the_directory_comparison() {
+    let (left, right) = fixture();
+    // Make sure the two panels differ.
+    write(&right.path().join("only-right.txt"), "x");
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.key_press_modifiers(egui::Modifiers { shift: true, ..Default::default() }, egui::Key::F2);
+    harness.run();
+    match harness.state().dialog() {
+        Some(rcommander::model::Dialog::Compare(state)) => {
+            assert!(state.rows.iter().any(|r| r.name == "only-right.txt"));
+        }
+        other => panic!("expected the compare dialog, got {other:?}"),
+    }
+}
+
+#[test]
+fn alt_down_opens_the_directory_history() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.key_press_modifiers(egui::Modifiers { alt: true, ..Default::default() }, egui::Key::ArrowDown);
+    harness.run();
+    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::History(_))));
+}

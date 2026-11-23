@@ -27,7 +27,8 @@ stored in the `[shortcuts]` table of `settings.toml` as `"ctrl+f3" = "cm_SrcByNa
 creates a shortcut of the file, `Ctrl+M` the multi-rename tool, `Ctrl+D` the
 hotlist, `Alt+Down` the directory history, `Alt+F7` the search, `Alt+F5`/`Alt+F6`
 pack and unpack, `Ctrl+T` a new tab, `Ctrl+W` closes a tab and `Ctrl+Tab` cycles
-through them.
+through them. `Ctrl+Q` opens the quick view of the file under the cursor,
+`Ctrl+Shift+F8` the directory tree and `Shift+F2` compares the two panels.
 
 ## Function keys in the bottom bar
 

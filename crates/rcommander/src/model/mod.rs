@@ -358,6 +358,10 @@ pub struct Model {
     pub last_error: Option<String>,
     /// Connected remote panels, indexed by [`Side`].
     pub remote_sessions: [Option<remote::RemoteSession>; 2],
+    /// Quick-view panel is shown instead of the inactive panel (`Ctrl+Q`).
+    pub quick_view: bool,
+    /// Directory tree panel replaces the inactive panel.
+    pub tree_view: bool,
 }
 
 /// An open F3 viewer.
@@ -432,6 +436,8 @@ impl Model {
             free_space: None,
             last_error: None,
             remote_sessions: [None, None],
+            quick_view: false,
+            tree_view: false,
             keymap,
             settings,
             strings,
@@ -691,6 +697,8 @@ pub enum CommandOutcome {
     OpenFile(std::path::PathBuf),
     /// The application should exit.
     Quit,
+    /// The window should be minimized.
+    Minimize,
 }
 
 impl CommandOutcome {

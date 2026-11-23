@@ -27,7 +27,7 @@ cargo test --workspace
 | 7 | Remote file systems (`rc-remote`) | **done** — engine tested against a mock server and wired into the panels (connect, list, navigate, download, upload, disconnect); no live-server test possible here |
 | 8 | MCP integration (`rc-agent`) | **done** — server + client tested, host bridge wired, CLI subcommand present |
 | 9 | Application model | **done** |
-| 10 | egui user interface | **partial** — panels, menus, dialogs, viewer, editor, help, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, thumbnails, quick view and the search results table are simplified |
+| 10 | egui user interface | **partial** — panels, tabs, menus, dialogs, viewer, editor, help, quick view, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, the thumbnail grid, the search results table and drag & drop are still simplified |
 | 11 | Platforms | **partial** — Linux verified end to end (runs, renders, listed and screenshotted); Windows and Android **compile-check clean** for the whole workspace, but no cross-link/APK because the linkers (mingw-w64, NDK) are not installed here |
 | 12 | Verification | **done** for everything marked done above |
 
@@ -149,7 +149,7 @@ protocol on stdio.
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **113 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **122 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -158,19 +158,26 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **6 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **10 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
 path bar, column headers, row rendering with cursor/marks/attribute colours,
 command line, function-key bar, status line), keyboard shortcuts through the key
-map, F7 dialog opening, Tab panel switching, row click cursor movement, help
-window opening, viewer window (text/hex/image), editor window, dialog rendering
-for all dialog states.
+map (`Ctrl+T`/`Ctrl+W`/`Ctrl+Tab` tabs, `Ctrl+Q` quick view, `Shift+F2` compare,
+`Alt+Down` history, `F7` dialog, `Tab` panel switch confirmed by UI tests), row
+click cursor movement, help window, viewer window (text/hex/image), editor
+window, dialog rendering for every dialog state.
 
-Simplified / not yet implemented: thumbnails view, quick-view panel, button-bar
-editor, custom columns and view-mode editor, search progress table, FTP panel,
-agent panel UI, drag & drop, background transfer manager dialog.
+Also implemented this round (all key-bindings that previously did nothing):
+tab create/close/cycle, quick-view panel (`Ctrl+Q`), directory tree dialog
+(`Alt+F10`/`Shift+F8`), directory history dialog (`Alt+Down`), compare
+directories with marking of the differences (`Shift+F2`), mask prompt
+(`Ctrl+F12`), insert-into-command-line, minimise.
+
+Simplified / not yet implemented: thumbnail grid, button-bar editor, custom
+columns and view-mode editor, search results table, MCP client panel, drag &
+drop, background transfer manager dialog.
 
 ## Phase 11 — Platforms (partial)
 
@@ -185,7 +192,7 @@ agent panel UI, drag & drop, background transfer manager dialog.
 - `cargo test --workspace`: see the per-crate numbers above.
   Totals by crate: `rc-core` 147, `rc-i18n` 81, `rc-viewer` 161 (+6 doctests),
   `rc-archive` 130 (+4 integration), `rc-help` 68, `rc-agent` 96,
-  `rc-remote` 111 (+3 doctests), `rcommander` 113 (+6 UI) — **≈926 tests**.
+  `rc-remote` 111 (+3 doctests), `rcommander` 122 (+10 UI) — **≈939 tests**.
 - `cargo clippy` and `cargo fmt --check` are clean for `rc-core`, `rc-i18n`,
   `rc-viewer`, `rc-archive`, `rc-help`, `rc-agent`; `rcommander` is formatted and
   warning-free except for the documented simplifications.
@@ -198,7 +205,7 @@ agent panel UI, drag & drop, background transfer manager dialog.
 
 1. Move remote transfers into the background queue (`ops_runner`) so an upload
    never blocks the UI.
-2. Quick-view panel and thumbnail view (uses `rc-viewer` image decoding).
+2. Thumbnail grid view and a search-results table.
 3. Button-bar editor, custom columns and view modes (model stubs exist in
    `rc-core::config`).
 4. Background transfer manager dialog on top of `ops_runner`.

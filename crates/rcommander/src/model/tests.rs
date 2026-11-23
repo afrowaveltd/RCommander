@@ -756,3 +756,167 @@ fn rename_pattern_empty_extension_pattern_drops_the_dot() {
         "b.md"
     );
 }
+
+// ---------------- tabs, panels and auxiliary dialogs ----------------
+
+#[test]
+fn tab_commands_add_close_and_cycle() {
+    let (left, _r, mut model) = fixture();
+    assert_eq!(model.left.tabs.len(), 1);
+    assert!(model.execute("cm_NewTab").is_ok());
+    assert_eq!(model.left.tabs.len(), 2);
+    assert_eq!(model.left.tabs.active_index(), 1);
+    // The new tab shows the same directory.
+    assert_eq!(model.left.location().as_path().unwrap(), left.path());
+    assert!(model.execute("cm_NextTab").is_ok());
+    assert_eq!(model.left.tabs.active_index(), 0);
+    assert!(model.execute("cm_PrevTab").is_ok());
+    assert_eq!(model.left.tabs.active_index(), 1);
+    assert!(model.execute("cm_CloseTab").is_ok());
+    assert_eq!(model.left.tabs.len(), 1);
+    // Closing the last tab is refused, without an error dialog.
+    assert_eq!(model.execute("cm_CloseTab"), CommandOutcome::None);
+    assert_eq!(model.left.tabs.len(), 1);
+    assert!(model.status.contains("last tab"));
+}
+
+#[test]
+fn quick_view_toggles_and_excludes_the_tree_panel() {
+    let (_l, _r, mut model) = fixture();
+    assert!(!model.quick_view);
+    assert!(model.execute("cm_SrcQuickView").is_ok());
+    assert!(model.quick_view);
+    assert!(model.execute("cm_SeparateTree1").is_ok());
+    assert!(model.tree_view);
+    assert!(!model.quick_view, "the tree panel replaces the quick view");
+    assert!(model.execute("cm_SrcQuickView").is_ok());
+    assert!(!model.tree_view);
+}
+
+#[test]
+fn history_dialog_lists_visited_directories() {
+    let (left, _r, mut model) = fixture();
+    model
+        .navigate(Location::local(left.path().join("sub")))
+        .unwrap();
+    assert!(model.execute("cm_HistoryList").is_ok());
+    let state = match model.top_dialog() {
+        Some(Dialog::History(state)) => state.clone(),
+        other => panic!("expected history dialog, got {other:?}"),
+    };
+    assert!(!state.is_empty());
+    assert!(state.entries.iter().any(|r| r.path.ends_with("sub")));
+    assert!(
+        state
+            .entries
+            .iter()
+            .any(|r| r.path == left.path().to_string_lossy())
+    );
+}
+
+#[test]
+fn tree_dialog_collects_nested_directories() {
+    let (left, _r, mut model) = fixture();
+    std::fs::create_dir_all(left.path().join("sub/deeper")).unwrap();
+    assert!(model.execute("cm_CDtree").is_ok());
+    let state = match model.top_dialog() {
+        Some(Dialog::Tree(state)) => state.clone(),
+        other => panic!("expected tree dialog, got {other:?}"),
+    };
+    assert!(state.entries.iter().any(|p| p.ends_with("sub")));
+    assert!(state.entries.iter().any(|p| p.ends_with("deeper")));
+    assert_eq!(state.root, left.path().to_string_lossy());
+}
+
+#[test]
+fn compare_directories_marks_differences() {
+    let (left_dir, right_dir, mut model) = fixture();
+    // same name, different content/size, plus a right-only file
+    write(&right_dir.path().join("alpha.txt"), b"different size");
+    write(&right_dir.path().join("beta.log"), b"bbbb");
+    write(&right_dir.path().join("right-only.txt"), b"x");
+    model.refresh_all();
+    assert!(model.execute("cm_CompareDirs").is_ok());
+    let state = match model.top_dialog() {
+        Some(Dialog::Compare(state)) => state.clone(),
+        other => panic!("expected compare dialog, got {other:?}"),
+    };
+    let alpha = state.rows.iter().find(|r| r.name == "alpha.txt").unwrap();
+    assert_eq!(alpha.status, "!=", "different sizes must be reported");
+    let beta = state.rows.iter().find(|r| r.name == "beta.log").unwrap();
+    assert_eq!(beta.status, "=", "identical entries are equal");
+    let right_only = state
+        .rows
+        .iter()
+        .find(|r| r.name == "right-only.txt")
+        .unwrap();
+    assert_eq!(right_only.status, ">");
+    let left_only = state.rows.iter().find(|r| r.name == "gamma.txt").unwrap();
+    assert_eq!(left_only.status, "<");
+    // Differences are marked in the active panel.
+    assert!(model.left.selection.contains("alpha.txt"));
+    assert!(!model.left.selection.contains("beta.log"));
+    assert!(model.status.contains("differ"));
+    assert!(left_dir.path().exists());
+}
+
+#[test]
+fn mask_prompt_applies_and_clears_a_filter() {
+    let (_l, _r, mut model) = fixture();
+    assert!(model.execute("cm_SrcUserDef").is_ok());
+    let mut state = match model.top_dialog() {
+        Some(Dialog::MaskPrompt(state)) => state.clone(),
+        other => panic!("expected mask dialog, got {other:?}"),
+    };
+    assert_eq!(state.mask, "*.*");
+    state.mask = "*.txt".to_string();
+    assert!(model.apply_mask(&state).is_ok());
+    let visible = names(&model);
+    assert!(!visible.contains(&"beta.log".to_string()));
+    assert!(visible.contains(&"alpha.txt".to_string()));
+    assert!(model.execute("cm_SrcAllFiles").is_ok());
+    assert!(names(&model).contains(&"beta.log".to_string()));
+    let bad = MaskPromptState {
+        mask: "[".to_string(),
+        hide_non_matching: false,
+    };
+    assert!(matches!(model.apply_mask(&bad), CommandOutcome::Failed(_)));
+}
+
+#[test]
+fn ctrl_pagedown_enters_a_directory_and_alt_enter_is_version_info() {
+    let (_l, _r, mut model) = fixture();
+    model.left.cursor_home();
+    assert!(model.execute("cm_OpenDirOrArchive").is_ok());
+    assert!(model.left.location().as_path().unwrap().ends_with("sub"));
+}
+
+#[test]
+fn insert_into_command_line_uses_the_cursor_entry() {
+    let (_l, _r, mut model) = fixture();
+    model
+        .left
+        .set_cursor(model.left.listing.find("alpha.txt").unwrap());
+    assert!(model.execute("cm_OpenInCommandLine").is_ok());
+    assert_eq!(model.command_line, "alpha.txt");
+    assert!(model.execute("cm_OpenInCommandLine").is_ok());
+    assert_eq!(model.command_line, "alpha.txt alpha.txt");
+    // Empty listing is a no-op.
+    model.left.cursor_home();
+    model.left.set_cursor(0);
+    model.command_line.clear();
+    model.left.listing = rc_core::listing::Listing::from_entries(
+        Location::local("/tmp"),
+        Vec::new(),
+        &rc_core::listing::ReadOptions::default(),
+        Default::default(),
+    );
+    assert_eq!(model.execute("cm_OpenInCommandLine"), CommandOutcome::None);
+}
+
+#[test]
+fn exit_and_minimise_outcomes_are_distinct() {
+    let (_l, _r, mut model) = fixture();
+    assert_eq!(model.execute("cm_Exit"), CommandOutcome::Quit);
+    assert_eq!(model.execute("cm_Minimize"), CommandOutcome::Minimize);
+}

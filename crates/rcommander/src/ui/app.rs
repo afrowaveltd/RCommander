@@ -126,6 +126,9 @@ pub struct RCommanderApp {
     pub command_line_focus: bool,
     /// Command requested by a widget during this frame.
     pending_command: Option<String>,
+    /// Content of the quick-view panel (`Ctrl+Q`).
+    quick_viewer: ViewerUi,
+    quick_view_path: Option<std::path::PathBuf>,
 }
 
 impl RCommanderApp {
@@ -141,6 +144,8 @@ impl RCommanderApp {
             fonts_installed: false,
             command_line_focus: false,
             pending_command: None,
+            quick_viewer: ViewerUi::default(),
+            quick_view_path: None,
         };
         app.help_ui.reload(&paths::docs_dir());
         app
@@ -164,9 +169,30 @@ impl RCommanderApp {
 
     /// Execute one internal command and handle what the view layer must do.
     pub fn run_command(&mut self, command: &str, ctx: &Context) {
+        if command == "rc_TreeToSource" {
+            if let Some(Dialog::Tree(state)) = self.model.top_dialog().cloned()
+                && let Some(index) = state.selected
+                && let Some(path) = state.entries.get(index)
+                && let Ok(location) = rc_core::location::Location::parse(path)
+            {
+                let side = self.model.focus;
+                if let Err(e) = self.model.open_in(side, location) {
+                    self.model.report_error(e.to_string());
+                }
+            }
+            self.model.close_dialogs();
+            return;
+        }
+        if command == "rc_Quit" {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
         match self.model.execute(command) {
             CommandOutcome::OpenFile(path) => self.open_viewer(path),
             CommandOutcome::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            CommandOutcome::Minimize => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true))
+            }
             CommandOutcome::Failed(message) => self.model.report_error(message),
             _ => {}
         }
@@ -421,6 +447,43 @@ impl RCommanderApp {
         let left_width = (available.x * split).max(120.0);
         let right_width = (available.x - left_width - 4.0).max(120.0);
         let mut actions: Vec<PanelAction> = Vec::new();
+        if self.model.quick_view {
+            let mut command: Option<String> = None;
+            ui.horizontal(|ui| {
+                let target_side = if rtl { Side::Left } else { Side::Right };
+                ui.allocate_ui_with_layout(
+                    egui::vec2(right_width, available.y),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        self.quick_view_panel(ui);
+                    },
+                );
+                ui.allocate_ui_with_layout(
+                    egui::vec2(left_width, available.y),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        actions.extend(panel_view::show(
+                            ui,
+                            &mut self.model,
+                            target_side.other(),
+                            &palette,
+                        ));
+                    },
+                );
+            });
+            if let Some(command) = command.take() {
+                self.pending_command = Some(command);
+            }
+            for action in actions {
+                match action {
+                    PanelAction::Command(command) => self.pending_command = Some(command),
+                    PanelAction::OpenFile(path) => self.open_viewer(path),
+                    PanelAction::Enter => self.enter_pressed(),
+                    PanelAction::ContextMenu => {}
+                }
+            }
+            return;
+        }
         ui.horizontal(|ui| {
             let order: [Side; 2] = if rtl {
                 [Side::Right, Side::Left]
@@ -450,6 +513,101 @@ impl RCommanderApp {
                 PanelAction::ContextMenu => {}
             }
         }
+    }
+
+    /// Content preview of the file under the cursor, rendered in place of the
+    /// inactive panel (`Ctrl+Q`).
+    fn quick_view_panel(&mut self, ui: &mut egui::Ui) {
+        let palette = self.palette.clone();
+        let target = self
+            .model
+            .active()
+            .current()
+            .filter(|e| !e.is_dir())
+            .map(|e| e.path.clone());
+        if target != self.quick_view_path {
+            self.quick_view_path = target.clone();
+            self.quick_viewer = ViewerUi::default();
+            if let Some(path) = target {
+                let _ = self.quick_viewer.load(&path);
+            }
+        }
+        egui::Frame::new()
+            .fill(palette.header_background)
+            .stroke(egui::Stroke::new(1.0, palette.panel_border))
+            .inner_margin(egui::Margin::same(4))
+            .show(ui, |ui| {
+                ui.label(
+                    egui::RichText::new(self.model.t("cmd.quick_view"))
+                        .small()
+                        .color(palette.hidden),
+                );
+                self.quick_viewer.ensure_texture(ui.ctx());
+                let Some(loaded) = self.quick_viewer.loaded.clone() else {
+                    ui.label(
+                        egui::RichText::new(self.model.t("panel.empty")).color(palette.hidden),
+                    );
+                    return;
+                };
+                match &loaded.content {
+                    rc_viewer::ViewerContent::Image(_) => {
+                        if let Some(texture) = &self.quick_viewer.image_texture {
+                            let size = texture.size_vec2();
+                            let available = ui.available_size();
+                            let scale = (available.x / size.x).min(available.y / size.y).min(1.0);
+                            egui::ScrollArea::both()
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    ui.image((texture.id(), size * scale));
+                                });
+                        }
+                    }
+                    rc_viewer::ViewerContent::Text(text) => {
+                        let mut body = String::new();
+                        for line in text.text.lines().take(48) {
+                            body.push_str(line);
+                            body.push('\n');
+                        }
+                        if text.is_rtl {
+                            ui.label(egui::RichText::new("RTL").small().color(palette.directory));
+                        }
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.add(
+                                    egui::Label::new(egui::RichText::new(body).monospace())
+                                        .selectable(false),
+                                );
+                            });
+                    }
+                    rc_viewer::ViewerContent::Hex(doc) => {
+                        let mut body = String::new();
+                        for line in doc.lines.iter().take(32) {
+                            body.push_str(&format!(
+                                "{:08x}  {:<48}  |{}|\n",
+                                line.offset, line.hex, line.ascii
+                            ));
+                        }
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.add(
+                                    egui::Label::new(egui::RichText::new(body).monospace())
+                                        .selectable(false),
+                                );
+                            });
+                    }
+                    other => {
+                        ui.label(
+                            egui::RichText::new(rc_viewer::describe(&rc_viewer::LoadedViewer {
+                                format: loaded.format.clone(),
+                                content: other.clone(),
+                            }))
+                            .color(palette.hidden),
+                        );
+                    }
+                }
+            });
     }
 
     fn command_line(&mut self, ui: &mut egui::Ui) {

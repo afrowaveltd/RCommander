@@ -44,6 +44,10 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::Options(state) => options(ui, model, state),
                 Dialog::FtpConnect(state) => ftp(ui, model, state),
                 Dialog::Synchronize(state) => sync(ui, model, state),
+                Dialog::History(state) => history(ui, model, state),
+                Dialog::MaskPrompt(state) => mask_prompt(ui, model, state),
+                Dialog::Compare(state) => compare(ui, model, state),
+                Dialog::Tree(state) => tree(ui, model, state),
                 Dialog::About => about(ui, model),
                 Dialog::Confirm {
                     message,
@@ -100,6 +104,10 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::Comment(_) => "cmd.edit_comment",
         Dialog::Hotlist(_) => "cmd.hotlist",
         Dialog::Options(_) => "dialog.config.title",
+        Dialog::History(_) => "cmd.history",
+        Dialog::MaskPrompt(_) => "cmd.select_user_spec",
+        Dialog::Compare(_) => "cmd.compare_dirs",
+        Dialog::Tree(_) => "cmd.cd_tree",
         Dialog::FtpConnect(_) => "ftp.connect",
         Dialog::Synchronize(_) => "cmd.sync_dirs",
         Dialog::About => "cmd.about",
@@ -743,6 +751,138 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
         return DialogAction::Close;
     }
     DialogAction::None
+}
+
+fn history(ui: &mut egui::Ui, model: &mut Model, state: &mut HistoryState) -> DialogAction {
+    if state.is_empty() {
+        ui.label(model.t("panel.empty"));
+        if ui.button(model.t("dialog.config.ok")).clicked() {
+            return DialogAction::Close;
+        }
+        return DialogAction::None;
+    }
+    let mut action = DialogAction::None;
+    egui::ScrollArea::vertical()
+        .max_height(260.0)
+        .id_salt("history_scroll")
+        .show(ui, |ui| {
+            for (index, row) in state.entries.iter().enumerate() {
+                let selected = state.selected == Some(index);
+                if ui.selectable_label(selected, &row.path).clicked() {
+                    state.selected = Some(index);
+                    action = DialogAction::Run;
+                }
+            }
+        });
+    if action == DialogAction::Run {
+        if let Some(index) = state.selected
+            && let Some(row) = state.entries.get(index)
+            && let Ok(location) = rc_core::location::Location::parse(&row.path)
+            && let Err(e) = model.navigate(location)
+        {
+            model.report_error(e.to_string());
+        }
+        return DialogAction::Close;
+    }
+    if ui.button(model.t("dialog.config.cancel")).clicked() {
+        return DialogAction::Close;
+    }
+    DialogAction::None
+}
+
+fn mask_prompt(ui: &mut egui::Ui, model: &mut Model, state: &mut MaskPromptState) -> DialogAction {
+    ui.label(model.t("dialog.search.name"));
+    let response = ui.add(egui::TextEdit::singleline(&mut state.mask).desired_width(f32::INFINITY));
+    response.request_focus();
+    ui.checkbox(&mut state.hide_non_matching, model.t("panel.all_files"));
+    let (ok, cancel) = buttons(ui, model);
+    if cancel {
+        return DialogAction::Close;
+    }
+    if ok {
+        let state = state.clone();
+        if let crate::model::CommandOutcome::Failed(message) = model.apply_mask(&state) {
+            model.report_error(message);
+        }
+        return DialogAction::Close;
+    }
+    DialogAction::None
+}
+
+fn compare(ui: &mut egui::Ui, model: &mut Model, state: &mut CompareState) -> DialogAction {
+    ui.label(state.summary());
+    egui::ScrollArea::vertical()
+        .max_height(280.0)
+        .id_salt("compare_scroll")
+        .show(ui, |ui| {
+            egui::Grid::new("compare_grid")
+                .striped(true)
+                .num_columns(4)
+                .show(ui, |ui| {
+                    ui.label(model.t("col.name"));
+                    ui.label(model.t("panel.source"));
+                    ui.label(model.t("panel.target"));
+                    ui.label("");
+                    ui.end_row();
+                    for row in state.rows.iter().take(500) {
+                        ui.label(&row.name);
+                        ui.label(
+                            row.left_size
+                                .map(rc_core::format::format_size_bytes)
+                                .unwrap_or_else(|| "-".to_string()),
+                        );
+                        ui.label(
+                            row.right_size
+                                .map(rc_core::format::format_size_bytes)
+                                .unwrap_or_else(|| "-".to_string()),
+                        );
+                        ui.label(&row.status);
+                        ui.end_row();
+                    }
+                });
+        });
+    if ui.button(model.t("dialog.config.ok")).clicked() {
+        return DialogAction::Close;
+    }
+    DialogAction::None
+}
+
+fn tree(ui: &mut egui::Ui, model: &mut Model, state: &mut TreeState) -> DialogAction {
+    ui.label(&state.root);
+    let mut action = DialogAction::None;
+    egui::ScrollArea::vertical()
+        .max_height(300.0)
+        .id_salt("tree_scroll")
+        .show(ui, |ui| {
+            for (index, path) in state.entries.iter().enumerate() {
+                let selected = state.selected == Some(index);
+                if ui.selectable_label(selected, path).clicked() {
+                    state.selected = Some(index);
+                    action = DialogAction::Run;
+                }
+            }
+        });
+    if action == DialogAction::Run {
+        if let Some(index) = state.selected
+            && let Some(path) = state.entries.get(index)
+            && let Ok(location) = rc_core::location::Location::parse(path)
+        {
+            let other = model.focus.other();
+            if let Err(e) = model.open_in(other, location) {
+                model.report_error(e.to_string());
+            }
+        }
+        return DialogAction::Close;
+    }
+    ui.horizontal(|ui| {
+        if ui.button(model.t("panel.source")).clicked() {
+            action = DialogAction::Command("rc_TreeToSource".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
 }
 
 fn sync(ui: &mut egui::Ui, model: &mut Model, state: &mut SyncState) -> DialogAction {

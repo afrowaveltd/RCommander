@@ -41,6 +41,14 @@ pub enum Dialog {
     FtpConnect(FtpConnectState),
     /// Synchronise directories.
     Synchronize(SyncState),
+    /// Directory history of the active panel (`Alt+Down`).
+    History(HistoryState),
+    /// Ask for a quick filter mask (`Ctrl+F12`).
+    MaskPrompt(MaskPromptState),
+    /// Result of comparing the two panels (`Shift+F2`).
+    Compare(CompareState),
+    /// Directory tree browser (`Alt+F10`).
+    Tree(TreeState),
     /// About box.
     About,
     /// Generic confirmation (used by the view layer).
@@ -601,6 +609,101 @@ impl SyncState {
     /// Count rows that need a copy in either direction.
     pub fn pending(&self) -> usize {
         self.rows.iter().filter(|r| r.status != "=").count()
+    }
+}
+
+/// Directory history list.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct HistoryState {
+    pub entries: Vec<HistoryRow>,
+    pub selected: Option<usize>,
+}
+
+/// One row of the history list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HistoryRow {
+    pub path: String,
+    pub cursor_name: Option<String>,
+}
+
+impl HistoryState {
+    pub fn new(rows: Vec<HistoryRow>) -> Self {
+        HistoryState {
+            entries: rows,
+            selected: None,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
+/// The mask entry used by `Ctrl+F12` (only selected files / quick filter).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MaskPromptState {
+    pub mask: String,
+    pub hide_non_matching: bool,
+}
+
+impl MaskPromptState {
+    pub fn new(mask: impl Into<String>) -> Self {
+        MaskPromptState {
+            mask: mask.into(),
+            hide_non_matching: false,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.mask.trim().is_empty() {
+            return Err("empty mask".to_string());
+        }
+        rc_core::mask::MaskSet::parse(self.mask.trim()).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+}
+
+/// Comparison of the two panels.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CompareState {
+    pub rows: Vec<CompareRow>,
+    /// Mark entries that differ in the source panel.
+    pub mark_different: bool,
+}
+
+/// One compared name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompareRow {
+    pub name: String,
+    /// `=`, `!=`, `<` (only left), `>` (only right), `<DIR>` markers.
+    pub status: String,
+    pub left_size: Option<u64>,
+    pub right_size: Option<u64>,
+}
+
+impl CompareState {
+    pub fn different(&self) -> usize {
+        self.rows.iter().filter(|r| r.status != "=").count()
+    }
+
+    pub fn summary(&self) -> String {
+        format!("{} of {} entries differ", self.different(), self.rows.len())
+    }
+}
+
+/// A browsable directory tree.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TreeState {
+    /// Directory the tree was built from.
+    pub root: String,
+    pub entries: Vec<String>,
+    pub selected: Option<usize>,
+    pub include_files: bool,
+}
+
+impl TreeState {
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
     }
 }
 

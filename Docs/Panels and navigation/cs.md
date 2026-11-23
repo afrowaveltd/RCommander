@@ -40,3 +40,13 @@ počet a velikost označených položek.
 
 Maska v panelu (`*.txt;*.md`) skryje soubory, které jí neodpovídají; adresáře
 zůstávají vždy viditelné. `Ctrl+F10` opět zobrazí všechny soubory.
+
+## Rychlý náhled a strom
+
+`Ctrl+Q` nahradí neaktivní panel rychlým náhledem souboru pod kurzorem: obrázky
+se zobrazí jako obrázky, text jako text (s rozpoznaným kódováním a podporou
+zprava doleva) a neznámé binární soubory jako hexdump. Dalším `Ctrl+Q` se vrátí
+seznam souborů.
+
+`Ctrl+Shift+F8` zobrazí místo rychlého náhledu strom adresářů, což výrazně
+zrychlí pohyb v hluboké hierarchii složek.
