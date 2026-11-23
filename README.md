@@ -43,18 +43,18 @@ text files you can extend without recompiling anything.
 
 | Area | What you get |
 | --- | --- |
-| **Panels** | independent tabs, sort orders, filters and histories per panel; brief / full / comments / thumbnail / tree / custom-column views |
+| **Panels** | independent tabs, sort orders, filters and histories per panel; brief / full / comments / thumbnail-grid / tree views; quick view (`Ctrl+Q`) |
 | **Navigation** | natural sorting, quick search by typing, directory history with `Alt+Left`/`Alt+Right`, drive/volume selector, hotlist (`Ctrl+D`) |
 | **Selection** | `Insert`, `Space`, `Num +`/`-`/`*`, extension groups, marks that survive a re-read |
-| **File operations** | copy, move, delete (trash or permanent), rename, create directory, attributes, comments (`descript.ion`) |
+| **File operations** | copy, move, delete, rename, create directory, attributes, comments (`descript.ion`); background transfers with progress and cancel; drag & drop from other applications |
 | **Previewer (F3)** | images as images, text with encoding detection, RTL aware, **integrated hex dump** for unknown binaries, byte and pixel budgets for huge files |
 | **Editor (F4)** | internal editor with encoding- and line-ending-preserving saves |
-| **Search** | mask + content search, recursion, regular expressions, archives |
+| **Search** | mask + content + regular-expression search on a worker thread, live results, click to navigate, result limit and cancellation |
 | **Archives** | enter ZIP/TAR/TAR.GZ/TAR.BZ2/TAR.XZ/TAR.ZST like directories; pack and unpack atomically; integrity test |
 | **FTP / SFTP** | remote panels: `Ctrl+F` connects and turns a panel into the server (`Ctrl+Shift+F` disconnects); passive/active FTP, MLSD with LIST fallback, download/upload of marked entries, cancellable recursive transfers; FTPS/SFTP behind cargo features |
-| **Synchronise dirs** | file-by-file comparison with direction markers, dry run, per-file results |
+| **Compare / synchronise** | `Shift+F2` compares the panels and marks the differences; the dialog copies both directions with dry run and newer-wins rules |
 | **Multi-rename** | placeholder language (`[N]`, `[E]`, `[C]`, `[P]`, `[T1]`, date parts), live preview, search & replace |
-| **Automation** | 594-entry internal command catalogue (`cm_*`), command line, editable button bar, **MCP server and client** |
+| **Automation** | 594-entry internal command catalogue (`cm_*`), command line, **configurable button bar with an editor**, **MCP server and client** |
 | **Localisation** | TOML language packs (English + Czech included), RTL layouts, per-topic help in any language |
 
 ### Efficiency by design
