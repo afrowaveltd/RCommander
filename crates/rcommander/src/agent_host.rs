@@ -9,15 +9,17 @@ pub type SharedModel = Arc<Mutex<Model>>;
 /// Serve the Model Context Protocol on stdin/stdout.
 pub fn serve_stdio(model: Model) -> Result<(), String> {
     let shared: SharedModel = Arc::new(Mutex::new(model));
-    let host = HostBridge {
+    let host = Arc::new(HostBridge {
         model: shared.clone(),
-    };
+    });
     let config = rc_agent::ServerConfig {
         name: "rcommander".to_string(),
         version: crate::VERSION.to_string(),
         ..Default::default()
     };
-    let server = rc_agent::McpServer::new(Arc::new(host), config);
+    // The bridge also switches the UI language, which publishes `set_language`.
+    let language_host: Arc<dyn rc_agent::LanguageHost> = host.clone();
+    let server = rc_agent::McpServer::new(host, config).with_language_host(language_host);
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     server
@@ -296,6 +298,21 @@ impl rc_agent::FileManagerHost for HostBridge {
     }
 }
 
+impl rc_agent::LanguageHost for HostBridge {
+    fn set_language(&self, language: &str) -> Result<(), String> {
+        let available = rc_agent::FileManagerHost::available_languages(self);
+        if !available.iter().any(|code| code == language) {
+            return Err(format!(
+                "unknown language {language:?}; available: {}",
+                available.join(", ")
+            ));
+        }
+        let mut model = lock(&self.model);
+        model.set_language(language);
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -398,5 +415,63 @@ mod tests {
         let (_dir, host) = fixture();
         let space = host.disk_space("/").unwrap();
         assert!(space.map(|s| s.total > 0).unwrap_or(false));
+    }
+}
+
+#[cfg(test)]
+mod language_tests {
+    use super::*;
+    use rc_agent::LanguageHost;
+
+    fn host() -> HostBridge {
+        let settings = rc_core::config::Settings::default();
+        let model = Model::for_test(
+            settings,
+            rc_core::location::Location::local("/tmp"),
+            rc_core::location::Location::local("/tmp"),
+        );
+        HostBridge {
+            model: Arc::new(Mutex::new(model)),
+        }
+    }
+
+    #[test]
+    fn known_languages_can_be_switched() {
+        let host = host();
+        let available = rc_agent::FileManagerHost::available_languages(&host);
+        assert!(
+            available.contains(&"en".to_string()),
+            "available: {available:?}"
+        );
+        assert!(host.set_language("en").is_ok());
+        assert_eq!(rc_agent::FileManagerHost::current_language(&host), "en");
+    }
+
+    #[test]
+    fn unknown_languages_are_rejected_with_the_list() {
+        let host = host();
+        let error = host.set_language("klingon").unwrap_err();
+        assert!(error.contains("klingon"), "error: {error}");
+        assert!(error.contains("available"), "error: {error}");
+    }
+
+    #[test]
+    fn the_server_publishes_the_language_tool_when_the_host_supports_it() {
+        let host = Arc::new(host());
+        let config = rc_agent::ServerConfig {
+            name: "t".into(),
+            version: "0".into(),
+            ..Default::default()
+        };
+        let without = rc_agent::McpServer::new(host.clone(), config.clone());
+        let with = rc_agent::McpServer::new(host.clone(), config).with_language_host(host);
+        let names_without: Vec<String> = without.tools().into_iter().map(|t| t.name).collect();
+        let names_with: Vec<String> = with.tools().into_iter().map(|t| t.name).collect();
+        assert!(!names_without.contains(&"set_language".to_string()));
+        assert!(
+            names_with.contains(&"set_language".to_string()),
+            "tools: {names_with:?}"
+        );
+        assert_eq!(names_with.len(), names_without.len() + 1);
     }
 }

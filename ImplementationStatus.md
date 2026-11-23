@@ -144,12 +144,26 @@ confirmation gate, and a client with stdio and HTTP transports plus timeouts.
 Application wiring (`crates/rcommander/src/agent_host.rs`) implements
 `FileManagerHost` over the model: panels, listing, navigation, selection, copy,
 delete, mkdir, rename, text read/write, search, disk space, help topics and
-languages — **covered by 7 tests** in that module. `rcommander mcp` serves the
-protocol on stdio.
+languages, plus `LanguageHost` so `set_language` is published — **10 tests** in
+that module. `rcommander mcp` serves the protocol on stdio.
+
+Verified end to end against the release binary with a JSON-RPC probe:
+
+| Exchange | Result |
+| --- | --- |
+| `initialize` | `serverInfo {rcommander, 0.1.0}`, protocol `2025-06-18`, capabilities `logging`/`resources`/`tools` |
+| `tools/list` | **21 tools**, including `set_language` |
+| `tools/call list_panels`, `list_directory` | real panels and directory entries |
+| `tools/call delete` | refused with `-32001 confirmation required: … no approval handler is registered` |
+| `tools/call help_search` | finds the *Previewer* topic from `Docs/` |
+| `tools/call disk_space` | real volume numbers |
+| `tools/call set_language cs` → `get_language` | switches and reports `cs`; `xx` is rejected with the available list |
+| `resources/list` | **42 help resources** (`rcommander://help/<topic>/<lang>`) |
+| exit | clean (code 0, no stderr) |
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **173 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **176 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
