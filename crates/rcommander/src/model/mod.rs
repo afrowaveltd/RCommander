@@ -375,6 +375,8 @@ pub struct Model {
     pub search_job: Option<search::SearchJob>,
     /// The background transfer manager window is open.
     pub show_transfer_manager: bool,
+    /// Selection captured by "save selection" (in-memory restore).
+    pub saved_selection: Option<Selection>,
 }
 
 /// An open F3 viewer.
@@ -456,6 +458,7 @@ impl Model {
             show_agent_panel: false,
             search_job: None,
             show_transfer_manager: false,
+            saved_selection: None,
             keymap,
             settings,
             strings,

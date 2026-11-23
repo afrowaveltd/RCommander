@@ -52,7 +52,7 @@ cargo test --workspace
 
 ## Phase 2 — `rc-core` (done)
 
-`cargo test -p rc-core` → **187 tests, 0 failures.**
+`cargo test -p rc-core` → **199 tests, 0 failures.**
 
 | Step | Module | Covered by tests |
 | --- | --- | --- |
@@ -163,7 +163,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **182 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **187 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -172,7 +172,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **21 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **23 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -224,9 +224,14 @@ combine (`crates/rc-core/src/split.rs`), checksums with verification
 (`dupes.rs`), each with a dialog, model action and tests. Documented in the new
 *File utilities* help topic.
 
+Encoding (MIME/UUE/XXE, `encode.rs`), saved selections (file and in-memory) and the
+branch view (`branch.rs`, a flat listing of the whole subtree) complete the
+command set of the reference *Files*, *Mark* and *Commands* menus.
+
 Remaining simplifications: the thumbnail view has no per-file cache controls, the
-tree view is a dialog rather than an in-panel tree, the search results table lives
-inside the dialog, and the encoder/decoder (MIME/UUE/XXE) tool is not implemented.
+in-panel directory tree is a dialog, the search results table lives inside the
+dialog, and the reference product's Windows DLL plugin interfaces (WCX/WLX/WDX/WFX)
+are not reimplemented — a cross-platform plugin format would be a separate design.
 
 ## Phase 11 — Platforms (partial)
 
@@ -255,6 +260,6 @@ with `cargo test --workspace`).
 
 1. Route remote (FTP) transfers through the same background queue.
 2. An in-panel directory tree (currently the tree opens as a dialog).
-3. MIME/UUE/XXE encode and decode (`cm_Encode`/`cm_Decode`).
+3. A cross-platform plugin format to replace the reference product's DLL plugins.
 4. Background transfer manager dialog on top of `ops_runner`.
 6. Windows cross-build and Android APK build once the toolchains are available.

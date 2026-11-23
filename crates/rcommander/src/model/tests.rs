@@ -1715,3 +1715,141 @@ fn utility_dialogs_validate_their_input() {
         CommandOutcome::Failed(_)
     ));
 }
+
+// ---------------- encoding, selections and the branch view ----------------
+
+#[test]
+fn encoding_and_decoding_a_file_round_trips() {
+    let (left, _r, mut model) = fixture();
+    let content: Vec<u8> = (0..200u32).map(|i| (i % 251) as u8).collect();
+    write(&left.path().join("blob.bin"), &content);
+    model.refresh_active();
+    model.left.selection.set(["blob.bin"]);
+    for format in ["MIME", "UUE", "XXE"] {
+        assert!(model.execute("cm_Encode").is_ok());
+        let mut state = match model.top_dialog() {
+            Some(Dialog::Encode(state)) => state.clone(),
+            other => panic!("expected the encode dialog, got {other:?}"),
+        };
+        state.encoding = format.to_string();
+        assert!(
+            model.run_encode(&state).is_ok(),
+            "{format} encode failed: {}",
+            model.status
+        );
+        let extension = format.to_ascii_lowercase().replace("mime", "b64");
+        let encoded = left.path().join(format!("blob.bin.{extension}"));
+        assert!(encoded.exists(), "{format}: {} missing", encoded.display());
+        // Decode it back and compare.
+        model.open_dialog(Dialog::Decode(DecodeState::new(
+            encoded.to_string_lossy().to_string(),
+        )));
+        let mut decode = DecodeState::new(encoded.to_string_lossy().to_string());
+        decode.target_name = format!("decoded-{format}.bin");
+        assert!(
+            model.run_decode(&mut decode).is_ok(),
+            "{format} decode failed: {}",
+            model.status
+        );
+        assert_eq!(
+            fs::read(left.path().join(format!("decoded-{format}.bin"))).unwrap(),
+            content
+        );
+    }
+}
+
+#[test]
+fn a_selection_can_be_saved_and_restored_from_a_file() {
+    let (left, _r, mut model) = fixture();
+    model.left.selection.set(["alpha.txt", "gamma.txt"]);
+    let save = SaveSelectionState::new(model.left.selection.len());
+    assert!(model.run_save_selection(&save).is_ok());
+    let written = left.path().join("selection.txt");
+    assert!(written.exists());
+    let text = fs::read_to_string(&written).unwrap();
+    assert!(text.contains("alpha.txt"));
+    // Change the selection, then restore it.
+    model.left.selection.clear();
+    let mut load = LoadSelectionState::new();
+    assert!(model.run_load_selection(&mut load).is_ok());
+    assert_eq!(load.loaded, 2);
+    let mut names = model.left.selected_names();
+    names.sort();
+    assert_eq!(names, ["alpha.txt", "gamma.txt"]);
+}
+
+#[test]
+fn an_in_memory_selection_can_be_saved_and_restored() {
+    let (_l, _r, mut model) = fixture();
+    model.left.selection.set(["beta.log"]);
+    assert!(model.execute("cm_SaveSelection").is_ok());
+    model.left.selection.clear();
+    assert!(model.execute("cm_RestoreSelection").is_ok());
+    assert_eq!(model.left.selected_names(), ["beta.log"]);
+    // Restoring without a saved selection is inert.
+    let mut fresh = Model::for_test(
+        Settings::default(),
+        Location::local("/tmp"),
+        Location::local("/tmp"),
+    );
+    assert_eq!(fresh.execute("cm_RestoreSelection"), CommandOutcome::None);
+}
+
+#[test]
+fn the_branch_view_lists_the_whole_subtree_and_can_be_left() {
+    let (left, _r, mut model) = fixture();
+    std::fs::create_dir_all(left.path().join("sub/deep")).unwrap();
+    write(&left.path().join("sub/deep/leaf.txt"), b"leaf");
+    model.refresh_active();
+    assert!(model.execute("cm_DirBranch").is_ok());
+    assert_eq!(model.left.view_mode, ViewMode::Tree);
+    let flat = names(&model);
+    assert!(
+        flat.contains(&"sub/deep/leaf.txt".to_string()),
+        "flat names: {flat:?}"
+    );
+    assert!(flat.contains(&"alpha.txt".to_string()));
+    // Toggling again restores the normal listing.
+    assert!(model.execute("cm_DirBranch").is_ok());
+    assert_ne!(model.left.view_mode, ViewMode::Tree);
+    assert!(!names(&model).contains(&"sub/deep/leaf.txt".to_string()));
+}
+
+#[test]
+fn utility_dialog_validation_for_encoding_and_selections() {
+    let (_l, _r, mut model) = fixture();
+    let empty = EncodeState::new(Vec::new());
+    assert!(matches!(
+        model.run_encode(&empty),
+        CommandOutcome::Failed(_)
+    ));
+    let bad = EncodeState {
+        encoding: "rot13".into(),
+        ..EncodeState::new(vec!["/tmp/a".into()])
+    };
+    assert!(matches!(model.run_encode(&bad), CommandOutcome::Failed(_)));
+    let mut decode = DecodeState::new("");
+    assert!(matches!(
+        model.run_decode(&mut decode),
+        CommandOutcome::Failed(_)
+    ));
+    let save = SaveSelectionState::new(0);
+    assert!(matches!(
+        model.run_save_selection(&save),
+        CommandOutcome::Failed(_)
+    ));
+    let mut load = LoadSelectionState {
+        file_name: String::new(),
+        loaded: 0,
+    };
+    assert!(matches!(
+        model.run_load_selection(&mut load),
+        CommandOutcome::Failed(_)
+    ));
+    let mut missing = LoadSelectionState::new();
+    missing.file_name = "not-there.txt".into();
+    assert!(matches!(
+        model.run_load_selection(&mut missing),
+        CommandOutcome::Failed(_)
+    ));
+}

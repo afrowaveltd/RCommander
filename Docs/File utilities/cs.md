@@ -48,3 +48,36 @@ dál použít s `F5`, `F8` nebo hromadným přejmenováním.
 
 Skryté a velmi malé soubory se ve výchozím stavu přeskakují; obojí lze v dialogu
 změnit.
+
+## Kódování a dekódování
+
+*Zakódovat soubor* převede binární soubor na tisknutelný text a *Dekódovat
+soubor* ho převede zpět. Podporována jsou tři kódování:
+
+| Kódování | Abeceda | Typické použití |
+| --- | --- | --- |
+| MIME | base64, `A–Z a–z 0–9 + /` | přílohy e-mailů, moderní výchozí volba |
+| UUE | klasická sada UUencode začínající mezerou | soubory ze starších unixových nástrojů |
+| XXE | `+ - 0–9 A–Z a–z` | varianty, které se vyhýbají znakům problematickým pro shell |
+
+Výstup si zachovává klasickou obálku (`begin 644 <název>` … `end`) a zalamuje se po
+60 znacích (base64) nebo po 45 bajtech na řádek (UU/XX). Při dekódování není třeba
+kódování znát: obsah s konzistentními délkami řádků se čte jako UU/XX, cokoli
+jiného jako base64, a název souboru z obálky se obnoví — takže z `report.pdf.b64`
+je zase `report.pdf`.
+
+## Branch view
+
+*Příkazy ▸ Branch View* (`Ctrl+B`) nahradí obsah panelu plochým výpisem všeho pod
+aktuálním adresářem s cestami místo názvů (`src/main.rs`). Celý podstrom se stane
+jedním řaditelným, filtrovatelným a označitelným seznamem — hodí se k nalezení
+všech souborů určitého typu, ke kopírování výběru z mnoha složek najednou nebo ke
+kontrole, co složka skutečně obsahuje. Opětovné spuštění příkazu vrátí normální
+výpis.
+
+## Uložené výběry
+
+Nabídka *Označit* umí aktuální výběr uložit a později obnovit (`Ctrl+Num /`
+obnoví poslední), nebo ho zapsat do souboru v aktuálním adresáři a zase načíst —
+praktické pro uchování zajímavých souborů mezi sezeními nebo pro předání skriptu.
+Položky, které už neexistují, se při obnovení odstraní.

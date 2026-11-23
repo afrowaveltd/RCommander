@@ -51,3 +51,37 @@ be used with `F5`, `F8` or the multi-rename tool afterwards.
 
 Hidden files and very small files are skipped by default; both can be changed in
 the dialog.
+
+## Encode and decode
+
+*Encode File* turns a binary file into printable text and *Decode File* turns it
+back. Three encodings are supported:
+
+| Encoding | Alphabet | Typical use |
+| --- | --- | --- |
+| MIME | base64, `A–Z a–z 0–9 + /` | mail attachments, the modern default |
+| UUE | the classic UUencode set starting at the space character | files from older Unix tools |
+| XXE | `+ - 0–9 A–Z a–z` | variants that avoid shell-hostile characters |
+
+The output keeps the classic envelope (`begin 644 <name>` … `end`) and is wrapped
+at 60 characters (base64) or 45 bytes per line (UU/XX). Decoding does not need to
+be told which encoding was used: a payload whose line lengths are consistent is
+read as UU/XX, anything else is decoded as base64, and the file name from the
+envelope is restored — so `report.pdf.b64` becomes `report.pdf` again.
+
+## Branch view
+
+*Commands ▸ Branch View* (`Ctrl+B`) replaces the panel content with a flat list of
+everything below the current directory, using paths as names (`src/main.rs`). The
+whole subtree becomes one sortable, filterable, markable list — useful to find all
+files of a type, to copy a selection out of many folders in one go, or to check
+what a folder really contains. Running the command again returns to the normal
+listing.
+
+## Saved selections
+
+The *Mark* menu can store the current selection and restore it later
+(`Ctrl+Num /` restores the last one), or write it to a file in the current
+directory and read it back — handy to keep a set of interesting files across
+sessions or to hand it to a script. Entries that no longer exist are dropped when
+the selection is restored.

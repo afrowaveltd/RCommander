@@ -150,6 +150,38 @@ impl RCommanderApp {
             self.model.close_dialogs();
             return;
         }
+        if command == "rc_RunEncode" {
+            if let Some(Dialog::Encode(state)) = self.model.top_dialog().cloned()
+                && let CommandOutcome::Failed(message) = self.model.run_encode(&state)
+            {
+                self.model.report_error(message);
+            }
+            return;
+        }
+        if command == "rc_RunDecode" {
+            if let Some(Dialog::Decode(mut state)) = self.model.top_dialog().cloned()
+                && let CommandOutcome::Failed(message) = self.model.run_decode(&mut state)
+            {
+                self.model.report_error(message);
+            }
+            return;
+        }
+        if command == "rc_RunSaveSelection" {
+            if let Some(Dialog::SaveSelection(state)) = self.model.top_dialog().cloned()
+                && let CommandOutcome::Failed(message) = self.model.run_save_selection(&state)
+            {
+                self.model.report_error(message);
+            }
+            return;
+        }
+        if command == "rc_RunLoadSelection" {
+            if let Some(Dialog::LoadSelection(mut state)) = self.model.top_dialog().cloned()
+                && let CommandOutcome::Failed(message) = self.model.run_load_selection(&mut state)
+            {
+                self.model.report_error(message);
+            }
+            return;
+        }
         if command == "rc_RunSplit" {
             if let Some(Dialog::Split(state)) = self.model.top_dialog().cloned()
                 && let CommandOutcome::Failed(message) = self.model.run_split(&state)
@@ -417,6 +449,12 @@ impl RCommanderApp {
                 if ui.button(self.model.t("cmd.combine_files")).clicked() {
                     command = Some("cm_Combine".into());
                 }
+                if ui.button(self.model.t("cmd.encode")).clicked() {
+                    command = Some("cm_Encode".into());
+                }
+                if ui.button(self.model.t("cmd.decode")).clicked() {
+                    command = Some("cm_Decode".into());
+                }
                 ui.separator();
                 if ui.button(self.model.t("cmd.checksums")).clicked() {
                     command = Some("cm_CRCcreate".into());
@@ -451,6 +489,13 @@ impl RCommanderApp {
                 }
                 if ui.button(self.model.t("cmd.invert_selection")).clicked() {
                     command = Some("cm_ExchangeSelection".into());
+                }
+                ui.separator();
+                if ui.button(self.model.t("cmd.save_selection")).clicked() {
+                    command = Some("cm_SaveSelectionToFile".into());
+                }
+                if ui.button(self.model.t("cmd.restore_selection")).clicked() {
+                    command = Some("cm_LoadSelectionFromFile".into());
                 }
             });
             ui.menu_button(self.model.t("menu.commands"), |ui| {

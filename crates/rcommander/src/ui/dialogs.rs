@@ -56,6 +56,10 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::VerifyChecksum(state) => verify_checksum(ui, model, state),
                 Dialog::CompareFiles(state) => compare_files(ui, model, state),
                 Dialog::Duplicates(state) => duplicates(ui, model, state),
+                Dialog::Encode(state) => encode_dialog(ui, model, state),
+                Dialog::Decode(state) => decode_dialog(ui, model, state),
+                Dialog::SaveSelection(state) => save_selection(ui, model, state),
+                Dialog::LoadSelection(state) => load_selection(ui, model, state),
                 Dialog::About => about(ui, model),
                 Dialog::Confirm {
                     message,
@@ -124,6 +128,10 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::VerifyChecksum(_) => "cmd.verify_checksums",
         Dialog::CompareFiles(_) => "cmd.compare_by_content",
         Dialog::Duplicates(_) => "cmd.duplicates",
+        Dialog::Encode(_) => "cmd.encode",
+        Dialog::Decode(_) => "cmd.decode",
+        Dialog::SaveSelection(_) => "cmd.save_selection",
+        Dialog::LoadSelection(_) => "cmd.restore_selection",
         Dialog::FtpConnect(_) => "ftp.connect",
         Dialog::Synchronize(_) => "cmd.sync_dirs",
         Dialog::About => "cmd.about",
@@ -1290,6 +1298,106 @@ fn duplicates(ui: &mut egui::Ui, model: &mut Model, state: &mut DuplicatesState)
     ui.horizontal(|ui| {
         if ui.button(model.t("dialog.search.start")).clicked() {
             action = DialogAction::Command("rc_RunDuplicates".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+fn encode_dialog(ui: &mut egui::Ui, model: &mut Model, state: &mut EncodeState) -> DialogAction {
+    ui.label(model.tf(
+        "panel.selected",
+        &[("count", &state.sources.len().to_string())],
+    ));
+    ui.horizontal(|ui| {
+        ui.label("encoding");
+        for id in ["MIME", "UUE", "XXE"] {
+            ui.selectable_value(&mut state.encoding, id.to_string(), id);
+        }
+    });
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.apply")).clicked() {
+            action = DialogAction::Command("rc_RunEncode".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+fn decode_dialog(ui: &mut egui::Ui, model: &mut Model, state: &mut DecodeState) -> DialogAction {
+    ui.label(&state.source);
+    ui.horizontal(|ui| {
+        ui.label("target name");
+        ui.add(
+            egui::TextEdit::singleline(&mut state.target_name)
+                .desired_width(280.0)
+                .hint_text("from the envelope"),
+        );
+    });
+    if state.decoded_bytes > 0 {
+        ui.label(model.tf(
+            "status.done",
+            &[("count", &state.decoded_bytes.to_string())],
+        ));
+    }
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.apply")).clicked() {
+            action = DialogAction::Command("rc_RunDecode".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+fn save_selection(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut SaveSelectionState,
+) -> DialogAction {
+    ui.label(model.tf("panel.selected", &[("count", &state.count.to_string())]));
+    ui.horizontal(|ui| {
+        ui.label(model.t("col.name"));
+        ui.add(egui::TextEdit::singleline(&mut state.file_name).desired_width(260.0));
+    });
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.apply")).clicked() {
+            action = DialogAction::Command("rc_RunSaveSelection".to_string());
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+fn load_selection(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut LoadSelectionState,
+) -> DialogAction {
+    ui.horizontal(|ui| {
+        ui.label(model.t("col.name"));
+        ui.add(egui::TextEdit::singleline(&mut state.file_name).desired_width(260.0));
+    });
+    if state.loaded > 0 {
+        ui.label(model.tf(
+            "panel.selection_of",
+            &[("count", &state.loaded.to_string())],
+        ));
+    }
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.apply")).clicked() {
+            action = DialogAction::Command("rc_RunLoadSelection".to_string());
         }
         if ui.button(model.t("dialog.config.cancel")).clicked() {
             action = DialogAction::Close;

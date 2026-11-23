@@ -9,6 +9,7 @@
 //! async runtime or network dependency so that it can be reused by the desktop
 //! app, the Android front-end and the MCP server.
 
+pub mod branch;
 pub mod checksum;
 pub mod command;
 pub mod comment;
@@ -16,6 +17,7 @@ pub mod compare;
 pub mod config;
 pub mod drive;
 pub mod dupes;
+pub mod encode;
 pub mod entry;
 pub mod error;
 pub mod format;

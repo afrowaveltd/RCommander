@@ -65,6 +65,14 @@ pub enum Dialog {
     CompareFiles(CompareFilesState),
     /// Duplicate finder.
     Duplicates(DuplicatesState),
+    /// Encode a file as text (MIME/UUE/XXE).
+    Encode(EncodeState),
+    /// Decode a text file back to binary.
+    Decode(DecodeState),
+    /// Save the selection to a file.
+    SaveSelection(SaveSelectionState),
+    /// Load a selection from a file.
+    LoadSelection(LoadSelectionState),
     /// About box.
     About,
     /// Generic confirmation (used by the view layer).
@@ -1067,6 +1075,118 @@ impl DuplicatesState {
             files,
             rc_core::format::format_size_unit(wasted)
         )
+    }
+}
+
+/// Encode dialog state.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EncodeState {
+    pub sources: Vec<String>,
+    /// `MIME`, `UUE` or `XXE`.
+    pub encoding: String,
+}
+
+impl EncodeState {
+    pub fn new(sources: Vec<String>) -> Self {
+        EncodeState {
+            sources,
+            encoding: "MIME".to_string(),
+        }
+    }
+
+    pub fn parsed_encoding(&self) -> Option<rc_core::encode::TextEncoding> {
+        rc_core::encode::TextEncoding::parse(&self.encoding)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.sources.is_empty() {
+            return Err("no files selected".to_string());
+        }
+        if self.parsed_encoding().is_none() {
+            return Err(format!("unknown encoding {:?}", self.encoding));
+        }
+        Ok(())
+    }
+}
+
+/// Decode dialog state.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecodeState {
+    pub source: String,
+    /// File name to restore; taken from the envelope when empty.
+    pub target_name: String,
+    pub decoded_bytes: u64,
+}
+
+impl DecodeState {
+    pub fn new(source: impl Into<String>) -> Self {
+        DecodeState {
+            source: source.into(),
+            target_name: String::new(),
+            decoded_bytes: 0,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.source.trim().is_empty() {
+            return Err("no file selected".to_string());
+        }
+        Ok(())
+    }
+}
+
+/// Save-selection dialog state.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SaveSelectionState {
+    pub file_name: String,
+    pub count: usize,
+}
+
+impl SaveSelectionState {
+    pub fn new(count: usize) -> Self {
+        SaveSelectionState {
+            file_name: "selection.txt".to_string(),
+            count,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.count == 0 {
+            return Err("nothing is selected".to_string());
+        }
+        if self.file_name.trim().is_empty() {
+            return Err("empty file name".to_string());
+        }
+        Ok(())
+    }
+}
+
+/// Load-selection dialog state.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LoadSelectionState {
+    pub file_name: String,
+    pub loaded: usize,
+}
+
+impl LoadSelectionState {
+    pub fn new() -> Self {
+        LoadSelectionState {
+            file_name: "selection.txt".to_string(),
+            loaded: 0,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.file_name.trim().is_empty() {
+            return Err("empty file name".to_string());
+        }
+        Ok(())
+    }
+}
+
+impl Default for LoadSelectionState {
+    fn default() -> Self {
+        LoadSelectionState::new()
     }
 }
 

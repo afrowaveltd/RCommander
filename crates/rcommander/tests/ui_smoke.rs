@@ -570,3 +570,58 @@ fn the_duplicate_finder_dialog_reports_a_group() {
         other => panic!("expected the duplicates dialog, got {other:?}"),
     }
 }
+
+#[test]
+fn the_branch_view_command_switches_the_panel() {
+    let (left, right) = fixture();
+    write(&left.path().join("sub/nested.txt"), "nested content");
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.state_mut().execute("cm_DirBranch");
+    harness.run();
+    assert_eq!(
+        harness.state().model.left.view_mode,
+        rcommander::model::ViewMode::Tree
+    );
+    // The flat listing shows the nested file by its relative path.
+    let entries: Vec<String> = harness
+        .state()
+        .model
+        .left
+        .entries()
+        .iter()
+        .map(|e| e.name.clone())
+        .collect();
+    assert!(
+        entries.iter().any(|name| name == "sub/nested.txt"),
+        "the branch listing contains the nested file: {entries:?}"
+    );
+    assert!(
+        harness.root().query_all_by_label_contains("nested").count() > 0,
+        "the row is rendered"
+    );
+}
+
+#[test]
+fn the_encode_dialog_runs_and_writes_a_file() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.refresh_active();
+    app.model.left.selection.set(["alpha.txt"]);
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_Encode");
+    harness.run();
+    assert!(matches!(
+        harness.state().dialog(),
+        Some(rcommander::model::Dialog::Encode(_))
+    ));
+    {
+        let node = harness.root().get_by_label("dialog.config.apply");
+        node.click();
+    }
+    harness.run();
+    harness.run();
+    assert!(
+        left.path().join("alpha.txt.b64").exists(),
+        "the MIME encoded file is written"
+    );
+}

@@ -238,7 +238,7 @@ impl Model {
             "cm_srctree" => self.set_view_mode(ViewMode::Tree),
             "cm_srcallfiles" => self.set_filter("*.*"),
             "cm_srcexecs" => self.set_filter("*"),
-            "cm_dirbranch" | "cm_branchview" => self.set_branch_view(),
+            "cm_dirbranch" | "cm_branchview" => self.toggle_branch_view(),
 
             // ---- sorting ----------------------------------------------
             "cm_srcbyname" => self.sort_active(SortField::Name),
@@ -278,11 +278,6 @@ impl Model {
             }
             "cm_selectcurrentnameext" | "cm_selectsameext" => self.select_same_extension(true),
             "cm_unselectcurrentnameext" | "cm_deselectsameext" => self.select_same_extension(false),
-            "cm_restoreselection" => {
-                self.report(self.t("status.ready"));
-                CommandOutcome::Ok
-            }
-
             // ---- file operations --------------------------------------
             "cm_copy" => self.open_transfer_dialog(false),
             "cm_copysamepanel" => self.open_transfer_dialog(false),
@@ -356,6 +351,49 @@ impl Model {
                 self.show_transfer_manager = true;
                 CommandOutcome::Ok
             }
+            "cm_encode" => {
+                let sources = self.selected_paths();
+                self.open_dialog(Dialog::Encode(EncodeState::new(sources)));
+                CommandOutcome::Ok
+            }
+            "cm_decode" => {
+                let source = self
+                    .active()
+                    .current()
+                    .map(|e| e.path.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                self.open_dialog(Dialog::Decode(DecodeState::new(source)));
+                CommandOutcome::Ok
+            }
+            "cm_saveselectiontofile" => {
+                let count = self.active().selection.len();
+                self.open_dialog(Dialog::SaveSelection(SaveSelectionState::new(count)));
+                CommandOutcome::Ok
+            }
+            "cm_loadselectionfromfile" => {
+                self.open_dialog(Dialog::LoadSelection(LoadSelectionState::new()));
+                CommandOutcome::Ok
+            }
+            "cm_saveselection" => {
+                self.saved_selection = Some(self.active().selection.clone());
+                self.report(self.tf(
+                    "panel.selection_of",
+                    &[("count", &self.active().selection.len().to_string())],
+                ));
+                CommandOutcome::Ok
+            }
+            "cm_restoreselection" => match self.saved_selection.clone() {
+                Some(selection) => {
+                    let entries: Vec<Entry> = self.active().entries().to_vec();
+                    let mut restored = selection;
+                    restored.retain_existing(&entries);
+                    let count = restored.len();
+                    self.active_mut().selection = restored;
+                    self.report(self.tf("panel.selection_of", &[("count", &count.to_string())]));
+                    CommandOutcome::Ok
+                }
+                None => CommandOutcome::None,
+            },
             "cm_split" | "cm_splitfile" => {
                 let source = self
                     .active()
@@ -509,12 +547,6 @@ impl Model {
     fn set_filter(&mut self, mask: &str) -> CommandOutcome {
         self.active_mut().mask_spec = mask.to_string();
         self.refresh_active();
-        CommandOutcome::Ok
-    }
-
-    fn set_branch_view(&mut self) -> CommandOutcome {
-        self.settings.display.view_mode = "tree".to_string();
-        self.active_mut().view_mode = ViewMode::Tree;
         CommandOutcome::Ok
     }
 
@@ -1353,6 +1385,194 @@ impl Model {
     /// True while a background operation runs.
     pub fn is_busy(&self) -> bool {
         !self.transfers.is_empty()
+    }
+
+    // ----- encode / decode and saved selections ------------------------
+
+    /// Encode the selected files as MIME/UUE/XXE text.
+    pub fn run_encode(&mut self, state: &EncodeState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let Some(kind) = state.parsed_encoding() else {
+            return CommandOutcome::Failed("unknown encoding".to_string());
+        };
+        let cancel = CancelToken::new();
+        let mut written = 0u64;
+        let mut failures: Vec<String> = Vec::new();
+        for source in &state.sources {
+            let path = PathBuf::from(source);
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let data = match std::fs::read(&path) {
+                Ok(data) => data,
+                Err(e) => {
+                    failures.push(format!("{name}: {e}"));
+                    continue;
+                }
+            };
+            if cancel.is_cancelled() {
+                break;
+            }
+            let text = rc_core::encode::encode(&data, kind, &name);
+            let mut target = path.clone();
+            target.set_extension(format!(
+                "{}.{}",
+                name.rsplit('.').next().unwrap_or("bin"),
+                kind.extension()
+            ));
+            let target = target.with_file_name(format!("{name}.{}", kind.extension()));
+            if let Err(e) = std::fs::write(&target, text.as_bytes()) {
+                failures.push(format!("{}: {e}", target.display()));
+                continue;
+            }
+            written += 1;
+        }
+        self.close_dialogs();
+        self.refresh_all();
+        if failures.is_empty() {
+            self.report(self.tf("status.done", &[("count", &written.to_string())]));
+            CommandOutcome::Ok
+        } else {
+            let message = failures.join("; ");
+            self.report_error(&message);
+            CommandOutcome::Failed(message)
+        }
+    }
+
+    /// Decode a MIME/UUE/XXE file back to its binary content.
+    pub fn run_decode(&mut self, state: &mut DecodeState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let source = PathBuf::from(&state.source);
+        let text = match std::fs::read_to_string(&source) {
+            Ok(text) => text,
+            Err(e) => return CommandOutcome::Failed(e.to_string()),
+        };
+        // The name from the envelope wins unless the user typed one.
+        let envelope_name = text
+            .lines()
+            .next()
+            .and_then(|line| line.strip_prefix("begin "))
+            .and_then(|rest| rest.split_whitespace().nth(2))
+            .map(|s| s.to_string());
+        let data = match rc_core::encode::decode(&text) {
+            Ok(data) => data,
+            Err(e) => return CommandOutcome::Failed(e.to_string()),
+        };
+        let target = if state.target_name.trim().is_empty() {
+            let name = envelope_name.unwrap_or_else(|| {
+                let mut stem = source
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "decoded".to_string());
+                if let Some(position) = stem.rfind('.') {
+                    stem.truncate(position);
+                }
+                stem
+            });
+            source.with_file_name(name)
+        } else {
+            source.with_file_name(state.target_name.trim())
+        };
+        match std::fs::write(&target, &data) {
+            Ok(()) => {
+                state.decoded_bytes = data.len() as u64;
+                self.close_dialogs();
+                self.refresh_all();
+                self.report(self.tf("status.done", &[("count", &data.len().to_string())]));
+                CommandOutcome::Ok
+            }
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    /// Write the current selection to a file in the active directory.
+    pub fn run_save_selection(&mut self, state: &SaveSelectionState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let Some(dir) = self.active().location().as_path().map(|p| p.to_path_buf()) else {
+            return CommandOutcome::Failed("only local directories are supported".to_string());
+        };
+        let text = self.active().selection.to_file_format();
+        let target = dir.join(state.file_name.trim());
+        match std::fs::write(&target, text) {
+            Ok(()) => {
+                self.close_dialogs();
+                self.report(self.tf("status.done", &[("count", &state.count.to_string())]));
+                CommandOutcome::Ok
+            }
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    /// Restore a selection from a file in the active directory.
+    pub fn run_load_selection(&mut self, state: &mut LoadSelectionState) -> CommandOutcome {
+        if let Err(message) = state.validate() {
+            return CommandOutcome::Failed(message);
+        }
+        let Some(dir) = self.active().location().as_path().map(|p| p.to_path_buf()) else {
+            return CommandOutcome::Failed("only local directories are supported".to_string());
+        };
+        let text = match std::fs::read_to_string(dir.join(state.file_name.trim())) {
+            Ok(text) => text,
+            Err(e) => return CommandOutcome::Failed(e.to_string()),
+        };
+        let selection = rc_core::selection::Selection::from_file_format(&text);
+        let entries: Vec<Entry> = self.active().entries().to_vec();
+        let mut restored = selection;
+        restored.retain_existing(&entries);
+        let count = restored.len();
+        self.active_mut().selection = restored;
+        state.loaded = count;
+        self.close_dialogs();
+        self.report(self.tf("panel.selection_of", &[("count", &count.to_string())]));
+        CommandOutcome::Ok
+    }
+
+    /// Toggle the branch view of the active panel: a flat list of everything
+    /// below the current directory, with paths as names.
+    pub fn toggle_branch_view(&mut self) -> CommandOutcome {
+        let leaving = self.active().view_mode == crate::model::ViewMode::Tree;
+        let Some(root) = self.active().location().as_path().map(|p| p.to_path_buf()) else {
+            return CommandOutcome::Failed("branch view needs a local directory".to_string());
+        };
+        let location = self.active().location().clone();
+        let settings = self.settings.clone();
+        if leaving {
+            // Back to the normal listing of the same directory.
+            return match self.navigate(location) {
+                Ok(()) => {
+                    self.active_mut().view_mode =
+                        crate::model::ViewMode::from_str(&settings.display.view_mode);
+                    CommandOutcome::Ok
+                }
+                Err(e) => CommandOutcome::Failed(e.to_string()),
+            };
+        }
+        let cancel = CancelToken::new();
+        match rc_core::branch::branch_listing(&root, 50_000, &cancel) {
+            Ok((entries, truncated)) => {
+                let panel = self.active_mut();
+                let options = panel.read_options(&settings);
+                let sort = panel.sort();
+                panel.listing =
+                    rc_core::listing::Listing::from_entries(location, entries, &options, sort);
+                panel.view_mode = crate::model::ViewMode::Tree;
+                panel.selection.clear();
+                let count = panel.listing.len();
+                self.report(self.tf("panel.files", &[("count", &count.to_string())]));
+                if truncated {
+                    self.report("branch view truncated at 50000 entries");
+                }
+                CommandOutcome::Ok
+            }
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
     }
 
     // ----- file utilities ---------------------------------------------

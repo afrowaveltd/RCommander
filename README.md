@@ -44,7 +44,7 @@ text files you can extend without recompiling anything.
 | Area | What you get |
 | --- | --- |
 | **Panels** | independent tabs, sort orders, filters and histories per panel; brief / full / comments / thumbnail-grid / tree views; **configurable columns and saved view modes**; quick view (`Ctrl+Q`) |
-| **Navigation** | natural sorting, quick search by typing, directory history with `Alt+Left`/`Alt+Right`, drive/volume selector, hotlist (`Ctrl+D`) |
+| **Navigation** | natural sorting, quick search by typing, directory history with `Alt+Left`/`Alt+Right`, drive/volume selector, hotlist (`Ctrl+D`), branch view (`Ctrl+B`), directory tree |
 | **Selection** | `Insert`, `Space`, `Num +`/`-`/`*`, extension groups, marks that survive a re-read |
 | **File operations** | copy, move, delete, rename, create directory, attributes, comments (`descript.ion`); background transfers with a **transfer manager window**; drag & drop from other applications |
 | **Previewer (F3)** | images as images, text with encoding detection, RTL aware, **integrated hex dump** for unknown binaries, byte and pixel budgets for huge files |
@@ -54,7 +54,7 @@ text files you can extend without recompiling anything.
 | **FTP / SFTP** | remote panels: `Ctrl+F` connects and turns a panel into the server (`Ctrl+Shift+F` disconnects); passive/active FTP, MLSD with LIST fallback, download/upload of marked entries, cancellable recursive transfers; FTPS/SFTP behind cargo features |
 | **Compare / synchronise** | `Shift+F2` compares the panels and marks the differences; the dialog copies both directions with dry run and newer-wins rules |
 | **Multi-rename** | placeholder language (`[N]`, `[E]`, `[C]`, `[P]`, `[T1]`, date parts), live preview, search & replace |
-| **File utilities** | split/combine, checksums (CRC32/MD5/SHA1/SHA256) with verification in md5sum *and* SFV formats, compare by content, duplicate finder |
+| **File utilities** | split/combine, checksums (CRC32/MD5/SHA1/SHA256) with verification in md5sum *and* SFV formats, compare by content, duplicate finder, MIME/UUE/XXE encode & decode, saved selections |
 | **Automation** | 594-entry internal command catalogue (`cm_*`), command line, **configurable button bar with an editor**, **MCP server and client** |
 | **Localisation** | TOML language packs (English + Czech included), RTL layouts, per-topic help in any language |
 
