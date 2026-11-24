@@ -675,10 +675,11 @@ fn the_panel_offers_an_explicit_way_to_go_up() {
     let mut harness = harness(app(&left.path().join("sub"), right.path()));
     // The up button is labelled and reachable without knowing a shortcut.
     {
-        // Both panels show an up button; the left panel's is the leftmost one.
+        // Both panels show an up button (icon + localised caption); the left
+        // panel's is the leftmost one.
         let node = harness
             .root()
-            .query_all_by_label("cmd.up")
+            .query_all_by_label_contains("cmd.up")
             .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
             .expect("an up button in the panel");
         node.click();
@@ -689,4 +690,50 @@ fn the_panel_offers_an_explicit_way_to_go_up() {
         harness.state().model.left.location().as_path().unwrap(),
         left.path()
     );
+}
+
+#[test]
+fn the_bundled_icon_font_renders_every_icon() {
+    let (left, right) = fixture();
+    let harness = harness(app(left.path(), right.path()));
+    // Build one label with every glyph; egui panics when a glyph is missing, so a
+    // successful run proves the bundled font covers the icon set.
+    let all: String = rcommander::icons::Icon::all()
+        .iter()
+        .map(|icon| icon.glyph())
+        .collect();
+    // The app installs the font in its theme step; this throwaway harness has to
+    // request it itself (once), otherwise egui would reject the code points.
+    struct State {
+        text: String,
+        installed: bool,
+    }
+    let mut font_harness = egui_kittest::Harness::builder()
+        .with_accessibility_check(false)
+        .build_ui_state(
+            move |ui, state: &mut State| {
+                if !state.installed {
+                    rcommander::theme::install_icon_font(ui.ctx());
+                    state.installed = true;
+                }
+                ui.label(state.text.clone());
+            },
+            State {
+                text: all,
+                installed: false,
+            },
+        );
+    font_harness.run();
+    font_harness.run();
+    // And the real UI renders entries with their icons attached to the name.
+    let names: Vec<String> = harness
+        .state()
+        .model
+        .left
+        .entries()
+        .iter()
+        .map(|entry| entry.name.clone())
+        .collect();
+    assert!(names.iter().any(|name| name == "alpha.txt"));
+    assert!(harness.root().query_all_by_label_contains("sub").count() > 0);
 }

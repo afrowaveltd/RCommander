@@ -102,6 +102,19 @@ impl SettingsWriter {
     }
 }
 
+/// Create `path` with the current settings when it does not exist yet.
+///
+/// A first start therefore leaves a human-editable `settings.toml` behind instead
+/// of keeping everything in memory until the first change. An existing file is
+/// never overwritten, so hand-written comments survive.
+pub fn ensure_settings_file(path: impl Into<PathBuf>, settings: &Settings) -> bool {
+    let path = path.into();
+    if path.exists() {
+        return false;
+    }
+    settings.save(&path).is_ok()
+}
+
 /// Cheap fingerprint of a settings record: the serialised TOML hashed.
 fn fingerprint(settings: &Settings) -> u64 {
     let text = settings.to_toml().unwrap_or_default();
@@ -223,5 +236,42 @@ mod tests {
         };
         assert_ne!(fingerprint(&a), fingerprint(&b));
         assert_eq!(fingerprint(&a), fingerprint(&Settings::default()));
+    }
+}
+
+#[cfg(test)]
+mod bootstrap_tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_settings_file_is_created_on_first_start() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.toml");
+        let settings = Settings::default();
+        assert!(!path.exists());
+        let written = ensure_settings_file(path.clone(), &settings);
+        assert!(
+            written,
+            "the defaults are written so the user has a file to edit"
+        );
+        assert!(path.exists());
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("language"));
+        // A second call leaves an existing file alone.
+        assert!(!ensure_settings_file(path, &settings));
+    }
+
+    #[test]
+    fn an_existing_settings_file_is_never_overwritten_on_start() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.toml");
+        std::fs::write(&path, "# hand written\nlanguage = \"cs\"\n").unwrap();
+        let settings = Settings::default();
+        assert!(!ensure_settings_file(path.clone(), &settings));
+        assert!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .contains("hand written")
+        );
     }
 }

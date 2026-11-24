@@ -8,6 +8,7 @@
 pub mod agent_host;
 pub mod archive_bridge;
 pub mod i18n;
+pub mod icons;
 pub mod keys;
 pub mod model;
 pub mod ops_runner;

@@ -22,7 +22,11 @@ pub enum PanelAction {
 /// Text of one configured column for an entry.
 fn column_text(id: &str, entry: &Entry, display: &rc_core::config::Display) -> String {
     match id {
-        "name" => entry.name.clone(),
+        "name" => format!(
+            "{} {}",
+            crate::icons::Icon::for_entry(entry.kind, &entry.name).glyph(),
+            entry.name
+        ),
         "ext" => entry.extension(),
         "size" => {
             if entry.is_dir() {
@@ -213,7 +217,14 @@ fn path_row(
         }
         // Explicit navigation: going up must not require knowing a shortcut.
         if ui
-            .button(egui::RichText::new(model.t("cmd.up")).size(model.settings.display.font_size))
+            .button(
+                egui::RichText::new(format!(
+                    "{} {}",
+                    crate::icons::Icon::Up.glyph(),
+                    model.t("cmd.up")
+                ))
+                .size(model.settings.display.font_size),
+            )
             .on_hover_text(model.t("cmd.go_up"))
             .clicked()
         {

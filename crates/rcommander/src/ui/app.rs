@@ -130,6 +130,8 @@ impl RCommanderApp {
     /// Build a model from disk: settings, translator, help and two panels.
     pub fn boot(left: Option<Location>, right: Option<Location>) -> Self {
         let settings = Settings::load(&paths::settings_path()).unwrap_or_default();
+        // Leave an editable file behind on the very first start.
+        crate::settings_writer::ensure_settings_file(paths::settings_path(), &settings);
         let strings = Box::new(TranslatorStrings::discover(
             &paths::locales_dir(),
             &settings.language,
@@ -155,6 +157,7 @@ impl RCommanderApp {
             return;
         }
         self.palette = Palette::by_name(&theme_name);
+        theme::install_icon_font(ctx);
         theme::install_text_styles(ctx, font_size);
         ctx.set_visuals(theme::visuals(&self.palette, theme_name == "dark"));
         self.applied_theme = theme_name;

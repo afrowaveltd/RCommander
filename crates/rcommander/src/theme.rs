@@ -143,6 +143,35 @@ pub fn visuals(palette: &Palette, dark: bool) -> egui::Visuals {
     v
 }
 
+/// Register the bundled icon font as the lowest fallback of both families.
+///
+/// Text keeps the normal proportional font; only the private-use code points of
+/// [`crate::icons`] come from the bundled font. Without this, egui refuses to
+/// render a character it cannot find (it panics with "No glyph for …"), so the
+/// icons are also a correctness fix.
+pub fn install_icon_font(ctx: &egui::Context) {
+    use egui::{FontData, FontFamily, FontPriority};
+    ctx.add_font(egui::epaint::text::FontInsert::new(
+        crate::icons::FONT_NAME,
+        FontData::from_static(crate::icons::FONT_BYTES),
+        vec![
+            egui::epaint::text::InsertFontFamily {
+                family: FontFamily::Proportional,
+                priority: FontPriority::Lowest,
+            },
+            egui::epaint::text::InsertFontFamily {
+                family: FontFamily::Monospace,
+                priority: FontPriority::Lowest,
+            },
+        ],
+    ));
+}
+
+/// Format an icon for use in a label.
+pub fn icon_text(icon: crate::icons::Icon) -> String {
+    icon.glyph().to_string()
+}
+
 /// Register the monospace and proportional text styles.
 pub fn install_text_styles(ctx: &egui::Context, font_size: f32) {
     let styles = [
