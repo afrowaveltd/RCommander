@@ -132,3 +132,30 @@ fn no_pack_value_is_empty_or_still_a_key() {
         }
     }
 }
+
+#[test]
+fn no_pack_repeats_a_key() {
+    // A duplicate key makes the TOML invalid, and the pack disappears at runtime
+    // without any other test noticing — this is what happened once with `git.pushed`.
+    for (name, text) in [
+        ("en", include_str!("../../../locales/en.toml")),
+        ("cs", include_str!("../../../locales/cs.toml")),
+        ("crate en", include_str!("../../rc-i18n/locales/en.toml")),
+        ("crate cs", include_str!("../../rc-i18n/locales/cs.toml")),
+    ] {
+        let mut seen = std::collections::HashSet::new();
+        for line in text.lines() {
+            let Some(rest) = line.strip_prefix('"') else {
+                continue;
+            };
+            let Some((key, _)) = rest.split_once("\" ") else {
+                continue;
+            };
+            assert!(
+                seen.insert(key.to_string()),
+                "{name}: duplicate key “{key}”"
+            );
+        }
+        assert!(!seen.is_empty(), "{name}: the pack is empty");
+    }
+}

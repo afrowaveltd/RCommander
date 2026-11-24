@@ -61,6 +61,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::GitConfig(state) => git_config(ui, model, state),
                 Dialog::GitCommit(state) => git_commit(ui, model, state),
                 Dialog::GitBranches(state) => git_branches(ui, model, state),
+                Dialog::GitRemote(state) => git_remote(ui, model, state),
                 Dialog::Encode(state) => encode_dialog(ui, model, state),
                 Dialog::Decode(state) => decode_dialog(ui, model, state),
                 Dialog::SaveSelection(state) => save_selection(ui, model, state),
@@ -135,6 +136,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::GitConfig(_) => "git.title",
         Dialog::GitCommit(_) => "git.commit.title",
         Dialog::GitBranches(_) => "git.branches.title",
+        Dialog::GitRemote(_) => "git.remote.title",
         Dialog::Encode(_) => "cmd.encode",
         Dialog::Decode(_) => "cmd.decode",
         Dialog::SaveSelection(_) => "cmd.save_selection",
@@ -2017,6 +2019,74 @@ fn unlock_secrets(
         }
     }
     DialogAction::None
+}
+
+/// Fetch, pull, push and merge for the panel's repository.
+fn git_remote(ui: &mut egui::Ui, model: &mut Model, state: &mut GitRemoteState) -> DialogAction {
+    let palette = crate::theme::Palette::for_model(model);
+    ui.horizontal(|ui| {
+        ui.label(model.t("git.remote.branch"));
+        ui.label(egui::RichText::new(&state.branch).strong());
+        if !state.upstream.is_empty() {
+            ui.label(
+                egui::RichText::new(format!("→ {}", state.upstream))
+                    .small()
+                    .color(palette.hidden),
+            );
+        }
+    });
+    ui.label(
+        egui::RichText::new(model.tf(
+            "git.remote.tracking",
+            &[
+                ("ahead", &state.ahead.to_string()),
+                ("behind", &state.behind.to_string()),
+            ],
+        ))
+        .small(),
+    );
+    ui.separator();
+    let mut action = DialogAction::None;
+    ui.horizontal_wrapped(|ui| {
+        if ui.button(model.t("git.remote.fetch")).clicked() {
+            model.git_fetch();
+            state.status = model.t("git.working");
+        }
+        if ui.button(model.t("git.remote.pull")).clicked() {
+            model.git_pull();
+            state.status = model.t("git.working");
+        }
+        if ui.button(model.t("git.remote.push")).clicked() {
+            model.git_push();
+            state.status = model.t("git.working");
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    ui.separator();
+    ui.horizontal(|ui| {
+        ui.label(model.t("git.remote.merge"));
+        ui.add(egui::TextEdit::singleline(&mut state.merge_from).desired_width(140.0));
+        if ui.button(model.t("git.remote.merge_do")).clicked() {
+            let name = state.merge_from.trim().to_string();
+            if name.is_empty() {
+                state.status = model.t("git.branches.name_required");
+            } else {
+                match model.git_merge(&name) {
+                    crate::model::CommandOutcome::Ok => {
+                        state.status = model.status.clone();
+                    }
+                    crate::model::CommandOutcome::Failed(error) => state.status = error,
+                    _ => {}
+                }
+            }
+        }
+    });
+    if !state.status.is_empty() {
+        ui.label(egui::RichText::new(&state.status).small());
+    }
+    action
 }
 
 /// Pick a branch of the panel's repository, or create a new one.

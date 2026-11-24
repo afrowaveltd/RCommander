@@ -449,7 +449,7 @@ pub struct Model {
     /// The user's Git configuration, loaded only after approval.
     pub git_config: Option<rc_git::GitConfig>,
     /// A push started by "commit on save", running on a worker thread.
-    pub git_push_job: Option<git::GitPushJob>,
+    pub git_push_job: Option<git::GitNetJob>,
     /// Colour themes found on disk plus the built-ins.
     pub theme_set: rc_core::theme::ThemeSet,
     /// Where themes are read from (tests and portable installs point elsewhere).

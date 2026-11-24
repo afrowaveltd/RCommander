@@ -166,6 +166,27 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 15.8c — fetch, pull, push and merge (done)
+
+`cargo test -p rc-git` → **32 tests**, `cargo test -p rcommander --lib remote_tests` → **3
+tests**, plus a UI test.
+
+The engine grew `fetch` (with the credentials callback shared with push), `ahead_behind`,
+`pull_fast_forward` and `merge_branch`. Both "pull" operations are deliberately
+**fast-forward only**: a diverged branch, a dirty tree or a branch that is already ahead
+produce a message instead of a half-merged working tree, which is the only safe default
+for a file manager.
+
+*Configuration ▸ Git remote…* shows the branch, its remote and the ahead/behind counts,
+and offers **Fetch**, **Pull (fast-forward)**, **Push** and **Merge branch**. The three
+network operations run on a worker thread with the credentials the user approved
+(`git_push_job` became a general `GitNetJob` that reports a message), so a slow remote
+never freezes the window; a pull reloads the panel afterwards.
+
+The step also fixed a real bug the new tests exposed: a duplicated `git.pushed` key made
+the TOML pack invalid, so the whole Czech language silently disappeared. `tests/i18n_keys.rs`
+now asserts that no pack repeats a key.
+
 ## Phase 15.8b — switching branches from the panel (done)
 
 `cargo test -p rcommander --lib branch_tests` → **5 tests**, plus a UI test.
@@ -538,11 +559,11 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1247 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1255 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
-  `rc-archive` 134, `rc-git` 28, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
-  doctests and one opt-in SFTP integration test), `rcommander` 311 (261 lib + 47 UI
+  `rc-archive` 134, `rc-git` 32, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
+  doctests and one opt-in SFTP integration test), `rcommander` 316 (264 lib + 48 UI
   + 3 i18n guard) — **1229 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of

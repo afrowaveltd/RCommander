@@ -64,6 +64,25 @@ The switch itself is a `safe` checkout: a file with local changes is never overw
 afterwards the index matches the new `HEAD`, so the switch does not look like a pile of
 staged changes. Neither panel is special: each can sit on its own branch.
 
+## Working with a remote
+
+*Configuration ▸ Git remote…* shows the current branch, its remote and how far the two
+sides have drifted (`2 to push, 1 to pull`), and offers three operations:
+
+| Action | What it does |
+| --- | --- |
+| **Fetch** | downloads the remote's branches without touching the working tree |
+| **Pull (fast-forward)** | fetches, then moves the branch forward when that is safe |
+| **Push** | sends the current branch to its upstream (or `origin`) |
+
+Fetch, pull and push run on a worker thread with the credentials you approved, so a slow
+remote never freezes the window; the status line reports the result. **Pull only
+fast-forwards**: if the branch has diverged, or the working tree has local changes, it
+says so and changes nothing — a half-merged tree is worse than a clear message.
+
+*Merge branch* merges a local branch into the current one, again fast-forward only. For
+anything that would need a real three-way merge, use Git itself and reload the panel.
+
 ## Colours that tell you where you are
 
 Rows in a Git panel are tinted by their state instead of their file type:

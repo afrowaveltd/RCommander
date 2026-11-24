@@ -107,6 +107,7 @@ pub fn is_inside(path: &Path, dir: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]

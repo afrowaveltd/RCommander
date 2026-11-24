@@ -17,6 +17,8 @@ pub struct Fixture {
     pub second: String,
     /// Path of a bare clone used as a `file://` remote.
     pub remote: PathBuf,
+    /// Free directory inside the temporary parent, for a second clone.
+    pub extra_dir: PathBuf,
 }
 
 impl Fixture {
@@ -64,7 +66,15 @@ impl Fixture {
         bare_options.bare(true).initial_head("main");
         Repository::init_opts(&remote, &bare_options).expect("bare init");
         {
-            let mut origin = repo.remote("origin", remote.to_str().unwrap()).unwrap();
+            // `remote_with_fetch` also configures the fetch refspec, which is what a
+            // clone does and what `fetch` needs to create tracking references.
+            let mut origin = repo
+                .remote_with_fetch(
+                    "origin",
+                    remote.to_str().unwrap(),
+                    "+refs/heads/*:refs/remotes/origin/*",
+                )
+                .unwrap();
             origin
                 .push(&["refs/heads/main:refs/heads/main"], None)
                 .unwrap();
@@ -76,13 +86,23 @@ impl Fixture {
         // An ignored file that must not appear in a commit but does exist on disk.
         std::fs::write(root.join("debug.log"), "ignored\n").unwrap();
 
+        // A path that does not exist yet, so `clone` can create it.
+        let extra_dir = dir.path().join("other");
         Fixture {
             _dir: dir,
             root,
             first,
             second,
             remote,
+            extra_dir,
         }
+    }
+}
+
+impl Fixture {
+    /// A path inside the temporary parent for a second clone (does not exist yet).
+    pub fn extra(&self) -> PathBuf {
+        self.extra_dir.clone()
     }
 }
 

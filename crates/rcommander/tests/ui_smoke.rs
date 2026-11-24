@@ -1718,3 +1718,40 @@ fn the_branch_picker_switches_the_panel() {
         "the panel follows the new branch"
     );
 }
+
+#[test]
+fn the_remote_dialog_shows_the_branch_and_fetches_in_the_background() {
+    let (_left, right) = fixture();
+    let repo_dir = tempfile::tempdir().unwrap();
+    git_fixture(repo_dir.path());
+    let mut app = app(repo_dir.path(), right.path());
+    app.model.config_dir_override = Some(repo_dir.path().to_path_buf());
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_GitPanel");
+    harness.run();
+    harness.state_mut().execute("cm_GitRemote");
+    harness.run();
+    match harness.state().model.top_dialog() {
+        Some(rcommander::model::Dialog::GitRemote(state)) => {
+            assert_eq!(state.branch, "main");
+            assert!(state.upstream.is_empty(), "the fixture has no remote");
+        }
+        other => panic!("expected the remote dialog, got {other:?}"),
+    }
+    // Fetching without a remote fails with a message instead of blocking the window.
+    harness
+        .root()
+        .get_by_label("git.remote.fetch")
+        .click_accesskit();
+    harness.run();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while std::time::Instant::now() < deadline && harness.state().model.is_pushing() {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        harness.run();
+    }
+    assert!(!harness.state().model.is_pushing(), "the attempt finished");
+    assert!(
+        harness.state().model.last_error.is_some(),
+        "a repository without a remote reports why"
+    );
+}

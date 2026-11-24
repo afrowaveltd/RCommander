@@ -545,3 +545,197 @@ fn a_repository_without_a_remote_cannot_be_pushed() {
     let error = opened.push_request().unwrap_err();
     assert!(error.to_string().contains("no remote"), "{error}");
 }
+
+#[test]
+fn fetching_updates_the_remote_branches_and_ahead_behind() {
+    let fixture = Fixture::new("fetch");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    // The remote-tracking reference appears with the first fetch.
+    repo.fetch("origin", None).unwrap();
+    repo.repo
+        .find_branch("main", git2::BranchType::Local)
+        .unwrap()
+        .set_upstream(Some("origin/main"))
+        .unwrap();
+    // Locally ahead: one commit that the remote does not have.
+    std::fs::write(fixture.root.join("first.txt"), "local").unwrap();
+    repo.stage_path("first.txt").unwrap();
+    repo.commit_staged("local only", None).unwrap();
+    let (ahead, behind) = repo.ahead_behind();
+    assert_eq!(ahead, 1, "one commit to push");
+    assert_eq!(behind, 0);
+
+    // A fetch of an unchanged remote changes nothing and reports the references.
+    let count = repo.fetch("origin", None).unwrap();
+    assert!(count >= 1, "remote branches: {count}");
+    assert_eq!(repo.ahead_behind(), (1, 0));
+
+    // Pushing brings the two sides back in line.
+    let request = repo.push_request().unwrap();
+    repo.push(&request, None).unwrap();
+    assert_eq!(repo.ahead_behind(), (0, 0));
+}
+
+#[test]
+fn a_pull_fast_forwards_from_the_remote() {
+    let fixture = Fixture::new("pull");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    let count = repo.fetch("origin", None).unwrap();
+    println!(
+        "AFTER FETCH branches={:?} count={count}",
+        repo.remote_branches()
+            .iter()
+            .map(|r| r.name.clone())
+            .collect::<Vec<_>>()
+    );
+    repo.repo
+        .find_branch("main", git2::BranchType::Local)
+        .unwrap()
+        .set_upstream(Some("origin/main"))
+        .unwrap();
+
+    // Someone else adds a commit to the remote: clone it, commit, push back.
+    let other = git2::Repository::clone(fixture.remote.to_str().unwrap(), fixture.extra()).unwrap();
+    {
+        let mut config = other.config().unwrap();
+        config.set_str("user.name", "Other").unwrap();
+        config.set_str("user.email", "o@example.com").unwrap();
+    }
+    std::fs::write(fixture.extra().join("remote.txt"), "from the other side\n").unwrap();
+    let mut index = other.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+    let tree_id = index.write_tree().unwrap();
+    let tree = other.find_tree(tree_id).unwrap();
+    let signature = git2::Signature::now("Other", "o@example.com").unwrap();
+    let parent = other.head().unwrap().peel_to_commit().unwrap();
+    other
+        .commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            "remote work",
+            &tree,
+            &[&parent],
+        )
+        .unwrap();
+    other
+        .find_remote("origin")
+        .unwrap()
+        .push(&["refs/heads/main:refs/heads/main"], None)
+        .unwrap();
+
+    // Fetching alone only moves the tracking branch…
+    repo.fetch("origin", None).unwrap();
+    assert_eq!(repo.ahead_behind(), (0, 1));
+    assert!(
+        !fixture.root.join("remote.txt").exists(),
+        "the tree is untouched by a fetch"
+    );
+
+    // …and the pull fast-forwards the branch and the files.
+    let moved = repo.pull_fast_forward().unwrap();
+    assert_eq!(moved, 1);
+    assert!(fixture.root.join("remote.txt").exists(), "the file arrived");
+    assert_eq!(repo.ahead_behind(), (0, 0));
+    // Nothing left to pull.
+    assert_eq!(repo.pull_fast_forward().unwrap(), 0);
+}
+
+#[test]
+fn a_pull_refuses_to_run_on_a_dirty_tree_or_a_diverged_branch() {
+    let fixture = Fixture::new("pull-guards");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    repo.fetch("origin", None).unwrap();
+    repo.repo
+        .find_branch("main", git2::BranchType::Local)
+        .unwrap()
+        .set_upstream(Some("origin/main"))
+        .unwrap();
+
+    // Nothing to pull: a dirty tree is not in the way, and nothing happens.
+    std::fs::write(fixture.root.join("first.txt"), "dirty").unwrap();
+    assert_eq!(repo.pull_fast_forward().unwrap(), 0);
+    assert_eq!(
+        std::fs::read_to_string(fixture.root.join("first.txt")).unwrap(),
+        "dirty",
+        "the local edit is untouched"
+    );
+
+    // Somebody pushed in the meantime: now the dirty tree blocks the pull.
+    let other = git2::Repository::clone(fixture.remote.to_str().unwrap(), fixture.extra()).unwrap();
+    {
+        let mut config = other.config().unwrap();
+        config.set_str("user.name", "Other").unwrap();
+        config.set_str("user.email", "o@example.com").unwrap();
+    }
+    std::fs::write(fixture.extra().join("remote.txt"), "theirs\n").unwrap();
+    let mut index = other.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+    let tree_id = index.write_tree().unwrap();
+    let tree = other.find_tree(tree_id).unwrap();
+    let signature = git2::Signature::now("Other", "o@example.com").unwrap();
+    let parent = other.head().unwrap().peel_to_commit().unwrap();
+    other
+        .commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            "remote work",
+            &tree,
+            &[&parent],
+        )
+        .unwrap();
+    other
+        .find_remote("origin")
+        .unwrap()
+        .push(&["refs/heads/main:refs/heads/main"], None)
+        .unwrap();
+    repo.fetch("origin", None).unwrap();
+    assert_eq!(repo.ahead_behind(), (0, 1));
+    let error = repo.pull_fast_forward().unwrap_err();
+    assert!(error.to_string().contains("has changes"), "{error}");
+
+    // A clean tree that is ahead of the remote has nothing to fast-forward to.
+    let mut checkout = git2::build::CheckoutBuilder::new();
+    checkout.force();
+    repo.repo.checkout_head(Some(&mut checkout)).unwrap();
+    std::fs::write(fixture.root.join("local.txt"), "mine\n").unwrap();
+    repo.stage_path("local.txt").unwrap();
+    repo.commit_staged("ahead", None).unwrap();
+    let error = repo.pull_fast_forward().unwrap_err();
+    assert!(
+        error.to_string().contains("diverged") || error.to_string().contains("push them first"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_branch_with_its_commits_merges_fast_forward() {
+    let fixture = Fixture::new("merge");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    // Merging an ancestor into the current branch changes nothing.
+    assert_eq!(repo.merge_branch("old").unwrap(), 0);
+    assert_eq!(repo.head_branch().as_deref(), Some("main"));
+
+    // From `old` (the first commit), `main` is ahead: that is a fast-forward.
+    repo.checkout_branch("old", false).unwrap();
+    let moved = repo.merge_branch("main").unwrap();
+    assert_eq!(moved, 1);
+    assert_eq!(repo.commits(1).remove(0).summary, "second commit");
+    assert!(repo.status().unwrap().is_clean());
+    // Merging the same branch again is a no-op.
+    assert_eq!(repo.merge_branch("main").unwrap(), 0);
+    // An unknown branch is a clear error.
+    assert!(
+        repo.merge_branch("nope")
+            .unwrap_err()
+            .to_string()
+            .contains("no branch")
+    );
+}

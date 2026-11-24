@@ -61,6 +61,25 @@ Přepnutí je `safe` checkout: soubor s místními změnami se nikdy nepřepíš
 přepnutí srovná s novým `HEAD`, takže se switch nejeví jako hromada staged změn. Ani jeden
 panel není nijak zvláštní — každý může být na jiné větvi.
 
+## Práce s remotem
+
+*Konfigurace ▸ Git remote…* ukáže aktuální větev, její remote a jak daleko jsou obě strany
+(`2 k odeslání, 1 ke stažení`) a nabídne tři operace:
+
+| Akce | Co dělá |
+| --- | --- |
+| **Načíst (fetch)** | stáhne větve remotu, pracovního stromu se nedotkne |
+| **Stáhnout (fast-forward)** | načte a posune větev vpřed, jen když je to bezpečné |
+| **Odeslat (push)** | odešle aktuální větev na její upstream (nebo `origin`) |
+
+Fetch, pull i push běží na vlákně na pozadí se schválenými přihlašovacími údaji, takže
+pomalý remote nikdy nezamrzne okno; výsledek hlásí stavový řádek. **Pull umí jen
+fast-forward**: pokud se větev rozešla nebo má pracovní strom místní změny, řekne to a nic
+nezmění — polo-sloučený strom je horší než jasná zpráva.
+
+*Sloučit větev* sloučí místní větev do aktuální, opět jen fast-forward. Na cokoli, co by
+potřebovalo skutečný třícestný merge, použijte samotný Git a panel načtěte znovu.
+
 ## Barvy, které řeknou, kde jste
 
 Řádky v Git panelu se barví podle stavu, ne podle typu souboru:

@@ -1143,6 +1143,180 @@ impl GitRepo {
         })
     }
 
+    /// Fetch the given remote (all branches), updating remote-tracking references.
+    pub fn fetch(
+        &self,
+        remote: &str,
+        credentials: Option<(&str, &str)>,
+    ) -> Result<usize, GitError> {
+        let mut remote = self
+            .repo
+            .find_remote(remote)
+            .map_err(|error| GitError::new(format!("no remote “{remote}”: {}", error.message())))?;
+        let mut callbacks = git2::RemoteCallbacks::new();
+        let username = credentials.map(|(user, _)| user.to_string());
+        let password = credentials.map(|(_, password)| password.to_string());
+        callbacks.credentials(move |url, username_from_url, allowed| {
+            if let (Some(user), Some(pass)) = (&username, &password)
+                && allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT)
+            {
+                return git2::Cred::userpass_plaintext(user, pass);
+            }
+            if allowed.contains(git2::CredentialType::SSH_KEY)
+                && let Some(user) = username_from_url
+            {
+                return git2::Cred::ssh_key_from_agent(user);
+            }
+            if allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT)
+                && let Ok(config) = git2::Config::open_default()
+            {
+                return git2::Cred::credential_helper(&config, url, username_from_url);
+            }
+            Err(git2::Error::from_str(
+                "no credentials are available for this remote",
+            ))
+        });
+        let mut options = git2::FetchOptions::new();
+        options.remote_callbacks(callbacks);
+        // Prune deleted branches so the panel does not show stale remotes.
+        options.prune(git2::FetchPrune::On);
+        remote
+            .fetch(&[] as &[&str], Some(&mut options), None)
+            .map_err(|error| GitError::new(format!("fetch failed: {}", error.message())))?;
+        Ok(self.remote_branches().len())
+    }
+
+    /// How far the branch is ahead of and behind its upstream.
+    ///
+    /// Returns `(ahead, behind)`; without an upstream both are zero.
+    pub fn ahead_behind(&self) -> (usize, usize) {
+        let Some(branch) = self.head_branch() else {
+            return (0, 0);
+        };
+        let Ok(local) = self.repo.find_branch(&branch, git2::BranchType::Local) else {
+            return (0, 0);
+        };
+        let Ok(upstream) = local.upstream() else {
+            return (0, 0);
+        };
+        let (Some(local_id), Some(upstream_id)) = (local.get().target(), upstream.get().target())
+        else {
+            return (0, 0);
+        };
+        self.repo
+            .graph_ahead_behind(local_id, upstream_id)
+            .unwrap_or((0, 0))
+    }
+
+    /// Fast-forward `HEAD` to its upstream after a fetch.
+    ///
+    /// Only a fast-forward is performed: a real merge could produce conflicts, and a
+    /// file manager must never leave a half-merged tree behind without the user asking
+    /// for it. Divergence is reported instead.
+    pub fn pull_fast_forward(&self) -> Result<usize, GitError> {
+        let (ahead, behind) = self.ahead_behind();
+        if behind == 0 {
+            if ahead > 0 {
+                return Err(GitError::new(format!(
+                    "{ahead} local commit(s) are not on the remote yet; push them first"
+                )));
+            }
+            return Ok(0);
+        }
+        if ahead > 0 {
+            return Err(GitError::new(format!(
+                "the branch has diverged ({ahead} local, {behind} remote commit(s)); merge it by hand"
+            )));
+        }
+        let branch_name = self
+            .head_branch()
+            .ok_or_else(|| GitError::new("HEAD is not on a branch".to_string()))?;
+        let local = self
+            .repo
+            .find_branch(&branch_name, git2::BranchType::Local)
+            .map_err(convert)?;
+        let upstream = local.upstream().map_err(|error| {
+            GitError::new(format!(
+                "the branch “{branch_name}” has no usable upstream: {}",
+                error.message()
+            ))
+        })?;
+        let target = upstream.get().peel_to_commit().map_err(convert)?.id();
+        // The tree is replaced outright only when it is clean.
+        if self.is_dirty() {
+            return Err(GitError::new(
+                "the working tree has changes; commit or discard them before pulling".to_string(),
+            ));
+        }
+        let object = self.repo.find_object(target, None).map_err(convert)?;
+        self.repo
+            .checkout_tree(&object, None)
+            .map_err(|error| GitError::new(format!("pull failed: {}", error.message())))?;
+        let reference = format!("refs/heads/{branch_name}");
+        self.repo
+            .reference(&reference, target, true, "pull: fast-forward")
+            .map_err(convert)?;
+        self.repo.set_head(&reference).map_err(convert)?;
+        self.reset_index_to_head();
+        Ok(behind)
+    }
+
+    /// Merge `name` into the current branch, fast-forward when possible.
+    ///
+    /// A non-fast-forward merge is refused instead of producing a conflict-marked tree:
+    /// the caller can then decide (merge by hand, or push/pull first).
+    pub fn merge_branch(&self, name: &str) -> Result<usize, GitError> {
+        let target = self
+            .repo
+            .find_branch(name, git2::BranchType::Local)
+            .map_err(|_| GitError::new(format!("there is no branch “{name}”")))?
+            .get()
+            .peel_to_commit()
+            .map_err(convert)?
+            .id();
+        let head = self
+            .repo
+            .head()
+            .map_err(convert)?
+            .peel_to_commit()
+            .map_err(convert)?
+            .id();
+        if head == target {
+            return Ok(0);
+        }
+        match self.repo.merge_base(head, target) {
+            // `name` is already contained in the current branch: nothing to do.
+            Ok(base) if base == target => return Ok(0),
+            // The current branch is an ancestor: a plain fast-forward.
+            Ok(base) if base == head => {}
+            Ok(_) => {
+                return Err(GitError::new(format!(
+                    "“{name}” cannot be merged without a conflict-capable merge; rebase or merge it by hand"
+                )));
+            }
+            Err(error) => return Err(convert(error)),
+        }
+        if self.is_dirty() {
+            return Err(GitError::new(
+                "the working tree has changes; commit or discard them before merging".to_string(),
+            ));
+        }
+        let object = self.repo.find_object(target, None).map_err(convert)?;
+        self.repo
+            .checkout_tree(&object, None)
+            .map_err(|error| GitError::new(format!("merge failed: {}", error.message())))?;
+        let branch_name = self
+            .head_branch()
+            .ok_or_else(|| GitError::new("HEAD is not on a branch".to_string()))?;
+        let reference = format!("refs/heads/{branch_name}");
+        self.repo
+            .reference(&reference, target, true, &format!("merge {name}"))
+            .map_err(convert)?;
+        self.repo.set_head(&reference).map_err(convert)?;
+        self.reset_index_to_head();
+        Ok(1)
+    }
+
     /// Push the current branch. Credentials come from the caller (the approved Git
     /// configuration or the credential store) and are used for this call only.
     pub fn push(

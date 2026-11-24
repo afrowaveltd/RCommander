@@ -191,9 +191,9 @@ pub struct GitSaveOutcome {
     pub message: String,
 }
 
-/// One push running on a worker thread.
-pub struct GitPushJob {
-    receiver: std::sync::mpsc::Receiver<Result<(), String>>,
+/// A remote operation (push, fetch, pull) running on a worker thread.
+pub struct GitNetJob {
+    receiver: std::sync::mpsc::Receiver<Result<String, String>>,
 }
 
 impl Model {
@@ -282,10 +282,11 @@ impl Model {
                                     credentials.as_ref().map(|(u, p)| (u.as_str(), p.as_str())),
                                 )
                             })
+                            .map(|()| "git.pushed|".to_string())
                             .map_err(|error| error.to_string());
                         let _ = sender.send(result);
                     });
-                    self.git_push_job = Some(GitPushJob { receiver });
+                    self.git_push_job = Some(GitNetJob { receiver });
                     text.push_str(&format!(" · {}", self.t("git.pushing")));
                 }
                 Err(error) => {
@@ -298,7 +299,112 @@ impl Model {
         CommandOutcome::Ok
     }
 
-    /// Pick up a finished push; returns true when something changed.
+    /// Fetch from the branch's remote in the background.
+    pub fn git_fetch(&mut self) -> CommandOutcome {
+        self.spawn_net("git.fetched", |repo, credentials| {
+            let remote = remote_name(repo)?;
+            let borrow = credentials.as_ref().map(|(u, p)| (u.as_str(), p.as_str()));
+            let count = repo
+                .fetch(&remote, borrow)
+                .map_err(|error| error.to_string())?;
+            Ok(format!("{count}"))
+        })
+    }
+
+    /// Fetch and fast-forward the current branch in the background.
+    pub fn git_pull(&mut self) -> CommandOutcome {
+        self.spawn_net("git.pulled", |repo, credentials| {
+            let remote = remote_name(repo)?;
+            let borrow = credentials.as_ref().map(|(u, p)| (u.as_str(), p.as_str()));
+            repo.fetch(&remote, borrow)
+                .map_err(|error| error.to_string())?;
+            let moved = repo
+                .pull_fast_forward()
+                .map_err(|error| error.to_string())?;
+            Ok(format!("{moved}"))
+        })
+    }
+
+    /// Push the current branch in the background.
+    pub fn git_push(&mut self) -> CommandOutcome {
+        self.spawn_net("git.pushed", |repo, credentials| {
+            let request = repo.push_request().map_err(|error| error.to_string())?;
+            let borrow = credentials.as_ref().map(|(u, p)| (u.as_str(), p.as_str()));
+            repo.push(&request, borrow)
+                .map_err(|error| error.to_string())?;
+            Ok(String::new())
+        })
+    }
+
+    /// Merge a local branch into the current one (no network, done immediately).
+    pub fn git_merge(&mut self, name: &str) -> CommandOutcome {
+        let Some(root) = self.active().location().git_root().map(|p| p.to_path_buf()) else {
+            return CommandOutcome::Failed(self.t("git.needs_git_panel"));
+        };
+        let repo = match rc_git::GitRepo::open_exact(&root) {
+            Ok(repo) => repo,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        match repo.merge_branch(name) {
+            Ok(moved) => {
+                let location = self.active().location().clone();
+                let side = self.focus;
+                let _ = self.open_in(side, location);
+                let merged = moved.to_string();
+                let message = self.tf("git.merged", &[("branch", name.trim()), ("count", &merged)]);
+                self.report(message);
+                CommandOutcome::Ok
+            }
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                CommandOutcome::Failed(message)
+            }
+        }
+    }
+
+    /// Run `operation` on a worker thread with the approved credentials.
+    fn spawn_net<F>(&mut self, key: &'static str, operation: F) -> CommandOutcome
+    where
+        F: FnOnce(&rc_git::GitRepo, Option<(String, String)>) -> Result<String, String>
+            + Send
+            + 'static,
+    {
+        if self.git_push_job.is_some() {
+            let message = self.t("git.busy");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        let Some(root) = self.active().location().git_root().map(|p| p.to_path_buf()) else {
+            let message = self.t("git.needs_git_panel");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        };
+        let credentials = self.git_config.as_ref().and_then(|config| {
+            config
+                .credentials()
+                .iter()
+                .find(|credential| credential.username == "git" || true)
+                .map(|credential| (credential.username.clone(), credential.password.clone()))
+        });
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let key = key.to_string();
+        std::thread::spawn(move || {
+            let result = rc_git::GitRepo::open_exact(&root)
+                .map_err(|error| error.to_string())
+                .and_then(|repo| operation(&repo, credentials));
+            let _ = sender.send(result.map(|detail| format!("{key}|{detail}")));
+        });
+        self.git_push_job = Some(GitNetJob { receiver });
+        self.report(self.t("git.working"));
+        CommandOutcome::Ok
+    }
+
+    /// Pick up a finished remote operation; returns true when something changed.
     pub fn poll_git_push(&mut self) -> bool {
         let Some(job) = self.git_push_job.as_ref() else {
             return false;
@@ -312,16 +418,23 @@ impl Model {
         };
         self.git_push_job = None;
         match outcome {
-            Ok(()) => {
-                let message = self.t("git.pushed");
+            Ok(text) => {
+                let (key, detail) = text.split_once('|').unwrap_or((text.as_str(), ""));
+                let message = self.tf(key, &[("count", detail), ("branch", detail)]);
                 self.report(message);
+                // A pull changes files, so the panel is reloaded.
+                if key == "git.pulled" {
+                    let location = self.active().location().clone();
+                    let side = self.focus;
+                    let _ = self.open_in(side, location);
+                }
             }
             Err(error) => self.report_error(error),
         }
         true
     }
 
-    /// True while a push is running.
+    /// True while a remote operation is running.
     pub fn is_pushing(&self) -> bool {
         self.git_push_job.is_some()
     }
@@ -358,6 +471,34 @@ impl Model {
                 status: String::new(),
             },
         ));
+        CommandOutcome::Ok
+    }
+
+    /// Open the fetch/pull/push/merge dialog for the panel's repository.
+    pub fn open_git_remote(&mut self) -> CommandOutcome {
+        let Some(root) = self.active().location().git_root().map(|p| p.to_path_buf()) else {
+            let message = self.t("git.needs_git_panel");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        };
+        let repo = match rc_git::GitRepo::open_exact(&root) {
+            Ok(repo) => repo,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        let (ahead, behind) = repo.ahead_behind();
+        self.open_dialog(super::Dialog::GitRemote(super::dialogs::GitRemoteState {
+            root,
+            branch: repo.head_branch().unwrap_or_default(),
+            upstream: repo.push_request().map(|r| r.remote).unwrap_or_default(),
+            ahead,
+            behind,
+            merge_from: String::new(),
+            status: String::new(),
+        }));
         CommandOutcome::Ok
     }
 
@@ -424,6 +565,18 @@ impl Model {
             }
         }
     }
+}
+
+/// The remote a fetch or push should talk to.
+fn remote_name(repo: &rc_git::GitRepo) -> Result<String, String> {
+    repo.push_request()
+        .map(|request| request.remote)
+        .or_else(|_| {
+            repo.remotes()
+                .into_iter()
+                .next()
+                .ok_or_else(|| "this repository has no remote".to_string())
+        })
 }
 
 /// Host part of a remote URL (`https://user@host/x`, `git@host:x`, `file:///x`).
@@ -833,5 +986,117 @@ mod branch_tests {
             model.git_checkout("main", false),
             super::CommandOutcome::Failed(_)
         ));
+    }
+}
+
+#[cfg(test)]
+mod remote_tests {
+    use crate::model::Model;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    /// A repository with an `origin` pointing at a bare repository next to it.
+    fn git_panel_with_remote(dir: &std::path::Path) -> Model {
+        let root = dir.join("repo");
+        std::fs::create_dir_all(&root).unwrap();
+        let mut options = git2::RepositoryInitOptions::new();
+        options.initial_head("main");
+        let repo = git2::Repository::init_opts(&root, &options).unwrap();
+        {
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Test").unwrap();
+            config.set_str("user.email", "t@example.com").unwrap();
+        }
+        std::fs::write(root.join("code.rs"), "fn main() {}\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let signature = git2::Signature::now("Test", "t@example.com").unwrap();
+        repo.commit(Some("HEAD"), &signature, &signature, "first", &tree, &[])
+            .unwrap();
+
+        let bare = dir.join("remote.git");
+        let mut bare_options = git2::RepositoryInitOptions::new();
+        bare_options.bare(true).initial_head("main");
+        git2::Repository::init_opts(&bare, &bare_options).unwrap();
+        let mut origin = repo
+            .remote_with_fetch(
+                "origin",
+                bare.to_str().unwrap(),
+                "+refs/heads/*:refs/remotes/origin/*",
+            )
+            .unwrap();
+        origin
+            .push(&["refs/heads/main:refs/heads/main"], None)
+            .unwrap();
+
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::git(&root, "", ""),
+            Location::local(dir),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model
+            .open_in(crate::Side::Left, Location::git(&root, "", ""))
+            .unwrap();
+        model
+    }
+
+    #[test]
+    fn the_remote_dialog_reports_the_branch_and_its_tracking_state() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = git_panel_with_remote(dir.path());
+        assert_eq!(model.open_git_remote(), super::CommandOutcome::Ok);
+        match model.top_dialog() {
+            Some(crate::model::Dialog::GitRemote(state)) => {
+                assert_eq!(state.branch, "main");
+                assert_eq!(state.upstream, "origin");
+                assert_eq!((state.ahead, state.behind), (0, 0));
+            }
+            other => panic!("expected the remote dialog, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn merging_moves_the_branch_and_reloads_the_panel() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = git_panel_with_remote(dir.path());
+        // Create a second branch with an extra commit, then merge it back.
+        assert_eq!(
+            model.git_create_branch("feature"),
+            super::CommandOutcome::Ok
+        );
+        let root = dir.path().join("repo");
+        let repo = rc_git::GitRepo::open_exact(&root).unwrap();
+        std::fs::write(root.join("feature.txt"), "work\n").unwrap();
+        repo.stage_path("feature.txt").unwrap();
+        repo.commit_staged("feature work", None).unwrap();
+        // Back to main, then merge the feature branch.
+        assert_eq!(model.git_checkout("main", false), super::CommandOutcome::Ok);
+        assert_eq!(model.git_merge("feature"), super::CommandOutcome::Ok);
+        assert!(model.status.contains("git.merged"), "{}", model.status);
+        assert!(
+            dir.path().join("repo/feature.txt").exists(),
+            "the merged file is in the working tree"
+        );
+    }
+
+    #[test]
+    fn the_remote_commands_need_a_git_panel() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local(dir.path()),
+            Location::local(dir.path()),
+        );
+        assert!(matches!(
+            model.open_git_remote(),
+            super::CommandOutcome::Failed(_)
+        ));
+        assert!(matches!(model.git_pull(), super::CommandOutcome::Failed(_)));
     }
 }

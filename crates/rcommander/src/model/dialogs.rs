@@ -73,6 +73,8 @@ pub enum Dialog {
     GitCommit(GitCommitState),
     /// Pick a branch — or create one — for a repository panel.
     GitBranches(GitBranchesState),
+    /// Fetch, pull, push or merge in a repository panel.
+    GitRemote(GitRemoteState),
     /// Encode a file as text (MIME/UUE/XXE).
     Encode(EncodeState),
     /// Decode a text file back to binary.
@@ -202,6 +204,22 @@ impl GitCommitState {
     pub fn is_automatic(&self) -> bool {
         false
     }
+}
+
+/// The remote operations dialog.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GitRemoteState {
+    pub root: std::path::PathBuf,
+    pub branch: String,
+    pub upstream: String,
+    /// Commits the local branch has that the remote does not.
+    pub ahead: usize,
+    /// Commits the remote has that the local branch does not.
+    pub behind: usize,
+    /// Branch name to merge into the current one.
+    pub merge_from: String,
+    /// Result of the last action.
+    pub status: String,
 }
 
 /// The branch picker of a repository panel.
