@@ -183,6 +183,17 @@ menu title bars with — is themed as well. A unit test asserts each field for t
 the dark palette, and a UI test switches to a custom theme and checks the app palette and
 the derived button/title colours.
 
+## Phase 15.5 — cloning into a panel (done)
+
+`cargo test -p rc-git` → **35 tests**, `cargo test -p rcommander --lib clone_tests` → **3
+tests**.
+
+`rc_git::clone_into` clones with the approved credentials and refuses an existing non-empty
+target; a failed clone removes the directory it created, so nothing that looks like a
+repository is left behind. *Configuration �� Clone repository…* (`cm_GitClone`) asks for the
+URL, the target directory and a folder name suggested from the URL, runs the clone on a
+worker thread and switches the panel to the new repository when it finishes.
+
 ## Phase 15.8d — staging and committing the selection (done)
 
 `cargo test -p rc-git` → **33 tests**, `cargo test -p rcommander --lib stage_tests` → **3
@@ -610,11 +621,11 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1268 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1273 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
-  `rc-archive` 134, `rc-git` 33, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
-  doctests and one opt-in SFTP integration test), `rcommander` 326 (274 lib + 48 UI
+  `rc-archive` 134, `rc-git` 35, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
+  doctests and one opt-in SFTP integration test), `rcommander` 329 (277 lib + 48 UI
   + 3 i18n guard) — **1229 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of

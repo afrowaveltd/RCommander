@@ -422,6 +422,13 @@ impl Model {
                 let (key, detail) = text.split_once('|').unwrap_or((text.as_str(), ""));
                 let message = self.tf(key, &[("count", detail), ("branch", detail)]);
                 self.report(message);
+                // A clone becomes the panel's new location.
+                if key == "git.cloned" {
+                    let location = rc_core::location::Location::local(detail);
+                    let side = self.focus;
+                    let _ = self.open_in(side, location);
+                    return true;
+                }
                 // A pull changes files, so the panel is reloaded.
                 if key == "git.pulled" {
                     let location = self.active().location().clone();
@@ -471,6 +478,57 @@ impl Model {
                 status: String::new(),
             },
         ));
+        CommandOutcome::Ok
+    }
+
+    /// Open the clone dialog for the active panel's directory.
+    pub fn open_git_clone(&mut self) -> CommandOutcome {
+        let target = self
+            .active()
+            .location()
+            .as_path()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        self.open_dialog(super::Dialog::GitClone(super::dialogs::GitCloneState {
+            url: String::new(),
+            target,
+            folder: String::new(),
+            status: String::new(),
+        }));
+        CommandOutcome::Ok
+    }
+
+    /// Clone in the background; the panel opens the new repository when it is done.
+    pub fn start_clone(&mut self, url: &str, destination: &std::path::Path) -> CommandOutcome {
+        let url = url.trim().to_string();
+        if url.is_empty() {
+            let message = self.t("git.clone.url_required");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        if self.git_push_job.is_some() {
+            let message = self.t("git.busy");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        let destination = destination.to_path_buf();
+        let credentials = self.git_config.as_ref().and_then(|config| {
+            let host = host_of(&url).to_string();
+            config
+                .credential_for("https", &host)
+                .or_else(|| config.credential_for("http", &host))
+                .map(|stored| (stored.username.clone(), stored.password.clone()))
+        });
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let borrow = credentials.as_ref().map(|(u, p)| (u.as_str(), p.as_str()));
+            let result = rc_git::clone_into(&url, &destination, borrow)
+                .map(|root| format!("git.cloned|{}", root.display()))
+                .map_err(|error| error.to_string());
+            let _ = sender.send(result);
+        });
+        self.git_push_job = Some(GitNetJob { receiver });
+        self.report(self.t("git.clone.running"));
         CommandOutcome::Ok
     }
 
@@ -1607,5 +1665,133 @@ mod stage_tests {
             model.open_git_commit(),
             super::CommandOutcome::None
         ));
+    }
+}
+
+#[cfg(test)]
+mod clone_tests {
+    use crate::model::Model;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    /// A bare repository that can be cloned over `file://`.
+    fn bare_remote(dir: &std::path::Path) -> (String, std::path::PathBuf) {
+        let source = dir.join("source");
+        std::fs::create_dir_all(&source).unwrap();
+        let mut options = git2::RepositoryInitOptions::new();
+        options.initial_head("main");
+        let repo = git2::Repository::init_opts(&source, &options).unwrap();
+        {
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Test").unwrap();
+            config.set_str("user.email", "t@example.com").unwrap();
+        }
+        std::fs::write(source.join("readme.md"), "cloned\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let signature = git2::Signature::now("Test", "t@example.com").unwrap();
+        repo.commit(Some("HEAD"), &signature, &signature, "first", &tree, &[])
+            .unwrap();
+        (format!("file://{}", source.display()), source)
+    }
+
+    fn model_in(dir: &std::path::Path) -> Model {
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local(dir),
+            Location::local(dir),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model
+    }
+
+    #[test]
+    fn the_clone_dialog_suggests_a_folder_from_the_url() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        assert_eq!(model.open_git_clone(), super::CommandOutcome::Ok);
+        match model.top_dialog() {
+            Some(crate::model::Dialog::GitClone(state)) => {
+                assert!(state.url.is_empty());
+                assert_eq!(state.target, dir.path().to_string_lossy());
+                let mut state = state.clone();
+                state.url = "https://github.com/owner/project.git".to_string();
+                assert_eq!(state.destination(), dir.path().join("project"));
+                state.folder = "custom".to_string();
+                assert_eq!(state.destination(), dir.path().join("custom"));
+            }
+            other => panic!("expected the clone dialog, got {other:?}"),
+        }
+        assert_eq!(
+            crate::model::dialogs::folder_name("git@host:owner/repo.git"),
+            "repo"
+        );
+        assert_eq!(crate::model::dialogs::folder_name(""), "repository");
+    }
+
+    #[test]
+    fn a_clone_runs_in_the_background_and_opens_the_new_panel() {
+        let dir = tempfile::tempdir().unwrap();
+        let (url, _source) = bare_remote(dir.path());
+        let mut model = model_in(dir.path());
+        let target = dir.path().join("cloned");
+        assert_eq!(model.start_clone(&url, &target), super::CommandOutcome::Ok);
+        assert!(model.is_pushing(), "the clone is running");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while std::time::Instant::now() < deadline && model.is_pushing() {
+            model.poll_git_push();
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(!model.is_pushing(), "the clone finished");
+        assert!(target.join(".git").is_dir(), "the repository is on disk");
+        assert_eq!(
+            model.panel(crate::Side::Left).location().as_path(),
+            Some(target.as_path()),
+            "the panel switched to the clone"
+        );
+        let names: Vec<String> = model
+            .panel(crate::Side::Left)
+            .entries()
+            .iter()
+            .map(|e| e.name.clone())
+            .collect();
+        assert!(names.contains(&"readme.md".to_string()), "{names:?}");
+    }
+
+    #[test]
+    fn a_clone_without_a_url_or_into_an_occupied_directory_fails_cleanly() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        assert!(matches!(
+            model.start_clone("   ", &dir.path().join("x")),
+            super::CommandOutcome::Failed(_)
+        ));
+        let (url, _source) = bare_remote(dir.path());
+        let occupied = dir.path().join("occupied");
+        std::fs::create_dir_all(&occupied).unwrap();
+        std::fs::write(occupied.join("keep.txt"), "mine").unwrap();
+        assert_eq!(
+            model.start_clone(&url, &occupied),
+            super::CommandOutcome::Ok
+        );
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while std::time::Instant::now() < deadline && model.is_pushing() {
+            model.poll_git_push();
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(
+            model
+                .last_error
+                .as_deref()
+                .is_some_and(|e| e.contains("not empty")),
+            "{:?}",
+            model.last_error
+        );
+        assert!(occupied.join("keep.txt").is_file(), "nothing was lost");
     }
 }

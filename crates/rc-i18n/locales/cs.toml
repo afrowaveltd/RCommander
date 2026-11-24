@@ -383,3 +383,13 @@ authors = ["RCommander contributors"]
 "cmd.gitstage" = "Připravit výběr (stage)"
 "cmd.gitunstage" = "Vyřadit z indexu (unstage)"
 "cmd.gitcommit" = "Commitnout výběr…"
+
+"git.clone.title" = "Klonovat repozitář"
+"git.clone.url" = "URL repozitáře"
+"git.clone.into" = "Do adresáře"
+"git.clone.folder" = "Název složky"
+"git.clone.do" = "Klonovat"
+"git.clone.url_required" = "Je potřeba URL repozitáře"
+"git.clone.running" = "Klonuji…"
+"git.cloned" = "Naklonováno do {branch}"
+"cmd.gitclone" = "Klonovat repozitář…"

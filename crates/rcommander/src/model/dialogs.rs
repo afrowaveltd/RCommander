@@ -75,6 +75,8 @@ pub enum Dialog {
     GitBranches(GitBranchesState),
     /// Fetch, pull, push or merge in a repository panel.
     GitRemote(GitRemoteState),
+    /// Clone a remote into the panel.
+    GitClone(GitCloneState),
     /// Encode a file as text (MIME/UUE/XXE).
     Encode(EncodeState),
     /// Decode a text file back to binary.
@@ -207,6 +209,46 @@ impl GitCommitState {
             1 => self.paths[0].clone(),
             count => format!("{count} files"),
         }
+    }
+}
+
+/// The clone dialog.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GitCloneState {
+    /// Remote URL to clone.
+    pub url: String,
+    /// Directory the repository is created in.
+    pub target: String,
+    /// Folder name inside the target.
+    pub folder: String,
+    /// Result of the last attempt.
+    pub status: String,
+}
+
+impl GitCloneState {
+    /// Full path the clone would create.
+    pub fn destination(&self) -> std::path::PathBuf {
+        let folder = if self.folder.trim().is_empty() {
+            folder_name(&self.url)
+        } else {
+            self.folder.trim().to_string()
+        };
+        std::path::Path::new(self.target.trim()).join(folder)
+    }
+}
+
+/// The repository name a URL implies: the last path segment without `.git`.
+pub fn folder_name(url: &str) -> String {
+    let trimmed = url.trim().trim_end_matches('/');
+    let last = trimmed
+        .rsplit(['/', ':'])
+        .next()
+        .unwrap_or("repository")
+        .trim_end_matches(".git");
+    if last.is_empty() {
+        "repository".to_string()
+    } else {
+        last.to_string()
     }
 }
 

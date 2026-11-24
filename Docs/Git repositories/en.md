@@ -94,6 +94,17 @@ offers the push checkbox, and stages nothing else — an unrelated modification 
 stays out of the commit. A path that does not exist and is not tracked is reported instead
 of being silently staged as a deletion.
 
+## Cloning
+
+*Configuration ▸ Clone repository…* asks for the URL, the directory and a folder name
+(suggested from the URL: `…/project.git` → `project`). The clone runs on a worker thread
+with the credentials you approved, and when it finishes the panel switches to the new
+repository.
+
+Two safety rules: an existing **non-empty** target directory is refused rather than merged
+into, and a failed clone deletes the directory it created, so a broken attempt never leaves
+something that looks like a usable repository.
+
 ## Working with a remote
 
 *Configuration ▸ Git remote…* shows the current branch, its remote and how far the two

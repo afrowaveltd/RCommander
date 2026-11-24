@@ -682,6 +682,9 @@ impl RCommanderApp {
                 if ui.button(self.model.t("cmd.gitcommit")).clicked() {
                     command = Some("cm_GitCommit".into());
                 }
+                if ui.button(self.model.t("cmd.gitclone")).clicked() {
+                    command = Some("cm_GitClone".into());
+                }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
                 }

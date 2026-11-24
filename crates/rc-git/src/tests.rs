@@ -782,3 +782,49 @@ fn paths_can_be_staged_and_unstaged_one_by_one() {
     // Unknown paths are reported instead of ignored silently.
     assert!(repo.stage_paths(&["nope/missing.txt".to_string()]).is_err());
 }
+
+#[test]
+fn a_remote_can_be_cloned_into_a_new_directory() {
+    let fixture = Fixture::new("clone");
+    let target = fixture.root.parent().unwrap().join("cloned");
+    let root = clone_into(fixture.remote.to_str().unwrap(), &target, None).unwrap();
+    assert_eq!(root, target);
+    assert!(target.join(".git").is_dir());
+    assert!(
+        target.join("first.txt").is_file(),
+        "the working tree arrived"
+    );
+
+    let repo = GitRepo::open(&root).unwrap();
+    assert_eq!(repo.head_branch().as_deref(), Some("main"));
+    // A clone checks out one local branch; the others arrive as remote-tracking ones.
+    let branches: Vec<String> = repo.branches().into_iter().map(|b| b.name).collect();
+    assert_eq!(branches, vec!["main".to_string()]);
+    let remotes: Vec<String> = repo.remote_branches().into_iter().map(|b| b.name).collect();
+    assert!(remotes.contains(&"origin/old".to_string()), "{remotes:?}");
+    assert_eq!(
+        repo.read_file(&Revision::WorkingTree, "first.txt", 64)
+            .unwrap(),
+        b"two"
+    );
+}
+
+#[test]
+fn cloning_refuses_a_directory_that_is_not_empty_and_cleans_up_on_failure() {
+    let fixture = Fixture::new("clone-guards");
+    let occupied = fixture.root.parent().unwrap().join("occupied");
+    std::fs::create_dir_all(&occupied).unwrap();
+    std::fs::write(occupied.join("keep.txt"), "mine").unwrap();
+    let error = clone_into(fixture.remote.to_str().unwrap(), &occupied, None).unwrap_err();
+    assert!(error.to_string().contains("not empty"), "{error}");
+    assert!(occupied.join("keep.txt").is_file(), "nothing was deleted");
+
+    // A URL that does not exist fails cleanly and leaves no directory behind.
+    let target = fixture.root.parent().unwrap().join("broken");
+    let error = clone_into("file:///nonexistent/repository.git", &target, None).unwrap_err();
+    assert!(error.to_string().contains("clone failed"), "{error}");
+    assert!(
+        !target.join(".git").exists(),
+        "a failed clone leaves nothing that looks like a repository"
+    );
+}

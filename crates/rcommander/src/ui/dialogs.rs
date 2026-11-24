@@ -62,6 +62,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::GitCommit(state) => git_commit(ui, model, state),
                 Dialog::GitBranches(state) => git_branches(ui, model, state),
                 Dialog::GitRemote(state) => git_remote(ui, model, state),
+                Dialog::GitClone(state) => git_clone(ui, model, state),
                 Dialog::Encode(state) => encode_dialog(ui, model, state),
                 Dialog::Decode(state) => decode_dialog(ui, model, state),
                 Dialog::SaveSelection(state) => save_selection(ui, model, state),
@@ -137,6 +138,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::GitCommit(_) => "git.commit.title",
         Dialog::GitBranches(_) => "git.branches.title",
         Dialog::GitRemote(_) => "git.remote.title",
+        Dialog::GitClone(_) => "git.clone.title",
         Dialog::Encode(_) => "cmd.encode",
         Dialog::Decode(_) => "cmd.decode",
         Dialog::SaveSelection(_) => "cmd.save_selection",
@@ -2019,6 +2021,56 @@ fn unlock_secrets(
         }
     }
     DialogAction::None
+}
+
+/// Clone a remote into the panel's directory.
+fn git_clone(ui: &mut egui::Ui, model: &mut Model, state: &mut GitCloneState) -> DialogAction {
+    let palette = crate::theme::Palette::for_model(model);
+    ui.label(model.t("git.clone.url"));
+    ui.add(
+        egui::TextEdit::singleline(&mut state.url)
+            .desired_width(f32::INFINITY)
+            .hint_text("https://github.com/owner/repo.git"),
+    );
+    ui.horizontal(|ui| {
+        ui.label(model.t("git.clone.into"));
+        ui.add(egui::TextEdit::singleline(&mut state.target).desired_width(220.0));
+    });
+    ui.horizontal(|ui| {
+        ui.label(model.t("git.clone.folder"));
+        ui.add(
+            egui::TextEdit::singleline(&mut state.folder)
+                .desired_width(180.0)
+                .hint_text(crate::model::dialogs::folder_name(&state.url)),
+        );
+    });
+    ui.label(
+        egui::RichText::new(state.destination().display().to_string())
+            .small()
+            .color(palette.hidden),
+    );
+    if !state.status.is_empty() {
+        ui.label(egui::RichText::new(&state.status).color(palette.warning));
+    }
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("git.clone.do")).clicked() {
+            if state.url.trim().is_empty() {
+                state.status = model.t("git.clone.url_required");
+            } else {
+                let destination = state.destination();
+                match model.start_clone(&state.url, &destination) {
+                    crate::model::CommandOutcome::Ok => action = DialogAction::Close,
+                    crate::model::CommandOutcome::Failed(error) => state.status = error,
+                    _ => {}
+                }
+            }
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
 }
 
 /// Fetch, pull, push and merge for the panel's repository.

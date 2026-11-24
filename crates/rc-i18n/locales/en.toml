@@ -387,3 +387,13 @@ authors = ["RCommander contributors"]
 "cmd.gitstage" = "Stage selection"
 "cmd.gitunstage" = "Unstage selection"
 "cmd.gitcommit" = "Commit selection…"
+
+"git.clone.title" = "Clone repository"
+"git.clone.url" = "Repository URL"
+"git.clone.into" = "Into directory"
+"git.clone.folder" = "Folder name"
+"git.clone.do" = "Clone"
+"git.clone.url_required" = "A repository URL is required"
+"git.clone.running" = "Cloning…"
+"git.cloned" = "Cloned into {branch}"
+"cmd.gitclone" = "Clone repository…"

@@ -91,6 +91,16 @@ zprávu, nabídne zaškrtávací pole pro push a nic dalšího nepřipraví — 
 stromu zůstane mimo commit. Neexistující a nesledovaná cesta se ohlásí, místo aby se tiše
 připravila jako smazání.
 
+## Klonování
+
+*Konfigurace ▸ Klonovat repozitář…* se zeptá na URL, adresář a název složky (nabídne ho
+z URL: `…/project.git` → `project`). Klonování běží na vlákně na pozadí se schválenými
+přihlašovacími údaji a po dokončení se panel přepne do nového repozitáře.
+
+Dvě bezpečnostní pravidla: existující **neprázdný** cílový adresář se odmítne (nemíchá se do
+něj) a neúspěšný klon po sobě adresář smaže, takže po nezdařeném pokusu nezůstane nic, co by
+vypadalo jako použitelný repozitář.
+
 ## Práce s remotem
 
 *Konfigurace ▸ Git remote…* ukáže aktuální větev, její remote a jak daleko jsou obě strany

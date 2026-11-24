@@ -574,6 +574,65 @@ impl GitRepo {
     }
 }
 
+/// Clone `url` into `path`, returning the working tree root.
+///
+/// Credentials are used for this call only (the approved Git configuration), and an
+/// existing non-empty directory is refused instead of being merged into — a failed clone
+/// must never leave a half-populated directory that looks usable.
+pub fn clone_into(
+    url: &str,
+    path: &std::path::Path,
+    credentials: Option<(&str, &str)>,
+) -> Result<PathBuf, GitError> {
+    if path.exists() {
+        let empty = std::fs::read_dir(path)
+            .map(|mut dir| dir.next().is_none())
+            .unwrap_or(false);
+        if !empty {
+            return Err(GitError::new(format!(
+                "{} already exists and is not empty",
+                path.display()
+            )));
+        }
+    }
+    let mut callbacks = git2::RemoteCallbacks::new();
+    let username = credentials.map(|(user, _)| user.to_string());
+    let password = credentials.map(|(_, password)| password.to_string());
+    callbacks.credentials(move |url, username_from_url, allowed| {
+        if let (Some(user), Some(pass)) = (&username, &password)
+            && allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT)
+        {
+            return git2::Cred::userpass_plaintext(user, pass);
+        }
+        if allowed.contains(git2::CredentialType::SSH_KEY)
+            && let Some(user) = username_from_url
+        {
+            return git2::Cred::ssh_key_from_agent(user);
+        }
+        if allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT)
+            && let Ok(config) = git2::Config::open_default()
+        {
+            return git2::Cred::credential_helper(&config, url, username_from_url);
+        }
+        Err(git2::Error::from_str(
+            "no credentials are available for this remote",
+        ))
+    });
+    let mut options = git2::FetchOptions::new();
+    options.remote_callbacks(callbacks);
+    let mut builder = git2::build::RepoBuilder::new();
+    builder.fetch_options(options);
+    let repo = builder.clone(url, path).map_err(|error| {
+        // A failed clone must not leave a directory that looks like a repository.
+        let _ = std::fs::remove_dir_all(path);
+        GitError::new(format!("clone failed: {}", error.message()))
+    })?;
+    Ok(repo
+        .workdir()
+        .map(|dir| dir.to_path_buf())
+        .unwrap_or_else(|| path.to_path_buf()))
+}
+
 /// Reject absolute paths and `..` segments: a revision's tree is a closed world.
 fn normalise_path(path: &str) -> Result<String, GitError> {
     let mut parts: Vec<&str> = Vec::new();
