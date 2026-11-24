@@ -1,0 +1,33 @@
+# RCommander theme. Colours are #rrggbb; a role that is not listed is
+# inherited from the theme named in `base`.
+
+[meta]
+name = "High Contrast"
+base = "light"
+author = "RCommander"
+version = "1"
+description = "Black background, maximum legibility"
+
+[colors]
+background = "#000000"
+foreground = "#ffffff"
+cursor_background = "#00ffff"
+cursor_foreground = "#000000"
+selected_background = "#ffff00"
+selected_foreground = "#000000"
+directory = "#00ffff"
+hidden = "#c0c0c0"
+readonly = "#ff6060"
+archive = "#60ff60"
+symlink = "#60ffff"
+header_background = "#202020"
+panel_border = "#a0a0a0"
+status_background = "#202020"
+accent = "#ffff00"
+row_alternate = "#101010"
+warning = "#ff8000"
+
+[file_types]
+"*.rs" = "#ffcc66"
+"*.md" = "#66ccff"
+"*.png" = "#66ff99"

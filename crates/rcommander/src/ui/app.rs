@@ -135,7 +135,7 @@ fn icon_button_text(
 impl RCommanderApp {
     /// Create the application from an already built model.
     pub fn new(model: Model) -> Self {
-        let palette = Palette::by_name(&model.settings.colors.theme);
+        let palette = Palette::for_model(&model);
         let settings_writer =
             SettingsWriter::with_current(crate::paths::settings_path(), &model.settings);
         let mut app = RCommanderApp {
@@ -189,7 +189,7 @@ impl RCommanderApp {
         if self.fonts_installed && self.applied_theme == theme_name {
             return;
         }
-        self.palette = Palette::by_name(&theme_name);
+        self.palette = Palette::for_model(&self.model);
         theme::install_icon_font(ctx);
         theme::install_text_styles(ctx, font_size);
         ctx.set_visuals(theme::visuals(&self.palette, theme_name == "dark"));
@@ -409,7 +409,7 @@ impl RCommanderApp {
     }
 
     fn sync_theme(&mut self) {
-        self.palette = Palette::by_name(&self.model.settings.colors.theme);
+        self.palette = Palette::for_model(&self.model);
     }
 
     /// Files dragged from another application onto a panel are copied there.
@@ -1101,7 +1101,14 @@ impl eframe::App for RCommanderApp {
 impl RCommanderApp {
     /// Build the palette for a theme name (used by tests).
     pub fn palette_for(theme: &str) -> Palette {
+        // Without a model there is no theme directory, so only the built-ins are
+        // reachable; the running application uses `Palette::for_model`.
         Palette::by_name(theme)
+    }
+
+    /// Palette of a theme file, resolved through the model's theme set.
+    pub fn palette_named(&self, name: &str) -> Palette {
+        Palette::from_resolved(&self.model.resolved_theme_named(name))
     }
 
     /// Human readable title with both panel paths.

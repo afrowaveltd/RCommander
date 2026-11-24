@@ -29,57 +29,47 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
         .default_width(460.0)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
-            // A dialog with many fields (connect, options) must scroll instead of
-            // growing past the window edge, which hid the buttons.
-            let available = (ctx.content_rect().height() - 150.0).max(200.0);
-            let mut inner = DialogAction::None;
-            egui::ScrollArea::vertical()
-                .max_height(available)
-                .id_salt("dialog_body")
-                .show(ui, |ui| {
-                    inner = match &mut dialog {
-                        Dialog::Transfer(state) => transfer(ui, model, state),
-                        Dialog::Overwrite(state) => overwrite(ui, model, state),
-                        Dialog::MakeDir(state) => mkdir(ui, model, state),
-                        Dialog::Rename(state) => rename(ui, model, state),
-                        Dialog::Delete(state) => delete(ui, model, state),
-                        Dialog::Search(state) => search(ui, model, state),
-                        Dialog::Pack(state) => pack(ui, model, state),
-                        Dialog::Unpack(state) => unpack(ui, model, state),
-                        Dialog::MultiRename(state) => multi_rename(ui, model, state),
-                        Dialog::Attributes(state) => attributes(ui, model, state),
-                        Dialog::Comment(state) => comment(ui, model, state),
-                        Dialog::Hotlist(state) => hotlist(ui, model, state),
-                        Dialog::Options(state) => options(ui, model, state),
-                        Dialog::FtpConnect(state) => ftp(ui, model, state),
-                        Dialog::Synchronize(state) => sync(ui, model, state),
-                        Dialog::History(state) => history(ui, model, state),
-                        Dialog::MaskPrompt(state) => mask_prompt(ui, model, state),
-                        Dialog::Compare(state) => compare(ui, model, state),
-                        Dialog::Tree(state) => tree(ui, model, state),
-                        Dialog::ButtonBar(state) => button_bar(ui, model, state),
-                        Dialog::ViewModes(state) => view_modes(ui, model, state),
-                        Dialog::Split(state) => split(ui, model, state),
-                        Dialog::Combine(state) => combine(ui, model, state),
-                        Dialog::Checksum(state) => checksum(ui, model, state),
-                        Dialog::VerifyChecksum(state) => verify_checksum(ui, model, state),
-                        Dialog::CompareFiles(state) => compare_files(ui, model, state),
-                        Dialog::Duplicates(state) => duplicates(ui, model, state),
-                        Dialog::UnlockSecrets(state) => unlock_secrets(ui, model, state),
-                        Dialog::Encode(state) => encode_dialog(ui, model, state),
-                        Dialog::Decode(state) => decode_dialog(ui, model, state),
-                        Dialog::SaveSelection(state) => save_selection(ui, model, state),
-                        Dialog::LoadSelection(state) => load_selection(ui, model, state),
-                        Dialog::About => about(ui, model),
-                        Dialog::Confirm {
-                            message,
-                            action: confirm_action,
-                            ..
-                        } => confirm(ui, model, message, *confirm_action),
-                        Dialog::Progress(state) => progress(ui, model, state),
-                    };
-                });
-            action = inner;
+            action = match &mut dialog {
+                Dialog::Transfer(state) => transfer(ui, model, state),
+                Dialog::Overwrite(state) => overwrite(ui, model, state),
+                Dialog::MakeDir(state) => mkdir(ui, model, state),
+                Dialog::Rename(state) => rename(ui, model, state),
+                Dialog::Delete(state) => delete(ui, model, state),
+                Dialog::Search(state) => search(ui, model, state),
+                Dialog::Pack(state) => pack(ui, model, state),
+                Dialog::Unpack(state) => unpack(ui, model, state),
+                Dialog::MultiRename(state) => multi_rename(ui, model, state),
+                Dialog::Attributes(state) => attributes(ui, model, state),
+                Dialog::Comment(state) => comment(ui, model, state),
+                Dialog::Hotlist(state) => hotlist(ui, model, state),
+                Dialog::Options(state) => options(ui, model, state),
+                Dialog::FtpConnect(state) => ftp(ui, model, state),
+                Dialog::Synchronize(state) => sync(ui, model, state),
+                Dialog::History(state) => history(ui, model, state),
+                Dialog::MaskPrompt(state) => mask_prompt(ui, model, state),
+                Dialog::Compare(state) => compare(ui, model, state),
+                Dialog::Tree(state) => tree(ui, model, state),
+                Dialog::ButtonBar(state) => button_bar(ui, model, state),
+                Dialog::ViewModes(state) => view_modes(ui, model, state),
+                Dialog::Split(state) => split(ui, model, state),
+                Dialog::Combine(state) => combine(ui, model, state),
+                Dialog::Checksum(state) => checksum(ui, model, state),
+                Dialog::VerifyChecksum(state) => verify_checksum(ui, model, state),
+                Dialog::CompareFiles(state) => compare_files(ui, model, state),
+                Dialog::Duplicates(state) => duplicates(ui, model, state),
+                Dialog::UnlockSecrets(state) => unlock_secrets(ui, model, state),
+                Dialog::Encode(state) => encode_dialog(ui, model, state),
+                Dialog::Decode(state) => decode_dialog(ui, model, state),
+                Dialog::SaveSelection(state) => save_selection(ui, model, state),
+                Dialog::LoadSelection(state) => load_selection(ui, model, state),
+                Dialog::About => about(ui, model),
+                Dialog::Confirm {
+                    message,
+                    action: confirm_action,
+                    ..
+                } => confirm(ui, model, message, *confirm_action),
+                Dialog::Progress(state) => progress(ui, model, state),
+            };
         });
     if !open {
         // The window's × was pressed: close this dialog instead of writing the
@@ -625,7 +615,7 @@ fn hotlist(ui: &mut egui::Ui, model: &mut Model, state: &mut HotlistState) -> Di
 /// passphrase, so this page is the documented way out of a forgotten
 /// passphrase: it drops the store and everything in it.
 fn dangerous_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) {
-    let palette = crate::theme::Palette::by_name(&model.settings.colors.theme);
+    let palette = crate::theme::Palette::for_model(model);
     ui.label(
         egui::RichText::new(model.t("reset.warning"))
             .color(palette.warning)
@@ -706,6 +696,193 @@ fn dangerous_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState
         });
 }
 
+/// Colors page: pick a theme from the theme directory, edit every role and see a
+/// live preview next to it.
+///
+/// The actions sit in the first row, above the scrolling parts, so they stay
+/// reachable no matter how long the role list or the theme names get.
+fn colors_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) {
+    let current = state.draft.colors.theme.clone();
+    ui.horizontal_wrapped(|ui| {
+        ui.label(model.t("theme.name"));
+        egui::ComboBox::from_id_salt("theme_choice")
+            .selected_text(model.theme_display_name(&current))
+            .width(130.0)
+            .show_ui(ui, |ui| {
+                for name in model.theme_names() {
+                    let label = model.theme_display_name(&name);
+                    if ui
+                        .selectable_label(name.eq_ignore_ascii_case(&current), label)
+                        .clicked()
+                    {
+                        state.draft.colors.theme = name.clone();
+                        state.theme_edit = model.active_theme_for_editing_named(&name);
+                        state.theme_name = state.theme_edit.meta.name.clone();
+                        state.theme_status.clear();
+                    }
+                }
+            });
+        if ui.button(model.t("theme.reload")).clicked() {
+            model.load_themes();
+            state.theme_status = model.t("theme.reloaded");
+        }
+        if ui.button(model.t("theme.save")).clicked() {
+            let mut theme = state.theme_edit.clone();
+            theme.meta.name = state.theme_name.trim().to_string();
+            if theme.meta.name.is_empty() {
+                state.theme_status = model.t("theme.name_required");
+            } else {
+                match model.save_theme(theme) {
+                    Ok(name) => {
+                        state.draft.colors.theme = name.clone();
+                        state.theme_status = model.tf("theme.saved", &[("name", &name)]);
+                    }
+                    Err(message) => state.theme_status = message,
+                }
+            }
+        }
+        if ui.button(model.t("theme.delete")).clicked() {
+            let name = state.theme_name.clone();
+            match model.delete_theme(&name) {
+                Ok(true) => {
+                    state.theme_status = model.tf("theme.deleted", &[("name", &name)]);
+                    state.draft.colors.theme = model.settings.colors.theme.clone();
+                    state.theme_edit =
+                        model.active_theme_for_editing_named(&state.draft.colors.theme);
+                }
+                Ok(false) => state.theme_status = model.t("theme.nothing_deleted"),
+                Err(message) => state.theme_status = message,
+            }
+        }
+    });
+    ui.horizontal(|ui| {
+        ui.label(model.t("theme.save_as"));
+        ui.add(egui::TextEdit::singleline(&mut state.theme_name).desired_width(140.0));
+        if !state.theme_status.is_empty() {
+            ui.label(egui::RichText::new(&state.theme_status).small());
+        }
+    });
+
+    ui.horizontal_top(|ui| {
+        egui::ScrollArea::vertical()
+            .max_height(170.0)
+            .id_salt("theme_roles")
+            .show(ui, |ui| {
+                egui::Grid::new("theme_roles_grid")
+                    .num_columns(2)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        for role in rc_core::theme::Role::ALL {
+                            ui.label(model.t(&format!("theme.role.{}", role.name())));
+                            let mut colour = parse_ui_color(
+                                state
+                                    .theme_edit
+                                    .colors
+                                    .get(role.name())
+                                    .map(|s| s.as_str())
+                                    .unwrap_or("#000000"),
+                            );
+                            if ui.color_edit_button_srgb(&mut colour).changed() {
+                                state.theme_edit.colors.insert(
+                                    role.name().to_string(),
+                                    format!("#{:02x}{:02x}{:02x}", colour[0], colour[1], colour[2]),
+                                );
+                            }
+                            ui.end_row();
+                        }
+                    });
+            });
+        ui.separator();
+        ui.vertical(|ui| {
+            let resolved = preview_resolved(state);
+            let preview = crate::theme::Palette::from_resolved(&resolved);
+            theme_preview(ui, &preview);
+            for (front, back, ratio) in resolved.contrast_warnings() {
+                let front_name = model.t(&format!("theme.role.{}", front.name()));
+                let back_name = model.t(&format!("theme.role.{}", back.name()));
+                let ratio = format!("{ratio:.1}");
+                let text = model.tf(
+                    "theme.contrast_warning",
+                    &[
+                        ("front", &front_name),
+                        ("back", &back_name),
+                        ("ratio", &ratio),
+                    ],
+                );
+                ui.label(egui::RichText::new(text).color(preview.warning).small());
+            }
+        });
+    });
+
+    for problem in model.theme_problems() {
+        ui.label(
+            egui::RichText::new(problem.clone()).color(egui::Color32::from_rgb(0xb0, 0x20, 0x20)),
+        );
+    }
+}
+
+/// Resolve the theme being edited against the built-in base it inherits from.
+fn preview_resolved(state: &OptionsState) -> rc_core::theme::Resolved {
+    let base_name = state.theme_edit.meta.base.clone();
+    let base = rc_core::theme::Resolved::builtin(&base_name)
+        .unwrap_or_else(rc_core::theme::Resolved::light);
+    state.theme_edit.resolve(&base)
+}
+
+/// A small sample panel painted with the preview palette.
+fn theme_preview(ui: &mut egui::Ui, palette: &crate::theme::Palette) {
+    let rows: [(&str, egui::Color32, Option<egui::Color32>); 4] = [
+        ("readme.txt", palette.foreground, None),
+        ("Documents", palette.directory, Some(palette.row_alternate)),
+        ("hidden.log", palette.hidden, None),
+        (
+            "readonly.txt",
+            palette.readonly,
+            Some(palette.row_alternate),
+        ),
+    ];
+    let row_height = ui.spacing().interact_size.y.max(18.0);
+    let width = ui.available_width().min(360.0);
+    for (index, (text, colour, background)) in rows.iter().enumerate() {
+        let (rect, response) =
+            ui.allocate_exact_size(egui::vec2(width, row_height), egui::Sense::hover());
+        let painter = ui.painter();
+        painter.rect_filled(rect, 0, background.unwrap_or(palette.background));
+        painter.rect_stroke(
+            rect,
+            0,
+            egui::Stroke::new(1.0, palette.panel_border),
+            egui::StrokeKind::Inside,
+        );
+        // The first row shows the cursor colours, the second a marked row.
+        if index == 0 {
+            painter.rect_filled(rect, 0, palette.cursor_background);
+        } else if index == 4 {
+            painter.rect_filled(rect, 0, palette.selected_background);
+        }
+        let text_colour = if index == 0 {
+            palette.cursor_foreground
+        } else {
+            *colour
+        };
+        painter.text(
+            rect.left_center() + egui::vec2(6.0, 0.0),
+            egui::Align2::LEFT_CENTER,
+            *text,
+            egui::FontId::proportional(13.0),
+            text_colour,
+        );
+        response.on_hover_text(*text);
+    }
+}
+
+fn parse_ui_color(text: &str) -> [u8; 3] {
+    match rc_core::theme::Rgb::parse(text) {
+        Ok(rgb) => [rgb.r, rgb.g, rgb.b],
+        Err(_) => [0, 0, 0],
+    }
+}
+
 fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> DialogAction {
     ui.horizontal_wrapped(|ui| {
         for tab in OptionsTab::all() {
@@ -752,16 +929,7 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
                 });
         }
         OptionsTab::Colors => {
-            egui::ComboBox::from_label("theme")
-                .selected_text(state.draft.colors.theme.clone())
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut state.draft.colors.theme,
-                        "light".to_string(),
-                        "light",
-                    );
-                    ui.selectable_value(&mut state.draft.colors.theme, "dark".to_string(), "dark");
-                });
+            colors_page(ui, model, state);
         }
         OptionsTab::Editor => {
             ui.add(

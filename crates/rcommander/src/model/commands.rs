@@ -553,15 +553,9 @@ impl Model {
                 }));
                 CommandOutcome::Ok
             }
-            "cm_themetoggle" => {
-                let next = if self.settings.colors.theme == "dark" {
-                    "light"
-                } else {
-                    "dark"
-                };
-                self.settings.colors.theme = next.to_string();
-                CommandOutcome::Ok
-            }
+            "cm_themetoggle" => self.toggle_theme(),
+            "cm_themenext" => self.cycle_theme(1),
+            "cm_themeprevious" => self.cycle_theme(-1),
             "cm_exit" => CommandOutcome::Quit,
             "cm_minimize" => CommandOutcome::Minimize,
             "cm_configsavesettings" | "cm_savesettings" => {

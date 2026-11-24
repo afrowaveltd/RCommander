@@ -31,7 +31,7 @@ cargo test --workspace
 | 11 | Platforms | **partial** — Linux verified end to end (runs, renders); with mingw-w64 installed the **Windows release `.exe` links and is a GUI-subsystem binary** (`target/x86_64-pc-windows-gnu/release/rcommander.exe`, 15.8 MB); the Android APK still needs the SDK/NDK |
 | 12 | Verification | **done** for everything marked done above |
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
-| 14 | Colour themes | **pending** — planned in Phase 14; today the palette is two hardcoded variants |
+| 14 | Colour themes | **done** — themes are TOML files in `themes/` discovered at runtime, three themes ship, the *Colors* page edits every role with a live preview and contrast warnings |
 | 15 | Git repositories as panels | **pending** — planned in Phase 15; read-only virtual folders (branches/tags/commits) and copying out of a revision come first, write operations only afterwards |
 | 16 | Interactive AI workspace | **pending** — added by the project owner, planned in Phase 16 (bidirectional panes, pluggable model providers, reviewed change sets) |
 | 17 | Rich document previewer (PDF, Office, Markdown, code) | **pending** — planned in Phase 17 |
@@ -61,7 +61,7 @@ cargo test --workspace
 
 ## Phase 2 — `rc-core` (done)
 
-`cargo test -p rc-core` → **232 tests, 0 failures.**
+`cargo test -p rc-core` → **244 tests, 0 failures.**
 
 | Step | Module | Covered by tests |
 | --- | --- | --- |
@@ -143,6 +143,40 @@ Remaining gap: no test against a live FTP/SFTP server is performed here (the
 suite must stay offline), and transfers still run on the UI thread rather than
 in the background queue.
 
+## Phase 14 — colour themes (done)
+
+`cargo test -p rc-core --lib theme` → **12 tests**, `cargo test -p rcommander --lib themes`
+→ **5 tests**, plus 2 UI tests.
+
+`rc_core::theme` makes colours data. A theme file has `[meta]` (name, base, author,
+version, description), a `[colors]` table with one hex value per semantic role and an
+optional `[file_types]` table of mask → colour rules. Roles are inherited from the
+theme named in `base`, so a theme lists only what it changes and can never end up with
+accidental black-on-black; every role ends up present in the resolved palette
+(`Resolved::is_complete`). Unknown role names, unparsable colours, an empty mask and a
+colour used as a base are all rejected with a message that names the role and lists
+the known ones.
+
+`ThemeSet::load_dir` discovers `*.toml` exactly like `locales/` and `Docs/`, sorted by
+file name so a duplicate name resolves the same way on every platform (first file wins,
+the duplicate is reported), keeps the built-in light/dark palettes available so a
+missing directory is not fatal, follows one level of inheritance through another theme
+file, and lets a file of the same name refine a built-in without recursing.
+
+Three themes ship in `themes/`: **Classic Light**, **Classic Dark** and **High
+Contrast**. A test copies the shipped directory and asserts every file parses, that
+every resolved palette is complete and that the important colour pairs stay above the
+contrast threshold.
+
+*Configuration ▸ Options ▸ Colors* is a real editor: a theme chooser, a role grid with
+a colour picker per role, a live preview of a panel (cursor row, directory, hidden and
+read-only files), contrast warnings with the measured ratio, and *Save* / *Delete* /
+*Reload*. The actions sit in the first row, above the scrolling parts, so they stay
+reachable however long the list gets. `Palette::for_model` is now the single place where
+theme data becomes egui colours, and `cm_ThemeToggle`/`cm_ThemeNext`/`cm_ThemePrevious`
+cycle through whatever themes are installed. The *Themes* help topic documents the
+format, the roles and the evaluation order in both languages.
+
 ## Phase 13.3 — saved sessions (done)
 
 `cargo test -p rc-core --lib sessions` → **13 tests**, `cargo test -p rcommander --lib sessions`
@@ -203,7 +237,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **230 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **237 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -212,7 +246,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **39 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **41 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -367,12 +401,12 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1168 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1189 tests, 0 failures** (see the per-crate numbers
   above).
-  Totals by crate: `rc-core` 232, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
+  Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
   `rc-archive` 134, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3 doctests and
-  one opt-in SFTP integration test), `rcommander` 272 (230 lib + 39 UI + 3 i18n
-  guard) — **1168 tests** (measured
+  one opt-in SFTP integration test), `rcommander` 281 (237 lib + 41 UI + 3 i18n
+  guard) — **1189 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.

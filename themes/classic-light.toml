@@ -1,0 +1,27 @@
+# RCommander theme. Colours are #rrggbb; a role that is not listed is
+# inherited from the theme named in `base`.
+
+[meta]
+name = "Classic Light"
+base = "light"
+author = "RCommander"
+version = "1"
+
+[colors]
+background = "#ffffff"
+foreground = "#000000"
+cursor_background = "#000080"
+cursor_foreground = "#ffffff"
+selected_background = "#c81010"
+selected_foreground = "#ffffff"
+directory = "#000080"
+hidden = "#808080"
+readonly = "#a00000"
+archive = "#007000"
+symlink = "#008080"
+header_background = "#d4d0c8"
+panel_border = "#808080"
+status_background = "#d4d0c8"
+accent = "#000080"
+row_alternate = "#f0f2f8"
+warning = "#b02020"

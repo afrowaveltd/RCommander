@@ -1046,6 +1046,25 @@ fn render_snapshots() {
         .unwrap();
     drop(fourth);
 
+    let mut colors = app(left.path(), right.path());
+    let settings = colors.model.settings.clone();
+    colors
+        .model
+        .open_dialog(rcommander::model::Dialog::Options(
+            rcommander::model::dialogs::OptionsState::new(
+                &settings,
+                rcommander::model::dialogs::OptionsTab::Colors,
+            ),
+        ));
+    let mut fifth = harness(colors);
+    fifth.run();
+    fifth
+        .render()
+        .unwrap()
+        .save(out.join("colors.png"))
+        .unwrap();
+    drop(fifth);
+
     let mut unlock = app(left.path(), right.path());
     unlock
         .model
@@ -1271,5 +1290,113 @@ fn connecting_runs_in_the_background_and_reports_the_failure() {
     assert!(
         harness.state().model.last_error.is_some(),
         "the failure is reported in the window"
+    );
+}
+
+#[test]
+fn a_theme_file_in_the_theme_directory_is_applied() {
+    let (left, right) = fixture();
+    let themes = tempfile::tempdir().unwrap();
+    std::fs::write(
+        themes.path().join("ocean.toml"),
+        "[meta]\nname = 'Ocean'\nbase = 'dark'\n[colors]\nbackground = '#001a2b'\n",
+    )
+    .unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.themes_dir_override = Some(themes.path().to_path_buf());
+    app.model.load_themes();
+    let mut harness = harness(app);
+    // The theme is discovered without recompiling anything.
+    assert!(
+        harness
+            .state()
+            .model
+            .theme_names()
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case("ocean"))
+    );
+    harness.state_mut().execute("cm_ThemeNext");
+    harness.run();
+    harness.run();
+    assert_eq!(harness.state().model.settings.colors.theme, "ocean");
+    assert_eq!(harness.state().applied_theme(), "ocean");
+    let palette = rcommander::theme::Palette::for_model(&harness.state().model);
+    assert_eq!(palette.background.r(), 0x00);
+    assert_eq!(palette.background.g(), 0x1a);
+    assert_eq!(palette.background.b(), 0x2b);
+    assert!(palette.is_dark());
+    // Inherited roles came along: text is still the dark theme's light grey.
+    assert_eq!(palette.foreground.r(), palette.foreground.g());
+    assert!(palette.foreground.r() > 0xc0);
+}
+
+#[test]
+fn the_colors_page_edits_and_saves_a_theme() {
+    let (left, right) = fixture();
+    let themes = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.themes_dir_override = Some(themes.path().to_path_buf());
+    app.model.load_themes();
+    let settings = app.model.settings.clone();
+    // The dialog is opened before the harness exists so its window has settled by
+    // the first frame, which is what a running application sees.
+    app.model.open_dialog(rcommander::model::Dialog::Options(
+        rcommander::model::dialogs::OptionsState::new(
+            &settings,
+            rcommander::model::dialogs::OptionsTab::Colors,
+        ),
+    ));
+    let mut harness = harness(app);
+    harness.run();
+    // The page lists every role.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("theme.role.background")
+            .count()
+            > 0
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("theme.role.warning")
+            .count()
+            > 0
+    );
+
+    if let Some(rcommander::model::Dialog::Options(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state
+            .theme_edit
+            .colors
+            .insert("accent".to_string(), "#ff00ff".to_string());
+        state.theme_name = "Edited".to_string();
+    }
+    harness.run();
+    // `click_accesskit` because the page lives inside a scrolling dialog: the
+    // accessibility action does not depend on the widget being in view, which
+    // makes the test independent of the window height.
+    harness.root().get_by_label("theme.save").click_accesskit();
+    harness.run();
+    let file = themes.path().join("edited.toml");
+    assert!(
+        file.is_file(),
+        "the theme is written to the theme directory"
+    );
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(
+        text.contains("#ff00ff"),
+        "the edited colour is stored: {text}"
+    );
+    assert_eq!(harness.state().model.settings.colors.theme, "edited");
+    assert_eq!(harness.state().model.theme_display_name("edited"), "Edited");
+    assert_eq!(
+        harness
+            .state()
+            .model
+            .resolved_theme()
+            .get(rc_core::theme::Role::Accent),
+        rc_core::theme::Rgb::new(0xff, 0x00, 0xff)
     );
 }

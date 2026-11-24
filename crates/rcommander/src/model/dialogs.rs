@@ -1398,6 +1398,12 @@ pub struct OptionsState {
     /// Scopes that were already reset in this dialog, so the page can show a
     /// "done" mark instead of leaving the button looking untouched.
     pub applied_resets: Vec<super::ResetScope>,
+    /// Theme being edited on the Colors page (a complete copy).
+    pub theme_edit: rc_core::theme::Theme,
+    /// Name the theme is saved under.
+    pub theme_name: String,
+    /// Result of the last theme action.
+    pub theme_status: String,
 }
 
 impl OptionsState {
@@ -1415,6 +1421,9 @@ impl OptionsState {
             shortcuts_edit,
             pending_reset: None,
             applied_resets: Vec::new(),
+            theme_edit: theme_edit(settings),
+            theme_name: settings.colors.theme.clone(),
+            theme_status: String::new(),
         }
     }
 
@@ -1422,6 +1431,16 @@ impl OptionsState {
     pub fn commit_shortcuts(&mut self) {
         self.draft.shortcuts = self.shortcuts_edit.iter().cloned().collect();
     }
+}
+
+/// The active theme as an editable copy, without needing the model: the dialog
+/// state is built from the settings alone, and the built-ins cover the names that
+/// can appear there.
+fn theme_edit(settings: &rc_core::config::Settings) -> rc_core::theme::Theme {
+    let resolved = rc_core::theme::Resolved::builtin(&settings.colors.theme)
+        .unwrap_or_else(rc_core::theme::Resolved::light);
+    let base = if resolved.is_dark() { "dark" } else { "light" };
+    rc_core::theme::Theme::complete(settings.colors.theme.clone(), base, &resolved)
 }
 
 /// Which viewer mode a dialog asks for (used by the open-viewer command).

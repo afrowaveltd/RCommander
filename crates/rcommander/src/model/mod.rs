@@ -11,6 +11,7 @@ pub mod remote;
 pub mod reset;
 pub mod search;
 pub mod sessions;
+pub mod themes;
 
 use crate::i18n::{Direction, Strings};
 use crate::ops_runner::OpHandle;
@@ -403,6 +404,10 @@ pub struct Model {
     pub sessions_dirty: bool,
     /// A connection attempt running on a worker thread.
     pub connect_job: Option<sessions::ConnectJob>,
+    /// Colour themes found on disk plus the built-ins.
+    pub theme_set: rc_core::theme::ThemeSet,
+    /// Where themes are read from (tests and portable installs point elsewhere).
+    pub themes_dir_override: Option<std::path::PathBuf>,
 }
 
 /// An open F3 viewer.
@@ -495,11 +500,14 @@ impl Model {
             sessions_store: rc_core::sessions::SessionStore::new(),
             sessions_dirty: false,
             connect_job: None,
+            theme_set: rc_core::theme::ThemeSet::with_builtins(),
+            themes_dir_override: None,
             keymap,
             settings,
             strings,
         };
         model.load_sessions();
+        model.load_themes();
         model.status = model.strings.get("status.ready");
         model
     }

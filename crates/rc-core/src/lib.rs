@@ -36,6 +36,7 @@ pub mod sessions;
 pub mod sorting;
 pub mod split;
 pub mod tabs;
+pub mod theme;
 
 pub use entry::{Attrs, Entry, EntryKind};
 pub use error::{CoreError, CoreResult};

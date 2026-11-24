@@ -55,6 +55,11 @@ pub fn locales_dir() -> PathBuf {
     find_data_dir("locales").unwrap_or_else(|| PathBuf::from("locales"))
 }
 
+/// Directory holding the colour themes.
+pub fn themes_dir() -> PathBuf {
+    find_data_dir("themes").unwrap_or_else(|| PathBuf::from("themes"))
+}
+
 /// Directory holding the in-app help.
 pub fn docs_dir() -> PathBuf {
     find_data_dir("Docs").unwrap_or_else(|| PathBuf::from("Docs"))

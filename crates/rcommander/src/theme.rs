@@ -29,7 +29,43 @@ pub struct Palette {
     pub warning: Color32,
 }
 
+fn colour(rgb: rc_core::theme::Rgb) -> Color32 {
+    Color32::from_rgb(rgb.r, rgb.g, rgb.b)
+}
+
 impl Palette {
+    /// Build the palette from a resolved theme file.
+    ///
+    /// This is the single place where theme data becomes egui colours, so a role
+    /// added to `rc_core::theme` only has to be mapped once.
+    pub fn from_resolved(resolved: &rc_core::theme::Resolved) -> Palette {
+        use rc_core::theme::Role;
+        Palette {
+            background: colour(resolved.get(Role::Background)),
+            foreground: colour(resolved.get(Role::Foreground)),
+            cursor_background: colour(resolved.get(Role::CursorBackground)),
+            cursor_foreground: colour(resolved.get(Role::CursorForeground)),
+            selected_background: colour(resolved.get(Role::SelectedBackground)),
+            selected_foreground: colour(resolved.get(Role::SelectedForeground)),
+            directory: colour(resolved.get(Role::Directory)),
+            hidden: colour(resolved.get(Role::Hidden)),
+            readonly: colour(resolved.get(Role::Readonly)),
+            archive: colour(resolved.get(Role::Archive)),
+            symlink: colour(resolved.get(Role::Symlink)),
+            header_background: colour(resolved.get(Role::HeaderBackground)),
+            panel_border: colour(resolved.get(Role::PanelBorder)),
+            status_background: colour(resolved.get(Role::StatusBackground)),
+            accent: colour(resolved.get(Role::Accent)),
+            row_alternate: colour(resolved.get(Role::RowAlternate)),
+            warning: colour(resolved.get(Role::Warning)),
+        }
+    }
+
+    /// The palette of the theme the model has active, including custom files.
+    pub fn for_model(model: &crate::model::Model) -> Palette {
+        Palette::from_resolved(&model.resolved_theme())
+    }
+
     /// Classic light theme.
     pub fn light() -> Self {
         Palette {
@@ -78,10 +114,21 @@ impl Palette {
 
     /// Choose a palette by name (`light`, `dark`, anything else → light).
     pub fn by_name(name: &str) -> Self {
-        match name.to_ascii_lowercase().as_str() {
+        // Built-in names only: a custom theme needs the loaded theme set, which
+        // `Palette::for_model` has. `light()`/`dark()` stay as the canonical
+        // values the engine's built-ins are compared against.
+        match name.trim().to_ascii_lowercase().as_str() {
             "dark" => Self::dark(),
             _ => Self::light(),
         }
+    }
+
+    /// True when the palette reads better on a dark background.
+    pub fn is_dark(&self) -> bool {
+        (0.299 * self.background.r() as f32
+            + 0.587 * self.background.g() as f32
+            + 0.114 * self.background.b() as f32)
+            < 128.0
     }
 }
 
