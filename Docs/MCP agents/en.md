@@ -4,17 +4,16 @@ RCommander speaks the Model Context Protocol (MCP) in both directions.
 
 ## The app as an MCP server
 
-Enable *Server* in *Configuration ▸ Options ▸ Agent*. External agents can then
-drive the file manager: list panels and directories, navigate, mark files, copy,
+Start `rcommander mcp` as a separate stdio server process. External agents can
+then drive the file manager: list panels and directories, navigate, mark files, copy,
 move, delete, create directories, rename, read and write text files, search, ask
 for disk space and read this help.
 
-Two transports are available:
-
-- **stdio** — the agent starts `rcommander mcp` and talks JSON-RPC over standard
-  input and output. This is what most MCP clients expect.
-- **HTTP** — a local endpoint for clients that cannot spawn processes. Set a
-  token to require authentication.
+**Server transport currently implemented:** stdio only. A client launches
+`rcommander mcp` and communicates over standard input/output. The CLI help
+mentions an HTTP mode, but `run_mcp` currently ignores these flags; **there is
+no working HTTP server entry point**. HTTP *client* connections below are a
+different feature.
 
 Risky tools (delete, move, overwrite, writing files) can require confirmation. In
 that case the server answers with an error explaining that the user must approve
@@ -38,8 +37,9 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
 
 The server only exposes what the protocol advertises; nothing runs unless a tool
 is called. Every call is shown in the status line, and the confirmation policy is
-yours to configure. Treat the HTTP transport like any other local service: bind
-it to localhost and use a token.
+yours to configure. When connecting the **client** to a remote HTTP MCP server, choose a trusted,
+authenticated endpoint and avoid leaking credentials. Do not assume that the
+unimplemented RCommander HTTP **server** provides protection.
 
 ## The agent panel
 
