@@ -461,6 +461,9 @@ pub struct Packer {
     pub level: u8,
     /// Store paths relative to the current directory.
     pub store_relative_paths: bool,
+    /// Never written to disk (same policy as connection passwords); archive
+    /// passwords will move into the credential store as well.
+    #[serde(default, skip_serializing)]
     pub password: String,
     /// Extensions that are opened as directories.
     pub archive_extensions: Vec<String>,
@@ -635,8 +638,10 @@ pub struct SavedConnection {
     pub host: String,
     pub port: u16,
     pub user: String,
-    /// Password is stored in the platform keyring when available; this field
-    /// keeps a fallback for portable installs.
+    /// Never written to disk: passwords live in the credential store
+    /// (`rc_core::secrets`). The field is kept so an older settings file can still
+    /// be read and migrated; it is never serialised again.
+    #[serde(default, skip_serializing)]
     pub password: String,
     /// `ftp`, `ftps` or `sftp`.
     pub protocol: String,
@@ -644,6 +649,19 @@ pub struct SavedConnection {
     pub local_dir: String,
     pub passive: bool,
     pub anonymous: bool,
+}
+
+impl SavedConnection {
+    /// Account id used as the key in the credential store.
+    pub fn account_id(&self) -> String {
+        let protocol = if self.protocol.is_empty() {
+            "ftp"
+        } else {
+            self.protocol.as_str()
+        };
+        let port = if self.port == 0 { 21 } else { self.port };
+        crate::secrets::account_id(protocol, &self.user, &self.host, port)
+    }
 }
 
 /// MCP (Model Context Protocol) integration.
@@ -1002,6 +1020,57 @@ mod tests {
         assert_eq!(back.display.view_modes, settings.display.view_modes);
         assert!(text.contains("comment"));
         assert!(text.contains("Shots"));
+    }
+
+    #[test]
+    fn passwords_are_never_written_to_the_settings_file() {
+        let mut settings = Settings::default();
+        settings.ftp.connections.push(SavedConnection {
+            name: "work".into(),
+            host: "example.com".into(),
+            port: 21,
+            user: "bob".into(),
+            password: "hunter2".into(),
+            protocol: "ftp".into(),
+            ..Default::default()
+        });
+        let text = settings.to_toml().unwrap();
+        assert!(
+            !text.contains("hunter2"),
+            "the password leaked into settings.toml:\n{text}"
+        );
+        assert!(
+            !text.contains("password"),
+            "the password field must not be written:\n{text}"
+        );
+        // An older file that still has a password is readable so it can be migrated.
+        let legacy = format!("{text}\n");
+        let legacy_with_password = legacy.replace(
+            "user = \"bob\"",
+            "user = \"bob\"\npassword = \"legacy-secret\"",
+        );
+        let parsed = Settings::from_toml(&legacy_with_password).unwrap();
+        assert_eq!(parsed.ftp.connections[0].password, "legacy-secret");
+    }
+
+    #[test]
+    fn saved_connections_have_a_stable_account_id() {
+        let connection = SavedConnection {
+            host: "example.com".into(),
+            user: "bob".into(),
+            port: 21,
+            protocol: "sftp".into(),
+            ..Default::default()
+        };
+        assert_eq!(connection.account_id(), "sftp://bob@example.com:21");
+        let default_port = SavedConnection {
+            host: "example.com".into(),
+            user: "bob".into(),
+            port: 0,
+            protocol: String::new(),
+            ..Default::default()
+        };
+        assert_eq!(default_port.account_id(), "ftp://bob@example.com:21");
     }
 
     #[test]

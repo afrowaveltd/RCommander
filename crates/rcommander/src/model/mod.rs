@@ -23,6 +23,7 @@ use rc_core::listing::{Listing, ReadOptions};
 use rc_core::location::Location;
 use rc_core::mask::MaskSet;
 use rc_core::quicksearch::QuickSearch;
+use rc_core::secrets::{MemoryStore, SecretStore};
 use rc_core::selection::Selection;
 use rc_core::sorting::{SortField, SortSpec};
 use rc_core::tabs::TabBar;
@@ -381,6 +382,9 @@ pub struct Model {
     pub clipboard: Vec<String>,
     /// Settings changed since they were last written to disk.
     pub settings_dirty: bool,
+    /// Where connection credentials are kept. Defaults to an in-memory store, so
+    /// nothing is written to disk until the user unlocks the encrypted file.
+    pub secrets: Box<dyn SecretStore>,
 }
 
 /// An open F3 viewer.
@@ -465,6 +469,7 @@ impl Model {
             saved_selection: None,
             clipboard: Vec::new(),
             settings_dirty: false,
+            secrets: Box::new(MemoryStore::new()),
             keymap,
             settings,
             strings,

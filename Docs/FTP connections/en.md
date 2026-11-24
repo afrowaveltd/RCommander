@@ -36,3 +36,22 @@ modification time when it is available through `MDTM`. This matters for
 Passwords are stored in your configuration file only when you ask for it. Prefer
 SFTP or FTPS for anything that is not a trusted local network, and check the
 `[ftp]` section of the settings file to review what is stored.
+
+## Where passwords are stored
+
+Passwords and tokens are **never written to `settings.toml`**. The connection list
+in that file only holds names, hosts, ports and user names; a password is kept in a
+credential store:
+
+* the operating system's keyring when one is available, and
+* otherwise an encrypted file (`secrets.enc`) protected by a master passphrase
+  (Argon2id key derivation, AES-256-GCM, owner-only file permissions).
+
+An older settings file that still contains a password is read once and migrated:
+the value moves into the credential store and is removed from the file. Saving the
+settings can then never leak it again, because the field is not serialised at all.
+
+The store's key is derived from your passphrase on every unlock and is not cached,
+so closing the application locks the secrets. If you lose the passphrase, the
+passwords are unrecoverable — saved connections themselves (host, user, port) stay
+intact and you only have to type the passwords again.

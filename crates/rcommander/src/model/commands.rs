@@ -1566,6 +1566,71 @@ impl Model {
         }
     }
 
+    // ----- credentials -------------------------------------------------
+
+    /// Replace the credential store (the view layer swaps in the encrypted file
+    /// once the user has unlocked it).
+    pub fn set_secret_store(&mut self, store: Box<dyn rc_core::secrets::SecretStore>) {
+        self.secrets = store;
+    }
+
+    /// Store the password of a connection in the credential store.
+    pub fn remember_password(
+        &mut self,
+        connection: &rc_core::config::SavedConnection,
+    ) -> CommandOutcome {
+        if connection.password.is_empty() {
+            return CommandOutcome::None;
+        }
+        let account = connection.account_id();
+        match self.secrets.set(&account, &connection.password) {
+            Ok(()) => CommandOutcome::Ok,
+            Err(e) => CommandOutcome::Failed(e.to_string()),
+        }
+    }
+
+    /// Move every password that an older settings file still contains into the
+    /// credential store and clear it from the settings.
+    ///
+    /// Returns the number of migrated credentials. The caller is responsible for
+    /// persisting the store and the (now empty) settings file.
+    pub fn migrate_plaintext_passwords(&mut self) -> usize {
+        let mut migrated = 0usize;
+        let mut failures: Vec<String> = Vec::new();
+        for connection in self.settings.ftp.connections.iter_mut() {
+            if connection.password.is_empty() {
+                continue;
+            }
+            let account = connection.account_id();
+            match self.secrets.set(&account, &connection.password) {
+                Ok(()) => {
+                    connection.password.clear();
+                    migrated += 1;
+                }
+                Err(e) => failures.push(format!("{account}: {e}")),
+            }
+        }
+        if migrated > 0 {
+            self.mark_settings_dirty();
+        }
+        if !failures.is_empty() {
+            self.report_error(format!(
+                "some passwords could not be migrated: {}",
+                failures.join("; ")
+            ));
+        } else if migrated > 0 {
+            self.report(format!(
+                "{migrated} password(s) moved to the credential store"
+            ));
+        }
+        migrated
+    }
+
+    /// Password for a saved connection, if the store has one.
+    pub fn stored_password(&self, connection: &rc_core::config::SavedConnection) -> Option<String> {
+        self.secrets.get(&connection.account_id()).ok().flatten()
+    }
+
     // ----- encode / decode and saved selections ------------------------
 
     /// Encode the selected files as MIME/UUE/XXE text.

@@ -29,6 +29,7 @@ pub mod location;
 pub mod mask;
 pub mod ops;
 pub mod quicksearch;
+pub mod secrets;
 pub mod selection;
 pub mod sorting;
 pub mod split;

@@ -2047,3 +2047,97 @@ fn switching_the_language_swaps_the_translator() {
         "the refusal is reported to the user"
     );
 }
+
+// ---------------- credential storage (Phase 13.4) ----------------
+
+#[test]
+fn passwords_are_migrated_out_of_the_settings_file() {
+    let (_l, _r, mut model) = fixture();
+    // An older settings file still carries a plain-text password.
+    let mut connection = rc_core::config::SavedConnection {
+        name: "work".into(),
+        host: "example.com".into(),
+        port: 21,
+        user: "bob".into(),
+        protocol: "ftp".into(),
+        ..Default::default()
+    };
+    connection.password = "legacy-secret".to_string();
+    model.settings.ftp.connections.push(connection);
+
+    let migrated = model.migrate_plaintext_passwords();
+    assert_eq!(migrated, 1);
+    assert!(
+        model.settings.ftp.connections[0].password.is_empty(),
+        "the plain text must be gone"
+    );
+    assert_eq!(
+        model
+            .stored_password(&model.settings.ftp.connections[0])
+            .as_deref(),
+        Some("legacy-secret")
+    );
+    assert!(
+        model.settings_dirty,
+        "the changed settings must be persisted"
+    );
+    // The settings file no longer contains the secret.
+    let text = model.settings.to_toml().unwrap();
+    assert!(!text.contains("legacy-secret"));
+    // A second run migrates nothing.
+    assert_eq!(model.migrate_plaintext_passwords(), 0);
+}
+
+#[test]
+fn remembering_a_password_uses_the_credential_store() {
+    let (_l, _r, mut model) = fixture();
+    let connection = rc_core::config::SavedConnection {
+        name: "git".into(),
+        host: "git.example.com".into(),
+        port: 22,
+        user: "alice".into(),
+        protocol: "sftp".into(),
+        password: "s3cret".into(),
+        ..Default::default()
+    };
+    assert!(model.remember_password(&connection).is_ok());
+    assert_eq!(
+        model.stored_password(&connection).as_deref(),
+        Some("s3cret")
+    );
+    // An empty password stores nothing.
+    let empty = rc_core::config::SavedConnection {
+        ..connection.clone()
+    };
+    let mut empty = empty;
+    empty.password.clear();
+    assert_eq!(model.remember_password(&empty), CommandOutcome::None);
+}
+
+#[test]
+fn the_encrypted_store_can_replace_the_memory_store() {
+    let (_l, _r, mut model) = fixture();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("secrets.enc");
+    let connection = rc_core::config::SavedConnection {
+        host: "example.com".into(),
+        user: "bob".into(),
+        port: 21,
+        protocol: "ftp".into(),
+        password: "pw".into(),
+        ..Default::default()
+    };
+    assert!(model.remember_password(&connection).is_ok());
+    // Swap in an encrypted store, migrate the in-memory value, persist it.
+    let mut store = rc_core::secrets::EncryptedStore::new(path.clone());
+    store.insert(connection.account_id(), "pw");
+    store.save("master-passphrase").unwrap();
+    model.set_secret_store(Box::new(store));
+    assert_eq!(model.stored_password(&connection).as_deref(), Some("pw"));
+    // Reopening the file with the same passphrase yields the same secret.
+    let reopened = rc_core::secrets::EncryptedStore::load(path, "master-passphrase").unwrap();
+    assert_eq!(reopened.get_secret(&connection.account_id()), Some("pw"));
+    // The file on disk never contains the plain password.
+    let bytes = std::fs::read(dir.path().join("secrets.enc")).unwrap();
+    assert!(!String::from_utf8_lossy(&bytes).contains("pw"));
+}

@@ -30,7 +30,7 @@ cargo test --workspace
 | 10 | egui user interface | **partial** — panels, tabs, menus, dialogs, viewer, editor, help, quick view, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, the thumbnail grid, the search results table and drag & drop are still simplified |
 | 11 | Platforms | **partial** — Linux verified end to end (runs, renders); with mingw-w64 installed the **Windows release `.exe` links and is a GUI-subsystem binary** (`target/x86_64-pc-windows-gnu/release/rcommander.exe`, 15.8 MB); the Android APK still needs the SDK/NDK |
 | 12 | Verification | **done** for everything marked done above |
-| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **pending** — planned in Phase 13; the plain-text password in `settings.toml` is the first thing to fix |
+| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.4 is implemented (encrypted credential store, migration, no plain text in `settings.toml`); host-key verification, key/agent auth, saved session files and SFTP-in-the-panel are still pending |
 | 14 | Colour themes | **pending** — planned in Phase 14; today the palette is two hardcoded variants |
 | 15 | Git repositories as panels | **pending** — planned in Phase 15; read-only virtual folders (branches/tags/commits) and copying out of a revision come first, write operations only afterwards |
 
@@ -57,7 +57,7 @@ cargo test --workspace
 
 ## Phase 2 — `rc-core` (done)
 
-`cargo test -p rc-core` → **199 tests, 0 failures.**
+`cargo test -p rc-core` → **210 tests, 0 failures.**
 
 | Step | Module | Covered by tests |
 | --- | --- | --- |
@@ -168,7 +168,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **191 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **208 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -177,7 +177,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **23 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **27 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -301,7 +301,8 @@ with `cargo test --workspace`).
 
 | Gap | Where it is tracked |
 | --- | --- |
-| SSH host keys are **not** verified and `SavedConnection::password` is stored as plain text in `settings.toml` — unacceptable for SSH use | Phase 13 (13.1–13.4): host-key store, key/agent auth, saved sessions, OS-keyring + encrypted-fallback credential storage with migration of the existing plain value |
+| SSH host keys are **not** verified yet (13.1); SFTP is not wired into the panel (13.5) | Phase 13.1–13.2 and 13.5 — the credential half (13.4) is done |
+| ~~Passwords stored as plain text in `settings.toml`~~ | **fixed**: `rc-core::secrets` provides an Argon2id + AES-256-GCM store, `SavedConnection::password` is never serialised, and `Model::migrate_plaintext_passwords` moves existing values into the store |
 | Colours are two hardcoded palettes chosen by name (`Palette::light`/`dark`); they cannot be edited or shipped as data | Phase 14 (14.1–14.5): `themes/*.toml` with semantic roles, runtime discovery, a theme editor with live preview and contrast warnings |
 | SFTP compiles behind a cargo feature and is unit-covered but has never been tested against a live server | Phase 13.5, together with the manual verification step |
 | A Git repository cannot be browsed as a panel and files cannot be copied out of a branch/tag/commit without checking it out | Phase 15 (read-only first), which reuses the Phase 13.4 credential store for keys and tokens instead of storing them itself |

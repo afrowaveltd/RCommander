@@ -35,3 +35,23 @@ přes `MDTM`. To je důležité pro *synchronizaci adresářů*, která časy po
 Hesla se do konfiguračního souboru ukládají jen na výslovné přání. Pro cokoli
 jiného než důvěryhodnou místní síť používejte SFTP nebo FTPS a zkontrolujte
 část `[ftp]` konfiguračního souboru, co je v něm uloženo.
+
+## Kde jsou uložena hesla
+
+Hesla a tokeny se **nikdy nezapisují do `settings.toml`**. Seznam připojení v tomto
+souboru obsahuje jen názvy, hostitele, porty a uživatelská jména; heslo je uloženo v
+úložišti pověření:
+
+* v keyringu operačního systému, je-li k dispozici, jinak
+* v šifrovaném souboru (`secrets.enc`) chráněném hlavní passphrase (odvození klíče
+  Argon2id, šifrování AES-256-GCM, práva souboru jen pro vlastníka).
+
+Starší konfigurační soubor, který ještě heslo obsahuje, se přečte jednou a provede
+se migrace: hodnota se přesune do úložiště pověření a ze souboru se odstraní. Uložení
+nastavení pak už heslo nikdy nemůže vyzradit, protože se toto pole vůbec
+neserializuje.
+
+Klíč úložiště se odvozuje z vaší passphrase při každém odemčení a neukládá se do
+mezipaměti, takže zavřením aplikace se pověření uzamknou. Pokud passphrase ztratíte,
+jsou hesla nedobytná — uložená připojení (hostitel, uživatel, port) zůstanou a
+stačí znovu zadat hesla.
