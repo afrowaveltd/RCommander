@@ -163,10 +163,18 @@ the duplicate is reported), keeps the built-in light/dark palettes available so 
 missing directory is not fatal, follows one level of inheritance through another theme
 file, and lets a file of the same name refine a built-in without recursing.
 
-Three themes ship in `themes/`: **Classic Light**, **Classic Dark** and **High
-Contrast**. A test copies the shipped directory and asserts every file parses, that
-every resolved palette is complete and that the important colour pairs stay above the
-contrast threshold.
+Eight themes ship in `themes/`: **Classic Light**, **Classic Dark**, **High Contrast**,
+**AS/400 Green Screen**, **Midnight Commander**, **Windows Explorer**, **Solarized
+Dark** and **Amber Terminal**. A test copies the shipped directory and asserts every file parses, that every resolved
+palette is complete and that the six colour pairs which decide whether the window can be
+used at all stay above a 3:1 contrast ratio — which is how the Solarized theme's
+`hidden` role was caught at 2.79:1 and brightened.
+
+Tool-bar icons are tinted by the *kind* of action rather than one accent colour:
+destructive commands use `warning`, creating ones `archive`, moving ones `directory`,
+navigation `accent`, searching and network commands `symlink`, quiet ones `hidden`. A
+test asserts the grouping and that at least four distinct roles are in use, so the bar
+cannot silently collapse back to one colour.
 
 *Configuration ▸ Options ▸ Colors* is a real editor: a theme chooser, a role grid with
 a colour picker per role, a live preview of a panel (cursor row, directory, hidden and

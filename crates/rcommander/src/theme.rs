@@ -61,6 +61,33 @@ impl Palette {
         }
     }
 
+    /// The colour of a semantic role by name.
+    ///
+    /// Used where the caller only knows the role (the tool-bar icons), so the
+    /// palette and the role table cannot drift apart.
+    pub fn role(&self, role: rc_core::theme::Role) -> Color32 {
+        use rc_core::theme::Role;
+        match role {
+            Role::Background => self.background,
+            Role::Foreground => self.foreground,
+            Role::CursorBackground => self.cursor_background,
+            Role::CursorForeground => self.cursor_foreground,
+            Role::SelectedBackground => self.selected_background,
+            Role::SelectedForeground => self.selected_foreground,
+            Role::Directory => self.directory,
+            Role::Hidden => self.hidden,
+            Role::Readonly => self.readonly,
+            Role::Archive => self.archive,
+            Role::Symlink => self.symlink,
+            Role::HeaderBackground => self.header_background,
+            Role::PanelBorder => self.panel_border,
+            Role::StatusBackground => self.status_background,
+            Role::Accent => self.accent,
+            Role::RowAlternate => self.row_alternate,
+            Role::Warning => self.warning,
+        }
+    }
+
     /// The palette of the theme the model has active, including custom files.
     pub fn for_model(model: &crate::model::Model) -> Palette {
         Palette::from_resolved(&model.resolved_theme())

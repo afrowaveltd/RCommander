@@ -1,0 +1,28 @@
+# RCommander theme. Colours are #rrggbb; a role that is not listed is
+# inherited from the theme named in `base`.
+
+[meta]
+name = "Solarized Dark"
+base = "dark"
+author = "RCommander"
+version = "1"
+description = "Ethan Schoonover's low-contrast palette in its dark form"
+
+[colors]
+background = "#002b36"
+foreground = "#93a1a1"
+cursor_background = "#073642"
+cursor_foreground = "#eee8d5"
+selected_background = "#268bd2"
+selected_foreground = "#fdf6e3"
+directory = "#268bd2"
+hidden = "#6c8080"
+readonly = "#dc322f"
+archive = "#859900"
+symlink = "#2aa198"
+header_background = "#073642"
+panel_border = "#586e75"
+status_background = "#073642"
+accent = "#2aa198"
+row_alternate = "#073642"
+warning = "#cb4b16"

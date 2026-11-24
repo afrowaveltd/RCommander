@@ -231,6 +231,26 @@ mod tests {
             let resolved = model.resolved_theme_named(&name);
             assert!(resolved.is_complete(), "{name} is incomplete");
         }
+        // Every shipped theme has to be readable: the six pairs that decide whether
+        // the window can be used at all stay above a 3:1 ratio, and the text pairs
+        // above 4.5:1 where the palette allows it.
+        for name in model.theme_names() {
+            let resolved = model.resolved_theme_named(&name);
+            for (front, back) in [
+                (Role::Foreground, Role::Background),
+                (Role::CursorForeground, Role::CursorBackground),
+                (Role::SelectedForeground, Role::SelectedBackground),
+                (Role::Foreground, Role::RowAlternate),
+                (Role::Hidden, Role::Background),
+                (Role::Accent, Role::HeaderBackground),
+            ] {
+                let ratio = resolved.get(front).contrast(resolved.get(back));
+                assert!(
+                    ratio >= 3.0,
+                    "{name}: {front:?} on {back:?} is only {ratio:.2}:1"
+                );
+            }
+        }
         let high = model.resolved_theme_named("high contrast");
         assert_eq!(high.get(Role::Background).r, 0x00);
         assert!(

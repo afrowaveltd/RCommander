@@ -1,0 +1,33 @@
+# RCommander theme. Colours are #rrggbb; a role that is not listed is
+# inherited from the theme named in `base`.
+
+[meta]
+name = "Windows Explorer"
+base = "light"
+author = "RCommander"
+version = "1"
+description = "Light and calm, Windows-style selection and accent"
+
+[colors]
+background = "#ffffff"
+foreground = "#1f1f1f"
+cursor_background = "#cce8ff"
+cursor_foreground = "#003366"
+selected_background = "#cce8ff"
+selected_foreground = "#003366"
+directory = "#0067c0"
+hidden = "#767676"
+readonly = "#a4261c"
+archive = "#107c10"
+symlink = "#007c8b"
+header_background = "#f3f3f3"
+panel_border = "#d6d6d6"
+status_background = "#f3f3f3"
+accent = "#0067c0"
+row_alternate = "#f7f9fc"
+warning = "#c42b1c"
+
+[file_types]
+"*.docx" = "#2b579a"
+"*.xlsx" = "#217346"
+"*.pdf" = "#b32d2e"

@@ -1,0 +1,32 @@
+# RCommander theme. Colours are #rrggbb; a role that is not listed is
+# inherited from the theme named in `base`.
+
+[meta]
+name = "AS/400 Green Screen"
+base = "dark"
+author = "RCommander"
+version = "1"
+description = "The 5250 terminal: green on black, blue field labels"
+
+[colors]
+background = "#00160a"
+foreground = "#33ff66"
+cursor_background = "#33ff66"
+cursor_foreground = "#00160a"
+selected_background = "#ffffff"
+selected_foreground = "#00160a"
+directory = "#66d0ff"
+hidden = "#1f8f4a"
+readonly = "#ff5555"
+archive = "#8fe6a8"
+symlink = "#66d0ff"
+header_background = "#00240f"
+panel_border = "#2f7f4f"
+status_background = "#00240f"
+accent = "#8fffb0"
+row_alternate = "#001b0c"
+warning = "#ff6b6b"
+
+[file_types]
+"*.txt" = "#a8ffc0"
+"*.log" = "#66d0ff"

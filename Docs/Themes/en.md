@@ -52,13 +52,29 @@ options page instead of being ignored silently.
 
 ## Shipped themes
 
-* **Classic Light** — the traditional white list with a dark blue cursor bar.
-* **Classic Dark** — the same layout on a dark background.
-* **High Contrast** — black background, bright text, strong cursor; meant for poor
-  displays, projectors and low vision.
+| Theme | Look |
+| --- | --- |
+| **Classic Light** | the traditional white list with a dark blue cursor bar |
+| **Classic Dark** | the same layout on a dark background |
+| **High Contrast** | black background, bright text, strong cursor — for poor displays, projectors and low vision |
+| **AS/400 Green Screen** | the 5250 terminal: green on black, blue field labels, amber highlights |
+| **Midnight Commander** | the classic two-pane blue, cyan directories, black-on-cyan selection |
+| **Windows Explorer** | light and calm, Windows-style accent blue and soft selection |
+| **Solarized Dark** | Schoonover's low-contrast palette, dark form |
+| **Amber Terminal** | the other monochrome terminal: amber on black |
 
-The two classic themes are also the built-in fallback, so the application starts
-even when the `themes/` directory is missing.
+Every shipped theme is checked by a test: all roles resolve, and the six pairs that
+decide whether the window can be used at all (text on background, cursor text on
+cursor background, marked text on marked background, text on the alternate row,
+muted text on background, accent on the header) stay above a 3:1 contrast ratio.
+
+The two classic themes are also the built-in fallback, so the application starts even
+when the `themes/` directory is missing.
+
+Tool-bar icons follow the action, not the decoration: destructive commands use
+`warning`, creating ones `archive`, moving ones `directory`, navigation `accent`,
+searching and network commands `symlink`, and quiet commands `hidden`. A theme with a
+bright red warning colour therefore also has bright red delete icons.
 
 ## Adding a theme
 

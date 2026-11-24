@@ -143,6 +143,54 @@ impl Icon {
         }
     }
 
+    /// Which theme role tints this icon.
+    ///
+    /// The grouping is semantic, not decorative: destructive actions use the
+    /// warning colour, creating things the archive/green one, navigation the
+    /// accent, and quiet commands the muted one. Because the tints are roles, a
+    /// theme decides how bright they are — the dark theme's red is lighter than
+    /// the light theme's, for example.
+    pub fn colour_role(self) -> rc_core::theme::Role {
+        use rc_core::theme::Role;
+        match self {
+            // Destructive: deleting, and anything that loses data.
+            Icon::Delete => Role::Warning,
+            // Creating or writing: folders, archives, saving, checksums.
+            Icon::FolderPlus | Icon::Pack | Icon::Save | Icon::Fingerprint | Icon::Scissors => {
+                Role::Archive
+            }
+            // Moving data between places: copy, synchronise, compare.
+            Icon::Copy | Icon::Sync | Icon::Compare | Icon::Download => Role::Directory,
+            // Navigation and view switching.
+            Icon::Up
+            | Icon::Root
+            | Icon::Refresh
+            | Icon::Tab
+            | Icon::List
+            | Icon::TableList
+            | Icon::Eye
+            | Icon::History
+            | Icon::Bookmark
+            | Icon::Folder
+            | Icon::FolderOpen
+            | Icon::HardDrive => Role::Accent,
+            // Searching and filtering is a different kind of attention.
+            Icon::Search | Icon::Check => Role::Symlink,
+            // Network and credentials.
+            Icon::Network | Icon::Lock => Role::Symlink,
+            // Editing and metadata.
+            Icon::Edit | Icon::Tags | Icon::Text | Icon::Code | Icon::Image => Role::Directory,
+            // Quiet, secondary commands.
+            Icon::Settings
+            | Icon::Help
+            | Icon::Exit
+            | Icon::Terminal
+            | Icon::Robot
+            | Icon::Archive
+            | Icon::File => Role::Hidden,
+        }
+    }
+
     /// Icon for a directory entry, derived from the kind and the extension.
     pub fn for_entry(kind: rc_core::entry::EntryKind, name: &str) -> Icon {
         use rc_core::entry::EntryKind;
@@ -380,6 +428,55 @@ mod tests {
         assert_eq!(Icon::for_entry(EntryKind::File, "notes.md"), Icon::Text);
         assert_eq!(Icon::for_entry(EntryKind::File, "noext"), Icon::File);
         assert_eq!(Icon::for_entry(EntryKind::File, ".bashrc"), Icon::File);
+    }
+
+    #[test]
+    fn icon_colours_group_by_kind_of_action() {
+        use rc_core::theme::Role;
+        // Destructive commands warn, creating ones are green, moving ones blue.
+        assert_eq!(
+            for_command("cm_Delete").unwrap().colour_role(),
+            Role::Warning
+        );
+        assert_eq!(
+            for_command("cm_MkDir").unwrap().colour_role(),
+            Role::Archive
+        );
+        assert_eq!(
+            for_command("cm_PackFiles").unwrap().colour_role(),
+            Role::Archive
+        );
+        assert_eq!(
+            for_command("cm_Copy").unwrap().colour_role(),
+            Role::Directory
+        );
+        assert_eq!(
+            for_command("cm_FileSync").unwrap().colour_role(),
+            Role::Directory
+        );
+        assert_eq!(
+            for_command("cm_GoToParent").unwrap().colour_role(),
+            Role::Accent
+        );
+        assert_eq!(
+            for_command("cm_SearchFor").unwrap().colour_role(),
+            Role::Symlink
+        );
+        assert_eq!(
+            for_command("cm_Secrets").unwrap().colour_role(),
+            Role::Symlink
+        );
+        assert_eq!(
+            for_command("cm_Config").unwrap().colour_role(),
+            Role::Hidden
+        );
+
+        // Every icon has a role, and the roles actually differ, so the bar is not
+        // painted in one colour.
+        let mut roles: Vec<Role> = Icon::all().iter().map(|i| i.colour_role()).collect();
+        roles.sort();
+        roles.dedup();
+        assert!(roles.len() >= 4, "the icons use {roles:?}");
     }
 
     #[test]

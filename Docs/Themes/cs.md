@@ -51,13 +51,29 @@ chyba a v dialogu možností se ohlásí, místo aby se tiše ignoroval.
 
 ## Dodávaná témata
 
-* **Classic Light** — tradiční bílý seznam s tmavě modrým kurzorem.
-* **Classic Dark** — stejné rozvržení na tmavém pozadí.
-* **High Contrast** — černé pozadí, jasný text, výrazný kurzor; pro slabé displeje,
-  projektory a slabozraké uživatele.
+| Téma | Vzhled |
+| --- | --- |
+| **Classic Light** | tradiční bílý seznam s tmavě modrým kurzorem |
+| **Classic Dark** | stejné rozvržení na tmavém pozadí |
+| **High Contrast** | černé pozadí, jasný text, výrazný kurzor — pro slabé displeje, projektory a slabozraké |
+| **AS/400 Green Screen** | terminál 5250: zelená na černé, modré popisky polí |
+| **Midnight Commander** | klasická dvoupanelová modrá, tyrkysové adresáře, černá na tyrkysové |
+| **Windows Explorer** | světlé a klidné, modrý akcent a jemné označení ve stylu Windows |
+| **Solarized Dark** | Schoonoverova nízkokontrastní paleta v tmavé podobě |
+| **Amber Terminal** | druhý monochromatický terminál: jantarová na černé |
+
+Každé dodávané téma kontroluje test: všechny role se vyhodnotí a šest dvojic, které
+rozhodují o použitelnosti okna (text na pozadí, text kurzoru na pozadí kurzoru, text
+označení na jeho pozadí, text na střídavém řádku, tlumený text na pozadí, akcent v
+záhlaví), zůstává nad poměrem 3:1.
 
 Obě klasická témata jsou zároveň vestavěný základ, takže aplikace nastartuje i bez
 adresáře `themes/`.
+
+Ikony v liště se barví podle akce, ne dekorativně: ničivé příkazy používají
+`warning`, vytvářející `archive`, přesouvající `directory`, navigace `accent`,
+hledání a síť `symlink` a tiché příkazy `hidden`. Téma s jasnou červenou varovnou
+barvou má tedy i jasně červené ikony mazání.
 
 ## Přidání tématu
 

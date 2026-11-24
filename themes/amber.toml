@@ -1,0 +1,28 @@
+# RCommander theme. Colours are #rrggbb; a role that is not listed is
+# inherited from the theme named in `base`.
+
+[meta]
+name = "Amber Terminal"
+base = "dark"
+author = "RCommander"
+version = "1"
+description = "The other monochrome terminal: amber on black"
+
+[colors]
+background = "#1a0f00"
+foreground = "#ffb000"
+cursor_background = "#ffb000"
+cursor_foreground = "#1a0f00"
+selected_background = "#fff2cc"
+selected_foreground = "#1a0f00"
+directory = "#ffd060"
+hidden = "#a06a00"
+readonly = "#ff7040"
+archive = "#ffd060"
+symlink = "#ffd060"
+header_background = "#2a1a00"
+panel_border = "#8a5a00"
+status_background = "#2a1a00"
+accent = "#ffd700"
+row_alternate = "#201200"
+warning = "#ff7040"

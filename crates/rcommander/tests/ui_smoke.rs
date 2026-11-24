@@ -1048,14 +1048,12 @@ fn render_snapshots() {
 
     let mut colors = app(left.path(), right.path());
     let settings = colors.model.settings.clone();
-    colors
-        .model
-        .open_dialog(rcommander::model::Dialog::Options(
-            rcommander::model::dialogs::OptionsState::new(
-                &settings,
-                rcommander::model::dialogs::OptionsTab::Colors,
-            ),
-        ));
+    colors.model.open_dialog(rcommander::model::Dialog::Options(
+        rcommander::model::dialogs::OptionsState::new(
+            &settings,
+            rcommander::model::dialogs::OptionsTab::Colors,
+        ),
+    ));
     let mut fifth = harness(colors);
     fifth.run();
     fifth

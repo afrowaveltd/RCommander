@@ -1,0 +1,32 @@
+# RCommander theme. Colours are #rrggbb; a role that is not listed is
+# inherited from the theme named in `base`.
+
+[meta]
+name = "Midnight Commander"
+base = "dark"
+author = "RCommander"
+version = "1"
+description = "The classic two-pane blue of Midnight Commander"
+
+[colors]
+background = "#000080"
+foreground = "#c0c0c0"
+cursor_background = "#000000"
+cursor_foreground = "#00c0c0"
+selected_background = "#000000"
+selected_foreground = "#00c0c0"
+directory = "#00ffff"
+hidden = "#7070a0"
+readonly = "#ff8080"
+archive = "#80ff80"
+symlink = "#00d0d0"
+header_background = "#000060"
+panel_border = "#3060a0"
+status_background = "#000060"
+accent = "#00ffff"
+row_alternate = "#00008c"
+warning = "#ff9090"
+
+[file_types]
+"*.rs" = "#ffff60"
+"*.md" = "#80ff80"

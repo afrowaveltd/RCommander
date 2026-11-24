@@ -113,7 +113,9 @@ fn icon_button_text(
     let mut job = egui::text::LayoutJob::default();
     let mut icon_format = egui::TextFormat {
         font_id: egui::FontId::proportional((font_size + 3.0).max(12.0)),
-        color: palette.accent,
+        // The tint follows the kind of action: destructive, creating, moving,
+        // navigating, searching or quiet.
+        color: palette.role(icon.colour_role()),
         valign: egui::Align::Center,
         ..Default::default()
     };
