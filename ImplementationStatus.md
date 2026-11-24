@@ -24,21 +24,22 @@ cargo test --workspace
 | 4 | Previewer engine (`rc-viewer`) | **done** |
 | 5 | Archive engine (`rc-archive`) | **done** |
 | 6 | Help system (`rc-help`, `Docs/`) | **done** |
-| 7 | Remote file systems (`rc-remote`) | **done** — engine tested against a mock server and wired into the panels (connect, list, navigate, download, upload, disconnect); no live-server test possible here |
+| 7 | Remote file systems (`rc-remote`) | **partial** — FTP/SFTP panels and saved sessions implemented with recorded live SFTP verification; interactive prompt for missing credentials remains unfinished |
 | 8 | MCP integration (`rc-agent`) | **done** — server + client tested, host bridge wired, `rcommander mcp` subcommand, and an agent panel in the UI for connecting to external servers and running their tools |
 | 9 | Application model | **done** — including background job control (start, poll, cancel, aggregate progress) |
-| 10 | egui user interface | **partial** — panels, tabs, menus, dialogs, viewer, editor, help, quick view, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, the thumbnail grid, the search results table and drag & drop are still simplified |
+| 10 | egui user interface | **partial** — dual panels, thumbnails, dialogs, configurable button bar, editor/viewer/help, Git UI and background jobs are reported working; inline tree, search result views and thumbnail controls still need refinement |
 | 11 | Platforms | **partial** — Linux verified end to end (runs, renders); with mingw-w64 installed the **Windows release `.exe` links and is a GUI-subsystem binary** (`target/x86_64-pc-windows-gnu/release/rcommander.exe`, 15.8 MB); the Android APK still needs the SDK/NDK |
 | 12 | Verification | **done** for everything marked done above |
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
-| 14 | Colour themes | **done** — themes are TOML files in `themes/` discovered at runtime, three themes ship, the *Colors* page edits every role with a live preview and contrast warnings |
-| 15 | Git repositories as panels | **partial** — 15.1 (engine + fixtures), 15.2 (Git panel with virtual folders), 15.6 (status colours + branch header) and the config-approval half of 15.4 are done; copying out of a revision (15.3), clone (15.5) and the write operations of 15.8 (pull/push/merge, staged/commit UI) are next |
-| 16 | Interactive AI workspace | **pending** — added by the project owner, planned in Phase 16 (bidirectional panes, pluggable model providers, reviewed change sets) |
+| 14 | Colour themes | **done** — TOML themes, theme editor, contrast checks and unified window styling; eight themes shipped |
+| 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
+| 16 | Interactive AI workspace | **pending** — two-way chat/file panels, providers, reviewed edits and MCP/Git orchestration; Phase 16.0 policy is a prerequisite to agent side-effects |
+| 17.0 | Shared Markdown, syntax highlighting and annotations | **pending** — common parser/tokenizer and rendering foundation before 17.1–17.2 |
 | 17 | Rich document previewer (PDF, Office, Markdown, code) | **pending** — planned in Phase 17 |
 | 18 | Plugin architecture (data sources and renderers) | **pending** — planned in Phase 18 |
 | 19 | Integrated SSH terminal (PuTTY-style) | **pending** — planned in Phase 19 |
+| 20 | Optional privileged system capabilities | **pending** — narrow helper, OS authentication, verified backup/restore and optional installation; not required for normal chat |
 
-| 16 | Interactive AI workspace (chat panel, Ollama/remote models, scoped file editing, dictionaries and agent workflows) | **pending** — planned in Phase 16; existing MCP panel can call tools, but is not yet an agent conversation or reviewed multi-file editor |
 
 ---
 
@@ -119,7 +120,7 @@ started, panels, selection, file operations, previewer, editor, search, archives
 FTP, synchronisation, multi-rename, keyboard, command line, MCP agents,
 languages & RTL, configuration, tabs, hotlist/history, button bar, custom columns.
 
-## Phase 7 — `rc-remote` (partial)
+## Phase 7 — `rc-remote` (partial; historical baseline followed by updates)
 
 `cargo test -p rc-remote` → **111 tests + 3 doctests, 0 failures** (offline, with
 an in-process mock FTP server; 115 with `--features sftp`, 110 with
@@ -129,8 +130,7 @@ Implemented and tested: FTP passive/EPSV and active PORT/EPRT, `MLSD` with
 `LIST` fallback (including the year-vs-time and symlink cases), `MDTM`/`SIZE`/
 `MLST`, chunked cancellable `get`/`put`, recursive `get_tree`/`put_tree` with
 path sanitisation, error mapping (550 → not found, 530 → authentication, refused
-connection → connect error). FTPS and SFTP compile behind features and are unit
-covered but are **not** tested against live servers.
+connection → connect error). FTPS/SFTP were originally compile-checked and unit-covered only. **Later work** recorded in the secure-remote sections includes a live OpenSSH/SFTP test, host-key checks and encrypted credentials. The counts above describe the earlier baseline, not the latest implementation.
 
 Wired into the application: `Ctrl+F` opens the connect dialog, which builds an
 `rc_remote::ConnectionSpec`, connects and turns the active panel into a remote
@@ -139,9 +139,7 @@ directory (listing with sizes, dates, symlink kinds and unix modes);
 work through a [`RemoteBackend`] abstraction, so the behaviour is covered by
 tests with an in-memory backend while production uses the real client.
 
-Remaining gap: no test against a live FTP/SFTP server is performed here (the
-suite must stay offline), and transfers still run on the UI thread rather than
-in the background queue.
+Remaining gaps: an interactive password prompt is needed when no stored secret is available. The FTP transfer path also needs a final audit against the common background queue; optional live SFTP tests must be reported separately from offline tests.
 
 ## Phase 15.4a — reading the machine's Git configuration (done, behind approval)
 
@@ -621,13 +619,13 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1273 tests, 0 failures** (see the per-crate numbers
-  above).
-  Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
-  `rc-archive` 134, `rc-git` 35, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
-  doctests and one opt-in SFTP integration test), `rcommander` 329 (277 lib + 48 UI
-  + 3 i18n guard) — **1229 tests** (measured
-with `cargo test --workspace`).
+- The latest **reported** `cargo test --workspace` run is **1,273 tests,
+  0 failures**; this documentation edit did **not** rerun tests. Previously
+  listed per-crate figures were from inconsistent snapshots and claimed a
+  conflicting **1,229 total**. Do not infer a corrected sum from them.
+  **Next verification:** run the full workspace suite and capture unit,
+  integration and doctest counts from the **same run**, with optional live SFTP
+  tests reported separately, before publishing a new breakdown.
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.
 - `cargo fmt --all --check`: clean.
@@ -652,33 +650,39 @@ with `cargo test --workspace`).
 
 ## Known gaps that the next phases address
 
-| Gap | Where it is tracked |
+| Open gap / verification task | Plan or next action |
 | --- | --- |
-| ~~SSH host keys are not verified (13.1); SFTP not wired into the panel (13.5)~~ | **fixed**: `rc-core::knownhosts` (TOFU/strict/ignore, changed key refused) and the SFTP client verifying it; key-file and ssh-agent authentication; the connect dialog offers protocol, authentication and host-key policy |
-| The thumbnail view showed one large empty square per file, and the passphrase dialog was unlock-only with no way back from a forgotten passphrase | **fixed this round**: a card grid with type icons, decoded previews and captions; a visible *create* mode; and *Configuration ▸ Options ▸ Dangerous* with confirmed factory resets (settings, layout, host keys, credentials, everything) |
-| The credential store was only in memory; the project owner asked for a persistent, passphrase-protected store | **fixed this round**: `Model::unlock_secrets/lock_secrets/persist_secrets`, the unlock/create dialog (minimum length, confirmation, wrong passphrase refused), secrets queued while locked and written on unlock, and `rc-core::secrets` never writing the passphrase anywhere |
-| ~~Passwords stored as plain text in `settings.toml`~~ | **fixed**: `rc-core::secrets` provides an Argon2id + AES-256-GCM store, `SavedConnection::password` is never serialised, and `Model::migrate_plaintext_passwords` moves existing values into the store |
-| Colours are two hardcoded palettes chosen by name (`Palette::light`/`dark`); they cannot be edited or shipped as data | Phase 14 (14.1–14.5): `themes/*.toml` with semantic roles, runtime discovery, a theme editor with live preview and contrast warnings |
-| SFTP compiles behind a cargo feature and is unit-covered but has never been tested against a live server | Phase 13.5, together with the manual verification step |
-| A Git repository cannot be browsed as a panel and files cannot be copied out of a branch/tag/commit without checking it out | Phase 15 (read-only first), which reuses the Phase 13.4 credential store for keys and tokens instead of storing them itself |
-
-| No conversational agent panel, Ollama/model provider abstraction or scoped propose/diff/apply workflow; no UnderstandMe dictionary panel or opt-in Git watcher | Phase 16 (16.1–16.15): bidirectional agent/file panels, configurable AI/MCP/data providers, scoped permission policies, reviewed edits, project creation, remote SSH and approved GitHub actions |
+| Interactive SFTP password prompt when a saved secret is missing | Complete Phase 13 connection UX |
+| Confirm remote FTP transfers use the common background queue with cancellation and progress | Audit Phase 7/10 integration |
+| Inline directory tree, rich search results and thumbnail controls still simplified | Continue Phase 10 |
+| Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
+| No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions |
+| Shared Markdown parser, syntax highlighting and annotations not implemented | Phase 17.0 before Phase 17.1–17.2 |
+| No general data/render plugin framework or enforceable isolation for untrusted plugins | Phase 18; process separation alone is insufficient |
+| Integrated SSH shell remains planned | Phase 19 |
+| Optional privileged OS helper not implemented | Phase 20 (not required for ordinary AI chat) |
 
 ## Next steps (in priority order)
 
-1. Route remote (FTP) transfers through the same background queue.
-2. An in-panel directory tree (currently the tree opens as a dialog).
-3. Phase 13 — secure SFTP/SSH: host-key verification, key/agent auth, saved sessions
-   and credential storage (OS keyring with an encrypted portable fallback), then
-   wiring SFTP into the panel and the background queue.
-4. Phase 14 — data-driven colour themes with a runtime `themes/` directory and an
-   editor with live preview.
-5. Phase 15 — Git repositories as panels: read-only virtual folders
-   (`branches/`, `tags/`, `commits/`, `remotes/`) and copying files out of any
-   revision first; write operations (commit/push/checkout) only after that, behind
-   dry runs and confirmations. Steps 15.1–15.3 are local-only and can run in
-   parallel with Phase 13, but anything authenticating must use 13.4's store.
-6. A cross-platform plugin format to replace the reference product's DLL plugins.
-7. Background transfer manager dialog on top of `ops_runner`.
-8. Windows cross-build and Android APK build once the toolchains are available.
-9. Phase 16 — interactive agent chat in either panel with local Ollama or an explicitly selected remote model; safe, reviewed editing of selected JSON dictionaries, documents and configuration files; live output/F3 preview in the opposite pane, configurable permission-scoped model/MCP/data plugins, project creation and Git workflows, remote SSH, later UnderstandMe virtual panels and an opt-in Git issue assistant. Desktop first; Android parity is optional. This builds on MCP but is **not implemented** by the existing MCP tool window.
+1. Finish interactive password prompting for SFTP sessions without saved secrets.
+2. Verify FTP transfers use the common background job queue, including cancel,
+   progress and disconnection handling.
+3. Complete practical Phase 10 UI gaps (inline tree, search presentation and
+   thumbnail controls).
+4. Re-run `cargo test --workspace`, Clippy and formatting in a healthy clean
+   checkout; record an auditable same-run test breakdown.
+5. Build Phase 17.0 as a single Markdown/highlighter/annotation foundation,
+   migrating existing `rc-help` consumers rather than duplicating parsers.
+6. Implement Phase 16.0 capability policy before agent-controlled file/process,
+   Git, network or MCP writes; then start Phase 16 chat and reviewed local
+   translation changes with mocked providers.
+7. Continue Phase 17 previewers and Phase 18 plugin APIs; distinguish genuine
+   OS sandbox enforcement from out-of-process crash isolation.
+8. Add Phase 19 SSH terminal separately; implement optional Phase 20 privileged
+   capabilities only for supported systems and approved operations.
+9. Keep Windows release checks, Android compile checks and an actual tested
+   Android APK as distinct milestones.
+
+These are planned priorities, not assertions of new implementation. Earlier
+per-phase narrative remains historical evidence; the summary and current gaps
+supersede obsolete "next" wording.
