@@ -233,6 +233,35 @@ a conversation (this phase). The pieces already exist — `rc-agent` server and 
 panel model, the Git engine, the remote panels — so this phase is about the conversation,
 the context and the permissions, not about new capabilities.
 
+### AI providers, authentication and history (requested 2026-11)
+
+Requirements collected from the panel owner for this phase:
+
+* **One panel is a chat**: either a plain conversation, or an interactive collaboration where
+  the agent proposes changes and the human reviews them.
+* **Modular provider connectors**, behind one trait (`AgentProvider`): a provider advertises
+  its models, streams tokens, accepts tools, and reports cost/context use.
+* **Local first**: detect a running Ollama on `127.0.0.1:11434`, list `/api/tags`, allow
+  `ollama pull <model>` from the UI with progress, and pick a model per conversation. Local
+  models must work with no account, no network and no key.
+* **Remote providers by API key**: OpenAI-compatible endpoints (which covers DeepSeek,
+  OpenRouter, LM Studio, vLLM and others) with the key kept in the Phase 13.4 credential
+  store — never in `settings.toml`, never in a log line.
+* **Browser-based sign-in**: supported *only* where the vendor documents a flow we may use —
+  OAuth device-code (RFC 8628) and loopback-redirect with PKCE are the ones a desktop app can
+  implement honestly. Consumer subscription logins (a ChatGPT Plus session) are **not** a
+  supported API; the plan must not pretend otherwise.
+* **Conversation history in a local store**: SQLite by default (bundled, no server), behind a
+  small `HistoryStore` trait so a deployment can point it at Postgres later. Not part of the
+  first iteration.
+* **First real scenario** (the acceptance demo): the agent fills in missing translations of
+  this application itself — reading `locales/en.toml`, proposing a complete `cs.toml` or a new
+  language, and presenting the result as a reviewed change set that the existing i18n tests
+  then verify.
+
+Everything in this phase runs through the 16.0 policy layer: provider calls are tools, file
+writes and commands are gated, and every proposal is reviewed before it reaches the disk.
+
 ### Agreed with the panel owner: profiles, capability packs and the backup rule
 
 Decisions taken in the design discussion (they belong to 16.0 and to Phase 20):
