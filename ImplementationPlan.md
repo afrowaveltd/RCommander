@@ -215,6 +215,30 @@ Phase 13.4** instead of inventing its own.
 
 ## Phase 16 — Interactive AI workspace (agent chat as a panel)
 
+### The flow this phase exists for
+
+The panel owner described the target workflow the whole project is built towards: **one
+panel is the agent**, the other is the working directory, and the agent has the same tools a
+human has in that window —
+
+1. read and edit a file in the visible directory (viewer, editor, search),
+2. put the change on Git (stage, commit, push) and read the status colours back,
+3. publish it over the panel's remote connection (SFTP/FTP upload),
+4. and, when asked, investigate something (a failing disk, a permission problem) **with the
+   user watching every step**.
+
+That means the agent's tool surface is not a separate universe: it is the same command
+catalogue and the same model API the panels use, exposed through MCP (Phase 8) and driven by
+a conversation (this phase). The pieces already exist — `rc-agent` server and client, the
+panel model, the Git engine, the remote panels — so this phase is about the conversation,
+the context and the permissions, not about new capabilities.
+
+**Security is part of the definition, not an afterthought.** Every tool call that writes,
+deletes, publishes or executes must go through an approval step that names the exact
+operation and target, a per-tool allowlist in the settings, and an audit trail the user can
+read afterwards. Shell or disk-level investigation is only reachable when the user has
+explicitly enabled it for the session, never by default.
+
 **Goal:** keep the familiar two-pane commander workflow, but allow either pane
 (or a tab inside it) to become an interactive **agent/chat view**. For example,
 the left pane is a conversation with a local Ollama model and the right pane
