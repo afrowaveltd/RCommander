@@ -43,6 +43,9 @@ eframe = { version = "0.37", default-features = false, features = ["android-nati
 [dev-dependencies]
 tempfile = { workspace = true }
 egui_kittest = { version = "0.37", features = ["eframe", "wgpu"] }
+# Reads the bundled icon font in tests, so a glyph that the font does not contain
+# fails the suite instead of panicking in front of the user.
+read-fonts = "0.41"
 
 # Metadata read by `cargo apk`, see android/README.md.
 [package.metadata.android]

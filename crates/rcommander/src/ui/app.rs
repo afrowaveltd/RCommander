@@ -99,6 +99,39 @@ pub struct RCommanderApp {
     pub settings_writer: SettingsWriter,
 }
 
+/// Button text with an icon in the accent colour in front of the caption.
+///
+/// The icon is drawn slightly larger than the caption so it reads as a symbol and
+/// not as a stray character; both scale with the configured font size, so the bar
+/// stays proportionate when the user changes it.
+fn icon_button_text(
+    icon: crate::icons::Icon,
+    caption: &str,
+    font_size: f32,
+    palette: &Palette,
+) -> egui::WidgetText {
+    let mut job = egui::text::LayoutJob::default();
+    let mut icon_format = egui::TextFormat {
+        font_id: egui::FontId::proportional((font_size + 3.0).max(12.0)),
+        color: palette.accent,
+        valign: egui::Align::Center,
+        ..Default::default()
+    };
+    icon_format.extra_letter_spacing = 0.0;
+    job.append(&icon.glyph().to_string(), 0.0, icon_format);
+    job.append(
+        caption,
+        (font_size * 0.45).max(4.0),
+        egui::TextFormat {
+            font_id: egui::FontId::proportional(font_size),
+            color: palette.foreground,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    egui::WidgetText::LayoutJob(std::sync::Arc::new(job))
+}
+
 impl RCommanderApp {
     /// Create the application from an already built model.
     pub fn new(model: Model) -> Self {
@@ -661,24 +694,32 @@ impl RCommanderApp {
     fn tool_bar(&mut self, ui: &mut egui::Ui) {
         let mut command: Option<String> = None;
         let buttons = self.model.settings.button_bar.buttons.clone();
+        let font_size = self.model.settings.display.font_size;
+        let palette = self.palette.clone();
+        let hint = self.model.t("cmd.button_bar");
         ui.horizontal_wrapped(|ui| {
             for button in buttons.iter() {
                 if button.separator {
                     ui.separator();
                 }
-                if ui
-                    .button(button.label())
-                    .on_hover_text(&button.command)
-                    .clicked()
-                {
+                let caption = button.label();
+                let label = match crate::icons::for_command(&button.command) {
+                    Some(icon) => icon_button_text(icon, &caption, font_size, &palette),
+                    None => egui::WidgetText::from(egui::RichText::new(&caption).size(font_size)),
+                };
+                let response = ui
+                    .add(egui::Button::new(label).min_size(egui::vec2(0.0, font_size + 10.0)))
+                    .on_hover_text(&button.command);
+                // Keep the accessible name free of the icon glyph, so screen
+                // readers and the UI tests see the plain caption.
+                response.widget_info(|| {
+                    egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &caption)
+                });
+                if response.clicked() {
                     command = Some(button.command.clone());
                 }
             }
-            if ui
-                .small_button("…")
-                .on_hover_text(self.model.t("cmd.button_bar"))
-                .clicked()
-            {
+            if ui.small_button("…").on_hover_text(hint).clicked() {
                 command = Some("cm_ButtonConfig".to_string());
             }
         });

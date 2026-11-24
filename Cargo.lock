@@ -3307,6 +3307,7 @@ dependencies = [
  "rc-i18n",
  "rc-remote",
  "rc-viewer",
+ "read-fonts",
  "regex",
  "serde",
  "serde_json",

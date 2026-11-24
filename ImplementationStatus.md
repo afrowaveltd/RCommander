@@ -271,6 +271,15 @@ cache fed by `rc-viewer`'s pixel-budgeted decoder.
   `SavedConnection::with_defaults`/`default_port`/`port_is_default` hold that
   knowledge, switching the protocol moves the port only while it is still a
   default, and every field carries a placeholder hint.
+* *The tool bar has icons.* Every button of the default bar (and 30 more
+  commands) now draws a Font Awesome glyph in the accent colour in front of its
+  caption. The icon is sized from the configured font size, so the bar stays
+  proportionate; the accessible name stays the plain caption (a second
+  `widget_info` call replaces the layout job's text), which keeps screen readers
+  and the UI tests reading real words. A new guard test parses the bundled font
+  with `read-fonts` and fails if any `Icon` glyph — or any icon named by
+  `for_command` — is missing, so a Pro-only code point can never panic at paint
+  time again.
 * *Long dialogs scroll instead of overflowing.* The dialog body is wrapped in a
   scroll area bounded by the window height, so a dialog with many fields (connect,
   options) can never push its OK button off the screen; the session list has its
