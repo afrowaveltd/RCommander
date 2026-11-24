@@ -546,6 +546,29 @@ Tests: a tokenizer table test per language (source snippet → expected spans), 
 test per construct, and a renderer test asserting that a fenced block reaches the output as
 highlighted spans in both renderers.
 
+### Binary inspection (requested 2026-11) — Phase 18 capability, not antivirus
+
+The same "rules find the place, evidence decides" idea applies to an unknown executable: the
+user does not want a reconstruction, only an answer to *what does this thing do* — does it open
+a back door, does it touch system files. Delivered as a review capability with two layers:
+
+1. **Built in, offline and deterministic** (`rc-core::binary_review`, pure Rust): container and
+   format identification (PE/ELF/Mach-O via `goblin`), import/export tables, section entropy and
+   packing hints, embedded strings and URLs, signature of known packers/installers, and a small
+   YARA-style rule set on capability patterns (process injection, persistence via Run keys or
+   services, mass file writes outside the user profile, raw sockets, privilege APIs). The report
+   is a chain of evidence with offsets, exactly like the script review, and every finding is
+   annotated in the hex viewer.
+2. **Optional external depth**: a Ghidra (headless) or REA plugin is used only when the user has
+   it installed and asks for it; the result is summarised in chunks rather than dumped into the
+   model's context, and the analysis runs in a confined directory with a size and time cap.
+   The sample is never executed.
+
+**It is a second opinion, not protection.** There are no signatures, no real-time guard and no
+clean verdict: a packed or staged binary can look innocent, and the report says so. Uploading a
+sample anywhere (VirusTotal and friends) only ever happens after an explicit consent that names
+the service, because that may leak the user's data.
+
 ## Phase 18 — Plugin architecture (data sources and renderers)
 
 Plugins are what turn a closed list of features into a platform: a web API source,
