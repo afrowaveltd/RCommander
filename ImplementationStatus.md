@@ -166,6 +166,23 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 14.6 — the window chrome follows the theme (done)
+
+`cargo test -p rcommander --lib theme` → **12 tests**, plus a UI test.
+
+Eleven roles were applied to the panels but the *widget styles* were left at egui's
+defaults, so buttons, checkboxes, sliders and window title bars (the row with the ×) kept
+a light grey background in every theme — unreadable in the dark, the AS/400 and the
+Midnight Commander palettes.
+
+`theme::visuals` now derives all four widget states from the palette: `inactive` and
+`noninteractive` use `header_background` (so a button and a title bar are the same
+material), `hovered` mixes that with `accent`, `active` mixes it further, text uses
+`foreground`, outlines `panel_border`, and `widgets.open` — which egui paints window and
+menu title bars with — is themed as well. A unit test asserts each field for the light and
+the dark palette, and a UI test switches to a custom theme and checks the app palette and
+the derived button/title colours.
+
 ## Phase 15.3 — copying out of a revision (done)
 
 `cargo test -p rcommander --lib extract_tests` → **2 tests**, `copy_out_tests` → **4
@@ -574,7 +591,7 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1262 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1264 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
   `rc-archive` 134, `rc-git` 32, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3

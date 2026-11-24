@@ -30,6 +30,23 @@ background. Colours are `#rrggbb`; the short `#rgb` form and a missing `#` are
 also accepted. A role name that does not exist is an error and is reported in the
 options page instead of being ignored silently.
 
+## What the roles paint
+
+A role is not only used for the file list: the window chrome takes its colours from the
+same table, so a theme does not leave white buttons behind.
+
+| Role | Also used for |
+| --- | --- |
+| `background` | window and dialog body, panels |
+| `header_background` | **buttons**, checkboxes, sliders, window and menu title bars |
+| `panel_border` | button outlines, separators, window frame |
+| `foreground` | button and dialog text |
+| `accent` | hovered and pressed buttons, focused panel frame |
+| `row_alternate` | code blocks and faint fills |
+
+Hover mixes the header colour with the accent, and a pressed button mixes it further, so
+the three states stay distinguishable in every theme — including the monochrome ones.
+
 ## The roles
 
 | Role | Where it is used |

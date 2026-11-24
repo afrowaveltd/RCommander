@@ -1755,3 +1755,45 @@ fn the_remote_dialog_shows_the_branch_and_fetches_in_the_background() {
         "a repository without a remote reports why"
     );
 }
+
+#[test]
+fn switching_the_theme_repaints_buttons_and_title_bars() {
+    let (_left, right) = fixture();
+    let themes = tempfile::tempdir().unwrap();
+    // A theme with a distinctly dark chrome, so a leftover white button is obvious.
+    std::fs::write(
+        themes.path().join("night.toml"),
+        "[meta]\nname = 'Night'\nbase = 'dark'\n[colors]\nbackground = '#001018'\nheader_background = '#102030'\n",
+    )
+    .unwrap();
+    let mut app = app(themes.path(), right.path());
+    app.model.themes_dir_override = Some(themes.path().to_path_buf());
+    app.model.load_themes();
+    let mut harness = harness(app);
+    assert_eq!(harness.state().model.settings.colors.theme, "light");
+
+    harness.state_mut().model.settings.colors.theme = "night".to_string();
+    harness.run();
+    harness.run();
+    // The window palette follows the theme…
+    assert_eq!(harness.state().applied_theme(), "night");
+    let applied = harness.state().palette.clone();
+    assert_eq!(applied.background.r(), 0x00);
+    assert_eq!(applied.header_background.r(), 0x10);
+    // …and so do the widget styles the window chrome is painted with: buttons and
+    // window title bars use the theme's header colour, never egui's default white.
+    let visuals = rcommander::theme::visuals(&applied, applied.is_dark());
+    assert_eq!(
+        visuals.widgets.inactive.weak_bg_fill,
+        applied.header_background
+    );
+    assert_eq!(visuals.widgets.open.weak_bg_fill, applied.header_background);
+    assert_eq!(
+        visuals.widgets.noninteractive.bg_fill,
+        applied.header_background
+    );
+    assert!(
+        visuals.widgets.inactive.weak_bg_fill.r() < 0x80,
+        "a dark theme must not paint white buttons"
+    );
+}

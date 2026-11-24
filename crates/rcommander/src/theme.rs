@@ -216,13 +216,57 @@ pub fn visuals(palette: &Palette, dark: bool) -> egui::Visuals {
     v.window_fill = palette.background;
     v.extreme_bg_color = palette.background;
     v.faint_bg_color = palette.header_background;
+    v.code_bg_color = palette.row_alternate;
     v.override_text_color = Some(palette.foreground);
     v.selection.bg_fill = palette.cursor_background;
     v.selection.stroke = egui::Stroke::new(1.0, palette.cursor_foreground);
-    v.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, palette.panel_border);
     v.window_stroke = egui::Stroke::new(1.0, palette.panel_border);
     v.window_corner_radius = egui::CornerRadius::same(2);
+    v.menu_corner_radius = egui::CornerRadius::same(2);
+
+    // The widget styles decide what a *button* and a window title bar look like. They
+    // used to be left at egui's defaults, so every theme with a dark palette kept white
+    // buttons and a white title row — unreadable in half the combinations.
+    let chrome = palette.header_background;
+    let hover = mix(chrome, palette.accent, 0.35);
+    let pressed = mix(chrome, palette.accent, 0.6);
+    let button_stroke = egui::Stroke::new(1.0, palette.panel_border);
+    let text = egui::Stroke::new(1.0, palette.foreground);
+
+    v.widgets.noninteractive.bg_fill = chrome;
+    v.widgets.noninteractive.weak_bg_fill = chrome;
+    v.widgets.noninteractive.bg_stroke = button_stroke;
+    v.widgets.noninteractive.fg_stroke = text;
+
+    v.widgets.inactive.bg_fill = chrome;
+    v.widgets.inactive.weak_bg_fill = chrome;
+    v.widgets.inactive.bg_stroke = button_stroke;
+    v.widgets.inactive.fg_stroke = text;
+
+    v.widgets.hovered.bg_fill = hover;
+    v.widgets.hovered.weak_bg_fill = hover;
+    v.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, palette.accent);
+    v.widgets.hovered.fg_stroke = text;
+
+    v.widgets.active.bg_fill = pressed;
+    v.widgets.active.weak_bg_fill = pressed;
+    v.widgets.active.bg_stroke = egui::Stroke::new(1.0, palette.accent);
+    v.widgets.active.fg_stroke = text;
+
+    // Window and menu title bars use the `open` state.
+    v.widgets.open.bg_fill = chrome;
+    v.widgets.open.weak_bg_fill = chrome;
+    v.widgets.open.bg_stroke = button_stroke;
+    v.widgets.open.fg_stroke = text;
+
     v
+}
+
+/// Blend two colours: `t == 0` is `a`, `t == 1` is `b`.
+fn mix(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
+    let t = t.clamp(0.0, 1.0);
+    let lerp = |x: u8, y: u8| (x as f32 * (1.0 - t) + y as f32 * t).round() as u8;
+    egui::Color32::from_rgb(lerp(a.r(), b.r()), lerp(a.g(), b.g()), lerp(a.b(), b.b()))
 }
 
 /// Register the bundled icon font as the lowest fallback of both families.
@@ -348,6 +392,47 @@ mod tests {
             assert!(
                 (6..=60).contains(&distance),
                 "the shift should be subtle but visible: {distance}"
+            );
+        }
+    }
+
+    #[test]
+    fn buttons_and_title_bars_follow_the_theme() {
+        // The regression this guards: every theme with a dark palette used to keep
+        // egui's light button and title-bar colours.
+        for palette in [Palette::light(), Palette::dark()] {
+            let dark = palette.is_dark();
+            let v = visuals(&palette, dark);
+            assert_eq!(
+                v.widgets.inactive.weak_bg_fill, palette.header_background,
+                "button background"
+            );
+            assert_eq!(
+                v.widgets.inactive.bg_fill, palette.header_background,
+                "checkbox and slider background"
+            );
+            assert_eq!(
+                v.widgets.open.weak_bg_fill, palette.header_background,
+                "window title bar"
+            );
+            assert_eq!(v.widgets.noninteractive.bg_fill, palette.header_background);
+            assert_eq!(v.widgets.inactive.fg_stroke.color, palette.foreground);
+            // A dark theme must not leave a white button behind.
+            if dark {
+                assert!(
+                    v.widgets.inactive.weak_bg_fill.r() < 0x80,
+                    "the dark theme's buttons are dark: {:?}",
+                    v.widgets.inactive.weak_bg_fill
+                );
+            }
+            // Hover and press stay distinguishable from the resting state.
+            assert_ne!(
+                v.widgets.hovered.weak_bg_fill,
+                v.widgets.inactive.weak_bg_fill
+            );
+            assert_ne!(
+                v.widgets.active.weak_bg_fill,
+                v.widgets.hovered.weak_bg_fill
             );
         }
     }

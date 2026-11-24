@@ -29,6 +29,23 @@ nikdy neskončí s černým textem na černém pozadí. Barvy jsou ve tvaru `#rr
 přijímá se i zkrácený tvar `#rgb` a chybějící `#`. Neexistující název role je
 chyba a v dialogu možností se ohlásí, místo aby se tiše ignoroval.
 
+## Co role vybarvují
+
+Role nepoužívá jen seznam souborů: barvy oken jdou ze stejné tabulky, takže po změně
+tématu nezůstanou bílá tlačítka.
+
+| Role | Používá se také pro |
+| --- | --- |
+| `background` | okna a těla dialogů, panely |
+| `header_background` | **tlačítka**, zaškrtávací pole, posuvníky, záhlaví oken a menu |
+| `panel_border` | obrysy tlačítek, oddělovače, rám oken |
+| `foreground` | text tlačítek a dialogů |
+| `accent` | tlačítko pod myší a stisknuté, rám aktivního panelu |
+| `row_alternate` | bloky kódu a jemné podbarvení |
+
+Barva pod myší míchá barvu záhlaví s akcentem a stisknuté tlačítko míchá dál, takže tři
+stavy zůstanou rozlišitelné v každém tématu — i v těch monochromatických.
+
 ## Role
 
 | Role | Kde se používá |
