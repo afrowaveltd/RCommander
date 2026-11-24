@@ -1398,3 +1398,72 @@ fn the_colors_page_edits_and_saves_a_theme() {
         rc_core::theme::Rgb::new(0xff, 0x00, 0xff)
     );
 }
+
+#[test]
+fn the_git_configuration_dialog_asks_before_reading_and_can_be_refused() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
+    let mut harness = harness(app);
+    assert_eq!(
+        harness.state().model.git_config_gate(),
+        rcommander::model::GitConfigGate::Undecided
+    );
+    harness.state_mut().execute("cm_GitConfig");
+    harness.run();
+    let Some(rcommander::model::Dialog::GitConfig(state)) = harness.state().model.top_dialog()
+    else {
+        panic!("the git configuration dialog should be open");
+    };
+    assert!(state.is_asking());
+    // Nothing is in use until the user allows it.
+    assert!(harness.state().model.git_config().is_none());
+    // The dialog lists what it found, and the source files it would read.
+    assert!(
+        harness.root().query_all_by_label("git.no_secrets").count() > 0,
+        "the dialog promises not to store secrets"
+    );
+
+    harness.root().get_by_label("git.deny").click();
+    harness.run();
+    assert!(
+        harness.state().model.top_dialog().is_none(),
+        "the dialog closes"
+    );
+    assert_eq!(
+        harness.state().model.git_config_gate(),
+        rcommander::model::GitConfigGate::Denied
+    );
+    assert_eq!(
+        harness.state().model.settings.git.read_system_config,
+        "denied",
+        "the answer is remembered because the checkbox starts ticked"
+    );
+}
+
+#[test]
+fn allowing_the_git_configuration_makes_it_available() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_GitConfig");
+    harness.run();
+    harness.root().get_by_label("git.allow").click();
+    harness.run();
+    assert_eq!(
+        harness.state().model.git_config_gate(),
+        rcommander::model::GitConfigGate::Allowed
+    );
+    assert!(harness.state().model.git_config().is_some());
+    // Re-opening shows the active configuration instead of asking again.
+    harness.state_mut().execute("cm_GitConfig");
+    harness.run();
+    let Some(rcommander::model::Dialog::GitConfig(state)) = harness.state().model.top_dialog()
+    else {
+        panic!("the dialog should show the active configuration");
+    };
+    assert!(!state.is_asking());
+}

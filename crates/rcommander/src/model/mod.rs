@@ -7,6 +7,7 @@
 
 pub mod commands;
 pub mod dialogs;
+pub mod git;
 pub mod remote;
 pub mod reset;
 pub mod search;
@@ -32,6 +33,7 @@ use rc_core::sorting::{SortField, SortSpec};
 use rc_core::tabs::TabBar;
 
 pub use dialogs::Dialog;
+pub use git::GitConfigGate;
 pub use reset::{ResetReport, ResetScope};
 
 /// Which of the two panels is meant.
@@ -404,6 +406,8 @@ pub struct Model {
     pub sessions_dirty: bool,
     /// A connection attempt running on a worker thread.
     pub connect_job: Option<sessions::ConnectJob>,
+    /// The user's Git configuration, loaded only after approval.
+    pub git_config: Option<rc_git::GitConfig>,
     /// Colour themes found on disk plus the built-ins.
     pub theme_set: rc_core::theme::ThemeSet,
     /// Where themes are read from (tests and portable installs point elsewhere).
@@ -500,6 +504,7 @@ impl Model {
             sessions_store: rc_core::sessions::SessionStore::new(),
             sessions_dirty: false,
             connect_job: None,
+            git_config: None,
             theme_set: rc_core::theme::ThemeSet::with_builtins(),
             themes_dir_override: None,
             keymap,

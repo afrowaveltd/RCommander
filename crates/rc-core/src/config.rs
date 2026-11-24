@@ -29,6 +29,8 @@ pub struct Settings {
     pub button_bar: ButtonBar,
     pub ftp: Ftp,
     pub agent: Agent,
+    /// Git integration preferences.
+    pub git: Git,
     /// Keyboard shortcut overrides: `"ctrl+shift+f5" = "cm_CreateShortcuts"`.
     pub shortcuts: BTreeMap<String, String>,
     /// Number of saved directory history entries per panel.
@@ -54,6 +56,7 @@ impl Default for Settings {
             button_bar: ButtonBar::default(),
             ftp: Ftp::default(),
             agent: Agent::default(),
+            git: Git::default(),
             shortcuts: BTreeMap::new(),
             history_length: 30,
             save_position: true,
@@ -700,6 +703,47 @@ impl SavedConnection {
         };
         let port = if self.port == 0 { 21 } else { self.port };
         crate::secrets::account_id(protocol, &self.user, &self.host, port)
+    }
+}
+
+/// Git integration.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Git {
+    /// Whether the application may read the system/user Git configuration.
+    ///
+    /// `ask` (default) shows a dialog first, `allowed` and `denied` record the
+    /// user's answer. Reading the configuration means reading the credential
+    /// helper — and with the `store` helper a file of plain-text passwords — so it
+    /// never happens without a decision.
+    pub read_system_config: String,
+    /// Use the identity from that configuration for commit authoring.
+    pub use_identity: bool,
+}
+
+impl Default for Git {
+    fn default() -> Self {
+        Git {
+            read_system_config: "ask".to_string(),
+            use_identity: true,
+        }
+    }
+}
+
+impl Git {
+    /// True when the user already allowed reading the configuration.
+    pub fn config_allowed(&self) -> bool {
+        self.read_system_config.eq_ignore_ascii_case("allowed")
+    }
+
+    /// True when the user refused once and should not be asked again.
+    pub fn config_denied(&self) -> bool {
+        self.read_system_config.eq_ignore_ascii_case("denied")
+    }
+
+    /// True when the question still has to be asked.
+    pub fn config_undecided(&self) -> bool {
+        !self.config_allowed() && !self.config_denied()
     }
 }
 

@@ -3336,6 +3336,7 @@ dependencies = [
  "rc-agent",
  "rc-archive",
  "rc-core",
+ "rc-git",
  "rc-help",
  "rc-i18n",
  "rc-remote",

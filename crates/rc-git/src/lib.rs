@@ -13,6 +13,10 @@
 //! on the user's machine and the same code runs on Windows, Linux and Android. See
 //! `analysis/git-backend.md` for the comparison with gitoxide and with shelling out.
 
+pub mod config;
+
+pub use config::{GitConfig, GitConfigSummary, Identity, StoredCredential, UrlRewrite};
+
 use std::path::{Path, PathBuf};
 
 /// Error of every operation in this crate.

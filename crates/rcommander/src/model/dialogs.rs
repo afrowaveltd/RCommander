@@ -67,6 +67,8 @@ pub enum Dialog {
     Duplicates(DuplicatesState),
     /// Unlock (or create) the encrypted credential store.
     UnlockSecrets(UnlockSecretsState),
+    /// Ask whether the application may read the machine's Git configuration.
+    GitConfig(GitConfigState),
     /// Encode a file as text (MIME/UUE/XXE).
     Encode(EncodeState),
     /// Decode a text file back to binary.
@@ -85,6 +87,93 @@ pub enum Dialog {
     },
     /// Progress of a running transfer (non-modal in spirit, but it blocks input).
     Progress(ProgressState),
+}
+
+/// The Git-configuration approval dialog.
+#[derive(Clone, Debug)]
+pub struct GitConfigState {
+    /// What was found, for the user to judge.
+    pub config: rc_git::GitConfig,
+    /// The answer is valid for every future start.
+    pub remember: bool,
+    /// True when the configuration is already in use (re-opened for inspection).
+    pub approved: bool,
+    /// Problem of the last action, if any.
+    pub status: String,
+}
+
+impl PartialEq for GitConfigState {
+    fn eq(&self, other: &Self) -> bool {
+        // Comparing the summary keeps the secrets out of any equality check (and out
+        // of a panic message that might print them).
+        self.approved == other.approved
+            && self.remember == other.remember
+            && self.status == other.status
+            && self.config.summary == other.config.summary
+    }
+}
+
+impl GitConfigState {
+    /// Ask about a freshly loaded configuration.
+    pub fn asking(config: rc_git::GitConfig) -> Self {
+        GitConfigState {
+            config,
+            remember: true,
+            approved: false,
+            status: String::new(),
+        }
+    }
+
+    /// Show a configuration that is already active.
+    pub fn approved(config: rc_git::GitConfig) -> Self {
+        GitConfigState {
+            config,
+            remember: true,
+            approved: true,
+            status: String::new(),
+        }
+    }
+
+    pub fn is_asking(&self) -> bool {
+        !self.approved
+    }
+
+    /// The summary lines the dialog shows, without any secret value.
+    pub fn lines(&self) -> Vec<String> {
+        let summary = &self.config.summary;
+        let mut lines = Vec::new();
+        if let Some(identity) = &summary.identity {
+            lines.push(format!(
+                "git.identity|{} <{}>",
+                identity.name, identity.email
+            ));
+        }
+        if let Some(helper) = &summary.credential_helper {
+            lines.push(format!("git.credential_helper|{helper}"));
+        }
+        for host in &summary.credential_hosts {
+            lines.push(format!("git.credential|{host}"));
+        }
+        for rewrite in &summary.url_rewrites {
+            lines.push(format!(
+                "git.rewrite|{} -> {}",
+                rewrite.instead_of, rewrite.base
+            ));
+        }
+        if let Some(ssh) = &summary.ssh_command {
+            lines.push(format!("git.ssh|{ssh}"));
+        }
+        if let Some(branch) = &summary.default_branch {
+            lines.push(format!("git.default_branch|{branch}"));
+        }
+        for source in &summary.sources {
+            lines.push(format!("git.source|{source}"));
+        }
+        for problem in &summary.problems {
+            lines.push(format!("git.problem|{problem}"));
+        }
+        lines
+    }
 }
 
 /// Which tab of the options dialog is open.

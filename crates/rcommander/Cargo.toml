@@ -21,6 +21,7 @@ rc-viewer = { path = "../rc-viewer" }
 rc-archive = { path = "../rc-archive" }
 rc-help = { path = "../rc-help" }
 rc-agent = { path = "../rc-agent" }
+rc-git = { path = "../rc-git" }
 rc-remote = { path = "../rc-remote", features = ["sftp"] }
 regex = "1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }

@@ -32,7 +32,7 @@ cargo test --workspace
 | 12 | Verification | **done** for everything marked done above |
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes | **done** — themes are TOML files in `themes/` discovered at runtime, three themes ship, the *Colors* page edits every role with a live preview and contrast warnings |
-| 15 | Git repositories as panels | **partial** — 15.1 (backend decision + read-only engine + fixtures) is done in `rc-git`; the panel integration (`Location::Git`, virtual folders, copy out) is the next step |
+| 15 | Git repositories as panels | **partial** — 15.1 (backend decision + read-only engine + fixtures) and the config-approval half of 15.4 are done; the panel integration (`Location::Git`, virtual folders, copy out) is the next step |
 | 16 | Interactive AI workspace | **pending** — added by the project owner, planned in Phase 16 (bidirectional panes, pluggable model providers, reviewed change sets) |
 | 17 | Rich document previewer (PDF, Office, Markdown, code) | **pending** — planned in Phase 17 |
 | 18 | Plugin architecture (data sources and renderers) | **pending** — planned in Phase 18 |
@@ -142,6 +142,29 @@ tests with an in-memory backend while production uses the real client.
 Remaining gap: no test against a live FTP/SFTP server is performed here (the
 suite must stay offline), and transfers still run on the UI thread rather than
 in the background queue.
+
+## Phase 15.4a — reading the machine's Git configuration (done, behind approval)
+
+`cargo test -p rc-git --lib config` → **7 tests**, `cargo test -p rcommander --lib git`
+→ **5 tests**, plus 2 UI tests.
+
+`rc_git::config` reads the merged system, global and repository configuration with
+libgit2 and exposes only what the application can use: identity, `credential.helper`,
+`url.*.insteadOf` rewrites (with longest-prefix matching), `core.sshCommand`,
+`init.defaultBranch`, the files it read and any problems, plus the credentials found in
+a `store` helper's `~/.git-credentials`.
+
+That last part is why the whole thing is gated. *Configuration ▸ Git configuration…*
+loads the configuration **into the dialog** and shows exactly what was found — hosts
+and helper names, never a password — with **Allow** / **Not now** and a *Remember this
+decision* checkbox that writes `[git] read_system_config = "ask" | "allowed" |
+"denied"` into `settings.toml`. `StoredCredential` has a hand-written `Debug` that
+prints `<redacted>`, so a stray log line cannot leak a secret, and credentials never
+touch the disk.
+
+The model keeps the loaded configuration in `git_config`, offering `git_identity()`,
+`git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
+to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
 ## Phase 15.1 — Git engine (done)
 
@@ -274,7 +297,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **237 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **243 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -283,7 +306,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **41 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **43 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -438,12 +461,12 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1202 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1216 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
-  `rc-archive` 134, `rc-git` 12, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
-  doctests and one opt-in SFTP integration test), `rcommander` 281 (237 lib + 41 UI
-  + 3 i18n guard) — **1202 tests** (measured
+  `rc-archive` 134, `rc-git` 19, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
+  doctests and one opt-in SFTP integration test), `rcommander` 288 (243 lib + 43 UI
+  + 3 i18n guard) — **1216 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.

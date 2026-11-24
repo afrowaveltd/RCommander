@@ -58,6 +58,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::CompareFiles(state) => compare_files(ui, model, state),
                 Dialog::Duplicates(state) => duplicates(ui, model, state),
                 Dialog::UnlockSecrets(state) => unlock_secrets(ui, model, state),
+                Dialog::GitConfig(state) => git_config(ui, model, state),
                 Dialog::Encode(state) => encode_dialog(ui, model, state),
                 Dialog::Decode(state) => decode_dialog(ui, model, state),
                 Dialog::SaveSelection(state) => save_selection(ui, model, state),
@@ -129,6 +130,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::CompareFiles(_) => "cmd.compare_by_content",
         Dialog::Duplicates(_) => "cmd.duplicates",
         Dialog::UnlockSecrets(_) => "dialog.secrets.title",
+        Dialog::GitConfig(_) => "git.title",
         Dialog::Encode(_) => "cmd.encode",
         Dialog::Decode(_) => "cmd.decode",
         Dialog::SaveSelection(_) => "cmd.save_selection",
@@ -2009,6 +2011,69 @@ fn unlock_secrets(
                 return DialogAction::None;
             }
         }
+    }
+    DialogAction::None
+}
+
+/// Ask whether the machine's Git configuration may be read, and show exactly what
+/// was found — without any password.
+fn git_config(ui: &mut egui::Ui, model: &mut Model, state: &mut GitConfigState) -> DialogAction {
+    let palette = crate::theme::Palette::for_model(model);
+    let mut answer: Option<DialogAction> = None;
+    if state.is_asking() {
+        ui.label(model.t("git.ask"));
+    } else {
+        ui.label(egui::RichText::new(model.t("git.active")).color(palette.archive));
+    }
+    ui.add_space(2.0);
+    egui::ScrollArea::vertical()
+        .max_height(180.0)
+        .id_salt("git_config_lines")
+        .show(ui, |ui| {
+            let lines = state.lines();
+            if lines.is_empty() {
+                ui.label(model.t("git.nothing_found"));
+            }
+            for line in lines {
+                let (key, value) = line.split_once('|').unwrap_or(("", ""));
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(egui::RichText::new(model.t(key)).strong());
+                    ui.label(
+                        egui::RichText::new(value).color(if key.starts_with("git.problem") {
+                            palette.warning
+                        } else {
+                            palette.foreground
+                        }),
+                    );
+                });
+            }
+        });
+    ui.label(egui::RichText::new(model.t("git.no_secrets")).small());
+    if !state.status.is_empty() {
+        ui.label(egui::RichText::new(&state.status).color(palette.warning));
+    }
+    ui.checkbox(&mut state.remember, model.t("git.remember"));
+    ui.horizontal(|ui| {
+        if ui.button(model.t("git.allow")).clicked() {
+            let config = state.config.clone();
+            let remember = state.remember;
+            model.accept_git_config(config, remember);
+            answer = Some(DialogAction::Close);
+        }
+        if ui.button(model.t("git.deny")).clicked() {
+            let remember = state.remember;
+            model.deny_git_config(remember);
+            answer = Some(DialogAction::Close);
+        }
+    });
+    if let Some(action) = answer {
+        model.close_dialogs();
+        return action;
+    }
+    if !state.is_asking() && ui.button(model.t("git.forget")).clicked() {
+        model.forget_git_config();
+        model.close_dialogs();
+        return DialogAction::Close;
     }
     DialogAction::None
 }

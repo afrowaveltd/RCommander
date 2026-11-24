@@ -661,6 +661,9 @@ impl RCommanderApp {
                         crate::model::dialogs::UnlockSecretsState::new(self.model.secrets_exist()),
                     ));
                 }
+                if ui.button(self.model.t("cmd.gitconfig")).clicked() {
+                    command = Some("cm_GitConfig".into());
+                }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
                 }
