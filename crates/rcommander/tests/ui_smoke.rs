@@ -1024,6 +1024,18 @@ fn render_snapshots() {
     drop(second);
 
     let mut connect = app(left.path(), right.path());
+    let session_dir = tempfile::tempdir().unwrap();
+    connect.model.config_dir_override = Some(session_dir.path().to_path_buf());
+    connect.model.load_sessions();
+    let _ = connect.model.save_current_as_session(
+        "work",
+        &rc_core::config::SavedConnection {
+            host: "files.example.com".into(),
+            user: "alice".into(),
+            protocol: "sftp".into(),
+            ..rc_core::config::SavedConnection::with_defaults("sftp")
+        },
+    );
     connect.model.execute("cm_FtpConnect");
     let mut fourth = harness(connect);
     fourth.run();

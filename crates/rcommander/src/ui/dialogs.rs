@@ -29,47 +29,57 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
         .default_width(460.0)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
-            action = match &mut dialog {
-                Dialog::Transfer(state) => transfer(ui, model, state),
-                Dialog::Overwrite(state) => overwrite(ui, model, state),
-                Dialog::MakeDir(state) => mkdir(ui, model, state),
-                Dialog::Rename(state) => rename(ui, model, state),
-                Dialog::Delete(state) => delete(ui, model, state),
-                Dialog::Search(state) => search(ui, model, state),
-                Dialog::Pack(state) => pack(ui, model, state),
-                Dialog::Unpack(state) => unpack(ui, model, state),
-                Dialog::MultiRename(state) => multi_rename(ui, model, state),
-                Dialog::Attributes(state) => attributes(ui, model, state),
-                Dialog::Comment(state) => comment(ui, model, state),
-                Dialog::Hotlist(state) => hotlist(ui, model, state),
-                Dialog::Options(state) => options(ui, model, state),
-                Dialog::FtpConnect(state) => ftp(ui, model, state),
-                Dialog::Synchronize(state) => sync(ui, model, state),
-                Dialog::History(state) => history(ui, model, state),
-                Dialog::MaskPrompt(state) => mask_prompt(ui, model, state),
-                Dialog::Compare(state) => compare(ui, model, state),
-                Dialog::Tree(state) => tree(ui, model, state),
-                Dialog::ButtonBar(state) => button_bar(ui, model, state),
-                Dialog::ViewModes(state) => view_modes(ui, model, state),
-                Dialog::Split(state) => split(ui, model, state),
-                Dialog::Combine(state) => combine(ui, model, state),
-                Dialog::Checksum(state) => checksum(ui, model, state),
-                Dialog::VerifyChecksum(state) => verify_checksum(ui, model, state),
-                Dialog::CompareFiles(state) => compare_files(ui, model, state),
-                Dialog::Duplicates(state) => duplicates(ui, model, state),
-                Dialog::UnlockSecrets(state) => unlock_secrets(ui, model, state),
-                Dialog::Encode(state) => encode_dialog(ui, model, state),
-                Dialog::Decode(state) => decode_dialog(ui, model, state),
-                Dialog::SaveSelection(state) => save_selection(ui, model, state),
-                Dialog::LoadSelection(state) => load_selection(ui, model, state),
-                Dialog::About => about(ui, model),
-                Dialog::Confirm {
-                    message,
-                    action: confirm_action,
-                    ..
-                } => confirm(ui, model, message, *confirm_action),
-                Dialog::Progress(state) => progress(ui, model, state),
-            };
+            // A dialog with many fields (connect, options) must scroll instead of
+            // growing past the window edge, which hid the buttons.
+            let available = (ctx.content_rect().height() - 150.0).max(200.0);
+            let mut inner = DialogAction::None;
+            egui::ScrollArea::vertical()
+                .max_height(available)
+                .id_salt("dialog_body")
+                .show(ui, |ui| {
+                    inner = match &mut dialog {
+                        Dialog::Transfer(state) => transfer(ui, model, state),
+                        Dialog::Overwrite(state) => overwrite(ui, model, state),
+                        Dialog::MakeDir(state) => mkdir(ui, model, state),
+                        Dialog::Rename(state) => rename(ui, model, state),
+                        Dialog::Delete(state) => delete(ui, model, state),
+                        Dialog::Search(state) => search(ui, model, state),
+                        Dialog::Pack(state) => pack(ui, model, state),
+                        Dialog::Unpack(state) => unpack(ui, model, state),
+                        Dialog::MultiRename(state) => multi_rename(ui, model, state),
+                        Dialog::Attributes(state) => attributes(ui, model, state),
+                        Dialog::Comment(state) => comment(ui, model, state),
+                        Dialog::Hotlist(state) => hotlist(ui, model, state),
+                        Dialog::Options(state) => options(ui, model, state),
+                        Dialog::FtpConnect(state) => ftp(ui, model, state),
+                        Dialog::Synchronize(state) => sync(ui, model, state),
+                        Dialog::History(state) => history(ui, model, state),
+                        Dialog::MaskPrompt(state) => mask_prompt(ui, model, state),
+                        Dialog::Compare(state) => compare(ui, model, state),
+                        Dialog::Tree(state) => tree(ui, model, state),
+                        Dialog::ButtonBar(state) => button_bar(ui, model, state),
+                        Dialog::ViewModes(state) => view_modes(ui, model, state),
+                        Dialog::Split(state) => split(ui, model, state),
+                        Dialog::Combine(state) => combine(ui, model, state),
+                        Dialog::Checksum(state) => checksum(ui, model, state),
+                        Dialog::VerifyChecksum(state) => verify_checksum(ui, model, state),
+                        Dialog::CompareFiles(state) => compare_files(ui, model, state),
+                        Dialog::Duplicates(state) => duplicates(ui, model, state),
+                        Dialog::UnlockSecrets(state) => unlock_secrets(ui, model, state),
+                        Dialog::Encode(state) => encode_dialog(ui, model, state),
+                        Dialog::Decode(state) => decode_dialog(ui, model, state),
+                        Dialog::SaveSelection(state) => save_selection(ui, model, state),
+                        Dialog::LoadSelection(state) => load_selection(ui, model, state),
+                        Dialog::About => about(ui, model),
+                        Dialog::Confirm {
+                            message,
+                            action: confirm_action,
+                            ..
+                        } => confirm(ui, model, message, *confirm_action),
+                        Dialog::Progress(state) => progress(ui, model, state),
+                    };
+                });
+            action = inner;
         });
     if !open {
         // The window's × was pressed: close this dialog instead of writing the
@@ -1032,22 +1042,27 @@ fn sessions_section(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnect
             if names.is_empty() {
                 ui.label(egui::RichText::new(model.t("ftp.sessions.none")).small());
             } else {
-                ui.horizontal_wrapped(|ui| {
-                    for name in &names {
-                        if let Some(session) = model.session(name) {
-                            let selected = state.session_choice == *name;
-                            let response = ui
-                                .selectable_label(selected, session.summary())
-                                .on_hover_text(session.address());
-                            if response.clicked() {
-                                state.session_choice = name.clone();
-                                state.session_name = name.clone();
-                                state.connection = session.to_connection();
-                                state.status = String::new();
+                // A long list would push the buttons off the dialog, so it gets
+                // its own scroller.
+                egui::ScrollArea::vertical()
+                    .max_height(110.0)
+                    .id_salt("ftp_session_list")
+                    .show(ui, |ui| {
+                        for name in &names {
+                            if let Some(session) = model.session(name) {
+                                let selected = state.session_choice == *name;
+                                let response = ui
+                                    .selectable_label(selected, session.summary())
+                                    .on_hover_text(session.address());
+                                if response.clicked() {
+                                    state.session_choice = name.clone();
+                                    state.session_name = name.clone();
+                                    state.connection = session.to_connection();
+                                    state.status = String::new();
+                                }
                             }
                         }
-                    }
-                });
+                    });
                 ui.horizontal(|ui| {
                     if ui.button(model.t("ftp.sessions.load")).clicked()
                         && let Some(session) = model.session(&state.session_choice).cloned()

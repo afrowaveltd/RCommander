@@ -271,6 +271,10 @@ cache fed by `rc-viewer`'s pixel-budgeted decoder.
   `SavedConnection::with_defaults`/`default_port`/`port_is_default` hold that
   knowledge, switching the protocol moves the port only while it is still a
   default, and every field carries a placeholder hint.
+* *Long dialogs scroll instead of overflowing.* The dialog body is wrapped in a
+  scroll area bounded by the window height, so a dialog with many fields (connect,
+  options) can never push its OK button off the screen; the session list has its
+  own bounded scroller for the same reason.
 * *The "Dangerous" options page* (`reset.rs`, `OptionsTab::Dangerous`) collects the
   factory resets: settings, tabs/history/hotlist, trusted host keys, saved
   credentials, or everything including the session. Each button arms a
