@@ -376,3 +376,10 @@ authors = ["RCommander contributors"]
 "git.copied" = "Z repozitáře zkopírováno souborů: {count}"
 "git.copy_needs_local_target" = "Kopírování z revize potřebuje v druhém panelu místní adresář"
 "cmd.gitcopyout" = "Zkopírovat z repozitáře"
+
+"git.staged" = "Připraveno k commitu: {count} souborů"
+"git.unstaged" = "Vyřazeno z indexu: {count} souborů"
+"git.nothing_selected" = "Nejdřív vyberte soubor v panelu repozitáře"
+"cmd.gitstage" = "Připravit výběr (stage)"
+"cmd.gitunstage" = "Vyřadit z indexu (unstage)"
+"cmd.gitcommit" = "Commitnout výběr…"

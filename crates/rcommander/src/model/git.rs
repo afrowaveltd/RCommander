@@ -218,11 +218,11 @@ impl Model {
             .unwrap_or_default();
         let message = self.settings.git.message_for(&name);
         if self.settings.git.commit_always() {
-            return self.commit_and_push(&root, &name, &message);
+            return self.commit_and_push(&root, std::slice::from_ref(&name), &message);
         }
         self.open_dialog(super::Dialog::GitCommit(super::dialogs::GitCommitState {
             root,
-            file: name.clone(),
+            paths: vec![name.clone()],
             message,
             push: self.settings.git.push_after_commit,
             remember: false,
@@ -231,11 +231,11 @@ impl Model {
         CommandOutcome::Ok
     }
 
-    /// Stage `file`, commit it and (optionally) push the branch.
+    /// Stage `paths`, commit them and (optionally) push the branch.
     pub fn commit_and_push(
         &mut self,
         root: &std::path::Path,
-        file: &str,
+        paths: &[String],
         message: &str,
     ) -> CommandOutcome {
         let repo = match rc_git::GitRepo::open_exact(root) {
@@ -246,7 +246,7 @@ impl Model {
                 return CommandOutcome::Failed(message);
             }
         };
-        if let Err(error) = repo.stage_path(file) {
+        if let Err(error) = repo.stage_paths(paths) {
             let message = error.to_string();
             self.report_error(&message);
             return CommandOutcome::Failed(message);
@@ -471,6 +471,105 @@ impl Model {
                 status: String::new(),
             },
         ));
+        CommandOutcome::Ok
+    }
+
+    /// Paths selected in a Git working-tree panel (marked files, else the cursor).
+    fn git_selected_paths(&self) -> Vec<String> {
+        let side = self.focus;
+        let panel = self.panel(side);
+        if !panel.location().is_git() || !panel.location().is_git_worktree() {
+            return Vec::new();
+        }
+        let marked: Vec<String> = panel
+            .entries()
+            .iter()
+            .filter(|entry| !entry.is_dir() && panel.selection.contains(&entry.name))
+            .map(|entry| entry.name.clone())
+            .collect();
+        if !marked.is_empty() {
+            return marked;
+        }
+        panel
+            .cursor_entry()
+            .filter(|entry| !entry.is_dir())
+            .map(|entry| vec![entry.name.clone()])
+            .unwrap_or_default()
+    }
+
+    /// Stage the selection in a Git working-tree panel.
+    pub fn git_stage_selection(&mut self) -> CommandOutcome {
+        self.git_change_index(true)
+    }
+
+    /// Unstage the selection (put the index back to `HEAD`).
+    pub fn git_unstage_selection(&mut self) -> CommandOutcome {
+        self.git_change_index(false)
+    }
+
+    fn git_change_index(&mut self, stage: bool) -> CommandOutcome {
+        let paths = self.git_selected_paths();
+        if paths.is_empty() {
+            let message = self.t("git.nothing_selected");
+            self.report(message.clone());
+            return CommandOutcome::None;
+        }
+        let Some(root) = self.active().location().git_root().map(|p| p.to_path_buf()) else {
+            return CommandOutcome::Failed(self.t("git.needs_git_panel"));
+        };
+        let repo = match rc_git::GitRepo::open_exact(&root) {
+            Ok(repo) => repo,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        let result = if stage {
+            repo.stage_paths(&paths)
+        } else {
+            repo.unstage_paths(&paths)
+        };
+        match result {
+            Ok(count) => {
+                let location = self.active().location().clone();
+                let side = self.focus;
+                let _ = self.open_in(side, location);
+                let count = count.to_string();
+                let key = if stage { "git.staged" } else { "git.unstaged" };
+                let message = self.tf(key, &[("count", &count)]);
+                self.report(message);
+                CommandOutcome::Ok
+            }
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                CommandOutcome::Failed(message)
+            }
+        }
+    }
+
+    /// Open the commit dialog for the current selection of a Git panel.
+    pub fn open_git_commit(&mut self) -> CommandOutcome {
+        let paths = self.git_selected_paths();
+        if paths.is_empty() {
+            let message = self.t("git.nothing_selected");
+            self.report(message.clone());
+            return CommandOutcome::None;
+        }
+        let Some(root) = self.active().location().git_root().map(|p| p.to_path_buf()) else {
+            return CommandOutcome::Failed(self.t("git.needs_git_panel"));
+        };
+        let name = paths[0].clone();
+        let message = self.settings.git.message_for(&name);
+        self.open_dialog(super::Dialog::GitCommit(super::dialogs::GitCommitState {
+            root,
+            paths,
+            message,
+            push: self.settings.git.push_after_commit,
+            remember: false,
+            status: String::new(),
+        }));
         CommandOutcome::Ok
     }
 
@@ -865,7 +964,8 @@ mod save_tests {
         assert_eq!(model.on_file_saved(&file), super::CommandOutcome::Ok);
         match model.top_dialog() {
             Some(crate::model::Dialog::GitCommit(state)) => {
-                assert_eq!(state.file, "code.rs");
+                assert_eq!(state.paths, vec!["code.rs".to_string()]);
+                assert_eq!(state.description(), "code.rs");
                 assert_eq!(state.message, "Edit code.rs", "the template fills the name");
                 assert!(state.push, "pushing follows the setting");
             }
@@ -885,7 +985,7 @@ mod save_tests {
         std::fs::write(&file, "fn main() { edited }\n").unwrap();
         model.on_file_saved(&file);
 
-        let outcome = model.commit_and_push(&root, "code.rs", "Edit code.rs");
+        let outcome = model.commit_and_push(&root, &["code.rs".to_string()], "Edit code.rs");
         assert_eq!(outcome, super::CommandOutcome::Ok);
         let repo = rc_git::GitRepo::open(&root).unwrap();
         assert!(repo.status().unwrap().is_clean(), "the change is committed");
@@ -1376,6 +1476,136 @@ mod copy_out_tests {
         assert!(matches!(
             model.copy_from_git(),
             super::CommandOutcome::Failed(_)
+        ));
+    }
+}
+
+#[cfg(test)]
+mod stage_tests {
+    use crate::model::Model;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    /// A repository panel with a modified file in it.
+    fn panel(dir: &std::path::Path) -> Model {
+        let root = dir.join("repo");
+        std::fs::create_dir_all(&root).unwrap();
+        let mut options = git2::RepositoryInitOptions::new();
+        options.initial_head("main");
+        let repo = git2::Repository::init_opts(&root, &options).unwrap();
+        {
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Test").unwrap();
+            config.set_str("user.email", "t@example.com").unwrap();
+        }
+        std::fs::write(root.join("code.rs"), "fn main() {}\n").unwrap();
+        std::fs::write(root.join("doc.md"), "# doc\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let signature = git2::Signature::now("Test", "t@example.com").unwrap();
+        repo.commit(Some("HEAD"), &signature, &signature, "first", &tree, &[])
+            .unwrap();
+        std::fs::write(root.join("code.rs"), "fn main() { edited }\n").unwrap();
+        std::fs::write(root.join("doc.md"), "# changed\n").unwrap();
+
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::git(&root, "", ""),
+            Location::local(dir),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model
+            .open_in(crate::Side::Left, Location::git(&root, "", ""))
+            .unwrap();
+        model
+    }
+
+    fn cursor_on(model: &mut Model, name: &str) {
+        let index = model
+            .left
+            .entries()
+            .iter()
+            .position(|entry| entry.name == name)
+            .unwrap();
+        model.left.set_cursor(index);
+    }
+
+    #[test]
+    fn the_selection_can_be_staged_and_unstaged() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = panel(dir.path());
+        cursor_on(&mut model, "code.rs");
+        assert_eq!(model.git_stage_selection(), super::CommandOutcome::Ok);
+        assert!(model.status.contains("git.staged"), "{}", model.status);
+        let staged = model
+            .left
+            .git_status
+            .get("code.rs")
+            .copied()
+            .unwrap_or_default();
+        assert!(staged.has_staged(), "the panel shows the staged state");
+        assert_eq!(
+            crate::git_bridge::status_role(staged),
+            Some(rc_core::theme::Role::Archive),
+            "and draws it in the staged colour"
+        );
+
+        assert_eq!(model.git_unstage_selection(), super::CommandOutcome::Ok);
+        let unstaged = model
+            .left
+            .git_status
+            .get("code.rs")
+            .copied()
+            .unwrap_or_default();
+        assert!(!unstaged.has_staged(), "the index is back at HEAD");
+    }
+
+    #[test]
+    fn a_marked_selection_is_committed_together() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = panel(dir.path());
+        model.left.selection.insert("code.rs");
+        model.left.selection.insert("doc.md");
+        assert_eq!(model.open_git_commit(), super::CommandOutcome::Ok);
+        match model.top_dialog() {
+            Some(crate::model::Dialog::GitCommit(state)) => {
+                assert_eq!(state.paths.len(), 2);
+                assert_eq!(state.description(), "2 files");
+            }
+            other => panic!("expected the commit dialog, got {other:?}"),
+        }
+        let paths = vec!["code.rs".to_string(), "doc.md".to_string()];
+        let root = dir.path().join("repo");
+        assert_eq!(
+            model.commit_and_push(&root, &paths, "two files"),
+            super::CommandOutcome::Ok
+        );
+        let repo = rc_git::GitRepo::open(&root).unwrap();
+        assert!(
+            repo.status().unwrap().is_clean(),
+            "both files went in: {:?}",
+            repo.status().unwrap().entries
+        );
+        assert_eq!(repo.commits(1).remove(0).summary, "two files");
+    }
+
+    #[test]
+    fn the_stage_commands_need_a_repository_panel_and_a_selection() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local(dir.path()),
+            Location::local(dir.path()),
+        );
+        assert_eq!(model.git_stage_selection(), super::CommandOutcome::None);
+        assert!(matches!(
+            model.open_git_commit(),
+            super::CommandOutcome::None
         ));
     }
 }

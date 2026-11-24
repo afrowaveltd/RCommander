@@ -79,6 +79,21 @@ are read from that revision and written into the active panel's counterpart:
 That is the safe way to get "the version of this file from three commits ago" without
 switching branches at all.
 
+## Staging and committing from the panel
+
+Inside a repository panel the selection is the unit of work:
+
+| Command | What it does |
+| --- | --- |
+| *Configuration ▸ Stage selection* (`cm_GitStage`) | puts the marked files (or the cursor) into the index — they turn green |
+| *Configuration ▸ Unstage selection* (`cm_GitUnstage`) | puts them back to the `HEAD` version |
+| *Configuration ▸ Commit selection…* (`cm_GitCommit`) | opens the commit dialog for exactly those paths |
+
+The commit dialog lists the change (one file, or `3 files`), lets you edit the message,
+offers the push checkbox, and stages nothing else — an unrelated modification in the tree
+stays out of the commit. A path that does not exist and is not tracked is reported instead
+of being silently staged as a deletion.
+
 ## Working with a remote
 
 *Configuration ▸ Git remote…* shows the current branch, its remote and how far the two

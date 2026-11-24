@@ -676,6 +676,12 @@ impl RCommanderApp {
                 if ui.button(self.model.t("cmd.gitcopyout")).clicked() {
                     command = Some("cm_GitCopyOut".into());
                 }
+                if ui.button(self.model.t("cmd.gitstage")).clicked() {
+                    command = Some("cm_GitStage".into());
+                }
+                if ui.button(self.model.t("cmd.gitcommit")).clicked() {
+                    command = Some("cm_GitCommit".into());
+                }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
                 }

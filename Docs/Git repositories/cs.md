@@ -76,6 +76,21 @@ přečtou z té revize a zapíší se do protějšího panelu:
 Tohle je bezpečný způsob, jak dostat „verzi tohoto souboru z před tří commitů" bez
 přepínání větve.
 
+## Stage a commit z panelu
+
+V panelu repozitáře je jednotkou práce výběr:
+
+| Příkaz | Co dělá |
+| --- | --- |
+| *Konfigurace ▸ Připravit výběr* (`cm_GitStage`) | dá označené soubory (nebo soubor pod kurzorem) do indexu — zezelenají |
+| *Konfigurace ▸ Vyřadit z indexu* (`cm_GitUnstage`) | vrátí je na verzi z `HEAD` |
+| *Konfigurace ▸ Commitnout výběr…* (`cm_GitCommit`) | otevře dialog commitu pro přesně tyto cesty |
+
+Dialog commitu ukáže, co se commituje (jeden soubor, nebo `3 soubory`), nechá upravit
+zprávu, nabídne zaškrtávací pole pro push a nic dalšího nepřipraví — nesouvisející změna ve
+stromu zůstane mimo commit. Neexistující a nesledovaná cesta se ohlásí, místo aby se tiše
+připravila jako smazání.
+
 ## Práce s remotem
 
 *Konfigurace ▸ Git remote…* ukáže aktuální větev, její remote a jak daleko jsou obě strany

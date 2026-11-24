@@ -380,3 +380,10 @@ authors = ["RCommander contributors"]
 "git.copied" = "Copied {count} file(s) out of the repository"
 "git.copy_needs_local_target" = "Copy out of a revision needs a local directory in the other panel"
 "cmd.gitcopyout" = "Copy out of the repository"
+
+"git.staged" = "Staged {count} file(s)"
+"git.unstaged" = "Unstaged {count} file(s)"
+"git.nothing_selected" = "Select a file in the repository panel first"
+"cmd.gitstage" = "Stage selection"
+"cmd.gitunstage" = "Unstage selection"
+"cmd.gitcommit" = "Commit selection…"

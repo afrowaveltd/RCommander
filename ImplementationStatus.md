@@ -183,6 +183,25 @@ menu title bars with — is themed as well. A unit test asserts each field for t
 the dark palette, and a UI test switches to a custom theme and checks the app palette and
 the derived button/title colours.
 
+## Phase 15.8d — staging and committing the selection (done)
+
+`cargo test -p rc-git` → **33 tests**, `cargo test -p rcommander --lib stage_tests` → **3
+tests**.
+
+The engine can stage and unstage a list of paths (`stage_paths`, `unstage_paths`,
+`unstage_path` via a default reset to `HEAD`), and a path that neither exists nor is tracked
+is reported instead of being silently staged as a deletion.
+
+In a repository panel the selection is the unit: *Stage selection* and *Unstage selection*
+refresh the panel so the colours follow, and *Commit selection…* opens the commit dialog for
+exactly those paths — the change is described as one file or `N files`, nothing else in the
+tree is staged, and the message/push options are the same as for the editor flow.
+
+Adding this exposed a colour bug: `git_bridge::status_role` decided by the `FileStatus`
+alone, so a *staged* modification was painted with the warning colour. It now decides by the
+side — worktree changes warn, staged changes are green, and only unstaged content wins when
+both exist.
+
 ## Phase 15.3 — copying out of a revision (done)
 
 `cargo test -p rcommander --lib extract_tests` → **2 tests**, `copy_out_tests` → **4
@@ -591,11 +610,11 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1264 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1268 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
-  `rc-archive` 134, `rc-git` 32, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
-  doctests and one opt-in SFTP integration test), `rcommander` 323 (271 lib + 48 UI
+  `rc-archive` 134, `rc-git` 33, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
+  doctests and one opt-in SFTP integration test), `rcommander` 326 (274 lib + 48 UI
   + 3 i18n guard) — **1229 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of

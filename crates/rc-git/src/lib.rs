@@ -974,13 +974,74 @@ impl GitRepo {
             index.add_path(Path::new(&path)).map_err(|error| {
                 GitError::new(format!("cannot stage “{path}”: {}", error.message()))
             })?;
-        } else {
-            // A deleted file has to leave the index too.
+        } else if index.get_path(Path::new(&path), 0).is_some() {
+            // A tracked file that disappeared is staged as a deletion.
             index.remove_path(Path::new(&path)).map_err(|error| {
                 GitError::new(format!("cannot stage “{path}”: {}", error.message()))
             })?;
+        } else {
+            return Err(GitError::new(format!(
+                "“{path}” is missing and is not tracked, so there is nothing to stage"
+            )));
         }
         index.write().map_err(convert)
+    }
+
+    /// Unstage one path: the index goes back to what `HEAD` holds.
+    pub fn unstage_path(&self, path: &str) -> Result<(), GitError> {
+        let path = normalise_path(path)?;
+        if path.is_empty() {
+            return Err(GitError::new("a path is required".to_string()));
+        }
+        let head = self
+            .repo
+            .head()
+            .ok()
+            .and_then(|head| head.peel_to_commit().ok());
+        let paths = [path.as_str()];
+        match &head {
+            Some(commit) => self
+                .repo
+                .reset_default(Some(commit.as_object()), paths.iter())
+                .map_err(|error| {
+                    GitError::new(format!("cannot unstage “{path}”: {}", error.message()))
+                }),
+            None => Err(GitError::new(
+                "there is no commit yet, so nothing can be unstaged".to_string(),
+            )),
+        }
+    }
+
+    /// Stage several paths at once; returns how many succeeded.
+    pub fn stage_paths(&self, paths: &[String]) -> Result<usize, GitError> {
+        let mut done = 0;
+        let mut last: Option<GitError> = None;
+        for path in paths {
+            match self.stage_path(path) {
+                Ok(()) => done += 1,
+                Err(error) => last = Some(error),
+            }
+        }
+        match last {
+            Some(error) if done == 0 => Err(error),
+            _ => Ok(done),
+        }
+    }
+
+    /// Unstage several paths at once; returns how many succeeded.
+    pub fn unstage_paths(&self, paths: &[String]) -> Result<usize, GitError> {
+        let mut done = 0;
+        let mut last: Option<GitError> = None;
+        for path in paths {
+            match self.unstage_path(path) {
+                Ok(()) => done += 1,
+                Err(error) => last = Some(error),
+            }
+        }
+        match last {
+            Some(error) if done == 0 => Err(error),
+            _ => Ok(done),
+        }
     }
 
     /// Stage every change (tracked modifications, additions and deletions).

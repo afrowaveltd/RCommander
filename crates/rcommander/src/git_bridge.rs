@@ -408,21 +408,22 @@ fn name_is_tree(repo: &GitRepo, revision: &Revision, inner: &str) -> bool {
 /// ignored file is muted.
 pub fn status_role(status: StatusEntry) -> Option<rc_core::theme::Role> {
     use rc_core::theme::Role;
-    let status = status.display()?;
-    Some(match status {
-        FileStatus::Ignored => Role::Hidden,
-        FileStatus::Untracked => Role::Symlink,
-        FileStatus::Conflicted => Role::Warning,
-        FileStatus::Modified | FileStatus::Deleted | FileStatus::TypeChanged => {
-            if status.is_staged() {
-                Role::Archive
-            } else {
-                Role::Warning
-            }
-        }
-        FileStatus::Added | FileStatus::Renamed => Role::Archive,
-        FileStatus::Unchanged => return None,
-    })
+    // Which side is interesting decides the colour: worktree changes are what the user
+    // sees on disk (warning), a staged change is ready to commit (green).
+    if let Some(unstaged) = status.unstaged {
+        return Some(match unstaged {
+            FileStatus::Ignored => Role::Hidden,
+            FileStatus::Untracked => Role::Symlink,
+            FileStatus::Conflicted => Role::Warning,
+            _ => Role::Warning,
+        });
+    }
+    match status.staged {
+        None | Some(FileStatus::Unchanged) => None,
+        Some(FileStatus::Conflicted) => Some(Role::Warning),
+        Some(FileStatus::Deleted) => Some(Role::Warning),
+        Some(_) => Some(Role::Archive),
+    }
 }
 
 #[cfg(test)]

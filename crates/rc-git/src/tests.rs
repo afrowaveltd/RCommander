@@ -739,3 +739,46 @@ fn a_branch_with_its_commits_merges_fast_forward() {
             .contains("no branch")
     );
 }
+
+#[test]
+fn paths_can_be_staged_and_unstaged_one_by_one() {
+    let fixture = Fixture::new("stage-paths");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    std::fs::write(fixture.root.join("first.txt"), "one edit").unwrap();
+    std::fs::write(fixture.root.join("other.txt"), "new").unwrap();
+
+    let staged = repo
+        .stage_paths(&["first.txt".to_string(), "other.txt".to_string()])
+        .unwrap();
+    assert_eq!(staged, 2);
+    let status = repo.status().unwrap();
+    assert!(status.get("first.txt").has_staged());
+    assert!(status.get("other.txt").has_staged());
+
+    // Unstaging one path leaves the other staged.
+    let unstaged = repo.unstage_paths(&["first.txt".to_string()]).unwrap();
+    assert_eq!(unstaged, 1);
+    let status = repo.status().unwrap();
+    assert!(
+        !status.get("first.txt").has_staged(),
+        "back to the HEAD version"
+    );
+    assert_eq!(status.get("first.txt").unstaged, Some(FileStatus::Modified));
+    assert!(status.get("other.txt").has_staged());
+
+    // Only the staged file goes into the commit.
+    let commit = repo.commit_staged("stage one", None).unwrap();
+    assert!(commit.files >= 1);
+    let status = repo.status().unwrap();
+    assert!(
+        status.get("other.txt").is_clean(),
+        "the staged addition was committed"
+    );
+    assert_eq!(
+        status.get("first.txt").unstaged,
+        Some(FileStatus::Modified),
+        "the unstaged edit is still there"
+    );
+    // Unknown paths are reported instead of ignored silently.
+    assert!(repo.stage_paths(&["nope/missing.txt".to_string()]).is_err());
+}

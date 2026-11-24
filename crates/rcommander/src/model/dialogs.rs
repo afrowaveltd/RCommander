@@ -187,8 +187,8 @@ impl GitConfigState {
 pub struct GitCommitState {
     /// Repository root the file belongs to.
     pub root: std::path::PathBuf,
-    /// File name, relative to the root.
-    pub file: String,
+    /// Paths to stage and commit, relative to the root.
+    pub paths: Vec<String>,
     /// Commit message, editable.
     pub message: String,
     /// Push after committing.
@@ -200,9 +200,13 @@ pub struct GitCommitState {
 }
 
 impl GitCommitState {
-    /// True when the settings already say "always", so the dialog is only a preview.
-    pub fn is_automatic(&self) -> bool {
-        false
+    /// What the dialog calls the change: one file, or a count.
+    pub fn description(&self) -> String {
+        match self.paths.len() {
+            0 => "nothing".to_string(),
+            1 => self.paths[0].clone(),
+            count => format!("{count} files"),
+        }
     }
 }
 

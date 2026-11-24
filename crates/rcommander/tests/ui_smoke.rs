@@ -1642,7 +1642,7 @@ fn saving_in_the_editor_offers_to_commit() {
     harness.run();
     match harness.state().model.top_dialog() {
         Some(rcommander::model::Dialog::GitCommit(state)) => {
-            assert_eq!(state.file, "tracked.txt");
+            assert_eq!(state.paths, vec!["tracked.txt".to_string()]);
             assert!(state.message.contains("tracked.txt"));
         }
         other => panic!("expected the commit dialog, got {other:?}"),

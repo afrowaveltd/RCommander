@@ -2187,7 +2187,7 @@ fn git_branches(
 /// Offer to commit the file the editor just saved, and optionally push it.
 fn git_commit(ui: &mut egui::Ui, model: &mut Model, state: &mut GitCommitState) -> DialogAction {
     let palette = crate::theme::Palette::for_model(model);
-    ui.label(model.tf("git.commit.file", &[("name", &state.file)]));
+    ui.label(model.tf("git.commit.file", &[("name", &state.description())]));
     ui.label(
         egui::RichText::new(state.root.display().to_string())
             .small()
@@ -2217,9 +2217,9 @@ fn git_commit(ui: &mut egui::Ui, model: &mut Model, state: &mut GitCommitState) 
                 let push = state.push;
                 model.settings.git.push_after_commit = push;
                 let root = state.root.clone();
-                let file = state.file.clone();
+                let paths = state.paths.clone();
                 let message = state.message.clone();
-                match model.commit_and_push(&root, &file, &message) {
+                match model.commit_and_push(&root, &paths, &message) {
                     crate::model::CommandOutcome::Ok => action = DialogAction::Close,
                     crate::model::CommandOutcome::Failed(error) => state.status = error,
                     _ => {}
