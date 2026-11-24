@@ -30,6 +30,7 @@ fn spec_for(server: &MockServer, passive: bool) -> ConnectionSpec {
         encoding: "utf-8".into(),
         remote_dir: String::new(),
         timeout: TIMEOUT,
+        ..Default::default()
     }
 }
 

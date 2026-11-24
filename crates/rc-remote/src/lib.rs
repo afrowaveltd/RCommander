@@ -100,7 +100,7 @@ pub use entry::RemoteEntry;
 pub use error::RemoteError;
 pub use parse::{parse_list_line, parse_mlsd_line};
 pub use remote_fs::{RemoteFs, TransferStats};
-pub use spec::{ConnectionSpec, Protocol};
+pub use spec::{AuthMethod, ConnectionSpec, Protocol};
 
 /// Open a connection for the requested protocol.
 ///

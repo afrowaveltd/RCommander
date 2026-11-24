@@ -213,14 +213,71 @@ impl SftpClient {
             .handshake()
             .map_err(|e| connect_error(format!("ssh handshake failed: {e}")))?;
 
+        // Host-key verification: refuse a changed key even in permissive mode.
+        verify_host_key(&session, spec, host, port)?;
+
         let user = spec.user.trim();
-        session
-            .userauth_password(user, &spec.password)
-            .map_err(|e| RemoteError::Authentication(format!("{user}@{host}: {e}")))?;
-        if !session.authenticated() {
-            return Err(RemoteError::Authentication(format!(
-                "{user}@{host}: the server rejected the password"
-            )));
+        match &spec.auth {
+            crate::spec::AuthMethod::Password => {
+                session
+                    .userauth_password(user, &spec.password)
+                    .map_err(|e| RemoteError::Authentication(format!("{user}@{host}: {e}")))?;
+                if !session.authenticated() {
+                    return Err(RemoteError::Authentication(format!(
+                        "{user}@{host}: the server rejected the password"
+                    )));
+                }
+            }
+            crate::spec::AuthMethod::KeyFile { path, passphrase } => {
+                if path.as_os_str().is_empty() {
+                    return Err(RemoteError::Authentication(
+                        "no private key file was configured".to_string(),
+                    ));
+                }
+                let public = key_public_path(path);
+                session
+                    .userauth_pubkey_file(user, public.as_deref(), path, passphrase.as_deref())
+                    .map_err(|e| {
+                        RemoteError::Authentication(format!(
+                            "{user}@{host} with key {}: {e}",
+                            path.display()
+                        ))
+                    })?;
+                if !session.authenticated() {
+                    return Err(RemoteError::Authentication(format!(
+                        "{user}@{host}: the server rejected the key {}",
+                        path.display()
+                    )));
+                }
+            }
+            crate::spec::AuthMethod::Agent => {
+                let mut agent = session.agent().map_err(|e| {
+                    RemoteError::Authentication(format!("ssh-agent is not available: {e}"))
+                })?;
+                agent.connect().map_err(|e| {
+                    RemoteError::Authentication(format!("ssh-agent refused the connection: {e}"))
+                })?;
+                agent.list_identities().map_err(|e| {
+                    RemoteError::Authentication(format!("ssh-agent cannot list identities: {e}"))
+                })?;
+                let identities = agent.identities().map_err(|e| {
+                    RemoteError::Authentication(format!(
+                        "ssh-agent cannot read its identities: {e}"
+                    ))
+                })?;
+                let mut accepted = false;
+                for identity in &identities {
+                    if agent.userauth(user, identity).is_ok() && session.authenticated() {
+                        accepted = true;
+                        break;
+                    }
+                }
+                if !accepted {
+                    return Err(RemoteError::Authentication(format!(
+                        "{user}@{host}: ssh-agent holds no usable identity"
+                    )));
+                }
+            }
         }
 
         let mut client = SftpClient {
@@ -460,6 +517,70 @@ impl RemoteFs for SftpClient {
         // Best effort: the session is unusable afterwards either way.
         let _ = self.session.disconnect(None, "bye", None);
         Ok(())
+    }
+}
+
+/// Name of a libssh2 host-key type as the known-hosts file spells it.
+fn host_key_algorithm(key_type: ssh2::HostKeyType) -> &'static str {
+    use ssh2::HostKeyType;
+    match key_type {
+        HostKeyType::Rsa => "ssh-rsa",
+        HostKeyType::Dss => "ssh-dss",
+        HostKeyType::Ecdsa256 => "ecdsa-sha2-nistp256",
+        HostKeyType::Ecdsa384 => "ecdsa-sha2-nistp384",
+        HostKeyType::Ecdsa521 => "ecdsa-sha2-nistp521",
+        HostKeyType::Ed25519 => "ssh-ed25519",
+        _ => "unknown",
+    }
+}
+
+/// The matching `.pub` file next to a private key, when it exists.
+fn key_public_path(private: &Path) -> Option<std::path::PathBuf> {
+    let mut public = private.as_os_str().to_os_string();
+    public.push(".pub");
+    let path = std::path::PathBuf::from(public);
+    path.is_file().then_some(path)
+}
+
+/// Check the server's host key against the known-hosts store.
+///
+/// libssh2 hands us the raw public key; it is stored base64 encoded, exactly as
+/// the file format expects. `TrustOnFirstUse` remembers a new key, `Strict`
+/// refuses it and a changed key is refused in every policy except `Ignore`.
+fn verify_host_key(
+    session: &Session,
+    spec: &ConnectionSpec,
+    host: &str,
+    port: u16,
+) -> Result<(), RemoteError> {
+    use base64::Engine as _;
+    let policy = spec.host_key_policy;
+    if policy == rc_core::knownhosts::HostKeyPolicy::Ignore {
+        return Ok(());
+    }
+    let Some((key, key_type)) = session.host_key() else {
+        return Err(RemoteError::Protocol(
+            "the server did not present a host key".to_string(),
+        ));
+    };
+    let algorithm = host_key_algorithm(key_type);
+    let encoded = base64::engine::general_purpose::STANDARD.encode(key);
+    let path = spec
+        .known_hosts_path
+        .clone()
+        .unwrap_or_else(rc_core::knownhosts::default_path);
+    let mut store = rc_core::knownhosts::KnownHosts::load(&path).unwrap_or_default();
+    let verdict = store.verdict(host, port, algorithm, &encoded);
+    match rc_core::knownhosts::check_and_update(&mut store, policy, host, port, algorithm, &encoded)
+    {
+        Ok(_) => {
+            if verdict == rc_core::knownhosts::HostKeyVerdict::Unknown {
+                // Remember a first-use key so a later change is detected.
+                let _ = store.save(&path);
+            }
+            Ok(())
+        }
+        Err(error) => Err(RemoteError::Protocol(error.to_string())),
     }
 }
 

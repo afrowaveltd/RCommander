@@ -55,3 +55,28 @@ Klíč úložiště se odvozuje z vaší passphrase při každém odemčení a n
 mezipaměti, takže zavřením aplikace se pověření uzamknou. Pokud passphrase ztratíte,
 jsou hesla nedobytná — uložená připojení (hostitel, uživatel, port) zůstanou a
 stačí znovu zadat hesla.
+
+## SFTP a SSH
+
+V dialogu připojení přepněte *protokol* na **SFTP**. SFTP vyžaduje uživatelské
+jméno a nabízí tři způsoby ověření:
+
+| Ověření | Co potřebuje |
+| --- | --- |
+| heslo | pole hesla, nebo hodnotu už uloženou v úložišti pověření |
+| soubor s klíčem | cestu k privátnímu klíči; je-li klíč chráněný, aplikace se zeptá na passphrase |
+| ssh-agent | jen běžícího agenta s alespoň jednou identitou |
+
+### Klíče hostitele
+
+Klíč hostitele se při každém připojení ověřuje a ukládá do `known_hosts` vedle
+konfigurace:
+
+* **trust on first use** (výchozí) — klíč se poprvé uloží a příště porovná,
+* **strict** — neznámý hostitel je odmítnut, což je správná volba v řízené síti,
+* **ignore** — žádné ověřování; jen pro zařízení, které si klíč generuje při každém
+  startu.
+
+**Změněný** klíč je odmítnut ve všech režimech a zpráva uvede oba klíče: změněný
+klíč hostitele je přesně to, jak vypadá man-in-the-middle. Pokud víte, proč se klíč
+serveru změnil, smažte jeho řádek z `known_hosts` a připojte se znovu.

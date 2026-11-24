@@ -571,16 +571,63 @@ pub struct HotlistState {
     pub adding: bool,
 }
 
-/// FTP quick-connect dialog.
-#[derive(Clone, Debug, PartialEq, Default)]
+/// FTP/SFTP quick-connect dialog.
+#[derive(Clone, Debug, PartialEq)]
 pub struct FtpConnectState {
     pub connection: SavedConnection,
     pub save_password: bool,
     pub status: String,
 }
 
+impl Default for FtpConnectState {
+    fn default() -> Self {
+        FtpConnectState {
+            connection: SavedConnection {
+                protocol: "ftp".to_string(),
+                auth_method: "password".to_string(),
+                host_key_policy: "tofu".to_string(),
+                ..Default::default()
+            },
+            save_password: true,
+            status: String::new(),
+        }
+    }
+}
+
 impl FtpConnectState {
+    /// True when the SSH-specific fields should be shown.
+    pub fn is_ssh(&self) -> bool {
+        matches!(
+            self.connection
+                .protocol
+                .trim()
+                .to_ascii_lowercase()
+                .as_str(),
+            "sftp" | "sftp4" | "sftp5"
+        ) || self
+            .connection
+            .protocol
+            .trim()
+            .to_ascii_lowercase()
+            .starts_with("sftp")
+    }
+
+    /// Validation that also covers the SSH-specific choices.
     pub fn validate(&self) -> Result<(), String> {
+        if self.is_ssh() {
+            if self.connection.user.trim().is_empty() {
+                return Err("SFTP needs a user name".to_string());
+            }
+            if self
+                .connection
+                .auth_method
+                .trim()
+                .eq_ignore_ascii_case("key")
+                && self.connection.key_path.trim().is_empty()
+            {
+                return Err("key authentication needs a key file".to_string());
+            }
+        }
         if self.connection.host.trim().is_empty() {
             return Err("empty host".to_string());
         }

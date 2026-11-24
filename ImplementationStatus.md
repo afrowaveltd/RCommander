@@ -30,7 +30,7 @@ cargo test --workspace
 | 10 | egui user interface | **partial** — panels, tabs, menus, dialogs, viewer, editor, help, quick view, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, the thumbnail grid, the search results table and drag & drop are still simplified |
 | 11 | Platforms | **partial** — Linux verified end to end (runs, renders); with mingw-w64 installed the **Windows release `.exe` links and is a GUI-subsystem binary** (`target/x86_64-pc-windows-gnu/release/rcommander.exe`, 15.8 MB); the Android APK still needs the SDK/NDK |
 | 12 | Verification | **done** for everything marked done above |
-| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.4 is implemented (encrypted credential store, migration, no plain text in `settings.toml`); host-key verification, key/agent auth, saved session files and SFTP-in-the-panel are still pending |
+| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.5 (SFTP in the panel, verified against a real OpenSSH server) are done; saved session profiles (13.3) are still pending |
 | 14 | Colour themes | **pending** — planned in Phase 14; today the palette is two hardcoded variants |
 | 15 | Git repositories as panels | **pending** — planned in Phase 15; read-only virtual folders (branches/tags/commits) and copying out of a revision come first, write operations only afterwards |
 
@@ -301,7 +301,7 @@ with `cargo test --workspace`).
 
 | Gap | Where it is tracked |
 | --- | --- |
-| SSH host keys are **not** verified yet (13.1); SFTP is not wired into the panel (13.5) | Phase 13.1–13.2 and 13.5 — the credential half (13.4) is done |
+| ~~SSH host keys are not verified (13.1); SFTP not wired into the panel (13.5)~~ | **fixed**: `rc-core::knownhosts` (TOFU/strict/ignore, changed key refused) and the SFTP client verifying it; key-file and ssh-agent authentication; the connect dialog offers protocol, authentication and host-key policy |
 | ~~Passwords stored as plain text in `settings.toml`~~ | **fixed**: `rc-core::secrets` provides an Argon2id + AES-256-GCM store, `SavedConnection::password` is never serialised, and `Model::migrate_plaintext_passwords` moves existing values into the store |
 | Colours are two hardcoded palettes chosen by name (`Palette::light`/`dark`); they cannot be edited or shipped as data | Phase 14 (14.1–14.5): `themes/*.toml` with semantic roles, runtime discovery, a theme editor with live preview and contrast warnings |
 | SFTP compiles behind a cargo feature and is unit-covered but has never been tested against a live server | Phase 13.5, together with the manual verification step |

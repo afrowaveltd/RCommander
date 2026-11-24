@@ -156,6 +156,25 @@ pub struct RemoteSession {
     pub location: Location,
 }
 
+/// Build a connection spec from a saved connection, filling in the password from
+/// the credential store and mapping the saved authentication and host-key policy.
+pub fn connection_spec(
+    connection: &rc_core::config::SavedConnection,
+    password: Option<String>,
+) -> rc_remote::ConnectionSpec {
+    let mut saved = connection.clone();
+    saved.password = password.unwrap_or_default();
+    let mut spec = rc_remote::ConnectionSpec::from_saved(&saved);
+    // `from_saved` maps the key path; the passphrase travels in the spec only for
+    // this connection attempt and is never stored on disk.
+    if let rc_remote::AuthMethod::KeyFile { path, .. } = &mut spec.auth
+        && path.as_os_str().is_empty()
+    {
+        *path = std::path::PathBuf::from(connection.key_path.trim());
+    }
+    spec
+}
+
 impl RemoteSession {
     pub fn new(backend: Box<dyn RemoteBackend>, location: Location) -> Self {
         RemoteSession { backend, location }

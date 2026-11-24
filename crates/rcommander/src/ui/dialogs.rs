@@ -752,6 +752,11 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
 }
 
 fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> DialogAction {
+    ui.horizontal(|ui| {
+        ui.label("protocol");
+        ui.selectable_value(&mut state.connection.protocol, "ftp".to_string(), "FTP");
+        ui.selectable_value(&mut state.connection.protocol, "sftp".to_string(), "SFTP");
+    });
     egui::Grid::new("ftp_grid").num_columns(2).show(ui, |ui| {
         ui.label(model.t("ftp.host"));
         ui.add(egui::TextEdit::singleline(&mut state.connection.host).desired_width(220.0));
@@ -772,8 +777,58 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
         ui.label(model.t("ftp.remote_dir"));
         ui.add(egui::TextEdit::singleline(&mut state.connection.remote_dir).desired_width(220.0));
         ui.end_row();
+        if state.is_ssh() {
+            ui.label("authentication");
+            ui.horizontal(|ui| {
+                ui.selectable_value(
+                    &mut state.connection.auth_method,
+                    "password".to_string(),
+                    "password",
+                );
+                ui.selectable_value(
+                    &mut state.connection.auth_method,
+                    "key".to_string(),
+                    "key file",
+                );
+                ui.selectable_value(
+                    &mut state.connection.auth_method,
+                    "agent".to_string(),
+                    "ssh-agent",
+                );
+            });
+            ui.end_row();
+            if state.connection.auth_method == "key" {
+                ui.label("key file");
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.connection.key_path)
+                        .desired_width(220.0)
+                        .hint_text("~/.ssh/id_ed25519"),
+                );
+                ui.end_row();
+            }
+            ui.label("host key");
+            ui.horizontal(|ui| {
+                ui.selectable_value(
+                    &mut state.connection.host_key_policy,
+                    "tofu".to_string(),
+                    "trust on first use",
+                );
+                ui.selectable_value(
+                    &mut state.connection.host_key_policy,
+                    "strict".to_string(),
+                    "strict",
+                );
+                ui.selectable_value(
+                    &mut state.connection.host_key_policy,
+                    "ignore".to_string(),
+                    "ignore",
+                );
+            });
+            ui.end_row();
+        }
     });
     ui.checkbox(&mut state.connection.passive, model.t("ftp.passive"));
+    ui.checkbox(&mut state.save_password, "remember the password");
     ui.label(state.summary());
     let (ok, cancel) = buttons(ui, model);
     if cancel {

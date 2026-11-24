@@ -1,5 +1,6 @@
 //! Connection parameters: the [`Protocol`] enum and [`ConnectionSpec`].
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use rc_core::config::SavedConnection;
@@ -90,6 +91,52 @@ pub struct ConnectionSpec {
     pub remote_dir: String,
     /// Socket timeout used for the control channel and every transfer.
     pub timeout: Duration,
+    /// How to prove who we are (SSH only; FTP always uses `password`).
+    pub auth: AuthMethod,
+    /// How strictly the server's host key is checked (SSH only).
+    pub host_key_policy: rc_core::knownhosts::HostKeyPolicy,
+    /// Where trusted host keys are stored; `None` uses the default location.
+    pub known_hosts_path: Option<PathBuf>,
+}
+
+/// Authentication method for SSH-based protocols.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum AuthMethod {
+    /// Password from the credential store.
+    #[default]
+    Password,
+    /// Private key file, optionally protected by a passphrase.
+    KeyFile {
+        /// Path of the private key (the matching `.pub` file is used when present).
+        path: PathBuf,
+        /// Passphrase that unlocks the key; `None` for an unprotected key.
+        passphrase: Option<String>,
+    },
+    /// Delegate to a running `ssh-agent`.
+    Agent,
+}
+
+impl AuthMethod {
+    /// Identifier used in the settings file.
+    pub fn id(&self) -> &'static str {
+        match self {
+            AuthMethod::Password => "password",
+            AuthMethod::KeyFile { .. } => "key",
+            AuthMethod::Agent => "agent",
+        }
+    }
+
+    /// Parse an identifier, falling back to password authentication.
+    pub fn parse(text: &str) -> AuthMethod {
+        match text.trim().to_ascii_lowercase().as_str() {
+            "key" | "keyfile" | "publickey" => AuthMethod::KeyFile {
+                path: PathBuf::new(),
+                passphrase: None,
+            },
+            "agent" | "ssh-agent" => AuthMethod::Agent,
+            _ => AuthMethod::Password,
+        }
+    }
 }
 
 impl Default for ConnectionSpec {
@@ -105,6 +152,9 @@ impl Default for ConnectionSpec {
             encoding: "utf-8".to_string(),
             remote_dir: String::new(),
             timeout: DEFAULT_TIMEOUT,
+            auth: AuthMethod::default(),
+            host_key_policy: rc_core::knownhosts::HostKeyPolicy::TrustOnFirstUse,
+            known_hosts_path: None,
         }
     }
 }
@@ -129,6 +179,20 @@ impl ConnectionSpec {
             encoding: "utf-8".to_string(),
             remote_dir: saved.remote_dir.clone(),
             timeout: DEFAULT_TIMEOUT,
+            auth: match saved.auth_method.trim().to_ascii_lowercase().as_str() {
+                "key" => AuthMethod::KeyFile {
+                    path: PathBuf::from(saved.key_path.trim()),
+                    passphrase: if saved.key_passphrase.is_empty() {
+                        None
+                    } else {
+                        Some(saved.key_passphrase.clone())
+                    },
+                },
+                "agent" => AuthMethod::Agent,
+                _ => AuthMethod::Password,
+            },
+            host_key_policy: rc_core::knownhosts::HostKeyPolicy::parse(&saved.host_key_policy),
+            known_hosts_path: None,
         }
     }
 
@@ -149,6 +213,19 @@ impl ConnectionSpec {
             local_dir: String::new(),
             passive: self.passive,
             anonymous: self.is_anonymous(),
+            auth_method: self.auth.id().to_string(),
+            key_path: match &self.auth {
+                AuthMethod::KeyFile { path, .. } => path.to_string_lossy().to_string(),
+                _ => String::new(),
+            },
+            key_passphrase: match &self.auth {
+                AuthMethod::KeyFile {
+                    passphrase: Some(passphrase),
+                    ..
+                } => passphrase.clone(),
+                _ => String::new(),
+            },
+            host_key_policy: self.host_key_policy.id().to_string(),
         }
     }
 
@@ -240,6 +317,7 @@ mod tests {
             encoding: "utf-8".into(),
             remote_dir: "/pub".into(),
             timeout: DEFAULT_TIMEOUT,
+            ..ConnectionSpec::default()
         }
     }
 

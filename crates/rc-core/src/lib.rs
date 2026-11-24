@@ -24,6 +24,7 @@ pub mod format;
 pub mod history;
 pub mod hotlist;
 pub mod keymap;
+pub mod knownhosts;
 pub mod listing;
 pub mod location;
 pub mod mask;

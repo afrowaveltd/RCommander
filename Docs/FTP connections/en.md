@@ -55,3 +55,30 @@ The store's key is derived from your passphrase on every unlock and is not cache
 so closing the application locks the secrets. If you lose the passphrase, the
 passwords are unrecoverable — saved connections themselves (host, user, port) stay
 intact and you only have to type the passwords again.
+
+## SFTP and SSH
+
+Switch *protocol* to **SFTP** in the connect dialog. SFTP needs a user name and
+supports three ways to prove who you are:
+
+| Authentication | What it needs |
+| --- | --- |
+| password | the password field, or a value already in the credential store |
+| key file | the path of the private key; a passphrase is asked for when the key is protected |
+| ssh-agent | nothing but a running agent with at least one identity loaded |
+
+### Host keys
+
+The server's host key is checked on every connection and remembered in
+`known_hosts` next to the configuration:
+
+* **trust on first use** (default) — the key is stored the first time and compared
+  afterwards,
+* **strict** — a host that is not known yet is refused, which is what you want on a
+  managed network,
+* **ignore** — no verification at all; use it only for a device that regenerates
+  its key on every boot.
+
+A **changed** key is refused in every mode, with both keys named in the message: a
+changed host key is exactly what a man-in-the-middle looks like. If you know why
+the server's key changed, delete its line from `known_hosts` and connect again.

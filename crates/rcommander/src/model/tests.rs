@@ -2141,3 +2141,103 @@ fn the_encrypted_store_can_replace_the_memory_store() {
     let bytes = std::fs::read(dir.path().join("secrets.enc")).unwrap();
     assert!(!String::from_utf8_lossy(&bytes).contains("pw"));
 }
+
+// ---------------- SFTP / SSH connection setup (Phase 13) ----------------
+
+#[test]
+fn a_saved_connection_maps_to_a_connection_spec() {
+    use rc_core::config::SavedConnection;
+    let saved = SavedConnection {
+        name: "git".into(),
+        host: "git.example.com".into(),
+        port: 22,
+        user: "alice".into(),
+        protocol: "sftp".into(),
+        auth_method: "key".into(),
+        key_path: "/home/alice/.ssh/id_ed25519".into(),
+        host_key_policy: "strict".into(),
+        remote_dir: "/srv".into(),
+        ..Default::default()
+    };
+    let spec = crate::model::remote::connection_spec(&saved, Some("pw".to_string()));
+    assert_eq!(spec.protocol, rc_remote::Protocol::Sftp);
+    assert_eq!(spec.password, "pw");
+    assert_eq!(
+        spec.host_key_policy,
+        rc_core::knownhosts::HostKeyPolicy::Strict
+    );
+    match &spec.auth {
+        rc_remote::AuthMethod::KeyFile { path, .. } => {
+            assert_eq!(path.to_string_lossy(), "/home/alice/.ssh/id_ed25519")
+        }
+        other => panic!("expected key authentication, got {other:?}"),
+    }
+    // Agent and password map as well.
+    let agent = SavedConnection {
+        auth_method: "agent".into(),
+        ..saved.clone()
+    };
+    assert_eq!(
+        crate::model::remote::connection_spec(&agent, None).auth,
+        rc_remote::AuthMethod::Agent
+    );
+    let password = SavedConnection {
+        auth_method: "password".into(),
+        ..saved
+    };
+    assert_eq!(
+        crate::model::remote::connection_spec(&password, Some("x".into())).auth,
+        rc_remote::AuthMethod::Password
+    );
+}
+
+#[test]
+fn the_connect_dialog_validates_ssh_settings() {
+    let mut state = FtpConnectState {
+        connection: rc_core::config::SavedConnection {
+            host: "h".into(),
+            protocol: "sftp".into(),
+            user: String::new(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    assert!(state.is_ssh());
+    assert!(state.validate().is_err(), "SFTP needs a user");
+    state.connection.user = "alice".into();
+    assert!(state.validate().is_ok());
+    // Key authentication without a key file is refused.
+    state.connection.auth_method = "key".into();
+    assert!(state.validate().is_err());
+    state.connection.key_path = "/home/alice/.ssh/id_ed25519".into();
+    assert!(state.validate().is_ok());
+    // FTP ignores the SSH checks.
+    state.connection.protocol = "ftp".into();
+    state.connection.user = String::new();
+    assert!(!state.is_ssh());
+    assert!(state.validate().is_ok());
+}
+
+#[test]
+fn a_stored_password_is_reused_for_a_saved_connection() {
+    let (_l, _r, mut model) = fixture();
+    let connection = rc_core::config::SavedConnection {
+        name: "sftp".into(),
+        host: "127.0.0.1".into(),
+        port: 22,
+        user: "alice".into(),
+        protocol: "sftp".into(),
+        password: "secret".into(),
+        ..Default::default()
+    };
+    assert!(model.remember_password(&connection).is_ok());
+    let mut stored = connection.clone();
+    stored.password.clear();
+    assert_eq!(model.stored_password(&stored).as_deref(), Some("secret"));
+    // A missing entry yields nothing, so the dialog has to ask.
+    let unknown = rc_core::config::SavedConnection {
+        host: "other".into(),
+        ..stored
+    };
+    assert!(model.stored_password(&unknown).is_none());
+}

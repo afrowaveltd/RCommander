@@ -645,6 +645,15 @@ pub struct SavedConnection {
     pub password: String,
     /// `ftp`, `ftps` or `sftp`.
     pub protocol: String,
+    /// `password`, `key` or `agent`.
+    pub auth_method: String,
+    /// Private key file for `key` authentication.
+    pub key_path: String,
+    /// Passphrase of that key; never written to disk (credential store).
+    #[serde(default, skip_serializing)]
+    pub key_passphrase: String,
+    /// `strict`, `tofu` (default) or `ignore` — see `rc_core::knownhosts`.
+    pub host_key_policy: String,
     pub remote_dir: String,
     pub local_dir: String,
     pub passive: bool,
