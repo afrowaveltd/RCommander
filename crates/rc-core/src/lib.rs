@@ -32,6 +32,7 @@ pub mod ops;
 pub mod quicksearch;
 pub mod secrets;
 pub mod selection;
+pub mod sessions;
 pub mod sorting;
 pub mod split;
 pub mod tabs;

@@ -11,6 +11,26 @@ vašeho konfiguračního souboru v části `[ftp] connections`.
 
 `Ctrl+Shift+F` odpojí panel a vrátí ho na místní souborový systém.
 
+## Uložené relace
+
+`Ctrl+N` otevře dialog připojení, který má sekci *Uložené relace*. Připojení
+vyplňte jednou, dejte mu jméno a stiskněte *Uložit*: profil se zapíše do
+`sessions.toml` vedle konfigurace, odděleně od `settings.toml`, a při příštím
+otevření dialogu se nabídne. Kliknutí na uloženou relaci vyplní formulář, *Načíst*
+udělá totéž pro vybranou a *Smazat* ji odebere. Heslo není součástí profilu —
+pochází z úložiště údajů, a relace, jejíž heslo ještě uložené není, dialog znovu
+otevře s předvyplněným zbytkem.
+
+Existující konfiguraci OpenSSH lze importovat: zadejte cestu (výchozí
+`~/.ssh/config`) a stiskněte *Importovat ssh_config*. Každý konkrétní blok `Host`
+se stane relací s využitím `HostName`, `User`, `Port` a `IdentityFile`; vzory jako
+`Host *` nebo `Host 192.168.*` se přeskakují a existující jméno se naimportuje jako
+`jméno 2`, takže se nic nepřepíše.
+
+Akce s relacemi existují i jako volání modelu, takže MCP most i příkazová řádka
+umí relace vypsat, uložit, přejmenovat, duplikovat, smazat a importovat bez
+dialogu.
+
 ## Práce se vzdáleným panelem
 
 Vše funguje jako u místního adresáře: navigace, označování, kopírování oběma

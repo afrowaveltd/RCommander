@@ -11,6 +11,25 @@ of your settings file under `[ftp] connections`.
 
 `Ctrl+Shift+F` disconnects and returns the panel to the local file system.
 
+## Saved sessions
+
+`Ctrl+N` opens the connect dialog, which has a *Saved sessions* section. Fill in a
+connection once, give it a name and press *Save*: the profile lands in
+`sessions.toml` next to the configuration, separate from `settings.toml`, and is
+offered the next time the dialog opens. Clicking a saved session fills the form;
+*Load* does the same for the selected one and *Delete* removes it. The password is
+never part of the profile — it comes from the credential store, and a session whose
+password is not stored yet simply reopens the dialog with the rest pre-filled.
+
+An existing OpenSSH configuration can be imported: type the path (default
+`~/.ssh/config`) and press *Import ssh_config*. Every concrete `Host` block becomes
+a session, using `HostName`, `User`, `Port` and `IdentityFile`; pattern blocks such
+as `Host *` or `Host 192.168.*` are skipped, and a name that already exists is
+imported as `name 2` instead of overwriting anything.
+
+Session actions also exist as model calls, so the MCP bridge and the command line
+can list, save, rename, duplicate, delete and import sessions without the dialog.
+
 ## Working with a remote panel
 
 Everything works as with a local directory: navigate, mark, copy in both

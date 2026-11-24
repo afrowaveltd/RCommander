@@ -30,7 +30,7 @@ cargo test --workspace
 | 10 | egui user interface | **partial** — panels, tabs, menus, dialogs, viewer, editor, help, quick view, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, the thumbnail grid, the search results table and drag & drop are still simplified |
 | 11 | Platforms | **partial** — Linux verified end to end (runs, renders); with mingw-w64 installed the **Windows release `.exe` links and is a GUI-subsystem binary** (`target/x86_64-pc-windows-gnu/release/rcommander.exe`, 15.8 MB); the Android APK still needs the SDK/NDK |
 | 12 | Verification | **done** for everything marked done above |
-| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; saved session profiles (13.3) are still pending |
+| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; the connect dialog still blocks the window while it connects, which is the remaining rough edge |
 | 14 | Colour themes | **pending** — planned in Phase 14; today the palette is two hardcoded variants |
 | 15 | Git repositories as panels | **pending** — planned in Phase 15; read-only virtual folders (branches/tags/commits) and copying out of a revision come first, write operations only afterwards |
 | 16 | Interactive AI workspace | **pending** — added by the project owner, planned in Phase 16 (bidirectional panes, pluggable model providers, reviewed change sets) |
@@ -61,7 +61,7 @@ cargo test --workspace
 
 ## Phase 2 — `rc-core` (done)
 
-`cargo test -p rc-core` → **218 tests, 0 failures.**
+`cargo test -p rc-core` → **232 tests, 0 failures.**
 
 | Step | Module | Covered by tests |
 | --- | --- | --- |
@@ -143,6 +143,34 @@ Remaining gap: no test against a live FTP/SFTP server is performed here (the
 suite must stay offline), and transfers still run on the UI thread rather than
 in the background queue.
 
+## Phase 13.3 — saved sessions (done)
+
+`cargo test -p rc-core --lib sessions` → **13 tests**, `cargo test -p rcommander --lib sessions`
+→ **5 tests**, plus 2 UI tests.
+
+`rc_core::sessions::SessionStore` keeps profiles in `sessions.toml`, one file next
+to the configuration and separate from `settings.toml`. A `Session` holds host,
+port, user, protocol, authentication method, key path, host-key policy, the
+initial local and remote directories and the transfer flags — never a password,
+which stays in the credential store. The store can add or replace by name, rename,
+duplicate (`dev copy`, `dev copy 2`, …), delete, reorder, and report a free name so
+an import can never overwrite an existing profile.
+
+`parse_ssh_config`/`sessions_from_ssh_config` read an OpenSSH configuration:
+`Host` may list several aliases, `HostName`, `User`, `Port` and `IdentityFile` are
+used, `Key=value` and inline comments are accepted, `~` is expanded, and pattern
+blocks (`Host *`, `Host 192.168.*`) are skipped because they describe defaults, not
+hosts. `Include` is not followed, which is documented rather than silently
+half-supported.
+
+The connect dialog gained a *Saved sessions* section: click a session to fill the
+form, *Load*, *Save* (with a name), *Delete*, and *Import ssh_config* with the path
+field pre-filled with `~/.ssh/config`. The dialog's OK button now actually
+connects: it builds the connection from the dialog state, takes the password from
+the credential store when one is there, bounds the connect with the configured FTP
+timeout so a dead host does not freeze the window, and keeps the dialog open with
+the error when the connection fails.
+
 ## Phase 8 — `rc-agent` (done)
 
 `cargo test -p rc-agent` → **96 tests, 0 failures.** JSON-RPC 2.0 framing with
@@ -172,7 +200,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **224 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **229 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -181,7 +209,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **37 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **38 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -323,12 +351,12 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1146 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1166 tests, 0 failures** (see the per-crate numbers
   above).
-  Totals by crate: `rc-core` 218, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
+  Totals by crate: `rc-core` 232, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
   `rc-archive` 134, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3 doctests and
-  one opt-in SFTP integration test), `rcommander` 265 (224 lib + 37 UI + 3 i18n
-  guard) — **1146 tests** (measured
+  one opt-in SFTP integration test), `rcommander` 270 (229 lib + 38 UI + 3 i18n
+  guard) — **1166 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.

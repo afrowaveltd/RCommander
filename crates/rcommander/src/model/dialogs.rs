@@ -583,6 +583,14 @@ pub struct FtpConnectState {
     pub connection: SavedConnection,
     pub save_password: bool,
     pub status: String,
+    /// Session selected in the "saved sessions" list of the dialog.
+    pub session_choice: String,
+    /// Name to store the current settings under.
+    pub session_name: String,
+    /// `ssh_config` file to import sessions from.
+    pub ssh_config_path: String,
+    /// Result of the last session action, shown in the dialog.
+    pub session_status: String,
 }
 
 impl Default for FtpConnectState {
@@ -594,6 +602,10 @@ impl Default for FtpConnectState {
             connection: SavedConnection::with_defaults("ftp"),
             save_password: true,
             status: String::new(),
+            session_choice: String::new(),
+            session_name: String::new(),
+            ssh_config_path: rc_core::sessions::expand_home("~/.ssh/config"),
+            session_status: String::new(),
         }
     }
 }

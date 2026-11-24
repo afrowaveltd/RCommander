@@ -10,6 +10,7 @@ pub mod dialogs;
 pub mod remote;
 pub mod reset;
 pub mod search;
+pub mod sessions;
 
 use crate::i18n::{Direction, Strings};
 use crate::ops_runner::OpHandle;
@@ -396,6 +397,10 @@ pub struct Model {
     pub secrets_path_override: Option<std::path::PathBuf>,
     /// Override of the per-user config directory (tests, portable installs).
     pub config_dir_override: Option<std::path::PathBuf>,
+    /// Saved connection profiles (`sessions.toml`), loaded lazily.
+    pub sessions_store: rc_core::sessions::SessionStore,
+    /// The session store changed on disk since it was loaded.
+    pub sessions_dirty: bool,
 }
 
 /// An open F3 viewer.
@@ -485,10 +490,13 @@ impl Model {
             pending_secrets: Vec::new(),
             secrets_path_override: None,
             config_dir_override: None,
+            sessions_store: rc_core::sessions::SessionStore::new(),
+            sessions_dirty: false,
             keymap,
             settings,
             strings,
         };
+        model.load_sessions();
         model.status = model.strings.get("status.ready");
         model
     }

@@ -883,6 +883,7 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
     if let Some(protocol) = protocol_choice {
         state.set_protocol(protocol);
     }
+    sessions_section(ui, model, state);
     egui::Grid::new("ftp_grid").num_columns(2).show(ui, |ui| {
         ui.label(model.t("ftp.host"));
         ui.add(
@@ -988,16 +989,146 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
     }
     if ok {
         if let Err(message) = state.validate() {
+            state.status = message.clone();
             model.report_error(message);
             return DialogAction::None;
         }
-        model.report(format!(
-            "connecting to {} is not wired yet",
-            state.summary()
-        ));
-        return DialogAction::Close;
+        let connection = state.connection.clone();
+        let name = if state.session_name.trim().is_empty() {
+            connection.host.clone()
+        } else {
+            state.session_name.trim().to_string()
+        };
+        let session = rc_core::sessions::Session::from_connection(name, &connection);
+        match model.connect_with_connection(&connection, &session) {
+            crate::model::CommandOutcome::Ok => {
+                // Remembering the password is opt-in; `connect_with_connection`
+                // already stored it when the store is unlocked, so turning the
+                // option off simply skips the extra request here.
+                if state.save_password
+                    && let crate::model::CommandOutcome::Failed(message) =
+                        model.remember_password(&connection)
+                {
+                    state.session_status = message;
+                }
+                model.close_dialogs();
+                return DialogAction::Close;
+            }
+            crate::model::CommandOutcome::Failed(message) => {
+                // Keep the dialog open so the password can be corrected.
+                state.status = message.clone();
+                model.report_error(message);
+                return DialogAction::None;
+            }
+            _ => return DialogAction::None,
+        }
     }
     DialogAction::None
+}
+
+/// The saved-session list inside the connect dialog: load, save, delete and
+/// import from an OpenSSH `ssh_config` file.
+fn sessions_section(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) {
+    let names = model.session_names();
+    egui::CollapsingHeader::new(model.t("ftp.sessions"))
+        .default_open(!names.is_empty())
+        .id_salt("ftp_sessions")
+        .show(ui, |ui| {
+            if names.is_empty() {
+                ui.label(egui::RichText::new(model.t("ftp.sessions.none")).small());
+            } else {
+                ui.horizontal_wrapped(|ui| {
+                    for name in &names {
+                        if let Some(session) = model.session(name) {
+                            let selected = state.session_choice == *name;
+                            let response = ui
+                                .selectable_label(selected, session.summary())
+                                .on_hover_text(session.address());
+                            if response.clicked() {
+                                state.session_choice = name.clone();
+                                state.session_name = name.clone();
+                                state.connection = session.to_connection();
+                                state.status = String::new();
+                            }
+                        }
+                    }
+                });
+                ui.horizontal(|ui| {
+                    if ui.button(model.t("ftp.sessions.load")).clicked()
+                        && let Some(session) = model.session(&state.session_choice).cloned()
+                    {
+                        state.connection = session.to_connection();
+                        state.session_name = session.name.clone();
+                        state.session_status =
+                            model.tf("ftp.sessions.loaded", &[("name", &session.name)]);
+                    }
+                    if ui
+                        .add_enabled(
+                            !state.session_choice.is_empty(),
+                            egui::Button::new(model.t("ftp.sessions.delete")),
+                        )
+                        .clicked()
+                    {
+                        let name = state.session_choice.clone();
+                        match model.delete_session(&name) {
+                            Ok(true) => {
+                                state.session_choice.clear();
+                                state.session_status =
+                                    model.tf("ftp.sessions.deleted", &[("name", &name)]);
+                            }
+                            Ok(false) => {}
+                            Err(message) => state.session_status = message,
+                        }
+                    }
+                });
+            }
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.label(model.t("ftp.sessions.name"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.session_name)
+                        .hint_text(state.connection.host.clone())
+                        .desired_width(180.0),
+                );
+                if ui.button(model.t("ftp.sessions.save")).clicked() {
+                    if let Err(message) = state.validate() {
+                        state.session_status = message;
+                    } else {
+                        let connection = state.connection.clone();
+                        match model.save_current_as_session(&state.session_name, &connection) {
+                            Ok(name) => {
+                                state.session_choice = name.clone();
+                                state.session_name = name.clone();
+                                state.session_status =
+                                    model.tf("ftp.sessions.saved", &[("name", &name)]);
+                            }
+                            Err(message) => state.session_status = message,
+                        }
+                    }
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.ssh_config_path)
+                        .desired_width(220.0)
+                        .hint_text("~/.ssh/config"),
+                );
+                if ui.button(model.t("ftp.sessions.import")).clicked() {
+                    let path = std::path::PathBuf::from(state.ssh_config_path.trim());
+                    match model.import_ssh_config(&path) {
+                        Ok(count) => {
+                            let count = count.to_string();
+                            state.session_status =
+                                model.tf("ftp.sessions.imported", &[("count", &count)]);
+                        }
+                        Err(message) => state.session_status = message,
+                    }
+                }
+            });
+            if !state.session_status.is_empty() {
+                ui.label(egui::RichText::new(&state.session_status).small());
+            }
+        });
 }
 
 fn history(ui: &mut egui::Ui, model: &mut Model, state: &mut HistoryState) -> DialogAction {

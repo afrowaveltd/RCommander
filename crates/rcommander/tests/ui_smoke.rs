@@ -1128,3 +1128,95 @@ fn the_connect_dialog_is_pre_filled_with_localhost_and_a_port() {
     };
     assert_eq!(state.connection.port, 22);
 }
+
+#[test]
+fn the_connect_dialog_lists_saved_sessions_and_imports_ssh_config() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
+    app.model.load_sessions();
+    app.model
+        .save_current_as_session(
+            "work",
+            &rc_core::config::SavedConnection {
+                host: "files.example.com".into(),
+                user: "alice".into(),
+                protocol: "sftp".into(),
+                ..rc_core::config::SavedConnection::with_defaults("sftp")
+            },
+        )
+        .unwrap();
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_FtpConnect");
+    harness.run();
+    // The saved session is offered as a clickable line.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("files.example.com")
+            .count()
+            > 0,
+        "the saved session is listed in the dialog"
+    );
+
+    // Importing an ssh_config file adds its hosts as sessions.
+    let ssh_config = config.path().join("ssh_config");
+    std::fs::write(
+        &ssh_config,
+        "Host build\n  HostName build.example.com\n  User ci\n",
+    )
+    .unwrap();
+    if let Some(rcommander::model::Dialog::FtpConnect(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.ssh_config_path = ssh_config.to_string_lossy().to_string();
+    }
+    harness.run();
+    harness.root().get_by_label("ftp.sessions.import").click();
+    harness.run();
+    let mut names = harness.state().model.session_names();
+    names.sort();
+    assert_eq!(names, vec!["build".to_string(), "work".to_string()]);
+    assert!(config.path().join("sessions.toml").is_file());
+}
+
+#[test]
+fn loading_a_saved_session_fills_the_connect_dialog() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
+    app.model.load_sessions();
+    app.model
+        .save_current_as_session(
+            "office",
+            &rc_core::config::SavedConnection {
+                host: "office.example.com".into(),
+                user: "bob".into(),
+                port: 2022,
+                ..rc_core::config::SavedConnection::with_defaults("sftp")
+            },
+        )
+        .unwrap();
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_FtpConnect");
+    harness.run();
+    // Click the session line: the form follows.
+    harness
+        .root()
+        .get_by_label_contains("office.example.com")
+        .click();
+    harness.run();
+    let Some(rcommander::model::Dialog::FtpConnect(state)) = harness.state().model.top_dialog()
+    else {
+        panic!("the connect dialog should still be open");
+    };
+    assert_eq!(state.connection.host, "office.example.com");
+    assert_eq!(state.connection.user, "bob");
+    assert_eq!(
+        state.connection.port, 2022,
+        "a custom port survives the session"
+    );
+    assert_eq!(state.session_name, "office");
+}
