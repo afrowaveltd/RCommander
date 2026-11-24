@@ -599,3 +599,342 @@ fn short_id(id: &git2::Oid) -> String {
 mod fixture;
 #[cfg(test)]
 mod tests;
+
+/// State of one path in the working tree, as the panel needs to colour it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FileStatus {
+    /// Tracked and identical to `HEAD`.
+    Unchanged,
+    Modified,
+    Added,
+    Deleted,
+    Renamed,
+    /// Not tracked yet, but not ignored either.
+    Untracked,
+    /// Excluded by a `.gitignore` rule.
+    Ignored,
+    /// A merge conflict waiting to be resolved.
+    Conflicted,
+    /// The file type changed (for example a file became a symlink).
+    TypeChanged,
+}
+
+impl FileStatus {
+    /// One-letter code in the style of `git status --short`.
+    pub fn code(self) -> char {
+        match self {
+            FileStatus::Unchanged => ' ',
+            FileStatus::Modified => 'M',
+            FileStatus::Added => 'A',
+            FileStatus::Deleted => 'D',
+            FileStatus::Renamed => 'R',
+            FileStatus::Untracked => '?',
+            FileStatus::Ignored => '!',
+            FileStatus::Conflicted => 'U',
+            FileStatus::TypeChanged => 'T',
+        }
+    }
+
+    /// Localisation key of the colour role this state uses.
+    pub fn label_key(self) -> &'static str {
+        match self {
+            FileStatus::Unchanged => "git.status.unchanged",
+            FileStatus::Modified => "git.status.modified",
+            FileStatus::Added => "git.status.added",
+            FileStatus::Deleted => "git.status.deleted",
+            FileStatus::Renamed => "git.status.renamed",
+            FileStatus::Untracked => "git.status.untracked",
+            FileStatus::Ignored => "git.status.ignored",
+            FileStatus::Conflicted => "git.status.conflicted",
+            FileStatus::TypeChanged => "git.status.type_changed",
+        }
+    }
+
+    /// True when the file is only in the index (staged) and not modified further.
+    pub fn is_staged(self) -> bool {
+        matches!(
+            self,
+            FileStatus::Added | FileStatus::Renamed | FileStatus::Deleted
+        )
+    }
+}
+
+/// The index and working-tree state of one path.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub struct StatusEntry {
+    /// What the index holds compared to `HEAD` (the "ready to commit" side).
+    pub staged: Option<FileStatus>,
+    /// What the working tree holds compared to the index.
+    pub unstaged: Option<FileStatus>,
+}
+
+impl StatusEntry {
+    /// Nothing to report.
+    pub fn is_clean(&self) -> bool {
+        self.staged.is_none() && self.unstaged.is_none()
+    }
+
+    /// True when something is ready to be committed.
+    pub fn has_staged(&self) -> bool {
+        self.staged
+            .is_some_and(|status| status != FileStatus::Unchanged)
+    }
+
+    /// The status a panel should colour the row with: the worktree state wins,
+    /// because that is what the user sees on disk.
+    pub fn display(&self) -> Option<FileStatus> {
+        self.unstaged.or(self.staged)
+    }
+
+    /// `XY` in the style of `git status --short`.
+    pub fn codes(&self) -> String {
+        let first = self.staged.map(|s| s.code()).unwrap_or(' ');
+        let second = self.unstaged.map(|s| s.code()).unwrap_or(' ');
+        format!("{first}{second}")
+    }
+
+    fn from_git(status: git2::Status) -> StatusEntry {
+        use git2::Status as S;
+        let staged = if status.intersects(S::INDEX_NEW) {
+            Some(FileStatus::Added)
+        } else if status.intersects(S::INDEX_MODIFIED) {
+            Some(FileStatus::Modified)
+        } else if status.intersects(S::INDEX_DELETED) {
+            Some(FileStatus::Deleted)
+        } else if status.intersects(S::INDEX_RENAMED) {
+            Some(FileStatus::Renamed)
+        } else if status.intersects(S::INDEX_TYPECHANGE) {
+            Some(FileStatus::TypeChanged)
+        } else {
+            None
+        };
+        let unstaged = if status.intersects(S::CONFLICTED) {
+            Some(FileStatus::Conflicted)
+        } else if status.intersects(S::WT_NEW) {
+            Some(if status.intersects(S::IGNORED) {
+                FileStatus::Ignored
+            } else {
+                FileStatus::Untracked
+            })
+        } else if status.intersects(S::WT_MODIFIED) {
+            Some(FileStatus::Modified)
+        } else if status.intersects(S::WT_DELETED) {
+            Some(FileStatus::Deleted)
+        } else if status.intersects(S::WT_RENAMED) {
+            Some(FileStatus::Renamed)
+        } else if status.intersects(S::WT_TYPECHANGE) {
+            Some(FileStatus::TypeChanged)
+        } else {
+            None
+        };
+        StatusEntry { staged, unstaged }
+    }
+}
+
+/// Everything the status of a working tree reports, plus a summary.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WorkTreeStatus {
+    /// `path -> state`, only for entries that are not clean.
+    pub entries: Vec<(String, StatusEntry)>,
+}
+
+impl WorkTreeStatus {
+    /// The state of one path (`/`-separated, relative to the root).
+    pub fn get(&self, path: &str) -> StatusEntry {
+        self.entries
+            .iter()
+            .find(|(name, _)| name == path)
+            .map(|(_, status)| *status)
+            .unwrap_or_default()
+    }
+
+    /// Number of paths the index would commit.
+    pub fn staged_count(&self) -> usize {
+        self.entries
+            .iter()
+            .filter(|(_, status)| status.has_staged())
+            .count()
+    }
+
+    /// Number of paths with unstaged changes.
+    pub fn modified_count(&self) -> usize {
+        self.entries
+            .iter()
+            .filter(|(_, status)| status.unstaged.is_some())
+            .count()
+    }
+
+    /// True when there is nothing to report.
+    pub fn is_clean(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// A one-line summary for the status bar.
+    pub fn summary(&self) -> String {
+        if self.is_clean() {
+            return "clean".to_string();
+        }
+        format!(
+            "{} staged, {} changed",
+            self.staged_count(),
+            self.modified_count()
+        )
+    }
+}
+
+impl GitRepo {
+    /// Read the status of the whole working tree, including ignored files.
+    pub fn status(&self) -> Result<WorkTreeStatus, GitError> {
+        let mut options = git2::StatusOptions::new();
+        options
+            .include_untracked(true)
+            .recurse_untracked_dirs(true)
+            .include_ignored(true)
+            .renames_head_to_index(true)
+            .renames_index_to_workdir(true);
+        let statuses = self.repo.statuses(Some(&mut options)).map_err(convert)?;
+        let mut entries = Vec::new();
+        for entry in statuses.iter() {
+            let Ok(path) = entry.path() else { continue };
+            let status = StatusEntry::from_git(entry.status());
+            if status.is_clean() {
+                continue;
+            }
+            entries.push((path.to_string(), status));
+        }
+        entries.sort_by(|a, b| a.0.cmp(&b.0));
+        Ok(WorkTreeStatus { entries })
+    }
+
+    /// True when a path is excluded by a `.gitignore` rule.
+    ///
+    /// Ask this per entry instead of relying on the bulk status list: libgit2 only
+    /// reports ignored paths that its own walk happens to visit, while the panel
+    /// asks about exactly the names it is about to draw.
+    pub fn is_ignored(&self, path: &str) -> bool {
+        let path = path.trim_start_matches('/').replace('\\', "/");
+        if path.is_empty() {
+            return false;
+        }
+        self.repo
+            .status_should_ignore(Path::new(&path))
+            .unwrap_or(false)
+    }
+
+    /// The status of a single path, walked through the parent directories.
+    pub fn status_of(&self, status: &WorkTreeStatus, path: &str) -> StatusEntry {
+        let path = path.trim_start_matches('/').replace('\\', "/");
+        if path.is_empty() {
+            return StatusEntry::default();
+        }
+        let direct = status.get(&path);
+        if !direct.is_clean() {
+            return direct;
+        }
+        if self.is_ignored(&path) {
+            return StatusEntry {
+                staged: None,
+                unstaged: Some(FileStatus::Ignored),
+            };
+        }
+        // A directory is "changed" when anything inside it is: the panel shows
+        // directories too, and a grey folder with modified files would be wrong.
+        let prefix = format!("{path}/");
+        let mut combined = StatusEntry::default();
+        for (name, entry) in &status.entries {
+            if !name.starts_with(&prefix) {
+                continue;
+            }
+            combined.staged = combined.staged.or(entry.staged);
+            combined.unstaged = combined.unstaged.or(entry.unstaged);
+        }
+        combined
+    }
+
+    /// True when the working tree has staged or unstaged changes.
+    pub fn is_dirty(&self) -> bool {
+        self.status()
+            .map(|status| !status.is_clean())
+            .unwrap_or(false)
+    }
+
+    /// Switch the working tree to another local branch.
+    ///
+    /// `allow_dirty` is the "I know what I am doing" switch: without it a working
+    /// tree with changes is refused instead of half-merged. The checkout itself is
+    /// `safe`, so libgit2 will not overwrite a file that has local changes even when
+    /// `allow_dirty` is set — it reports the conflict instead.
+    pub fn checkout_branch(&self, name: &str, allow_dirty: bool) -> Result<(), GitError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(GitError::new("a branch name is required".to_string()));
+        }
+        if self.branches().iter().all(|branch| branch.name != name) {
+            return Err(GitError::new(format!("there is no branch “{name}”")));
+        }
+        if self.head_branch().as_deref() == Some(name) {
+            return Err(GitError::new(format!("“{name}” is already checked out")));
+        }
+        if !allow_dirty && self.is_dirty() {
+            return Err(GitError::new(
+                "the working tree has changes; commit or discard them first (or switch with the force option)"
+                    .to_string(),
+            ));
+        }
+        let reference = format!("refs/heads/{name}");
+        self.repo.set_head(&reference).map_err(convert)?;
+        let mut builder = git2::build::CheckoutBuilder::new();
+        // A clean tree can be replaced outright — that is what makes files of the
+        // other branch disappear instead of lingering as untracked leftovers. A tree
+        // with local changes is handled with `safe`, which never overwrites them.
+        if allow_dirty {
+            builder.safe();
+        } else {
+            builder.force();
+        }
+        builder.update_index(true);
+        self.repo
+            .checkout_head(Some(&mut builder))
+            .map_err(|error| {
+                GitError::new(format!(
+                    "could not check out “{name}”: {} (your local changes were kept)",
+                    error.message()
+                ))
+            })?;
+        // The switch itself must not look like a pile of staged changes.
+        self.reset_index_to_head();
+        Ok(())
+    }
+
+    /// Make the index match `HEAD` without touching the working tree.
+    fn reset_index_to_head(&self) {
+        if let Ok(head) = self.repo.head()
+            && let Ok(commit) = head.peel_to_commit()
+        {
+            let _ = self
+                .repo
+                .reset(commit.as_object(), git2::ResetType::Mixed, None);
+        }
+    }
+
+    /// Create a branch at `HEAD` and switch to it.
+    pub fn create_branch(&self, name: &str) -> Result<(), GitError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(GitError::new("a branch name is required".to_string()));
+        }
+        if self.branches().iter().any(|branch| branch.name == name) {
+            return Err(GitError::new(format!("the branch “{name}” already exists")));
+        }
+        let head = self.repo.head().map_err(convert)?;
+        let commit = head.peel_to_commit().map_err(convert)?;
+        self.repo.branch(name, &commit, false).map_err(convert)?;
+        self.repo
+            .set_head(&format!("refs/heads/{name}"))
+            .map_err(convert)?;
+        self.reset_index_to_head();
+        let mut builder = git2::build::CheckoutBuilder::new();
+        builder.safe().update_index(true);
+        self.repo.checkout_head(Some(&mut builder)).map_err(convert)
+    }
+}

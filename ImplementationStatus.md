@@ -166,6 +166,27 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 15.2a — status and branch switching in the engine (done)
+
+`cargo test -p rc-git` → **24 tests**.
+
+`GitRepo::status()` reads the whole working tree with libgit2 (index *and* worktree
+side, renames included) and returns a `WorkTreeStatus`: per path a `StatusEntry` with
+an optional staged and an optional unstaged `FileStatus` (modified, added, deleted,
+renamed, untracked, ignored, conflicted, type changed), `XY` codes in the style of
+`git status --short`, a staged/modified count and a one-line summary. Ignored paths are
+answered per path with `is_ignored()`, because libgit2's bulk walk only visits the
+ignored files it happens to see — and the panel asks about exactly the names it draws.
+`status_of()` folds a directory's children into the directory itself, so a folder with
+modified content is not shown as clean.
+
+`checkout_branch(name, allow_dirty)` and `create_branch(name)` are the first write
+operations. Both refuse to touch a working tree with changes unless the caller insists
+(`allow_dirty`), the forced path uses libgit2's `safe` checkout so a local edit is never
+lost, and a clean tree is replaced outright so files of the other branch disappear
+instead of lingering as untracked leftovers. The index is reset to the new `HEAD`
+afterwards, so the switch itself never shows up as a pile of staged changes.
+
 ## Phase 15.1 — Git engine (done)
 
 `cargo test -p rc-git` → **12 tests**, all offline, all against repositories the suite
@@ -461,12 +482,12 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1216 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1221 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
-  `rc-archive` 134, `rc-git` 19, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
+  `rc-archive` 134, `rc-git` 24, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
   doctests and one opt-in SFTP integration test), `rcommander` 288 (243 lib + 43 UI
-  + 3 i18n guard) — **1216 tests** (measured
+  + 3 i18n guard) — **1221 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.

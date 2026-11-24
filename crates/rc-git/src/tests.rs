@@ -244,3 +244,185 @@ fn a_bare_repository_opens_but_has_no_working_tree() {
         "a bare repository has no working tree"
     );
 }
+
+#[test]
+fn the_status_reports_modified_new_ignored_and_staged_files() {
+    let fixture = Fixture::new("status");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+
+    // A clean tree has nothing to report.
+    let clean = repo.status().unwrap();
+    assert!(clean.is_clean(), "{:?}", clean.entries);
+    assert!(!repo.is_dirty());
+    assert_eq!(clean.summary(), "clean");
+
+    // Modify a tracked file, add a new one, and leave the ignored one alone.
+    std::fs::write(fixture.root.join("first.txt"), "changed").unwrap();
+    std::fs::write(fixture.root.join("brand-new.txt"), "new").unwrap();
+    std::fs::write(fixture.root.join("another.log"), "ignored").unwrap();
+    let status = repo.status().unwrap();
+    assert_eq!(
+        status.get("first.txt").unstaged,
+        Some(FileStatus::Modified),
+        "{:?}",
+        status.entries
+    );
+    assert_eq!(
+        status.get("brand-new.txt").unstaged,
+        Some(FileStatus::Untracked)
+    );
+    // Ignored files are answered per path, which is what the panel needs.
+    assert!(repo.is_ignored("another.log"));
+    assert!(repo.is_ignored("debug.log"));
+    assert!(!repo.is_ignored("first.txt"));
+    assert_eq!(
+        repo.status_of(&status, "another.log").unstaged,
+        Some(FileStatus::Ignored)
+    );
+    assert!(repo.is_dirty());
+    assert_eq!(status.modified_count(), 2, "{:?}", status.entries);
+    assert_eq!(status.staged_count(), 0);
+
+    // Stage everything: the index side becomes "ready to commit".
+    let mut index = repo.repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+    let staged = repo.status().unwrap();
+    assert_eq!(staged.staged_count(), 2, "{:?}", staged.entries);
+    assert_eq!(staged.get("first.txt").staged, Some(FileStatus::Modified));
+    assert_eq!(staged.get("brand-new.txt").staged, Some(FileStatus::Added));
+    assert!(staged.get("first.txt").has_staged());
+    assert_eq!(staged.get("first.txt").codes(), "M ");
+    assert!(
+        staged.summary().contains("2 staged"),
+        "{}",
+        staged.summary()
+    );
+}
+
+#[test]
+fn a_directory_is_changed_when_something_inside_it_is() {
+    let fixture = Fixture::new("dir-status");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    std::fs::write(fixture.root.join("src/main.rs"), "fn main() { changed }\n").unwrap();
+    let status = repo.status().unwrap();
+    assert_eq!(
+        repo.status_of(&status, "src").unstaged,
+        Some(FileStatus::Modified),
+        "the directory inherits the state of its content"
+    );
+    assert_eq!(
+        repo.status_of(&status, "src/main.rs").unstaged,
+        Some(FileStatus::Modified)
+    );
+    assert!(repo.status_of(&status, "nested").is_clean());
+    // A path outside the tree is simply clean.
+    assert!(repo.status_of(&status, "").is_clean());
+}
+
+#[test]
+fn switching_branches_moves_the_working_tree_and_never_loses_an_edit() {
+    let fixture = Fixture::new("checkout");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    assert_eq!(repo.head_branch().as_deref(), Some("main"));
+
+    // A clean tree switches, and the files follow the branch: `old` has no
+    // second.txt and no nested directory, so they leave the tree.
+    repo.checkout_branch("old", false).unwrap();
+    assert_eq!(repo.head_branch().as_deref(), Some("old"));
+    assert_eq!(
+        repo.read_file(&Revision::WorkingTree, "first.txt", 64)
+            .unwrap(),
+        b"one"
+    );
+    assert!(
+        !fixture.root.join("second.txt").exists(),
+        "a file of the other tree is removed"
+    );
+    assert!(
+        repo.status().unwrap().is_clean(),
+        "the switch itself is not a change: {:?}",
+        repo.status().unwrap().entries
+    );
+
+    // And back again, with the files returning.
+    repo.checkout_branch("main", false).unwrap();
+    assert_eq!(repo.head_branch().as_deref(), Some("main"));
+    assert_eq!(
+        repo.read_file(&Revision::WorkingTree, "first.txt", 64)
+            .unwrap(),
+        b"two"
+    );
+    assert!(fixture.root.join("second.txt").exists());
+    assert!(repo.status().unwrap().is_clean());
+
+    // A local edit blocks a plain switch…
+    std::fs::write(fixture.root.join("first.txt"), "uncommitted").unwrap();
+    let refused = repo.checkout_branch("old", false).unwrap_err();
+    assert!(refused.to_string().contains("has changes"), "{refused}");
+    assert_eq!(repo.head_branch().as_deref(), Some("main"), "nothing moved");
+
+    // …and the force flag switches while keeping the edit, which then shows up as a
+    // modification of the new branch.
+    repo.checkout_branch("old", true).unwrap();
+    assert_eq!(repo.head_branch().as_deref(), Some("old"));
+    assert_eq!(
+        std::fs::read_to_string(fixture.root.join("first.txt")).unwrap(),
+        "uncommitted",
+        "the local edit survived the switch"
+    );
+    assert!(repo.status().unwrap().get("first.txt").unstaged.is_some());
+
+    // Unknown and already-current branches are refused with a clear message.
+    let unknown = repo.checkout_branch("nope", true).unwrap_err();
+    assert!(unknown.to_string().contains("no branch"), "{unknown}");
+    let current = repo.checkout_branch("old", true).unwrap_err();
+    assert!(
+        current.to_string().contains("already checked out"),
+        "{current}"
+    );
+}
+
+#[test]
+fn a_branch_can_be_created_from_head() {
+    let fixture = Fixture::new("create-branch");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    repo.create_branch("feature").unwrap();
+    assert_eq!(repo.head_branch().as_deref(), Some("feature"));
+    let names: Vec<String> = repo.branches().into_iter().map(|r| r.name).collect();
+    assert!(names.contains(&"feature".to_string()), "{names:?}");
+    // Creating the same branch twice is refused.
+    assert!(repo.create_branch("feature").is_err());
+    assert!(repo.create_branch("  ").is_err());
+}
+
+#[test]
+fn status_codes_and_labels_cover_every_state() {
+    for status in [
+        FileStatus::Unchanged,
+        FileStatus::Modified,
+        FileStatus::Added,
+        FileStatus::Deleted,
+        FileStatus::Renamed,
+        FileStatus::Untracked,
+        FileStatus::Ignored,
+        FileStatus::Conflicted,
+        FileStatus::TypeChanged,
+    ] {
+        assert!(status.label_key().starts_with("git.status."));
+    }
+    assert_eq!(FileStatus::Modified.code(), 'M');
+    assert!(FileStatus::Added.is_staged());
+    assert!(!FileStatus::Untracked.is_staged());
+    let entry = StatusEntry {
+        staged: Some(FileStatus::Added),
+        unstaged: Some(FileStatus::Modified),
+    };
+    assert_eq!(entry.codes(), "AM");
+    assert!(entry.has_staged());
+    assert_eq!(entry.display(), Some(FileStatus::Modified));
+    assert!(StatusEntry::default().is_clean());
+    assert_eq!(StatusEntry::default().codes(), "  ");
+}
