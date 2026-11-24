@@ -470,6 +470,33 @@ keeping the pixel/byte budgets that stop a single file from freezing the window.
 | 17.5 | Viewer plugins and file-type rules | the viewer asks a registry which renderer claims a content type (the same registry Phase 18 uses), so new formats can be added without touching the viewer | a fake plugin claims an extension and renders in tests; ordering and fallback are deterministic |
 | 17.6 | Documentation | a "Previewer formats" topic with the supported list, the limits and how to open a file externally when the internal viewer cannot show it | bilingual topic; status file lists what is native, what needs a plugin and what is not supported |
 
+## Phase 17.0 — Visual polish: Markdown and syntax highlighting
+
+Requested by the panel owner: first impressions are visual, so chat messages, quoted code and
+the editor must look right before anything else is polished.
+
+**One parser, two renderers.** `rc-markdown` turns the subset we support (headings, emphasis,
+lists, quotes, fenced code, tables, links) into a small AST; an egui renderer draws it with
+`LayoutJob` (colours, spacing, code blocks with a background) and a TUI renderer maps the same
+AST onto terminal text with attributes (bold/italic/reverse) and true colour. Parsing once and
+rendering twice is what keeps the chat panel and the future TUI consistent.
+
+**One highlighter, five consumers.** A small tokenizer in `rc-core` produces
+`(range, TokenKind)` spans for the languages we actually care about (Rust, C/C++, Python,
+JavaScript/TypeScript, shell, TOML/JSON/YAML, Markdown, HTML/CSS). It is used by the F4 editor,
+the viewer, fenced code in Markdown, chat messages quoting code, and the TUI. No heavy grammar
+dependency by default; `syntect` stays an option behind a feature flag if coverage ever becomes
+a problem.
+
+**Theme roles grow accordingly**: `code_keyword`, `code_string`, `code_comment`, `code_number`,
+`code_function`, `code_type`, `code_punctuation`, so a theme controls the code colours like it
+controls everything else — and the editor's syntax colours survive a theme switch. Incremental
+re-highlighting (only changed lines) keeps a large file responsive.
+
+Tests: a tokenizer table test per language (source snippet → expected spans), a Markdown AST
+test per construct, and a renderer test asserting that a fenced block reaches the output as
+highlighted spans in both renderers.
+
 ## Phase 18 — Plugin architecture (data sources and renderers)
 
 Plugins are what turn a closed list of features into a platform: a web API source,
