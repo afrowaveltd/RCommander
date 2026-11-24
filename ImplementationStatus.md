@@ -659,6 +659,7 @@ command either by its own name or through a family rule:
 | No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions |
 | Shared Markdown parser, syntax highlighting and annotations not implemented | Phase 17.0 before Phase 17.1–17.2 |
 | No general data/render plugin framework or enforceable isolation for untrusted plugins | Phase 18; process separation alone is insufficient |
+| MCP HTTP server advertised in CLI help is not connected: `run_mcp` ignores `--http` arguments | Implement and secure server transport separately, or remove the unused CLI help flag; stdio server and MCP HTTP **client** are distinct |
 | Integrated SSH shell remains planned | Phase 19 |
 | Optional privileged OS helper not implemented | Phase 20 (not required for ordinary AI chat) |
 
