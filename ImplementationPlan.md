@@ -233,6 +233,30 @@ a conversation (this phase). The pieces already exist — `rc-agent` server and 
 panel model, the Git engine, the remote panels — so this phase is about the conversation,
 the context and the permissions, not about new capabilities.
 
+### Agreed with the panel owner: profiles, capability packs and the backup rule
+
+Decisions taken in the design discussion (they belong to 16.0 and to Phase 20):
+
+* **Three privilege profiles, not three OS accounts**: `sandbox` (paths confined to the
+  directories the user picks — the second panel by default), `user` (what the logged-in user
+  may do, through tools, with audit), `privileged` (elevated operations). Authentication is
+  delegated to the system — **polkit on Linux**, UAC on Windows, askpass as the fallback —
+  so the application never holds the user's password. The agent may *propose* an elevated
+  command; only a click in our dialog starts it.
+* **Privileged operations live in a small helper, not in the GUI**: a `pkexec`-reached
+  `rcommander-system` helper with a handful of narrow operations (`status`, `logs`,
+  `config_test`, `write_file`, `restart`), each validating its own arguments.
+* **Capability packs in the installer**: the system module (helper + polkit policy) is an
+  *optional* installation component that unlocks the dependent features. The application
+  detects at runtime what is available and greys out the rest with an explanation instead of
+  failing. Portable builds and mobile deliberately cover less; running the portable build
+  elevated is allowed, but with an explicit risk warning and an audit record.
+* **The backup rule is a precondition, not a courtesy**: before any file outside the sandbox
+  is changed, it is copied to a transaction directory, the copy is **verified** (size and
+  content hash) and a manifest is written. Without a verified manifest entry the operation
+  does not proceed. Restoring is a first-class feature ("restore from backup", list per
+  transaction), and every change lands in the audit log next to its backup.
+
 **Security is part of the definition, not an afterthought.** Every tool call that writes,
 deletes, publishes or executes must go through an approval step that names the exact
 operation and target, a per-tool allowlist in the settings, and an audit trail the user can
