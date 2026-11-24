@@ -376,3 +376,7 @@ authors = ["RCommander contributors"]
 "git.pulled" = "Pulled {count} commit(s)"
 "git.merged" = "Merged {branch} ({count} commit(s))"
 "cmd.gitremote" = "Git remote…"
+
+"git.copied" = "Copied {count} file(s) out of the repository"
+"git.copy_needs_local_target" = "Copy out of a revision needs a local directory in the other panel"
+"cmd.gitcopyout" = "Copy out of the repository"

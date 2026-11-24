@@ -557,6 +557,7 @@ impl Model {
             "cm_gitpanel" | "cm_opengitrepository" => self.open_git_panel(),
             "cm_gitbranches" | "cm_gitcheckout" | "cm_gitswitchbranch" => self.open_git_branches(),
             "cm_gitremote" | "cm_gitfetch" | "cm_gitpull" | "cm_gitpush" => self.open_git_remote(),
+            "cm_gitcopyout" => self.copy_from_git(),
             "cm_themetoggle" => self.toggle_theme(),
             "cm_themenext" => self.cycle_theme(1),
             "cm_themeprevious" => self.cycle_theme(-1),

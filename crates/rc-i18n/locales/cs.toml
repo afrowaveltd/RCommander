@@ -372,3 +372,7 @@ authors = ["RCommander contributors"]
 "git.pulled" = "Staženo commitů: {count}"
 "git.merged" = "Sloučeno {branch} (commitů: {count})"
 "cmd.gitremote" = "Git remote…"
+
+"git.copied" = "Z repozitáře zkopírováno souborů: {count}"
+"git.copy_needs_local_target" = "Kopírování z revize potřebuje v druhém panelu místní adresář"
+"cmd.gitcopyout" = "Zkopírovat z repozitáře"

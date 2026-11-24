@@ -272,6 +272,135 @@ pub fn read_file(location: &Location, name: &str, max_bytes: u64) -> Result<GitF
     })
 }
 
+/// Limits for taking data out of a revision.
+#[derive(Clone, Copy, Debug)]
+pub struct ExtractLimits {
+    /// Largest single file.
+    pub max_file_bytes: u64,
+    /// Largest total for one extracted entry (a directory tree).
+    pub max_total_bytes: u64,
+    /// How deep a directory tree may be.
+    pub max_depth: usize,
+}
+
+impl Default for ExtractLimits {
+    fn default() -> Self {
+        ExtractLimits {
+            max_file_bytes: 128 * 1024 * 1024,
+            max_total_bytes: 1024 * 1024 * 1024,
+            max_depth: 32,
+        }
+    }
+}
+
+/// What an extraction produced.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Extracted {
+    pub path: PathBuf,
+    pub files: u64,
+    pub bytes: u64,
+}
+
+/// Write `name` (a file or a whole directory tree) from a revision into `dest_root`.
+///
+/// The revision is only read: nothing is checked out and no `.git` data is touched. The
+/// caller copies the result where it wants it, which keeps the rename-on-collision and
+/// progress behaviour of the ordinary copy path.
+pub fn extract(
+    location: &Location,
+    name: &str,
+    dest_root: &std::path::Path,
+    limits: ExtractLimits,
+) -> Result<Extracted, String> {
+    let Some((root, rev, path)) = location.git_parts() else {
+        return Err(format!("{} is not a git location", location.display()));
+    };
+    let repo = GitRepo::open_exact(root).map_err(|error| error.to_string())?;
+    let revision = Revision::from_key(rev);
+    let inner = if path.is_empty() {
+        name.to_string()
+    } else {
+        format!("{path}/{name}")
+    };
+    let mut out = Extracted {
+        path: dest_root.join(name),
+        ..Default::default()
+    };
+    extract_entry(
+        &repo,
+        &revision,
+        &inner,
+        &dest_root.join(name),
+        &mut out,
+        limits,
+        0,
+    )?;
+    Ok(out)
+}
+
+fn extract_entry(
+    repo: &GitRepo,
+    revision: &Revision,
+    inner: &str,
+    target: &std::path::Path,
+    out: &mut Extracted,
+    limits: ExtractLimits,
+    depth: usize,
+) -> Result<(), String> {
+    if depth > limits.max_depth {
+        return Err(format!("“{inner}” is nested too deeply"));
+    }
+    let is_dir = repo
+        .is_dir(revision, inner)
+        .map_err(|error| error.to_string())?;
+    if !is_dir {
+        let bytes = repo
+            .read_file(revision, inner, limits.max_file_bytes)
+            .map_err(|error| error.to_string())?;
+        if out.bytes + bytes.len() as u64 > limits.max_total_bytes {
+            return Err(format!(
+                "“{inner}” would exceed the {} byte limit for one extraction",
+                limits.max_total_bytes
+            ));
+        }
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
+        }
+        std::fs::write(target, &bytes)
+            .map_err(|error| format!("cannot write {}: {error}", target.display()))?;
+        out.files += 1;
+        out.bytes += bytes.len() as u64;
+        return Ok(());
+    }
+    std::fs::create_dir_all(target)
+        .map_err(|error| format!("cannot create {}: {error}", target.display()))?;
+    for entry in repo
+        .list(revision, inner)
+        .map_err(|error| error.to_string())?
+    {
+        // A revision holds no recursion into submodules; skip those quietly.
+        if entry.is_dir && !name_is_tree(repo, revision, &format!("{inner}/{}", entry.name)) {
+            continue;
+        }
+        extract_entry(
+            repo,
+            revision,
+            &format!("{inner}/{}", entry.name),
+            &target.join(&entry.name),
+            out,
+            limits,
+            depth + 1,
+        )?;
+    }
+    Ok(())
+}
+
+/// True when the path really is a directory in the revision (submodules are not).
+fn name_is_tree(repo: &GitRepo, revision: &Revision, inner: &str) -> bool {
+    repo.is_dir(revision, inner).unwrap_or(false) && repo.list(revision, inner).is_ok()
+}
+
 /// The colour role a status should be drawn with, or `None` for a plain row.
 ///
 /// The mapping is the one the plan asked for: a staged change is green, a working-tree
@@ -492,5 +621,59 @@ mod tests {
             Some(Role::Warning)
         );
         assert_eq!(status_role(StatusEntry::default()), None);
+    }
+}
+
+#[cfg(test)]
+mod extract_tests {
+    use super::tests::fixture_repo;
+    use super::*;
+
+    #[test]
+    fn a_file_and_a_whole_tree_can_be_taken_out_of_a_revision() {
+        let (dir, location) = fixture_repo("extract");
+        let branch = location_for_reference(&location, "branches", "old").unwrap();
+        let out = dir.path().join("out");
+        std::fs::create_dir_all(&out).unwrap();
+
+        // A single file.
+        let file = extract(&branch, "readme.md", &out, ExtractLimits::default()).unwrap();
+        assert_eq!(file.files, 1);
+        assert_eq!(std::fs::read_to_string(&file.path).unwrap(), "hi\n");
+
+        // A directory tree, recursively, from the repository root.
+        let tree = extract(&location, "src", &out, ExtractLimits::default()).unwrap();
+        assert_eq!(tree.files, 1);
+        assert!(
+            out.join("src/main.rs").is_file(),
+            "the nested file is written"
+        );
+        assert!(tree.bytes > 0);
+
+        // The working tree is readable the same way.
+        let live = extract(&location, "readme.md", &out, ExtractLimits::default()).unwrap();
+        assert_eq!(std::fs::read_to_string(&live.path).unwrap(), "hi there\n");
+    }
+
+    #[test]
+    fn extraction_respects_the_limits() {
+        let (dir, location) = fixture_repo("extract-limits");
+        let out = dir.path().join("out");
+        std::fs::create_dir_all(&out).unwrap();
+        let tight = ExtractLimits {
+            max_file_bytes: 2,
+            ..Default::default()
+        };
+        let error = extract(&location, "readme.md", &out, tight).unwrap_err();
+        assert!(error.contains("limit"), "{error}");
+
+        let shallow = ExtractLimits {
+            max_depth: 0,
+            ..Default::default()
+        };
+        assert!(
+            extract(&location, "src", &out, shallow).is_err(),
+            "depth is limited"
+        );
     }
 }

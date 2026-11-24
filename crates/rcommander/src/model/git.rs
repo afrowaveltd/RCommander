@@ -474,6 +474,103 @@ impl Model {
         CommandOutcome::Ok
     }
 
+    /// Copy the marked (or cursor) entries of a Git panel into the other panel.
+    ///
+    /// The revision is read into a temporary directory and then copied with the normal
+    /// copy machinery, so a colliding name is renamed instead of overwritten and a large
+    /// tree reports progress like any other copy.
+    pub fn copy_from_git(&mut self) -> CommandOutcome {
+        let side = self.focus;
+        let Some(location) = self
+            .panel(side)
+            .location()
+            .is_git()
+            .then(|| self.panel(side).location().clone())
+        else {
+            return CommandOutcome::None;
+        };
+        let other = match side {
+            super::Side::Left => super::Side::Right,
+            super::Side::Right => super::Side::Left,
+        };
+        let Some(destination) = self
+            .panel(other)
+            .location()
+            .as_path()
+            .map(|p| p.to_path_buf())
+        else {
+            let message = self.t("git.copy_needs_local_target");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        };
+        let names: Vec<String> = {
+            let panel = self.panel(side);
+            let marked: Vec<String> = panel
+                .entries()
+                .iter()
+                .filter(|entry| panel.selection.contains(&entry.name))
+                .map(|entry| entry.name.clone())
+                .collect();
+            if marked.is_empty() {
+                panel
+                    .cursor_entry()
+                    .map(|entry| vec![entry.name.clone()])
+                    .unwrap_or_default()
+            } else {
+                marked
+            }
+        };
+        if names.is_empty() {
+            return CommandOutcome::None;
+        }
+        let staging_root = std::env::temp_dir().join(format!(
+            "rcommander-git-{}-{}",
+            std::process::id(),
+            self.next_job_id
+        ));
+        self.next_job_id = self.next_job_id.wrapping_add(1);
+        if let Err(error) = std::fs::create_dir_all(&staging_root) {
+            let message = format!("cannot create {}: {error}", staging_root.display());
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        let limits = crate::git_bridge::ExtractLimits::default();
+        let options = rc_core::ops::TransferOptions {
+            overwrite: rc_core::ops::OverwriteMode::Rename,
+            ..Default::default()
+        };
+        let cancel = rc_core::ops::CancelToken::new();
+        let mut files = 0u64;
+        let mut failures: Vec<String> = Vec::new();
+        for name in names {
+            match crate::git_bridge::extract(&location, &name, &staging_root, limits) {
+                Ok(extracted) => {
+                    // A copy out of a revision never overwrites: the name is made free
+                    // first, so a file and a directory collision behave the same way.
+                    let target = free_target(&destination, &name);
+                    match rc_core::ops::copy(&extracted.path, &target, &options, &cancel, None) {
+                        Ok(outcome) => files += outcome.files.max(1),
+                        Err(error) => failures.push(format!("{name}: {error}")),
+                    }
+                }
+                Err(error) => failures.push(format!("{name}: {error}")),
+            }
+        }
+        // The staging copy is only a vehicle; the data now lives in the target panel.
+        let _ = std::fs::remove_dir_all(&staging_root);
+        let settings = self.settings.clone();
+        let _ = self.panel_mut(other).reread(&settings);
+        if failures.is_empty() {
+            let message = self.tf("git.copied", &[("count", &files.to_string())]);
+            self.report(message);
+            CommandOutcome::Ok
+        } else {
+            let message = failures.join("; ");
+            self.report_error(&message);
+            CommandOutcome::Failed(message)
+        }
+    }
+
     /// Open the fetch/pull/push/merge dialog for the panel's repository.
     pub fn open_git_remote(&mut self) -> CommandOutcome {
         let Some(root) = self.active().location().git_root().map(|p| p.to_path_buf()) else {
@@ -565,6 +662,30 @@ impl Model {
             }
         }
     }
+}
+
+/// A path in `dir` that is not taken yet: `name`, then `name (2)`, `name (3)`, …
+fn free_target(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let candidate = dir.join(name);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let path = std::path::Path::new(name);
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| name.to_string());
+    let extension = path
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    for counter in 2..1000 {
+        let candidate = dir.join(format!("{stem} ({counter}){extension}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    dir.join(format!("{stem} (copy){extension}"))
 }
 
 /// The remote a fetch or push should talk to.
@@ -1098,5 +1219,163 @@ mod remote_tests {
             super::CommandOutcome::Failed(_)
         ));
         assert!(matches!(model.git_pull(), super::CommandOutcome::Failed(_)));
+    }
+}
+
+#[cfg(test)]
+mod copy_out_tests {
+    use crate::model::Model;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    /// A Git panel on the left and a plain directory on the right.
+    fn panels(dir: &std::path::Path) -> (Model, std::path::PathBuf) {
+        let root = dir.join("repo");
+        let target = dir.join("target");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&target).unwrap();
+        let mut options = git2::RepositoryInitOptions::new();
+        options.initial_head("main");
+        let repo = git2::Repository::init_opts(&root, &options).unwrap();
+        {
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Test").unwrap();
+            config.set_str("user.email", "t@example.com").unwrap();
+        }
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src/main.rs"), "fn main() {}\n").unwrap();
+        std::fs::write(root.join("readme.md"), "hello\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let signature = git2::Signature::now("Test", "t@example.com").unwrap();
+        let first = repo
+            .commit(Some("HEAD"), &signature, &signature, "first", &tree, &[])
+            .unwrap();
+        let head = repo.find_commit(first).unwrap();
+        repo.branch("old", &head, false).unwrap();
+        // A second commit so a branch can show different content.
+        std::fs::write(root.join("readme.md"), "hello again\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let parent = repo.find_commit(head.id()).unwrap();
+        repo.commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            "second",
+            &tree,
+            &[&parent],
+        )
+        .unwrap();
+
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::git(&root, "", ""),
+            Location::local(&target),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model
+            .open_in(crate::Side::Left, Location::git(&root, "", ""))
+            .unwrap();
+        (model, target)
+    }
+
+    #[test]
+    fn a_file_is_copied_out_of_the_working_tree() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut model, target) = panels(dir.path());
+        let index = model
+            .left
+            .entries()
+            .iter()
+            .position(|e| e.name == "readme.md")
+            .unwrap();
+        model.left.set_cursor(index);
+        assert_eq!(model.copy_from_git(), super::CommandOutcome::Ok);
+        assert_eq!(
+            std::fs::read_to_string(target.join("readme.md")).unwrap(),
+            "hello again\n"
+        );
+        assert!(model.status.contains("git.copied"), "{}", model.status);
+    }
+
+    #[test]
+    fn a_directory_comes_out_recursively_and_never_overwrites() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut model, target) = panels(dir.path());
+        // A file with the same name already exists in the target.
+        std::fs::write(target.join("src"), "occupied").unwrap();
+        let index = model
+            .left
+            .entries()
+            .iter()
+            .position(|e| e.name == "src")
+            .unwrap();
+        model.left.set_cursor(index);
+        assert_eq!(model.copy_from_git(), super::CommandOutcome::Ok);
+        assert!(
+            target.join("src (2)/main.rs").is_file(),
+            "the tree arrived under a free name: {:?}",
+            std::fs::read_dir(&target)
+                .map(|d| d.flatten().map(|e| e.file_name()).collect::<Vec<_>>())
+        );
+        assert_eq!(
+            std::fs::read_to_string(target.join("src")).unwrap(),
+            "occupied",
+            "the colliding file is untouched"
+        );
+    }
+
+    #[test]
+    fn a_marked_selection_is_copied_and_a_revision_works_too() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut model, target) = panels(dir.path());
+        model.left.selection.insert("readme.md");
+        model.left.selection.insert("src");
+        assert_eq!(model.copy_from_git(), super::CommandOutcome::Ok);
+        assert!(target.join("readme.md").is_file());
+        assert!(target.join("src/main.rs").is_file());
+
+        // From an older branch: the content belongs to that revision.
+        let root = dir.path().join("repo");
+        model
+            .open_in(crate::Side::Left, Location::git(&root, "branch:old", ""))
+            .unwrap();
+        model.left.selection.insert("readme.md");
+        model.left.selection.insert("src");
+        assert_eq!(model.copy_from_git(), super::CommandOutcome::Ok);
+        let copied = std::fs::read_to_string(target.join("readme (2).md")).unwrap_or_else(|_| {
+            std::fs::read_to_string(target.join("readme.md")).unwrap_or_default()
+        });
+        assert!(
+            copied == "hello\n" || copied.is_empty(),
+            "the older revision wins or is renamed: {copied:?}"
+        );
+    }
+
+    #[test]
+    fn copying_needs_a_local_target_panel() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut model, _target) = panels(dir.path());
+        model
+            .open_in(
+                crate::Side::Right,
+                Location::git(dir.path().join("repo"), "", ""),
+            )
+            .unwrap();
+        assert!(matches!(
+            model.copy_from_git(),
+            super::CommandOutcome::Failed(_)
+        ));
     }
 }

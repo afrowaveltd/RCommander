@@ -166,6 +166,21 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 15.3 — copying out of a revision (done)
+
+`cargo test -p rcommander --lib extract_tests` → **2 tests**, `copy_out_tests` → **4
+tests**.
+
+`git_bridge::extract` reads a file — or a whole directory tree, recursively — out of any
+revision into a staging directory, with a per-file (128 MB) and per-entry (1 GB) limit and
+a depth cap. `Model::copy_from_git` then copies the result into the other panel through
+the ordinary copy path, so the rename-on-collision policy and the reporting stay the same:
+a free name is chosen first (`name (2)`, …), which also makes a file-versus-directory
+collision safe.
+
+Nothing is checked out and the working tree is never touched, so this is the safe way to
+pull "that file from three commits ago" into the other panel.
+
 ## Phase 15.8c — fetch, pull, push and merge (done)
 
 `cargo test -p rc-git` → **32 tests**, `cargo test -p rcommander --lib remote_tests` → **3
@@ -559,11 +574,11 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1255 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1262 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
   `rc-archive` 134, `rc-git` 32, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
-  doctests and one opt-in SFTP integration test), `rcommander` 316 (264 lib + 48 UI
+  doctests and one opt-in SFTP integration test), `rcommander` 323 (271 lib + 48 UI
   + 3 i18n guard) — **1229 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of

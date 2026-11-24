@@ -61,6 +61,21 @@ Přepnutí je `safe` checkout: soubor s místními změnami se nikdy nepřepíš
 přepnutí srovná s novým `HEAD`, takže se switch nejeví jako hromada staged změn. Ani jeden
 panel není nijak zvláštní — každý může být na jiné větvi.
 
+## Kopírování souborů z revize
+
+Vyberte jednu nebo více položek v panelu repozitáře — pracovní strom, větev, tag nebo
+commit — a použijte *Konfigurace ▸ Zkopírovat z repozitáře* (`cm_GitCopyOut`). Soubory se
+přečtou z té revize a zapíší se do protějšího panelu:
+
+* soubor se zkopíruje jako soubor, adresář **rekurzivně**;
+* nic se necheckoutuje, repozitář i pracovní strom zůstanou přesně jak byly;
+* existující jméno se **nikdy nepřepíše**: kopie dostane `jméno (2)`, `jméno (3)`, …;
+* jeden soubor je omezen na 128 MB a jedna položka na 1 GB, takže omylem označený velký
+  strom nezaplní disk ani paměť.
+
+Tohle je bezpečný způsob, jak dostat „verzi tohoto souboru z před tří commitů" bez
+přepínání větve.
+
 ## Práce s remotem
 
 *Konfigurace ▸ Git remote…* ukáže aktuální větev, její remote a jak daleko jsou obě strany

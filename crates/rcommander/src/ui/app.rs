@@ -673,6 +673,9 @@ impl RCommanderApp {
                 if ui.button(self.model.t("cmd.gitremote")).clicked() {
                     command = Some("cm_GitRemote".into());
                 }
+                if ui.button(self.model.t("cmd.gitcopyout")).clicked() {
+                    command = Some("cm_GitCopyOut".into());
+                }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
                 }

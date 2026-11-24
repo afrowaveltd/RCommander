@@ -64,6 +64,21 @@ The switch itself is a `safe` checkout: a file with local changes is never overw
 afterwards the index matches the new `HEAD`, so the switch does not look like a pile of
 staged changes. Neither panel is special: each can sit on its own branch.
 
+## Copying files out of a revision
+
+Select one or more entries in a repository panel — the working tree, a branch, a tag or a
+commit — and use *Configuration ▸ Copy out of the repository* (`cm_GitCopyOut`). The files
+are read from that revision and written into the active panel's counterpart:
+
+* a file is copied as a file, a directory is copied **recursively**;
+* nothing is checked out, so the repository and the working tree stay exactly as they were;
+* an existing name is **never overwritten**: the copy becomes `name (2)`, `name (3)`, …;
+* a single file is limited to 128 MB and one entry to 1 GB, so a stray selection cannot
+  fill the disk or the memory.
+
+That is the safe way to get "the version of this file from three commits ago" without
+switching branches at all.
+
 ## Working with a remote
 
 *Configuration ▸ Git remote…* shows the current branch, its remote and how far the two
