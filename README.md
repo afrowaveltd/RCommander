@@ -5,8 +5,10 @@
 RCommander is a from-scratch implementation of the classic *commander* workflow —
 two directory panels side by side, driven by function keys, with a built-in
 previewer, editor, search, archive support, FTP, synchronisation, multi-rename
-and a keyboard map you can rewrite. It runs on **Linux**, **Windows** and
-**Android**, speaks **MCP** (Model Context Protocol) in both directions, and
+and a keyboard map you can rewrite. **Linux** has a verified desktop run,
+**Windows** has a linked GUI executable, and **Android** has a checked build
+target but no verified APK yet. It speaks **MCP** (Model Context Protocol) in
+both directions, and
 ships with **English** and **Czech** — with help and language packs that are plain
 text files you can extend without recompiling anything.
 
@@ -86,7 +88,7 @@ text files you can extend without recompiling anything.
 ### Desktop
 
 ```bash
-git clone <your-remote-url> rcommander
+git clone https://github.com/afrowaveltd/RCommander.git rcommander
 cd rcommander
 cargo build --release
 ./target/release/rcommander
@@ -211,14 +213,16 @@ the help-completeness report.
 ### As a server
 
 ```bash
-rcommander mcp                # JSON-RPC over stdio
-rcommander mcp --http 8787 --token <secret>
+rcommander mcp                # JSON-RPC over stdio (currently wired)
 ```
 
 External agents can then list panels and directories, navigate, select, copy,
 move, delete, create directories, rename, read/write text files, search, query
 free space and read the help. Destructive tools are gated by a confirmation
-policy.
+policy. The CLI currently **does not implement HTTP server mode**: even
+though the binary's command-line help still advertises `mcp --http`, those
+arguments are not handled by `run_mcp` in `crates/rcommander/src/main.rs`.
+Do not expose or rely on an HTTP MCP server until it is implemented and tested.
 
 ### As a client
 
@@ -234,6 +238,13 @@ transport = "stdio"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
 ```
+
+---
+
+**Planned, not implemented:** a two-way AI chat workspace using Ollama or
+other model providers, reviewed file changes and agent-coordinated tool calls
+is specified in Phase 16 of `ImplementationPlan.md`. The existing MCP client
+is a tool-runner, not yet a conversational AI model client.
 
 ---
 
