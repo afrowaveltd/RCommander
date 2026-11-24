@@ -514,6 +514,16 @@ do to their machine. This is a natural job for the tool we are already building:
 5. running the script is a separate, gated action: `allow_exec` is empty by default, and with the
    `privileged` profile it goes through the approval dialog like any other elevated command.
 
+**Rules are patterns; evidence is the product.** A pattern ("downloads and executes") is
+neither safe nor unsafe by itself — what the user needs is the concrete chain with the literals
+filled in: *downloads* `https://host/virus.exe` (1 MB) *into* `/tmp/setup` → *makes it
+executable* → *runs it as root*. So the review extracts evidence per finding — URL, host, file
+name, size when the script states it, target directory, the elevated verb and its argument, and
+the literal payload of a base64 blob (decoded when it is a literal) — and renders it as a
+numbered chain, each step linked to its line. Rules decide *where to look*; evidence lets the
+user decide. Variable indirection (a URL stored on line 3 and used on line 40) is resolved
+through a shallow pass over the assignments, and gaps are labelled as gaps rather than guessed.
+
 The wording matters: the feature reports **what the script does and what to look at**, it never
 claims to certify safety — a linter cannot prove a script harmless, and saying so would be worse
 than not shipping it.
