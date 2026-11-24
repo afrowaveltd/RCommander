@@ -57,7 +57,7 @@ cargo test --workspace
 
 ## Phase 2 — `rc-core` (done)
 
-`cargo test -p rc-core` → **210 tests, 0 failures.**
+`cargo test -p rc-core` → **218 tests, 0 failures.**
 
 | Step | Module | Covered by tests |
 | --- | --- | --- |
@@ -168,7 +168,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **208 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **211 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -278,9 +278,10 @@ command either by its own name or through a family rule:
 
 - `cargo test --workspace`: **1073 tests, 0 failures** (see the per-crate numbers
   above).
-  Totals by crate: `rc-core` 147, `rc-i18n` 81, `rc-viewer` 161 (+6 doctests),
-  `rc-archive` 130 (+4 integration), `rc-help` 68, `rc-agent` 96,
-  `rc-remote` 111 (+3 doctests), `rcommander` 138 (+14 UI) — **959 tests** (measured
+  Totals by crate: `rc-core` 218, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
+  `rc-archive` 134, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3 doctests and
+  one opt-in SFTP integration test), `rcommander` 241 (211 lib + 27 UI + 3 i18n
+  guard) — **1123 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.
