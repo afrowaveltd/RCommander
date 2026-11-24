@@ -625,3 +625,68 @@ fn the_encode_dialog_runs_and_writes_a_file() {
         "the MIME encoded file is written"
     );
 }
+
+// ---------------- reported bugs: theme, persistence, navigation ----------------
+
+#[test]
+fn the_whole_window_follows_a_theme_change() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    assert_eq!(harness.state().applied_theme(), "light");
+    // The dark theme must reach the window chrome, not only the panels.
+    harness.state_mut().execute("cm_ThemeToggle");
+    harness.run();
+    assert_eq!(harness.state().applied_theme(), "dark");
+    harness.state_mut().execute("cm_ThemeToggle");
+    harness.run();
+    assert_eq!(harness.state().applied_theme(), "light");
+}
+
+#[test]
+fn a_settings_change_is_written_to_disk_automatically() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let path = config.path().join("settings.toml");
+    let mut app = app(left.path(), right.path());
+    app.settings_writer = rcommander::settings_writer::SettingsWriter::new(path.clone());
+    let mut harness = harness(app);
+    assert!(
+        !path.exists(),
+        "nothing has changed yet, so nothing is written"
+    );
+    harness.state_mut().execute("cm_VisStatusBar");
+    harness.run();
+    harness.run();
+    assert!(
+        path.exists(),
+        "the change was persisted without an explicit save command"
+    );
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        text.contains("show_status_bar = false"),
+        "settings file: {text}"
+    );
+}
+
+#[test]
+fn the_panel_offers_an_explicit_way_to_go_up() {
+    let (left, right) = fixture();
+    write(&left.path().join("sub/nested.txt"), "n");
+    let mut harness = harness(app(&left.path().join("sub"), right.path()));
+    // The up button is labelled and reachable without knowing a shortcut.
+    {
+        // Both panels show an up button; the left panel's is the leftmost one.
+        let node = harness
+            .root()
+            .query_all_by_label("cmd.up")
+            .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
+            .expect("an up button in the panel");
+        node.click();
+    }
+    harness.run();
+    harness.run();
+    assert_eq!(
+        harness.state().model.left.location().as_path().unwrap(),
+        left.path()
+    );
+}

@@ -379,6 +379,8 @@ pub struct Model {
     pub saved_selection: Option<Selection>,
     /// Text the view layer should put on the clipboard (drained every frame).
     pub clipboard: Vec<String>,
+    /// Settings changed since they were last written to disk.
+    pub settings_dirty: bool,
 }
 
 /// An open F3 viewer.
@@ -462,6 +464,7 @@ impl Model {
             show_transfer_manager: false,
             saved_selection: None,
             clipboard: Vec::new(),
+            settings_dirty: false,
             keymap,
             settings,
             strings,
@@ -526,14 +529,15 @@ impl Model {
         self.strings.direction()
     }
 
-    /// Text with the current language.
+    /// Text with the current language, ready to display (menu mnemonic markers
+    /// removed).
     pub fn t(&self, key: &str) -> String {
-        self.strings.get(key)
+        crate::i18n::strip_mnemonics(&self.strings.get(key))
     }
 
-    /// Text with placeholders.
+    /// Text with placeholders, ready to display.
     pub fn tf(&self, key: &str, args: &[(&str, &str)]) -> String {
-        self.strings.format(key, args)
+        crate::i18n::strip_mnemonics(&self.strings.format(key, args))
     }
 
     /// Open `location` in `side`, keeping the cursor on the previous name when
@@ -701,6 +705,11 @@ impl Model {
         let text = error.to_string();
         self.last_error = Some(text.clone());
         self.status = text;
+    }
+
+    /// Remember that the settings changed; the view layer persists them.
+    pub fn mark_settings_dirty(&mut self) {
+        self.settings_dirty = true;
     }
 
     pub fn report(&mut self, text: impl Into<String>) {

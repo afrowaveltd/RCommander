@@ -596,6 +596,7 @@ impl Model {
 
     fn set_view_mode(&mut self, mode: ViewMode) -> CommandOutcome {
         self.settings.display.view_mode = mode.as_str().to_string();
+        self.mark_settings_dirty();
         self.active_mut().view_mode = mode;
         CommandOutcome::Ok
     }
@@ -1506,6 +1507,7 @@ impl Model {
         };
         *value = !*value;
         let state = if *value { "on" } else { "off" };
+        self.mark_settings_dirty();
         self.report(format!("{element}: {state}"));
         CommandOutcome::Ok
     }
@@ -1930,6 +1932,7 @@ impl Model {
             return CommandOutcome::Ok;
         }
         self.settings.display.columns.push(spec);
+        self.mark_settings_dirty();
         CommandOutcome::Ok
     }
 
@@ -1943,6 +1946,7 @@ impl Model {
         if self.settings.display.columns.len() == before {
             CommandOutcome::None
         } else {
+            self.mark_settings_dirty();
             CommandOutcome::Ok
         }
     }
@@ -1971,6 +1975,7 @@ impl Model {
             index + 1
         };
         self.settings.display.columns.swap(index, target);
+        self.mark_settings_dirty();
         CommandOutcome::Ok
     }
 
@@ -1985,6 +1990,7 @@ impl Model {
         {
             Some(column) => {
                 column.width = width.clamp(20.0, 800.0);
+                self.mark_settings_dirty();
                 CommandOutcome::Ok
             }
             None => CommandOutcome::Failed(format!("unknown column {id:?}")),
@@ -2007,6 +2013,7 @@ impl Model {
             Some(existing) => *existing = mode,
             None => self.settings.display.view_modes.push(mode),
         }
+        self.mark_settings_dirty();
         CommandOutcome::Ok
     }
 
@@ -2057,6 +2064,7 @@ impl Model {
         if self.settings.display.view_modes.len() == before {
             CommandOutcome::None
         } else {
+            self.mark_settings_dirty();
             CommandOutcome::Ok
         }
     }
@@ -2126,6 +2134,7 @@ impl Model {
             }
         }
         state.adding = false;
+        self.mark_settings_dirty();
         CommandOutcome::Ok
     }
 
@@ -2137,6 +2146,7 @@ impl Model {
         match self.settings.button_bar.remove(index) {
             Some(_) => {
                 state.selected = None;
+                self.mark_settings_dirty();
                 CommandOutcome::Ok
             }
             None => CommandOutcome::None,
@@ -2155,6 +2165,7 @@ impl Model {
         };
         if moved {
             state.selected = Some(if up { index - 1 } else { index + 1 });
+            self.mark_settings_dirty();
             CommandOutcome::Ok
         } else {
             CommandOutcome::None
@@ -2405,10 +2416,31 @@ impl Model {
         CommandOutcome::Ok
     }
 
-    /// Switch the UI language.
-    pub fn set_language(&mut self, code: &str) {
+    /// Switch the UI language and reload the translator.
+    ///
+    /// Returns false (and reports the problem) when the language pack is not
+    /// installed, so a typo in the settings file cannot leave the UI in a
+    /// half-switched state.
+    pub fn set_language(&mut self, code: &str) -> bool {
+        let code = code.trim();
+        if code.is_empty() {
+            return false;
+        }
+        if self.strings.language().eq_ignore_ascii_case(code) {
+            self.settings.language = code.to_string();
+            return true;
+        }
+        if !self.strings.set_language(code) {
+            let available = self.strings.language();
+            self.report_error(format!(
+                "language {code:?} is not installed (current: {available})"
+            ));
+            return false;
+        }
         self.settings.language = code.to_string();
+        self.mark_settings_dirty();
         self.report(self.t("status.ready"));
+        true
     }
 }
 

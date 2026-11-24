@@ -4,6 +4,7 @@ use crate::i18n::{Strings, TranslatorStrings};
 use crate::keys;
 use crate::model::{CommandOutcome, Dialog, Model, Side};
 use crate::paths;
+use crate::settings_writer::{SaveOutcome, SettingsWriter};
 use crate::theme::{self, Palette};
 use crate::ui::agent_panel::AgentUi;
 use crate::ui::dialogs::DialogAction;
@@ -92,12 +93,18 @@ pub struct RCommanderApp {
     /// Screen rectangles of the two panels, used to resolve drop targets.
     /// Screen rectangles of the two panels, used to resolve drop targets.
     pub panel_rects: [Option<egui::Rect>; 2],
+    /// Theme name that is currently applied to the egui context.
+    applied_theme: String,
+    /// Persists the settings file whenever something changes.
+    pub settings_writer: SettingsWriter,
 }
 
 impl RCommanderApp {
     /// Create the application from an already built model.
     pub fn new(model: Model) -> Self {
         let palette = Palette::by_name(&model.settings.colors.theme);
+        let settings_writer =
+            SettingsWriter::with_current(crate::paths::settings_path(), &model.settings);
         let mut app = RCommanderApp {
             model,
             palette,
@@ -113,6 +120,8 @@ impl RCommanderApp {
             thumbnails: ThumbnailCache::new(),
             search_hit_selection: 0,
             panel_rects: [None, None],
+            applied_theme: String::new(),
+            settings_writer,
         };
         app.help_ui.reload(&paths::docs_dir());
         app
@@ -132,6 +141,50 @@ impl RCommanderApp {
         let right = right.unwrap_or(home);
         let model = Model::boot(settings, strings, left, right);
         RCommanderApp::new(model)
+    }
+
+    /// Apply the active theme to the whole window when it changed.
+    ///
+    /// The panels painted their own colours from the start, but the window chrome
+    /// (menu bar, tool bar, dialogs, status line) kept the colours of the first
+    /// frame, which made "dark mode" look half-applied.
+    fn apply_theme(&mut self, ctx: &Context) {
+        let theme_name = self.model.settings.colors.theme.clone();
+        let font_size = self.model.settings.display.font_size;
+        if self.fonts_installed && self.applied_theme == theme_name {
+            return;
+        }
+        self.palette = Palette::by_name(&theme_name);
+        theme::install_text_styles(ctx, font_size);
+        ctx.set_visuals(theme::visuals(&self.palette, theme_name == "dark"));
+        self.applied_theme = theme_name;
+        self.fonts_installed = true;
+    }
+
+    /// Name of the theme currently applied to the window.
+    pub fn applied_theme(&self) -> &str {
+        &self.applied_theme
+    }
+
+    /// Persist the settings if something changed (called once per frame).
+    fn persist_settings(&mut self) {
+        if !self.model.settings_dirty {
+            return;
+        }
+        match self
+            .settings_writer
+            .maybe_save(&self.model.settings, std::time::Instant::now())
+        {
+            SaveOutcome::Saved | SaveOutcome::Unchanged => {
+                self.model.settings_dirty = false;
+            }
+            SaveOutcome::Throttled => {}
+            SaveOutcome::Failed(message) => {
+                self.model.settings_dirty = false;
+                self.model
+                    .report_error(format!("settings not saved: {message}"));
+            }
+        }
     }
 
     /// Execute one internal command and handle what the view layer must do.
@@ -274,6 +327,21 @@ impl RCommanderApp {
         }
         if command == "rc_Quit" {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
+        if command == "cm_SaveSettings" || command.eq_ignore_ascii_case("cm_configsavesettings") {
+            let outcome = self
+                .settings_writer
+                .force_save(&self.model.settings, std::time::Instant::now());
+            match outcome {
+                SaveOutcome::Failed(message) => self
+                    .model
+                    .report_error(format!("settings not saved: {message}")),
+                _ => {
+                    self.model.settings_dirty = false;
+                    self.model.report(self.model.t("status.done"));
+                }
+            }
             return;
         }
         match self.model.execute(command) {
@@ -906,15 +974,9 @@ impl eframe::App for RCommanderApp {
     fn ui(&mut self, root_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = root_ui.ctx().clone();
         let ctx = &ctx;
-        if !self.fonts_installed {
-            theme::install_text_styles(ctx, self.model.settings.display.font_size);
-            ctx.set_visuals(theme::visuals(
-                &self.palette,
-                self.model.settings.colors.theme == "dark",
-            ));
-            self.fonts_installed = true;
-        }
+        self.apply_theme(ctx);
         self.pending_command = None;
+        self.persist_settings();
         // Text requested by the clipboard commands goes to the system clipboard.
         if !self.model.clipboard.is_empty() {
             let parts: Vec<String> = self.model.clipboard.drain(..).collect();

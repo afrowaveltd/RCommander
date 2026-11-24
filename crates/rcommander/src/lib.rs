@@ -12,6 +12,7 @@ pub mod keys;
 pub mod model;
 pub mod ops_runner;
 pub mod paths;
+pub mod settings_writer;
 pub mod theme;
 pub mod ui;
 

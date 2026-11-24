@@ -22,6 +22,31 @@ impl Direction {
     }
 }
 
+/// Remove menu mnemonic markers from a translated string.
+///
+/// Language packs use the classic convention: a single `&` marks the accelerator
+/// character and `&&` is a literal ampersand. The renderer shows neither marker,
+/// so `"&Soubor"` becomes `"Soubor"` and `"Copy && Paste"` becomes `"Copy & Paste"`.
+pub fn strip_mnemonics(text: &str) -> String {
+    if !text.contains('&') {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '&' {
+            if matches!(chars.peek(), Some('&')) {
+                chars.next();
+                out.push('&');
+            }
+            // A single '&' is a mnemonic marker and disappears.
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
 /// Minimal text interface used by the model.
 pub trait Strings: Send + Sync {
     /// Text for `key`; never empty (falls back to the key itself).
@@ -32,6 +57,8 @@ pub trait Strings: Send + Sync {
     fn direction(&self) -> Direction;
     /// Current language code, e.g. `en`.
     fn language(&self) -> String;
+    /// Switch to `code`; returns false when that language is not available.
+    fn set_language(&mut self, code: &str) -> bool;
 }
 
 /// Deterministic translator used by tests and as a last-resort fallback: it
@@ -79,6 +106,11 @@ impl Strings for KeyEchoStrings {
 
     fn language(&self) -> String {
         self.language.clone()
+    }
+
+    fn set_language(&mut self, code: &str) -> bool {
+        self.language = code.to_string();
+        true
     }
 }
 
@@ -129,6 +161,10 @@ impl Strings for TranslatorStrings {
 
     fn language(&self) -> String {
         self.translator.language().to_string()
+    }
+
+    fn set_language(&mut self, code: &str) -> bool {
+        self.translator.set_language(code)
     }
 }
 

@@ -211,10 +211,38 @@ fn path_row(
         if rtl {
             ui.allocate_space(Vec2::ZERO);
         }
-        if ui.small_button("<").on_hover_text("..").clicked() {
+        // Explicit navigation: going up must not require knowing a shortcut.
+        if ui
+            .button(egui::RichText::new(model.t("cmd.up")).size(model.settings.display.font_size))
+            .on_hover_text(model.t("cmd.go_up"))
+            .clicked()
+        {
             actions.push(PanelAction::Command("cm_GoToParent".to_string()));
         }
-        if ui.small_button("R").on_hover_text("reread").clicked() {
+        if ui
+            .small_button(model.t("cmd.go_root"))
+            .on_hover_text(model.t("cmd.go_root"))
+            .clicked()
+        {
+            let root = model
+                .panel(side)
+                .location()
+                .as_path()
+                .map(|path| path.ancestors().last().map(|r| r.to_path_buf()));
+            if let Some(Some(root)) = root
+                && let Ok(location) = rc_core::location::Location::parse(&root.to_string_lossy())
+            {
+                let settings = model.settings.clone();
+                if let Err(e) = model.panel_mut(side).open(location, &settings) {
+                    model.report_error(e.to_string());
+                }
+            }
+        }
+        if ui
+            .small_button(model.t("cmd.refresh"))
+            .on_hover_text(model.t("cmd.refresh"))
+            .clicked()
+        {
             actions.push(PanelAction::Command("cm_RereadSource".to_string()));
         }
     });

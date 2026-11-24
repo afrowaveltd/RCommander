@@ -1990,3 +1990,60 @@ fn layout_visibility_commands_toggle_the_chrome() {
     // An unknown element is inert.
     assert_eq!(model.execute("cm_VisNonsense"), CommandOutcome::None);
 }
+
+// ---------------- reported bugs: mnemonics, language, persistence ----------------
+
+#[test]
+fn menu_labels_do_not_show_mnemonic_markers() {
+    // The Czech pack writes "&Soubor"; the UI must show "Soubor".
+    let mut model = Model::boot(
+        Settings::default(),
+        Box::new(crate::i18n::KeyEchoStrings::default()),
+        Location::local("/tmp"),
+        Location::local("/tmp"),
+    );
+    // The deterministic translator echoes keys, so use a real one for this test.
+    let translator = crate::i18n::TranslatorStrings::discover(&crate::paths::locales_dir(), "cs");
+    model.strings = Box::new(translator);
+    assert_eq!(model.t("menu.file"), "Soubor");
+    assert_eq!(model.t("menu.show"), "Zobrazit");
+    // A literal ampersand must survive as "&&" -> "&".
+    assert_eq!(
+        crate::i18n::strip_mnemonics("Copy && Paste"),
+        "Copy & Paste"
+    );
+    assert_eq!(crate::i18n::strip_mnemonics("&File"), "File");
+    assert_eq!(crate::i18n::strip_mnemonics("no markers"), "no markers");
+}
+
+#[test]
+fn switching_the_language_swaps_the_translator() {
+    let mut model = Model::boot(
+        Settings::default(),
+        Box::new(crate::i18n::TranslatorStrings::discover(
+            &crate::paths::locales_dir(),
+            "en",
+        )),
+        Location::local("/tmp"),
+        Location::local("/tmp"),
+    );
+    let english = model.t("menu.file");
+    assert!(!english.is_empty());
+    assert!(model.set_language("cs"), "cs is an installed language");
+    assert_eq!(model.settings.language, "cs");
+    assert_ne!(
+        model.t("menu.file"),
+        english,
+        "the UI text must actually change"
+    );
+    assert_eq!(model.t("menu.file"), "Soubor");
+    assert!(model.set_language("en"));
+    assert_eq!(model.t("menu.file"), english);
+    // An unknown language is refused and changes nothing.
+    assert!(!model.set_language("klingon"));
+    assert_eq!(model.settings.language, "en");
+    assert!(
+        model.last_error.is_some(),
+        "the refusal is reported to the user"
+    );
+}
