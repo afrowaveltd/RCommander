@@ -1,0 +1,13 @@
+[package]
+name = "rc-git"
+version = "0.1.0"
+edition = "2024"
+description = "Read-only Git repository access for RCommander (branches, tags and commits as folders)"
+license = "MIT"
+
+[dependencies]
+rc-core = { path = "../rc-core" }
+git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

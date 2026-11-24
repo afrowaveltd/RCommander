@@ -32,7 +32,7 @@ cargo test --workspace
 | 12 | Verification | **done** for everything marked done above |
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes | **done** — themes are TOML files in `themes/` discovered at runtime, three themes ship, the *Colors* page edits every role with a live preview and contrast warnings |
-| 15 | Git repositories as panels | **pending** — planned in Phase 15; read-only virtual folders (branches/tags/commits) and copying out of a revision come first, write operations only afterwards |
+| 15 | Git repositories as panels | **partial** — 15.1 (backend decision + read-only engine + fixtures) is done in `rc-git`; the panel integration (`Location::Git`, virtual folders, copy out) is the next step |
 | 16 | Interactive AI workspace | **pending** — added by the project owner, planned in Phase 16 (bidirectional panes, pluggable model providers, reviewed change sets) |
 | 17 | Rich document previewer (PDF, Office, Markdown, code) | **pending** — planned in Phase 17 |
 | 18 | Plugin architecture (data sources and renderers) | **pending** — planned in Phase 18 |
@@ -142,6 +142,35 @@ tests with an in-memory backend while production uses the real client.
 Remaining gap: no test against a live FTP/SFTP server is performed here (the
 suite must stay offline), and transfers still run on the UI thread rather than
 in the background queue.
+
+## Phase 15.1 — Git engine (done)
+
+`cargo test -p rc-git` → **12 tests**, all offline, all against repositories the suite
+builds itself.
+
+`crates/rc-git` opens a repository (discovering upwards like git does, or exactly for a
+`.git` directory and bare repositories) and exposes the read-only view the panels need:
+`branches()`, `tags()`, `remote_branches()`, `all_refs()`, `commits(limit)`,
+`head_branch()`, `head_id()`, `resolve()`, and per revision `list()`, `read_file()`,
+`file_size()`, `is_dir()` and `names()`. A revision is a small `Revision` enum
+(working tree, HEAD, branch, tag, commit, remote branch) with a round-tripping panel
+spelling.
+
+Safety belongs to the engine, not to its callers: paths inside a revision are
+normalised and any `..` is refused, `read_file` takes a byte limit, a missing path or a
+file where a directory is expected produces a message instead of an empty list, and a
+bare repository explains that it has no working tree instead of silently listing
+`.git`.
+
+Backend: **`git2` with `vendored-libgit2`**, so the feature does not require a `git`
+binary — which matters on Windows and is the only option on Android. The comparison
+with gitoxide and with shelling out, and what would reverse the decision, is in
+[`analysis/git-backend.md`](analysis/git-backend.md).
+
+`crates/rc-git/src/fixture.rs` builds the repositories the tests use: two commits, a
+branch and a tag that stay at the first commit, an ignored file, a nested directory and
+a bare `file://` remote pushed from the fixture. `initial_head` is pinned to `main` so
+the suite does not depend on the machine's `init.defaultBranch`.
 
 ## Phase 14 — colour themes (done)
 
@@ -409,12 +438,12 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1189 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1202 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
-  `rc-archive` 134, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3 doctests and
-  one opt-in SFTP integration test), `rcommander` 281 (237 lib + 41 UI + 3 i18n
-  guard) — **1189 tests** (measured
+  `rc-archive` 134, `rc-git` 12, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
+  doctests and one opt-in SFTP integration test), `rcommander` 281 (237 lib + 41 UI
+  + 3 i18n guard) — **1202 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.
