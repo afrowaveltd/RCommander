@@ -69,6 +69,8 @@ pub enum Dialog {
     UnlockSecrets(UnlockSecretsState),
     /// Ask whether the application may read the machine's Git configuration.
     GitConfig(GitConfigState),
+    /// Offer to commit (and push) a file the editor just saved.
+    GitCommit(GitCommitState),
     /// Encode a file as text (MIME/UUE/XXE).
     Encode(EncodeState),
     /// Decode a text file back to binary.
@@ -173,6 +175,30 @@ impl GitConfigState {
             lines.push(format!("git.problem|{problem}"));
         }
         lines
+    }
+}
+
+/// The "commit on save" dialog.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GitCommitState {
+    /// Repository root the file belongs to.
+    pub root: std::path::PathBuf,
+    /// File name, relative to the root.
+    pub file: String,
+    /// Commit message, editable.
+    pub message: String,
+    /// Push after committing.
+    pub push: bool,
+    /// Commit on every save from now on.
+    pub remember: bool,
+    /// Result of the last attempt.
+    pub status: String,
+}
+
+impl GitCommitState {
+    /// True when the settings already say "always", so the dialog is only a preview.
+    pub fn is_automatic(&self) -> bool {
+        false
     }
 }
 

@@ -62,8 +62,25 @@ adresáři a `..` jde o úroveň výš.
 Odstíny jsou role tématu, takže vysokokontrastní nebo terminálové téma je změní spolu se
 vším ostatním.
 
+## Úprava, commit, push
+
+Otevřete soubor pomocí `F4`, upravte ho a stiskněte *Použít*: soubor se uloží, a protože
+leží v repozitáři, commander nabídne commit. Dialog ukáže soubor, upravitelnou zprávu
+commitu (šablona `[git] commit_message`, výchozí `Edit {name}`) a zaškrtávací pole
+*Po commitu odeslat (push)*. Dvě zaškrtávací pole to zafixují:
+
+* *Odteď commitovat každý uložený soubor* → `[git] commit_on_save = "always"`, takže se
+  z dialogu stane commit na jedno uložení bez klikání;
+* *Už se neptat* → `"never"`, po němž se ukládáním nikdy nic necommitne.
+
+Commit použije identitu z vaší konfigurace Gitu, pokud jste commanderu dovolili ji číst, a
+push běží na vlákně na pozadí, takže pomalý remote nikdy nezamrzne okno — stavový řádek
+hlásí *odesílám…* a pak *Odesláno*. Přihlašovací údaje pro HTTPS remotes pocházejí z
+úložiště údajů nebo z `store` nápovědy, kterou jste schválili; nic se neukládá na disk.
+
 ## Co zatím není
 
-Kopírování souborů z revize, klonování remotu a zapisovací operace (stage, commit, pull,
-push, merge, přepínání větví z panelu) jsou další kroky; engine už umí číst stav,
-přepínat a vytvářet větve a na špinavém stromě raději odmítne, než by ztratil úpravu.
+Kopírování souborů z revize, klonování remotu a zbývající zapisovací operace (stage
+libovolných souborů, pull, merge, přepínání větví z panelu) jsou další kroky; engine už
+umí číst stav, staged, commit, push, přepínat a vytvářet větve a na špinavém stromě raději
+odmítne, než by ztratil úpravu.

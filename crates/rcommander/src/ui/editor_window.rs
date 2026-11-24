@@ -59,6 +59,9 @@ pub fn show(ctx: &Context, model: &mut Model, palette: &Palette) -> bool {
             Ok(()) => {
                 state.modified = false;
                 model.report(model.t("status.done"));
+                // A saved file in a repository becomes a commit (and a push) — the
+                // question is asked by default, never silently.
+                let _ = model.on_file_saved(&path);
             }
             Err(e) => model.report_error(e.to_string()),
         }

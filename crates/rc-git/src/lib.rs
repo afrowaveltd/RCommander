@@ -938,3 +938,254 @@ impl GitRepo {
         self.repo.checkout_head(Some(&mut builder)).map_err(convert)
     }
 }
+
+/// Result of a commit made by the application.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommitResult {
+    pub id: String,
+    pub short: String,
+    pub summary: String,
+    /// Files that went into the commit.
+    pub files: usize,
+}
+
+/// A push attempt that has not been performed yet, so the caller can run it on a
+/// worker thread with credentials it obtained from the (approved) Git configuration.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PushRequest {
+    /// Remote name (`origin`).
+    pub remote: String,
+    /// Refspec, normally `refs/heads/<branch>:refs/heads/<branch>`.
+    pub refspec: String,
+    /// Host of the remote URL, so the caller can look the credential up.
+    pub url: String,
+}
+
+impl GitRepo {
+    /// Stage one path (relative to the working tree root).
+    pub fn stage_path(&self, path: &str) -> Result<(), GitError> {
+        let path = normalise_path(path)?;
+        if path.is_empty() {
+            return Err(GitError::new("a path is required".to_string()));
+        }
+        let mut index = self.repo.index().map_err(convert)?;
+        let file = self.root.join(&path);
+        if file.exists() {
+            index.add_path(Path::new(&path)).map_err(|error| {
+                GitError::new(format!("cannot stage “{path}”: {}", error.message()))
+            })?;
+        } else {
+            // A deleted file has to leave the index too.
+            index.remove_path(Path::new(&path)).map_err(|error| {
+                GitError::new(format!("cannot stage “{path}”: {}", error.message()))
+            })?;
+        }
+        index.write().map_err(convert)
+    }
+
+    /// Stage every change (tracked modifications, additions and deletions).
+    pub fn stage_all(&self) -> Result<usize, GitError> {
+        let mut index = self.repo.index().map_err(convert)?;
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .map_err(convert)?;
+        index.update_all(["*"].iter(), None).map_err(convert)?;
+        index.write().map_err(convert)?;
+        // Deletions `add_all` does not cover.
+        let status = self.status()?;
+        let mut index = self.repo.index().map_err(convert)?;
+        for (path, entry) in &status.entries {
+            if matches!(entry.unstaged, Some(FileStatus::Deleted))
+                || matches!(entry.staged, Some(FileStatus::Deleted))
+            {
+                let _ = index.remove_path(Path::new(path));
+            }
+        }
+        index.write().map_err(convert)?;
+        Ok(status.entries.len())
+    }
+
+    /// Create a commit from the current index.
+    ///
+    /// `author` lets the caller use the identity from the machine's Git configuration;
+    /// without it libgit2 falls back to the repository configuration.
+    pub fn commit_staged(
+        &self,
+        message: &str,
+        author: Option<(&str, &str)>,
+    ) -> Result<CommitResult, GitError> {
+        let message = message.trim();
+        if message.is_empty() {
+            return Err(GitError::new("a commit needs a message".to_string()));
+        }
+        let mut index = self.repo.index().map_err(convert)?;
+        let tree_id = index.write_tree().map_err(convert)?;
+        let tree = self.repo.find_tree(tree_id).map_err(convert)?;
+        let (name, email) = author.unwrap_or(("RCommander", "rcommander@localhost"));
+        let signature = git2::Signature::now(name, email)
+            .or_else(|_| self.repo.signature())
+            .map_err(convert)?;
+        let parent = self
+            .repo
+            .head()
+            .ok()
+            .and_then(|head| head.target())
+            .and_then(|id| self.repo.find_commit(id).ok());
+        let parents: Vec<&git2::Commit> = parent.iter().collect();
+        // `HEAD` may be unborn on a fresh repository: `update_ref` would fail, so the
+        // commit is created without moving the reference and then set explicitly.
+        let id = self
+            .repo
+            .commit(None, &signature, &signature, message, &tree, &parents)
+            .map_err(convert)?;
+        let head_name = self
+            .repo
+            .head()
+            .ok()
+            .and_then(|head| head.name().ok().map(|n| n.to_string()))
+            .unwrap_or_else(|| "refs/heads/main".to_string());
+        self.repo
+            .reference(&head_name, id, true, "commit")
+            .map_err(convert)?;
+        self.repo.set_head(&head_name).map_err(convert)?;
+        // The working tree now matches the commit.
+        self.reset_index_to_head();
+        let head = self.repo.find_commit(id).map_err(convert)?;
+        let summary = head
+            .summary()
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+            .to_string();
+        let files = head
+            .tree()
+            .map_err(convert)?
+            .iter()
+            .filter(|entry| entry.kind() == Some(git2::ObjectType::Blob))
+            .count();
+        Ok(CommitResult {
+            short: short_id(&id),
+            id: id.to_string(),
+            summary,
+            files,
+        })
+    }
+
+    /// Remote names configured in the repository.
+    pub fn remotes(&self) -> Vec<String> {
+        match self.repo.remotes() {
+            // `StringArray::iter` yields `Option<&str>` as the bytes may not be UTF-8.
+            Ok(names) => names
+                .iter()
+                .filter_map(|item| item.ok().flatten())
+                .map(|name| name.to_string())
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// The remote and refspec a push of the current branch would use, or `None` when
+    /// the branch has no upstream and no `origin`.
+    pub fn push_request(&self) -> Result<PushRequest, GitError> {
+        let branch = self
+            .head_branch()
+            .ok_or_else(|| GitError::new("HEAD is not on a branch, nothing to push".to_string()))?;
+        let remotes = self.remotes();
+        if remotes.is_empty() {
+            return Err(GitError::new(
+                "this repository has no remote to push to".to_string(),
+            ));
+        }
+        // Prefer the configured upstream, fall back to `origin`, then the first remote.
+        let upstream_name = self
+            .repo
+            .find_branch(&branch, git2::BranchType::Local)
+            .ok()
+            .and_then(|local| local.upstream().ok())
+            .and_then(|upstream| upstream.name().ok().flatten().map(|n| n.to_string()));
+        let (remote, refspec) = match upstream_name {
+            Some(upstream) => {
+                // `refs/remotes/origin/main` → remote `origin`, branch `main`.
+                let rest = upstream
+                    .strip_prefix("refs/remotes/")
+                    .unwrap_or(&upstream)
+                    .to_string();
+                let (remote_name, remote_branch) = match rest.split_once('/') {
+                    Some((remote_name, remote_branch)) => {
+                        (remote_name.to_string(), remote_branch.to_string())
+                    }
+                    None => (rest.clone(), branch.clone()),
+                };
+                (
+                    remote_name,
+                    format!("refs/heads/{branch}:refs/heads/{remote_branch}"),
+                )
+            }
+            None if remotes.iter().any(|r| r == "origin") => (
+                "origin".to_string(),
+                format!("refs/heads/{branch}:refs/heads/{branch}"),
+            ),
+            None => (
+                remotes[0].clone(),
+                format!("refs/heads/{branch}:refs/heads/{branch}"),
+            ),
+        };
+        let url = self
+            .repo
+            .find_remote(&remote)
+            .ok()
+            .and_then(|r| r.url().ok().map(|u| u.to_string()))
+            .unwrap_or_default();
+        Ok(PushRequest {
+            remote,
+            refspec,
+            url,
+        })
+    }
+
+    /// Push the current branch. Credentials come from the caller (the approved Git
+    /// configuration or the credential store) and are used for this call only.
+    pub fn push(
+        &self,
+        request: &PushRequest,
+        credentials: Option<(&str, &str)>,
+    ) -> Result<(), GitError> {
+        let mut remote = self.repo.find_remote(&request.remote).map_err(|error| {
+            GitError::new(format!(
+                "no remote “{}”: {}",
+                request.remote,
+                error.message()
+            ))
+        })?;
+        let mut callbacks = git2::RemoteCallbacks::new();
+        let username = credentials.map(|(user, _)| user.to_string());
+        let password = credentials.map(|(_, password)| password.to_string());
+        callbacks.credentials(move |url, username_from_url, allowed| {
+            // The stored credential wins; otherwise fall back to the ssh agent.
+            if let (Some(user), Some(pass)) = (&username, &password)
+                && allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT)
+            {
+                return git2::Cred::userpass_plaintext(user, pass);
+            }
+            if allowed.contains(git2::CredentialType::SSH_KEY)
+                && let Some(user) = username_from_url
+            {
+                return git2::Cred::ssh_key_from_agent(user);
+            }
+            // Last resort: ask the credential helper the machine has configured.
+            if allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT)
+                && let Ok(config) = git2::Config::open_default()
+            {
+                return git2::Cred::credential_helper(&config, url, username_from_url);
+            }
+            Err(git2::Error::from_str(
+                "no credentials are available for this remote",
+            ))
+        });
+        let mut options = git2::PushOptions::new();
+        options.remote_callbacks(callbacks);
+        remote
+            .push(&[request.refspec.as_str()], Some(&mut options))
+            .map_err(|error| GitError::new(format!("push failed: {}", error.message())))
+    }
+}

@@ -448,6 +448,8 @@ pub struct Model {
     pub connect_job: Option<sessions::ConnectJob>,
     /// The user's Git configuration, loaded only after approval.
     pub git_config: Option<rc_git::GitConfig>,
+    /// A push started by "commit on save", running on a worker thread.
+    pub git_push_job: Option<git::GitPushJob>,
     /// Colour themes found on disk plus the built-ins.
     pub theme_set: rc_core::theme::ThemeSet,
     /// Where themes are read from (tests and portable installs point elsewhere).
@@ -545,6 +547,7 @@ impl Model {
             sessions_dirty: false,
             connect_job: None,
             git_config: None,
+            git_push_job: None,
             theme_set: rc_core::theme::ThemeSet::with_builtins(),
             themes_dir_override: None,
             keymap,

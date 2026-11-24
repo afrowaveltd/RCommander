@@ -719,6 +719,13 @@ pub struct Git {
     pub read_system_config: String,
     /// Use the identity from that configuration for commit authoring.
     pub use_identity: bool,
+    /// What happens after the editor saves a file that belongs to a repository:
+    /// `ask` (default), `always` or `never`.
+    pub commit_on_save: String,
+    /// Push the new commit right away when committing on save.
+    pub push_after_commit: bool,
+    /// Commit message template; `{name}` is replaced by the file name.
+    pub commit_message: String,
 }
 
 impl Default for Git {
@@ -726,6 +733,9 @@ impl Default for Git {
         Git {
             read_system_config: "ask".to_string(),
             use_identity: true,
+            commit_on_save: "ask".to_string(),
+            push_after_commit: true,
+            commit_message: "Edit {name}".to_string(),
         }
     }
 }
@@ -744,6 +754,26 @@ impl Git {
     /// True when the question still has to be asked.
     pub fn config_undecided(&self) -> bool {
         !self.config_allowed() && !self.config_denied()
+    }
+
+    /// True when saving a file should commit without asking.
+    pub fn commit_always(&self) -> bool {
+        self.commit_on_save.eq_ignore_ascii_case("always")
+    }
+
+    /// True when saving a file must never commit.
+    pub fn commit_never(&self) -> bool {
+        self.commit_on_save.eq_ignore_ascii_case("never")
+    }
+
+    /// The commit message for `file`, with `{name}` filled in.
+    pub fn message_for(&self, file: &str) -> String {
+        let template = if self.commit_message.trim().is_empty() {
+            "Edit {name}"
+        } else {
+            self.commit_message.trim()
+        };
+        template.replace("{name}", file)
     }
 }
 

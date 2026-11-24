@@ -59,6 +59,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::Duplicates(state) => duplicates(ui, model, state),
                 Dialog::UnlockSecrets(state) => unlock_secrets(ui, model, state),
                 Dialog::GitConfig(state) => git_config(ui, model, state),
+                Dialog::GitCommit(state) => git_commit(ui, model, state),
                 Dialog::Encode(state) => encode_dialog(ui, model, state),
                 Dialog::Decode(state) => decode_dialog(ui, model, state),
                 Dialog::SaveSelection(state) => save_selection(ui, model, state),
@@ -131,6 +132,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::Duplicates(_) => "cmd.duplicates",
         Dialog::UnlockSecrets(_) => "dialog.secrets.title",
         Dialog::GitConfig(_) => "git.title",
+        Dialog::GitCommit(_) => "git.commit.title",
         Dialog::Encode(_) => "cmd.encode",
         Dialog::Decode(_) => "cmd.decode",
         Dialog::SaveSelection(_) => "cmd.save_selection",
@@ -2013,6 +2015,60 @@ fn unlock_secrets(
         }
     }
     DialogAction::None
+}
+
+/// Offer to commit the file the editor just saved, and optionally push it.
+fn git_commit(ui: &mut egui::Ui, model: &mut Model, state: &mut GitCommitState) -> DialogAction {
+    let palette = crate::theme::Palette::for_model(model);
+    ui.label(model.tf("git.commit.file", &[("name", &state.file)]));
+    ui.label(
+        egui::RichText::new(state.root.display().to_string())
+            .small()
+            .color(palette.hidden),
+    );
+    ui.label(model.t("git.commit.message"));
+    ui.add(
+        egui::TextEdit::singleline(&mut state.message)
+            .desired_width(f32::INFINITY)
+            .hint_text(model.t("git.commit.message")),
+    );
+    ui.checkbox(&mut state.push, model.t("git.commit.push"));
+    ui.checkbox(&mut state.remember, model.t("git.commit.remember"));
+    if !state.status.is_empty() {
+        ui.label(egui::RichText::new(&state.status).color(palette.warning));
+    }
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("git.commit.do")).clicked() {
+            if state.message.trim().is_empty() {
+                state.status = model.t("git.commit.message_required");
+            } else {
+                if state.remember {
+                    model.settings.git.commit_on_save = "always".to_string();
+                    model.mark_settings_dirty();
+                }
+                let push = state.push;
+                model.settings.git.push_after_commit = push;
+                let root = state.root.clone();
+                let file = state.file.clone();
+                let message = state.message.clone();
+                match model.commit_and_push(&root, &file, &message) {
+                    crate::model::CommandOutcome::Ok => action = DialogAction::Close,
+                    crate::model::CommandOutcome::Failed(error) => state.status = error,
+                    _ => {}
+                }
+            }
+        }
+        if ui.button(model.t("git.commit.skip")).clicked() {
+            action = DialogAction::Close;
+        }
+        if ui.button(model.t("git.commit.never")).clicked() {
+            model.settings.git.commit_on_save = "never".to_string();
+            model.mark_settings_dirty();
+            action = DialogAction::Close;
+        }
+    });
+    action
 }
 
 /// Ask whether the machine's Git configuration may be read, and show exactly what

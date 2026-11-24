@@ -426,3 +426,122 @@ fn status_codes_and_labels_cover_every_state() {
     assert!(StatusEntry::default().is_clean());
     assert_eq!(StatusEntry::default().codes(), "  ");
 }
+
+#[test]
+fn a_file_can_be_staged_and_committed() {
+    let fixture = Fixture::new("commit");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    std::fs::write(fixture.root.join("first.txt"), "edited").unwrap();
+    std::fs::write(fixture.root.join("added.txt"), "new file\n").unwrap();
+
+    assert!(repo.is_dirty());
+    repo.stage_path("first.txt").unwrap();
+    repo.stage_path("added.txt").unwrap();
+    let status = repo.status().unwrap();
+    assert_eq!(status.get("first.txt").staged, Some(FileStatus::Modified));
+    assert_eq!(status.get("added.txt").staged, Some(FileStatus::Added));
+    assert!(
+        status.get("first.txt").unstaged.is_none(),
+        "nothing left unstaged"
+    );
+
+    let commit = repo
+        .commit_staged(
+            "editor: save first.txt",
+            Some(("Alice", "alice@example.com")),
+        )
+        .unwrap();
+    assert_eq!(commit.summary, "editor: save first.txt");
+    assert_eq!(commit.short.len(), 8);
+    assert_eq!(commit.id.len(), 40);
+    assert!(
+        repo.status().unwrap().is_clean(),
+        "the tree is clean after committing"
+    );
+    let head = repo.commits(1).remove(0);
+    assert_eq!(head.id, commit.id);
+    assert_eq!(head.author, "Alice");
+    assert_eq!(repo.head_branch().as_deref(), Some("main"));
+
+    assert!(
+        repo.commit_staged("   ", None).is_err(),
+        "a message is required"
+    );
+}
+
+#[test]
+fn staging_everything_covers_additions_modifications_and_deletions() {
+    let fixture = Fixture::new("stage-all");
+    std::fs::write(fixture.root.join("first.txt"), "changed").unwrap();
+    std::fs::write(fixture.root.join("new.txt"), "new\n").unwrap();
+    std::fs::remove_file(fixture.root.join("second.txt")).unwrap();
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    repo.stage_all().unwrap();
+    let status = repo.status().unwrap();
+    assert_eq!(status.get("first.txt").staged, Some(FileStatus::Modified));
+    assert_eq!(status.get("new.txt").staged, Some(FileStatus::Added));
+    assert_eq!(status.get("second.txt").staged, Some(FileStatus::Deleted));
+    let commit = repo.commit_staged("all at once", None).unwrap();
+    assert!(commit.files >= 2, "{} files", commit.files);
+    assert!(repo.status().unwrap().is_clean());
+}
+
+#[test]
+fn a_commit_is_pushed_to_the_file_remote() {
+    let fixture = Fixture::new("push");
+    let repo = GitRepo::open(&fixture.root).unwrap();
+    repo.repo
+        .find_branch("main", git2::BranchType::Local)
+        .unwrap()
+        .set_upstream(Some("origin/main"))
+        .unwrap();
+    std::fs::write(fixture.root.join("first.txt"), "pushed").unwrap();
+    repo.stage_path("first.txt").unwrap();
+    let commit = repo.commit_staged("push me", None).unwrap();
+
+    let request = repo.push_request().unwrap();
+    assert_eq!(request.remote, "origin");
+    assert_eq!(request.refspec, "refs/heads/main:refs/heads/main");
+    repo.push(&request, None).unwrap();
+
+    let remote = git2::Repository::open(&fixture.remote).unwrap();
+    let remote_head = remote
+        .find_branch("main", git2::BranchType::Local)
+        .unwrap()
+        .get()
+        .target()
+        .unwrap()
+        .to_string();
+    assert_eq!(remote_head, commit.id, "the commit arrived at the remote");
+}
+
+#[test]
+fn a_repository_without_a_remote_cannot_be_pushed() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("solo");
+    std::fs::create_dir_all(&root).unwrap();
+    let mut options = git2::RepositoryInitOptions::new();
+    options.initial_head("main");
+    let repo = git2::Repository::init_opts(&root, &options).unwrap();
+    {
+        let mut config = repo.config().unwrap();
+        config.set_str("user.name", "T").unwrap();
+        config.set_str("user.email", "t@example.com").unwrap();
+    }
+    std::fs::write(root.join("a.txt"), "a\n").unwrap();
+    let mut index = repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+    let tree_id = index.write_tree().unwrap();
+    let tree = repo.find_tree(tree_id).unwrap();
+    let signature = git2::Signature::now("T", "t@example.com").unwrap();
+    repo.commit(Some("HEAD"), &signature, &signature, "one", &tree, &[])
+        .unwrap();
+
+    let opened = GitRepo::open(&root).unwrap();
+    assert!(opened.remotes().is_empty());
+    let error = opened.push_request().unwrap_err();
+    assert!(error.to_string().contains("no remote"), "{error}");
+}

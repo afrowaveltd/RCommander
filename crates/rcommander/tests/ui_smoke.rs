@@ -1598,3 +1598,70 @@ fn the_branch_folder_lists_branches_and_opens_one() {
         .collect();
     assert!(names.contains(&"tracked.txt".to_string()), "{names:?}");
 }
+
+#[test]
+fn saving_in_the_editor_offers_to_commit() {
+    let (_left, right) = fixture();
+    let repo_dir = tempfile::tempdir().unwrap();
+    git_fixture(repo_dir.path());
+    let mut app = app(repo_dir.path(), right.path());
+    app.model.config_dir_override = Some(repo_dir.path().to_path_buf());
+    let mut harness = harness(app);
+    // Open the tracked file in the editor the way F4 would.
+    let index = harness
+        .state()
+        .model
+        .left
+        .entries()
+        .iter()
+        .position(|e| e.name == "tracked.txt")
+        .expect("the fixture has a tracked file");
+    harness.state_mut().model.left.set_cursor(index);
+    let path = harness
+        .state()
+        .model
+        .left
+        .cursor_entry()
+        .unwrap()
+        .path
+        .clone();
+    harness.state_mut().model.open_editor_for(&path).unwrap();
+    harness.run();
+    assert!(harness.state().model.editor.is_some(), "the editor is open");
+    if let Some(state) = harness.state_mut().model.editor.as_mut() {
+        state.text.push_str("edited\n");
+        state.modified = true;
+    }
+    harness.run();
+    // The editor's Apply button saves the file, which asks about committing.
+    harness
+        .root()
+        .get_by_label("dialog.config.apply")
+        .click_accesskit();
+    harness.run();
+    harness.run();
+    match harness.state().model.top_dialog() {
+        Some(rcommander::model::Dialog::GitCommit(state)) => {
+            assert_eq!(state.file, "tracked.txt");
+            assert!(state.message.contains("tracked.txt"));
+        }
+        other => panic!("expected the commit dialog, got {other:?}"),
+    }
+    // Committing closes the dialog and leaves a clean tree.
+    harness
+        .root()
+        .get_by_label("git.commit.do")
+        .click_accesskit();
+    harness.run();
+    harness.run();
+    assert!(harness.state().model.top_dialog().is_none());
+    let repo = rc_git::GitRepo::open(repo_dir.path()).unwrap();
+    let status = repo.status().unwrap();
+    assert!(
+        status.get("tracked.txt").is_clean(),
+        "the saved file was committed: {:?}",
+        status.entries
+    );
+    // The unchanged untracked file of the fixture is still untracked.
+    assert!(status.get("untracked.txt").unstaged.is_some());
+}

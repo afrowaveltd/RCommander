@@ -166,6 +166,23 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 15.8a — edit, commit, push (done)
+
+`cargo test -p rc-git` → **28 tests**, `cargo test -p rcommander --lib save_tests` → **7
+tests**, plus a UI test that drives the whole flow.
+
+The engine can now stage (`stage_path`, `stage_all`), commit the index (`commit_staged`,
+with the author coming from the machine's Git configuration when the user allowed it) and
+push a branch (`push_request` names the remote and refspec; `push` takes credentials for
+one call only and falls back to the ssh agent, then to the credential helper).
+
+The editor hooks into it: saving a file that lives in a repository calls
+`Model::on_file_saved`, which — according to `[git] commit_on_save` (`ask` by default) —
+either asks first, commits immediately, or does nothing. The dialog shows the file and an
+editable message (template `[git] commit_message`, default `Edit {name}`), a *Push after
+committing* checkbox, and both *always* and *never* can be remembered. The push runs on a
+worker thread polled by the frame, so a slow remote never freezes the window.
+
 ## Phase 15.2b — Git repositories as panels (done)
 
 `cargo test -p rcommander --lib git_bridge` → **6 tests**, plus 2 UI tests.
@@ -507,20 +524,21 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1229 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1241 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
-  `rc-archive` 134, `rc-git` 24, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
-  doctests and one opt-in SFTP integration test), `rcommander` 297 (249 lib + 45 UI
+  `rc-archive` 134, `rc-git` 28, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
+  doctests and one opt-in SFTP integration test), `rcommander` 305 (256 lib + 46 UI
   + 3 i18n guard) — **1229 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.
 - `cargo fmt --all --check`: clean.
-- Note on the environment: the repository's `target/` directory on this machine has
-  unreadable filesystem objects in `target/debug/incremental` (I/O error, which makes
-  `rustc` die with SIGBUS). The verification numbers above were produced with
-  `CARGO_TARGET_DIR=/tmp/rc-target`; `paths::data_roots()` now also falls back to the
+- Note on the environment: the working copy on this machine lives on a mount that
+  developed I/O errors (unreadable objects in `.git/objects` and in
+  `target/debug/incremental`, which makes `rustc` die with SIGBUS). The numbers above
+  were produced from a fresh clone with `CARGO_TARGET_DIR=/tmp/rc-target`, and the work was
+  committed and pushed from that clone. `paths::data_roots()` now also falls back to the
   compile-time crate directory, so the tests find `locales/` and `Docs/` from any target
   directory.
 - `cargo build --release -p rcommander`: succeeds; the binary starts on a live X

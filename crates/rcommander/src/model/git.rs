@@ -180,6 +180,161 @@ impl Model {
     }
 }
 
+/// A commit made from the editor and the push that follows it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GitSaveOutcome {
+    /// Commit id (short) when a commit was created.
+    pub commit: Option<String>,
+    /// True when a push was started in the background.
+    pub pushed: bool,
+    /// Message shown in the status line.
+    pub message: String,
+}
+
+/// One push running on a worker thread.
+pub struct GitPushJob {
+    receiver: std::sync::mpsc::Receiver<Result<(), String>>,
+}
+
+impl Model {
+    /// Called after the editor writes `path` to disk.
+    ///
+    /// When the file lives in a Git working tree and committing on save is allowed, the
+    /// file is committed — and pushed, when the settings say so. With the `ask` default
+    /// a dialog appears first, so an accidental F4-save never publishes anything.
+    pub fn on_file_saved(&mut self, path: &std::path::Path) -> CommandOutcome {
+        if self.settings.git.commit_never() {
+            return CommandOutcome::None;
+        }
+        let Some(root) = rc_git::GitRepo::open(path.parent().unwrap_or(path))
+            .ok()
+            .map(|repo| repo.root().to_path_buf())
+        else {
+            return CommandOutcome::None;
+        };
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let message = self.settings.git.message_for(&name);
+        if self.settings.git.commit_always() {
+            return self.commit_and_push(&root, &name, &message);
+        }
+        self.open_dialog(super::Dialog::GitCommit(super::dialogs::GitCommitState {
+            root,
+            file: name.clone(),
+            message,
+            push: self.settings.git.push_after_commit,
+            remember: false,
+            status: String::new(),
+        }));
+        CommandOutcome::Ok
+    }
+
+    /// Stage `file`, commit it and (optionally) push the branch.
+    pub fn commit_and_push(
+        &mut self,
+        root: &std::path::Path,
+        file: &str,
+        message: &str,
+    ) -> CommandOutcome {
+        let repo = match rc_git::GitRepo::open_exact(root) {
+            Ok(repo) => repo,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        if let Err(error) = repo.stage_path(file) {
+            let message = error.to_string();
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        let identity = self
+            .git_identity()
+            .map(|id| (id.name.clone(), id.email.clone()));
+        let author = identity
+            .as_ref()
+            .map(|(name, email)| (name.as_str(), email.as_str()));
+        let commit = match repo.commit_staged(message, author) {
+            Ok(commit) => commit,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        let mut text = self.tf("git.committed", &[("hash", &commit.short)]);
+        if self.settings.git.push_after_commit {
+            match repo.push_request() {
+                Ok(request) => {
+                    let credentials = self
+                        .git_credential_for("https", host_of(&request.url))
+                        .map(|stored| (stored.username.clone(), stored.password.clone()));
+                    let (sender, receiver) = std::sync::mpsc::channel();
+                    let repo_root = repo.root().to_path_buf();
+                    std::thread::spawn(move || {
+                        let result = rc_git::GitRepo::open_exact(&repo_root)
+                            .and_then(|repo| {
+                                repo.push(
+                                    &request,
+                                    credentials.as_ref().map(|(u, p)| (u.as_str(), p.as_str())),
+                                )
+                            })
+                            .map_err(|error| error.to_string());
+                        let _ = sender.send(result);
+                    });
+                    self.git_push_job = Some(GitPushJob { receiver });
+                    text.push_str(&format!(" · {}", self.t("git.pushing")));
+                }
+                Err(error) => {
+                    // No remote is not a failure of the commit.
+                    text.push_str(&format!(" · {}", error));
+                }
+            }
+        }
+        self.report(text.clone());
+        CommandOutcome::Ok
+    }
+
+    /// Pick up a finished push; returns true when something changed.
+    pub fn poll_git_push(&mut self) -> bool {
+        let Some(job) = self.git_push_job.as_ref() else {
+            return false;
+        };
+        let outcome = match job.receiver.try_recv() {
+            Ok(result) => result,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return false,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                Err("the push stopped unexpectedly".to_string())
+            }
+        };
+        self.git_push_job = None;
+        match outcome {
+            Ok(()) => {
+                let message = self.t("git.pushed");
+                self.report(message);
+            }
+            Err(error) => self.report_error(error),
+        }
+        true
+    }
+
+    /// True while a push is running.
+    pub fn is_pushing(&self) -> bool {
+        self.git_push_job.is_some()
+    }
+}
+
+/// Host part of a remote URL (`https://user@host/x`, `git@host:x`, `file:///x`).
+fn host_of(url: &str) -> &str {
+    let rest = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);
+    let rest = rest.rsplit_once('@').map(|(_, rest)| rest).unwrap_or(rest);
+    let end = rest.find(['/', ':']).unwrap_or(rest.len());
+    &rest[..end]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,5 +435,163 @@ mod tests {
         model.settings.git.use_identity = false;
         assert!(model.git_identity().is_none());
         assert_eq!(with_identity.is_none(), model.git_config().is_none());
+    }
+}
+
+#[cfg(test)]
+mod save_tests {
+    use crate::model::Model;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    /// A repository with one commit and a file to edit.
+    fn repo(dir: &std::path::Path) -> std::path::PathBuf {
+        let root = dir.join("repo");
+        std::fs::create_dir_all(&root).unwrap();
+        let mut options = git2::RepositoryInitOptions::new();
+        options.initial_head("main");
+        let repo = git2::Repository::init_opts(&root, &options).unwrap();
+        {
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Test").unwrap();
+            config.set_str("user.email", "t@example.com").unwrap();
+        }
+        std::fs::write(root.join("code.rs"), "fn main() {}\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let signature = git2::Signature::now("Test", "t@example.com").unwrap();
+        repo.commit(Some("HEAD"), &signature, &signature, "first", &tree, &[])
+            .unwrap();
+        root
+    }
+
+    fn model_in(dir: &std::path::Path) -> Model {
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local(dir),
+            Location::local(dir),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model
+    }
+
+    #[test]
+    fn saving_a_file_asks_before_committing() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = repo(dir.path());
+        let mut model = model_in(dir.path());
+        assert_eq!(model.settings.git.commit_on_save, "ask");
+
+        let file = root.join("code.rs");
+        std::fs::write(&file, "fn main() { changed }\n").unwrap();
+        assert_eq!(model.on_file_saved(&file), super::CommandOutcome::Ok);
+        match model.top_dialog() {
+            Some(crate::model::Dialog::GitCommit(state)) => {
+                assert_eq!(state.file, "code.rs");
+                assert_eq!(state.message, "Edit code.rs", "the template fills the name");
+                assert!(state.push, "pushing follows the setting");
+            }
+            other => panic!("expected the commit dialog, got {other:?}"),
+        }
+        // Nothing was committed yet: asking first is the point.
+        let repo = rc_git::GitRepo::open(&root).unwrap();
+        assert!(repo.is_dirty());
+    }
+
+    #[test]
+    fn committing_from_the_dialog_stages_and_commits() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = repo(dir.path());
+        let mut model = model_in(dir.path());
+        let file = root.join("code.rs");
+        std::fs::write(&file, "fn main() { edited }\n").unwrap();
+        model.on_file_saved(&file);
+
+        let outcome = model.commit_and_push(&root, "code.rs", "Edit code.rs");
+        assert_eq!(outcome, super::CommandOutcome::Ok);
+        let repo = rc_git::GitRepo::open(&root).unwrap();
+        assert!(repo.status().unwrap().is_clean(), "the change is committed");
+        let head = repo.commits(1).remove(0);
+        assert_eq!(head.summary, "Edit code.rs");
+        // No remote in this fixture: the commit still succeeds and says so.
+        assert!(model.status.contains("git.committed"), "{}", model.status);
+    }
+
+    #[test]
+    fn an_always_setting_commits_without_a_dialog() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = repo(dir.path());
+        let mut model = model_in(dir.path());
+        model.settings.git.commit_on_save = "always".to_string();
+        model.settings.git.push_after_commit = false;
+        let file = root.join("code.rs");
+        std::fs::write(&file, "fn main() { auto }\n").unwrap();
+        assert_eq!(model.on_file_saved(&file), super::CommandOutcome::Ok);
+        assert!(model.top_dialog().is_none(), "no question with `always`");
+        let repo = rc_git::GitRepo::open(&root).unwrap();
+        assert!(repo.status().unwrap().is_clean());
+    }
+
+    #[test]
+    fn a_never_setting_leaves_files_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = repo(dir.path());
+        let mut model = model_in(dir.path());
+        model.settings.git.commit_on_save = "never".to_string();
+        let file = root.join("code.rs");
+        std::fs::write(&file, "fn main() { untouched }\n").unwrap();
+        assert_eq!(model.on_file_saved(&file), super::CommandOutcome::None);
+        assert!(model.top_dialog().is_none());
+        let repo = rc_git::GitRepo::open(&root).unwrap();
+        assert!(repo.is_dirty(), "nothing was committed");
+    }
+
+    #[test]
+    fn a_file_outside_a_repository_is_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        let file = dir.path().join("plain.txt");
+        std::fs::write(&file, "hello").unwrap();
+        assert_eq!(model.on_file_saved(&file), super::CommandOutcome::None);
+        assert!(model.top_dialog().is_none());
+    }
+
+    #[test]
+    fn the_commit_message_template_is_configurable() {
+        let mut settings = Settings::default();
+        assert_eq!(settings.git.message_for("a.rs"), "Edit a.rs");
+        settings.git.commit_message = "wip: {name}".to_string();
+        assert_eq!(settings.git.message_for("a.rs"), "wip: a.rs");
+        settings.git.commit_message = "no placeholder".to_string();
+        assert_eq!(settings.git.message_for("a.rs"), "no placeholder");
+        settings.git.commit_message = String::new();
+        assert_eq!(settings.git.message_for("a.rs"), "Edit a.rs");
+    }
+
+    #[test]
+    fn the_host_of_a_remote_url_is_extracted() {
+        assert_eq!(
+            super::host_of("https://user@github.com/x/y.git"),
+            "github.com"
+        );
+        assert_eq!(super::host_of("https://github.com/x/y.git"), "github.com");
+        assert_eq!(
+            super::host_of("git@github.com:owner/repo.git"),
+            "github.com"
+        );
+        assert_eq!(
+            super::host_of("file:///tmp/remote.git"),
+            "",
+            "a local path has no host"
+        );
+        assert_eq!(
+            super::host_of("ssh://git@host.example.com:22/x"),
+            "host.example.com"
+        );
     }
 }

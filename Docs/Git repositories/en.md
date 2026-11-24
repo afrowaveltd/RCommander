@@ -64,9 +64,26 @@ Rows in a Git panel are tinted by their state instead of their file type:
 The tints are theme roles, so a high-contrast theme or a terminal-style theme changes them
 together with everything else.
 
+## Edit, commit, push
+
+Open a file with `F4`, change it and press *Apply*: the file is saved, and because it
+lives in a repository the commander offers to commit it. The dialog shows the file, an
+editable commit message (template `[git] commit_message`, default `Edit {name}`) and a
+*Push after committing* checkbox. Two checkboxes make it permanent:
+
+* *Commit every saved file from now on* → `[git] commit_on_save = "always"`, which turns
+  the dialog into a single click-free commit on every save;
+* *Never ask again* → `"never"`, after which saving never commits anything.
+
+The commit uses the identity from your Git configuration when you allowed the commander
+to read it, and the push runs on a worker thread, so a slow remote never freezes the
+window — the status line says *pushing…* and then *Pushed*. Credentials for HTTPS remotes
+come from the credential store or from the `store` helper you approved; nothing is written
+to disk.
+
 ## Not there yet
 
-Copying files out of a revision, cloning a remote, and the write operations (stage,
-commit, pull, push, merge, switching branches from the panel) are the next steps; the
-engine underneath already reads status, switches branches and creates them, and it holds
-back on a dirty tree instead of losing an edit.
+Copying files out of a revision, cloning a remote, and the remaining write operations
+(staging arbitrary files, pull, merge, switching branches from the panel) are the next
+steps; the engine already reads status, stages, commits, pushes, switches branches and
+creates them, and it holds back on a dirty tree instead of losing an edit.
