@@ -60,6 +60,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::UnlockSecrets(state) => unlock_secrets(ui, model, state),
                 Dialog::GitConfig(state) => git_config(ui, model, state),
                 Dialog::GitCommit(state) => git_commit(ui, model, state),
+                Dialog::GitBranches(state) => git_branches(ui, model, state),
                 Dialog::Encode(state) => encode_dialog(ui, model, state),
                 Dialog::Decode(state) => decode_dialog(ui, model, state),
                 Dialog::SaveSelection(state) => save_selection(ui, model, state),
@@ -133,6 +134,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::UnlockSecrets(_) => "dialog.secrets.title",
         Dialog::GitConfig(_) => "git.title",
         Dialog::GitCommit(_) => "git.commit.title",
+        Dialog::GitBranches(_) => "git.branches.title",
         Dialog::Encode(_) => "cmd.encode",
         Dialog::Decode(_) => "cmd.decode",
         Dialog::SaveSelection(_) => "cmd.save_selection",
@@ -2015,6 +2017,101 @@ fn unlock_secrets(
         }
     }
     DialogAction::None
+}
+
+/// Pick a branch of the panel's repository, or create a new one.
+fn git_branches(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut GitBranchesState,
+) -> DialogAction {
+    let palette = crate::theme::Palette::for_model(model);
+    ui.label(
+        egui::RichText::new(state.root.display().to_string())
+            .small()
+            .color(palette.hidden),
+    );
+    if state.dirty {
+        ui.label(
+            egui::RichText::new(model.t("git.branches.dirty"))
+                .color(palette.warning)
+                .small(),
+        );
+    }
+    egui::ScrollArea::vertical()
+        .max_height(180.0)
+        .id_salt("git_branches")
+        .show(ui, |ui| {
+            for (index, name) in state.branches.iter().enumerate() {
+                let current = *name == state.current;
+                let label = if current {
+                    format!("{name}  ✓")
+                } else {
+                    name.clone()
+                };
+                if ui
+                    .selectable_label(state.selected == Some(index), label)
+                    .clicked()
+                {
+                    state.selected = Some(index);
+                }
+            }
+        });
+    ui.separator();
+    let mut created = false;
+    ui.horizontal(|ui| {
+        ui.label(model.t("git.branches.new"));
+        ui.add(egui::TextEdit::singleline(&mut state.new_branch).desired_width(140.0));
+        if ui.button(model.t("git.branches.create")).clicked() {
+            let name = state.new_branch.trim().to_string();
+            if name.is_empty() {
+                state.status = model.t("git.branches.name_required");
+            } else {
+                match model.git_create_branch(&name) {
+                    crate::model::CommandOutcome::Ok => created = true,
+                    crate::model::CommandOutcome::Failed(error) => state.status = error,
+                    _ => {}
+                }
+            }
+        }
+    });
+    if created {
+        model.close_dialogs();
+        return DialogAction::Close;
+    }
+    if !state.status.is_empty() {
+        ui.label(
+            egui::RichText::new(&state.status)
+                .color(palette.warning)
+                .small(),
+        );
+    }
+    let chosen = state.chosen().cloned();
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui
+            .add_enabled(
+                chosen.is_some(),
+                egui::Button::new(model.t("git.branches.switch")),
+            )
+            .clicked()
+            && let Some(name) = chosen.clone()
+        {
+            let allow_dirty = state.allow_dirty;
+            match model.git_checkout(&name, allow_dirty) {
+                crate::model::CommandOutcome::Ok => action = DialogAction::Close,
+                crate::model::CommandOutcome::Failed(error) => state.status = error,
+                _ => {}
+            }
+        }
+        if state.dirty {
+            ui.checkbox(&mut state.allow_dirty, model.t("git.branches.force"));
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
 }
 
 /// Offer to commit the file the editor just saved, and optionally push it.

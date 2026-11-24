@@ -327,6 +327,105 @@ impl Model {
     }
 }
 
+impl Model {
+    /// Open the branch picker for the active panel's repository.
+    pub fn open_git_branches(&mut self) -> CommandOutcome {
+        let Some(root) = self.active().location().git_root().map(|p| p.to_path_buf()) else {
+            let message = self.t("git.needs_git_panel");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        };
+        let repo = match rc_git::GitRepo::open_exact(&root) {
+            Ok(repo) => repo,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        let branches: Vec<String> = repo.branches().into_iter().map(|b| b.name).collect();
+        let current = repo.head_branch().unwrap_or_default();
+        let selected = branches.iter().position(|name| *name == current);
+        self.open_dialog(super::Dialog::GitBranches(
+            super::dialogs::GitBranchesState {
+                root,
+                current,
+                dirty: repo.is_dirty(),
+                branches,
+                selected,
+                allow_dirty: false,
+                new_branch: String::new(),
+                status: String::new(),
+            },
+        ));
+        CommandOutcome::Ok
+    }
+
+    /// Check out a branch in the panel's repository and reload the panel.
+    pub fn git_checkout(&mut self, name: &str, allow_dirty: bool) -> CommandOutcome {
+        let Some(root) = self.active().location().git_root().map(|p| p.to_path_buf()) else {
+            return CommandOutcome::Failed(self.t("git.needs_git_panel"));
+        };
+        let repo = match rc_git::GitRepo::open_exact(&root) {
+            Ok(repo) => repo,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        match repo.checkout_branch(name, allow_dirty) {
+            Ok(()) => {
+                let location = self.active().location().clone();
+                let side = self.focus;
+                if let Err(error) = self.open_in(side, location) {
+                    let message = error.to_string();
+                    self.report_error(&message);
+                    return CommandOutcome::Failed(message);
+                }
+                let message = self.tf("git.switched", &[("branch", name)]);
+                self.report(message);
+                CommandOutcome::Ok
+            }
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                CommandOutcome::Failed(message)
+            }
+        }
+    }
+
+    /// Create a branch at `HEAD`, switch to it and reload the panel.
+    pub fn git_create_branch(&mut self, name: &str) -> CommandOutcome {
+        let Some(root) = self.active().location().git_root().map(|p| p.to_path_buf()) else {
+            return CommandOutcome::Failed(self.t("git.needs_git_panel"));
+        };
+        let repo = match rc_git::GitRepo::open_exact(&root) {
+            Ok(repo) => repo,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        match repo.create_branch(name) {
+            Ok(()) => {
+                let location = self.active().location().clone();
+                let side = self.focus;
+                let _ = self.open_in(side, location);
+                let message = self.tf("git.branch_created", &[("branch", name.trim())]);
+                self.report(message);
+                CommandOutcome::Ok
+            }
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                CommandOutcome::Failed(message)
+            }
+        }
+    }
+}
+
 /// Host part of a remote URL (`https://user@host/x`, `git@host:x`, `file:///x`).
 fn host_of(url: &str) -> &str {
     let rest = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);
@@ -593,5 +692,146 @@ mod save_tests {
             super::host_of("ssh://git@host.example.com:22/x"),
             "host.example.com"
         );
+    }
+}
+
+#[cfg(test)]
+mod branch_tests {
+    use crate::model::Model;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    /// A repository with `main` and `dev`, opened as a Git panel.
+    fn git_panel(dir: &std::path::Path) -> Model {
+        let root = dir.join("repo");
+        std::fs::create_dir_all(&root).unwrap();
+        let mut options = git2::RepositoryInitOptions::new();
+        options.initial_head("main");
+        let repo = git2::Repository::init_opts(&root, &options).unwrap();
+        {
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Test").unwrap();
+            config.set_str("user.email", "t@example.com").unwrap();
+        }
+        std::fs::write(root.join("code.rs"), "fn main() {}\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let signature = git2::Signature::now("Test", "t@example.com").unwrap();
+        let commit = repo
+            .commit(Some("HEAD"), &signature, &signature, "first", &tree, &[])
+            .unwrap();
+        let head = repo.find_commit(commit).unwrap();
+        repo.branch("dev", &head, false).unwrap();
+
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::git(&root, "", ""),
+            Location::local(dir),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model
+            .open_in(crate::Side::Left, Location::git(&root, "", ""))
+            .unwrap();
+        model
+    }
+
+    #[test]
+    fn the_branch_picker_lists_branches_and_marks_the_current_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = git_panel(dir.path());
+        assert_eq!(model.open_git_branches(), super::CommandOutcome::Ok);
+        match model.top_dialog() {
+            Some(crate::model::Dialog::GitBranches(state)) => {
+                assert_eq!(state.branches, vec!["dev".to_string(), "main".to_string()]);
+                assert_eq!(state.current, "main");
+                assert!(!state.dirty);
+                assert_eq!(
+                    state.selected,
+                    Some(1),
+                    "the current branch starts selected"
+                );
+                assert!(
+                    state.chosen().is_none(),
+                    "the current branch is not a switch target"
+                );
+            }
+            other => panic!("expected the branch dialog, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn switching_branches_reloads_the_panel() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = git_panel(dir.path());
+        assert_eq!(model.git_checkout("dev", false), super::CommandOutcome::Ok);
+        assert_eq!(model.panel(crate::Side::Left).git_label, "dev");
+        assert!(model.status.contains("git.switched"), "{}", model.status);
+        // Switching back works the same way.
+        assert_eq!(model.git_checkout("main", false), super::CommandOutcome::Ok);
+        assert_eq!(model.panel(crate::Side::Left).git_label, "main");
+    }
+
+    #[test]
+    fn a_dirty_tree_blocks_a_switch_unless_it_is_forced() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = git_panel(dir.path());
+        std::fs::write(dir.path().join("repo/code.rs"), "fn main() { dirty }\n").unwrap();
+        assert!(matches!(
+            model.git_checkout("dev", false),
+            super::CommandOutcome::Failed(_)
+        ));
+        assert_eq!(model.panel(crate::Side::Left).git_label, "main");
+        // The picker shows the warning, and the force checkbox allows the switch.
+        assert_eq!(model.open_git_branches(), super::CommandOutcome::Ok);
+        match model.top_dialog() {
+            Some(crate::model::Dialog::GitBranches(state)) => assert!(state.dirty),
+            other => panic!("expected the branch dialog, got {other:?}"),
+        }
+        assert_eq!(model.git_checkout("dev", true), super::CommandOutcome::Ok);
+        assert_eq!(model.panel(crate::Side::Left).git_label, "dev");
+    }
+
+    #[test]
+    fn a_branch_can_be_created_and_becomes_current() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = git_panel(dir.path());
+        assert_eq!(
+            model.git_create_branch("feature/x"),
+            super::CommandOutcome::Ok
+        );
+        assert_eq!(model.panel(crate::Side::Left).git_label, "feature/x");
+        assert!(model.status.contains("git.branch_created"));
+        // The same name twice is refused, and so is an empty one.
+        assert!(matches!(
+            model.git_create_branch("feature/x"),
+            super::CommandOutcome::Failed(_)
+        ));
+        assert!(matches!(
+            model.git_create_branch("  "),
+            super::CommandOutcome::Failed(_)
+        ));
+    }
+
+    #[test]
+    fn the_branch_commands_need_a_git_panel() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local(dir.path()),
+            Location::local(dir.path()),
+        );
+        assert!(matches!(
+            model.open_git_branches(),
+            super::CommandOutcome::Failed(_)
+        ));
+        assert!(matches!(
+            model.git_checkout("main", false),
+            super::CommandOutcome::Failed(_)
+        ));
     }
 }

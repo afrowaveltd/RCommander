@@ -1665,3 +1665,56 @@ fn saving_in_the_editor_offers_to_commit() {
     // The unchanged untracked file of the fixture is still untracked.
     assert!(status.get("untracked.txt").unstaged.is_some());
 }
+
+#[test]
+fn the_branch_picker_switches_the_panel() {
+    let (_left, right) = fixture();
+    let repo_dir = tempfile::tempdir().unwrap();
+    git_fixture(repo_dir.path());
+    let mut app = app(repo_dir.path(), right.path());
+    app.model.config_dir_override = Some(repo_dir.path().to_path_buf());
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_GitPanel");
+    harness.run();
+    assert_eq!(harness.state().model.left.git_label, "main");
+
+    harness.state_mut().execute("cm_GitBranches");
+    harness.run();
+    match harness.state().model.top_dialog() {
+        Some(rcommander::model::Dialog::GitBranches(state)) => {
+            assert!(
+                state.branches.contains(&"dev".to_string()),
+                "{:?}",
+                state.branches
+            );
+            assert!(state.branches.contains(&"main".to_string()));
+        }
+        other => panic!("expected the branch dialog, got {other:?}"),
+    }
+    // Pick `dev` and switch.
+    if let Some(rcommander::model::Dialog::GitBranches(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.selected = state.branches.iter().position(|name| name == "dev");
+        // The fixture leaves a modified tracked file, so the switch needs the
+        // "keep my changes" confirmation the dialog offers.
+        assert!(state.dirty, "the fixture tree is dirty");
+        state.allow_dirty = true;
+    }
+    harness.run();
+    harness
+        .root()
+        .get_by_label("git.branches.switch")
+        .click_accesskit();
+    harness.run();
+    harness.run();
+    assert!(
+        harness.state().model.top_dialog().is_none(),
+        "the dialog closes"
+    );
+    assert_eq!(
+        harness.state().model.left.git_label,
+        "dev",
+        "the panel follows the new branch"
+    );
+}

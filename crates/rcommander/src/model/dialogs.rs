@@ -71,6 +71,8 @@ pub enum Dialog {
     GitConfig(GitConfigState),
     /// Offer to commit (and push) a file the editor just saved.
     GitCommit(GitCommitState),
+    /// Pick a branch — or create one — for a repository panel.
+    GitBranches(GitBranchesState),
     /// Encode a file as text (MIME/UUE/XXE).
     Encode(EncodeState),
     /// Decode a text file back to binary.
@@ -199,6 +201,36 @@ impl GitCommitState {
     /// True when the settings already say "always", so the dialog is only a preview.
     pub fn is_automatic(&self) -> bool {
         false
+    }
+}
+
+/// The branch picker of a repository panel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GitBranchesState {
+    /// Repository root.
+    pub root: std::path::PathBuf,
+    /// Branch that is checked out now.
+    pub current: String,
+    /// Every local branch.
+    pub branches: Vec<String>,
+    /// Branch selected in the list.
+    pub selected: Option<usize>,
+    /// Switch even though the working tree has changes.
+    pub allow_dirty: bool,
+    /// The tree is dirty, so the switch needs the extra confirmation.
+    pub dirty: bool,
+    /// Name for a new branch.
+    pub new_branch: String,
+    /// Result of the last action.
+    pub status: String,
+}
+
+impl GitBranchesState {
+    /// The branch the buttons would act on.
+    pub fn chosen(&self) -> Option<&String> {
+        self.selected
+            .and_then(|index| self.branches.get(index))
+            .filter(|name| **name != self.current)
     }
 }
 

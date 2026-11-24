@@ -166,6 +166,20 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 15.8b — switching branches from the panel (done)
+
+`cargo test -p rcommander --lib branch_tests` → **5 tests**, plus a UI test.
+
+*Configuration ▸ Switch branch…* (`cm_GitBranches`) opens a picker for the repository in
+the active panel: every local branch with the current one marked, *Switch*, *Create and
+switch*, and a *Switch anyway* checkbox that only appears when the tree is dirty. A switch
+reloads the panel so the files and the branch label follow, creating a branch works the
+same way, and both panels can sit on different branches.
+
+The dirty tree is refused unless the checkbox is ticked, because losing an edit is worse
+than being asked; the checkbox then uses libgit2's `safe` checkout, which keeps local
+changes and reports any file it could not update.
+
 ## Phase 15.8a — edit, commit, push (done)
 
 `cargo test -p rc-git` → **28 tests**, `cargo test -p rcommander --lib save_tests` → **7
@@ -524,11 +538,11 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1241 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1247 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
   `rc-archive` 134, `rc-git` 28, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
-  doctests and one opt-in SFTP integration test), `rcommander` 305 (256 lib + 46 UI
+  doctests and one opt-in SFTP integration test), `rcommander` 311 (261 lib + 47 UI
   + 3 i18n guard) — **1229 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of

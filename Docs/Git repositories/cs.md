@@ -47,6 +47,20 @@ Cesta v panelu ukazuje větev v hranatých závorkách (`/home/já/projekt  [mai
 řádek hlásí, který repozitář se otevřel. Uvnitř revize se prochází jako v běžném
 adresáři a `..` jde o úroveň výš.
 
+## Přepínání větví
+
+*Konfigurace ▸ Přepnout větev…* otevře výběr větve pro repozitář v aktivním panelu. Vypíše
+všechny místní větve, označí tu, která je právě vybraná, a nabídne:
+
+* **Přepnout** — přepne na zvolenou větev; panel se načte znovu a cesta ukáže novou větev;
+* **Vytvořit a přepnout** — založí novou větev na aktuálním commitu a přepne na ni;
+* zaškrtávací pole *Přepnout i tak*, které se objeví jen když má pracovní strom změny —
+  špinavý strom se totiž standardně odmítá a místní úpravy při přepnutí zůstanou.
+
+Přepnutí je `safe` checkout: soubor s místními změnami se nikdy nepřepíše a index se po
+přepnutí srovná s novým `HEAD`, takže se switch nejeví jako hromada staged změn. Ani jeden
+panel není nijak zvláštní — každý může být na jiné větvi.
+
 ## Barvy, které řeknou, kde jste
 
 Řádky v Git panelu se barví podle stavu, ne podle typu souboru:

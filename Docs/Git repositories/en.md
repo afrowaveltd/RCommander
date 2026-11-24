@@ -49,6 +49,21 @@ The path bar shows the branch in brackets (`/home/me/project  [main]`), and the 
 line says which repository was opened. Navigating inside a revision works like a normal
 directory, and `..` goes back up.
 
+## Switching branches
+
+*Configuration ▸ Switch branch…* opens the branch picker for the repository in the active
+panel. It lists every local branch, marks the one that is checked out, and offers:
+
+* **Switch** — check the selected branch out; the panel reloads and the path bar shows the
+  new branch;
+* **Create and switch** — make a new branch at the current commit and go there;
+* a *Switch anyway* checkbox that appears only when the working tree has changes, because
+  a dirty tree is refused by default and local edits are kept when you insist.
+
+The switch itself is a `safe` checkout: a file with local changes is never overwritten, and
+afterwards the index matches the new `HEAD`, so the switch does not look like a pile of
+staged changes. Neither panel is special: each can sit on its own branch.
+
 ## Colours that tell you where you are
 
 Rows in a Git panel are tinted by their state instead of their file type:
