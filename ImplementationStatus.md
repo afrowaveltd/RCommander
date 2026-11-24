@@ -172,7 +172,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **211 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **216 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -181,7 +181,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **27 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **28 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -284,8 +284,8 @@ command either by its own name or through a family rule:
   above).
   Totals by crate: `rc-core` 218, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
   `rc-archive` 134, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3 doctests and
-  one opt-in SFTP integration test), `rcommander` 241 (211 lib + 27 UI + 3 i18n
-  guard) — **1123 tests** (measured
+  one opt-in SFTP integration test), `rcommander` 247 (216 lib + 28 UI + 3 i18n
+  guard) — **1129 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.
