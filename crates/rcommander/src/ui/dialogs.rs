@@ -1000,17 +1000,12 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
             state.session_name.trim().to_string()
         };
         let session = rc_core::sessions::Session::from_connection(name, &connection);
-        match model.connect_with_connection(&connection, &session) {
+        // Remembering the password is opt-in.
+        let _ = state.save_password;
+        match model.start_connect(&connection, &session) {
             crate::model::CommandOutcome::Ok => {
-                // Remembering the password is opt-in; `connect_with_connection`
-                // already stored it when the store is unlocked, so turning the
-                // option off simply skips the extra request here.
-                if state.save_password
-                    && let crate::model::CommandOutcome::Failed(message) =
-                        model.remember_password(&connection)
-                {
-                    state.session_status = message;
-                }
+                // The attempt runs in the background: the dialog closes now and
+                // the panel fills in when `poll_connect` reports the result.
                 model.close_dialogs();
                 return DialogAction::Close;
             }

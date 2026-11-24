@@ -31,6 +31,11 @@ Akce s relacemi existují i jako volání modelu, takže MCP most i příkazová
 umí relace vypsat, uložit, přejmenovat, duplikovat, smazat a importovat bez
 dialogu.
 
+Potvrzení dialogu spustí připojení na pozadí: okno zůstává použitelné, stavový
+řádek hlásí *Připojuji se k …* a panel se naplní adresářem serveru, jakmile je
+spojení navázáno. Neodpovídající hostitel tedy stojí jedno hlášení, ne zamrzlé
+okno.
+
 ## Práce se vzdáleným panelem
 
 Vše funguje jako u místního adresáře: navigace, označování, kopírování oběma

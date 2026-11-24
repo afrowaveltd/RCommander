@@ -401,6 +401,8 @@ pub struct Model {
     pub sessions_store: rc_core::sessions::SessionStore,
     /// The session store changed on disk since it was loaded.
     pub sessions_dirty: bool,
+    /// A connection attempt running on a worker thread.
+    pub connect_job: Option<sessions::ConnectJob>,
 }
 
 /// An open F3 viewer.
@@ -492,6 +494,7 @@ impl Model {
             config_dir_override: None,
             sessions_store: rc_core::sessions::SessionStore::new(),
             sessions_dirty: false,
+            connect_job: None,
             keymap,
             settings,
             strings,

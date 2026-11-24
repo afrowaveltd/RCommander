@@ -30,6 +30,11 @@ imported as `name 2` instead of overwriting anything.
 Session actions also exist as model calls, so the MCP bridge and the command line
 can list, save, rename, duplicate, delete and import sessions without the dialog.
 
+Accepting the dialog starts the connection in the background: the window stays
+usable, the status line says *Connecting to …*, and the panel fills in with the
+server's directory when the connection is up. A host that does not answer costs a
+message, not a frozen window.
+
 ## Working with a remote panel
 
 Everything works as with a local directory: navigate, mark, copy in both

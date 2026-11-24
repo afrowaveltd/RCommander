@@ -991,6 +991,9 @@ impl eframe::App for RCommanderApp {
             ctx.copy_text(parts.join("\n"));
         }
         self.handle_dropped_files(ctx);
+        if self.model.poll_connect() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(120));
+        }
         if self.model.poll_transfers() {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));
         }

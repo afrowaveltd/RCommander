@@ -1220,3 +1220,44 @@ fn loading_a_saved_session_fills_the_connect_dialog() {
     );
     assert_eq!(state.session_name, "office");
 }
+
+#[test]
+fn connecting_runs_in_the_background_and_reports_the_failure() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
+    app.model.load_sessions();
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_FtpConnect");
+    harness.run();
+    if let Some(rcommander::model::Dialog::FtpConnect(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        // Nothing listens on this port, so the attempt fails at once instead of
+        // blocking the window.
+        state.connection.host = "127.0.0.1".to_string();
+        state.connection.port = 65_533;
+        state.connection.user = "nobody".to_string();
+    }
+    harness.run();
+    harness.root().get_by_label("dialog.config.ok").click();
+    harness.run();
+    assert!(
+        harness.state().model.top_dialog().is_none(),
+        "the dialog closes immediately and the attempt continues in the background"
+    );
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while std::time::Instant::now() < deadline && harness.state().model.is_connecting() {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        harness.run();
+    }
+    assert!(
+        !harness.state().model.is_connecting(),
+        "the attempt finished"
+    );
+    assert!(
+        harness.state().model.last_error.is_some(),
+        "the failure is reported in the window"
+    );
+}

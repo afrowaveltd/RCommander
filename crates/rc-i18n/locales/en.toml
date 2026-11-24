@@ -275,3 +275,7 @@ authors = ["RCommander contributors"]
 "session.unknown" = "No session named “{name}”"
 "session.needs_password" = "“{name}” needs its password"
 "session.connected" = "Connected: {name}"
+
+"session.connecting" = "Connecting to {name}…"
+"session.busy" = "A connection attempt is already running"
+"session.failed" = "The connection failed"

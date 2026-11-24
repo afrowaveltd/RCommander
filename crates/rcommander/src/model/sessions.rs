@@ -116,12 +116,6 @@ impl Model {
         if let Some(secret) = self.stored_password(&connection) {
             connection.password = secret;
         }
-        if let Some(secret) = self.stored_password(&rc_core::config::SavedConnection {
-            protocol: format!("{}:key", connection.protocol),
-            ..connection.clone()
-        }) {
-            connection.key_passphrase = secret;
-        }
         if session.needs_password() && connection.password.is_empty() {
             // Ask rather than fail: the dialog is pre-filled with the session.
             self.open_dialog(super::Dialog::FtpConnect(super::dialogs::FtpConnectState {
@@ -134,65 +128,129 @@ impl Model {
             }));
             return CommandOutcome::Ok;
         }
-        self.connect_with_connection(&connection, &session)
+        self.start_connect(&connection, &session)
     }
 
-    /// Open a connection described by `connection`, remembering the secrets when
-    /// the store is unlocked.
-    pub fn connect_with_connection(
+    /// True while a connection attempt is running in the background.
+    pub fn is_connecting(&self) -> bool {
+        self.connect_job.is_some()
+    }
+
+    /// Start connecting the focused panel in the background, so a slow or dead
+    /// host never freezes the window. The result is picked up by
+    /// [`Model::poll_connect`].
+    pub fn start_connect(
         &mut self,
         connection: &rc_core::config::SavedConnection,
         session: &Session,
     ) -> CommandOutcome {
-        let password = if connection.password.is_empty() {
-            self.stored_password(connection)
-        } else {
-            Some(connection.password.clone())
-        };
-        let mut spec = super::remote::connection_spec(connection, password);
-        // The dialog blocks while it connects, so a dead host must give up
-        // quickly instead of freezing the window for the socket default.
+        if self.connect_job.is_some() {
+            let message = self.t("session.busy");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        let mut spec = super::remote::connection_spec(connection, None);
         spec.timeout =
             std::time::Duration::from_secs(self.settings.ftp.timeout_seconds.clamp(3, 120));
-        match super::remote::RcRemoteBackend::connect(&spec) {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let result = super::remote::RcRemoteBackend::connect(&spec)
+                .map(|backend| Box::new(backend) as Box<dyn super::remote::RemoteBackend>);
+            let _ = sender.send(result);
+        });
+        self.connect_job = Some(ConnectJob {
+            session: session.clone(),
+            connection: connection.clone(),
+            side: self.focus,
+            receiver,
+        });
+        let message = self.tf("session.connecting", &[("name", &session.name)]);
+        self.report(message);
+        CommandOutcome::Ok
+    }
+
+    /// Pick up a finished connection attempt; returns true when the state changed
+    /// so the view can refresh immediately.
+    pub fn poll_connect(&mut self) -> bool {
+        let Some(job) = self.connect_job.as_mut() else {
+            return false;
+        };
+        let outcome = match job.receiver.try_recv() {
+            Ok(result) => result,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return false,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                Err("the connection attempt stopped unexpectedly".to_string())
+            }
+        };
+        let job = self.connect_job.take().expect("checked above");
+        match outcome {
             Ok(backend) => {
-                let target = if session.remote_dir.trim().is_empty() {
+                let target = if job.session.remote_dir.trim().is_empty() {
                     ".".to_string()
                 } else {
-                    session.remote_dir.clone()
+                    job.session.remote_dir.clone()
                 };
-                let user = if connection.user.trim().is_empty() {
+                let user = if job.connection.user.trim().is_empty() {
                     None
                 } else {
-                    Some(connection.user.clone())
+                    Some(job.connection.user.clone())
                 };
                 let location = rc_core::location::Location::remote(
-                    &connection.protocol,
-                    &connection.host,
+                    &job.connection.protocol,
+                    &job.connection.host,
                     user,
                     &target,
                 );
-                let side = self.focus;
-                match self.connect_remote(side, Box::new(backend), location) {
+                match self.connect_remote(job.side, backend, location) {
                     Ok(()) => {
-                        if !connection.password.is_empty() {
-                            let _ = self.remember_password(connection);
+                        if !job.connection.password.is_empty() {
+                            let _ = self.remember_password(&job.connection);
                         }
-                        let message = self.tf("session.connected", &[("name", &session.name)]);
+                        let message = self.tf("session.connected", &[("name", &job.session.name)]);
                         self.report(message);
-                        CommandOutcome::Ok
                     }
                     Err(error) => {
                         let message = error.to_string();
                         self.report_error(&message);
-                        CommandOutcome::Failed(message)
                     }
                 }
             }
-            Err(message) => {
-                self.report_error(&message);
-                CommandOutcome::Failed(message)
+            Err(message) => self.report_error(&message),
+        }
+        true
+    }
+
+    /// Forget a running attempt (the window is closing, or the user gave up).
+    pub fn cancel_connect(&mut self) {
+        self.connect_job = None;
+    }
+
+    /// Connect and wait for the result. Only for headless callers (MCP tools and
+    /// tests): the UI uses [`Model::start_connect`] so it never blocks.
+    pub fn connect_and_wait(
+        &mut self,
+        connection: &rc_core::config::SavedConnection,
+        session: &Session,
+    ) -> CommandOutcome {
+        match self.start_connect(connection, session) {
+            CommandOutcome::Ok => {}
+            other => return other,
+        }
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
+        while std::time::Instant::now() < deadline {
+            if self.poll_connect() {
+                break;
             }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        if self.remote_sessions[self.focus as usize].is_some() {
+            CommandOutcome::Ok
+        } else {
+            CommandOutcome::Failed(
+                self.last_error
+                    .clone()
+                    .unwrap_or_else(|| self.t("session.failed")),
+            )
         }
     }
 
@@ -201,6 +259,15 @@ impl Model {
     pub fn load_sessions(&mut self) {
         self.sessions_store = SessionStore::load(&self.sessions_file());
     }
+}
+
+/// One connection attempt running on a worker thread.
+pub struct ConnectJob {
+    pub session: Session,
+    pub connection: rc_core::config::SavedConnection,
+    /// Panel that will receive the connection, captured when it started.
+    pub side: super::Side,
+    receiver: std::sync::mpsc::Receiver<Result<Box<dyn super::remote::RemoteBackend>, String>>,
 }
 
 #[cfg(test)]
@@ -352,16 +419,43 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut model = model_in(dir.path());
         model.load_sessions();
-        let mut session = Session::new("public", "localhost", "ftp");
+        let mut session = Session::new("public", "127.0.0.1", "ftp");
         session.anonymous = true;
-        session.port = 65535;
-        model.save_session(session).unwrap();
-        // The connection attempt fails (nothing listens there), but it fails at
-        // the network step, not at a missing password, and always with a message.
-        match model.connect_session("public") {
-            CommandOutcome::Failed(message) => assert!(!message.is_empty()),
-            other => panic!("unexpected outcome {other:?}"),
-        }
+        session.port = 65_533;
+        model.save_session(session.clone()).unwrap();
+        // A refused connection fails quickly and always with a message instead
+        // of blocking the caller forever.
+        let connection = session.to_connection();
+        let outcome = model.connect_and_wait(&connection, &session);
+        assert!(
+            matches!(outcome, CommandOutcome::Failed(_)),
+            "a refused connection fails, got {outcome:?}"
+        );
+        assert!(model.last_error.is_some());
         assert_eq!(model.focus, Side::Left);
+    }
+
+    #[test]
+    fn a_second_attempt_is_refused_while_one_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        model.load_sessions();
+        let connection = rc_core::config::SavedConnection {
+            host: "127.0.0.1".into(),
+            port: 65533,
+            ..rc_core::config::SavedConnection::with_defaults("ftp")
+        };
+        let session = Session::from_connection("slow", &connection);
+        assert_eq!(
+            model.start_connect(&connection, &session),
+            CommandOutcome::Ok
+        );
+        assert!(model.is_connecting());
+        assert!(matches!(
+            model.start_connect(&connection, &session),
+            CommandOutcome::Failed(_)
+        ));
+        model.cancel_connect();
+        assert!(!model.is_connecting());
     }
 }
