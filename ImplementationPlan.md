@@ -493,6 +493,31 @@ the viewer, fenced code in Markdown, chat messages quoting code, and the TUI. No
 dependency by default; `syntect` stays an option behind a feature flag if coverage ever becomes
 a problem.
 
+**Script safety review (requested 2026-11).** Many repositories ship an installer that says
+"run it with sudo" and nothing else; someone who cannot read shell does not know what it will
+do to their machine. This is a natural job for the tool we are already building:
+
+1. the user selects the script in the panel and asks for a review (`cm_ReviewScript`);
+2. `rc-core::script_review` runs a **deterministic rule set** over Bash, PowerShell and
+   cmd/batch — no network, no model, fully testable: remote code (`curl … | bash`, `iwr … | iex`),
+   elevation (`sudo`, `runas`, `Start-Process -Verb RunAs`), destructive patterns (`rm -rf /`,
+   `del /s /q`, `Remove-Item -Recurse`), permission changes (`chmod 777`), persistence
+   (`>> ~/.bashrc`, `crontab`, registry `Run`), `eval`/`Invoke-Expression` and obfuscated
+   payloads (long base64 blobs), package installation outside the package manager, network
+   endpoints contacted, files written outside the project, environment overrides and quiet flags
+   (`-y`, `--silent`, `/S`);
+3. every finding is an **annotation** on the exact line range, so the file view and the chat point
+   at the same place; the summary is a verdict (`no rule matched` / `review these` /
+   `do not run blindly`) with the list, never a promise of safety;
+4. the agent (Phase 16 chat) explains findings in plain language on request — the rules stay
+   local and auditable, the model only narrates;
+5. running the script is a separate, gated action: `allow_exec` is empty by default, and with the
+   `privileged` profile it goes through the approval dialog like any other elevated command.
+
+The wording matters: the feature reports **what the script does and what to look at**, it never
+claims to certify safety — a linter cannot prove a script harmless, and saying so would be worse
+than not shipping it.
+
 **Agent annotations in the code view.** The same span machinery gets an annotation layer
 (`Annotation { first_line, last_line, kind, label }`) so the chat can point at code: the agent
 marks a range (through a validated marker in its fenced block, stripped before rendering) and
