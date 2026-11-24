@@ -1568,6 +1568,88 @@ impl Model {
 
     // ----- credentials -------------------------------------------------
 
+    /// Path of the encrypted store file.
+    pub fn secrets_file(&self) -> std::path::PathBuf {
+        self.secrets_path_override
+            .clone()
+            .unwrap_or_else(crate::paths::secrets_path)
+    }
+
+    /// True when a store file exists on disk (it then needs a passphrase).
+    pub fn secrets_exist(&self) -> bool {
+        self.secrets_file().is_file()
+    }
+
+    /// True when the encrypted store is unlocked in this session.
+    pub fn secrets_unlocked(&self) -> bool {
+        self.secret_passphrase.is_some()
+    }
+
+    /// Number of secrets the active store holds.
+    pub fn secrets_count(&self) -> usize {
+        self.secrets.accounts().len()
+    }
+
+    /// Open the encrypted store with `passphrase`, creating it when it does not
+    /// exist yet. Secrets that were waiting for the store are written out.
+    pub fn unlock_secrets(&mut self, passphrase: &str) -> Result<(), String> {
+        if passphrase.is_empty() {
+            return Err("the passphrase must not be empty".to_string());
+        }
+        let path = self.secrets_file();
+        let mut store = if path.is_file() {
+            rc_core::secrets::EncryptedStore::load(&path, passphrase).map_err(|e| e.to_string())?
+        } else {
+            rc_core::secrets::EncryptedStore::new(path.clone())
+        };
+        // Move everything that was waiting into the store.
+        let pending: Vec<(String, String)> = self.pending_secrets.drain(..).collect();
+        for (account, secret) in pending {
+            store.insert(account, secret);
+        }
+        if store.is_dirty() || !path.is_file() {
+            store.save(passphrase).map_err(|e| e.to_string())?;
+        }
+        self.secrets = Box::new(store);
+        self.secret_passphrase = Some(passphrase.to_string());
+        let count = self.secrets.accounts().len().to_string();
+        self.report(self.tf("dialog.secrets.unlocked", &[("count", &count)]));
+        Ok(())
+    }
+
+    /// Forget the passphrase and drop back to the in-memory store.
+    pub fn lock_secrets(&mut self) {
+        if let Some(passphrase) = self.secret_passphrase.take() {
+            // Persist anything that changed before locking.
+            if let Err(e) = self.persist_secrets_with(&passphrase) {
+                self.report_error(e);
+            }
+        }
+        self.secrets = Box::new(rc_core::secrets::MemoryStore::new());
+        self.report(self.t("dialog.secrets.locked"));
+    }
+
+    /// Write the store out again when a passphrase is known.
+    pub fn persist_secrets(&mut self) -> Result<(), String> {
+        match self.secret_passphrase.clone() {
+            Some(passphrase) => self.persist_secrets_with(&passphrase),
+            None => Ok(()),
+        }
+    }
+
+    fn persist_secrets_with(&mut self, passphrase: &str) -> Result<(), String> {
+        let path = self.secrets_file();
+        // The trait store is opaque, so rebuild a fresh encrypted store from the
+        // accounts and values the current store answers.
+        let mut store = rc_core::secrets::EncryptedStore::new(path.clone());
+        for account in self.secrets.accounts() {
+            if let Some(secret) = self.secrets.get(&account).map_err(|e| e.to_string())? {
+                store.insert(account, secret);
+            }
+        }
+        store.save(passphrase).map_err(|e| e.to_string())
+    }
+
     /// Replace the credential store (the view layer swaps in the encrypted file
     /// once the user has unlocked it).
     pub fn set_secret_store(&mut self, store: Box<dyn rc_core::secrets::SecretStore>) {
@@ -1583,10 +1665,21 @@ impl Model {
             return CommandOutcome::None;
         }
         let account = connection.account_id();
-        match self.secrets.set(&account, &connection.password) {
-            Ok(()) => CommandOutcome::Ok,
-            Err(e) => CommandOutcome::Failed(e.to_string()),
+        if let Err(e) = self.secrets.set(&account, &connection.password) {
+            return CommandOutcome::Failed(e.to_string());
         }
+        if self.secrets_unlocked() {
+            if let Err(e) = self.persist_secrets() {
+                return CommandOutcome::Failed(format!(
+                    "the credential store could not be written: {e}"
+                ));
+            }
+        } else {
+            self.pending_secrets
+                .push((account, connection.password.clone()));
+            self.report(self.t("dialog.secrets.pending"));
+        }
+        CommandOutcome::Ok
     }
 
     /// Move every password that an older settings file still contains into the

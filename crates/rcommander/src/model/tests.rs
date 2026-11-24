@@ -2241,3 +2241,121 @@ fn a_stored_password_is_reused_for_a_saved_connection() {
     };
     assert!(model.stored_password(&unknown).is_none());
 }
+
+// ---------------- persistent encrypted credential store ----------------
+
+fn connection(host: &str, user: &str, password: &str) -> rc_core::config::SavedConnection {
+    rc_core::config::SavedConnection {
+        name: host.into(),
+        host: host.into(),
+        port: 22,
+        user: user.into(),
+        protocol: "sftp".into(),
+        password: password.into(),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn the_credential_store_is_persistent_and_needs_its_passphrase() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("secrets.enc");
+
+    // 1. First session: unlock (creates the file), remember a password.
+    let mut model = Model::for_test(
+        Settings::default(),
+        Location::local("/tmp"),
+        Location::local("/tmp"),
+    );
+    model.secrets_path_override = Some(path.clone());
+    assert!(!model.secrets_unlocked());
+    let mut state = UnlockSecretsState::new(false);
+    state.passphrase = "short".into();
+    state.confirm = "short".into();
+    assert!(
+        state.validate().is_err(),
+        "a new store needs a longer passphrase"
+    );
+    assert!(model.unlock_secrets("correct horse battery").is_ok());
+    assert!(model.secrets_unlocked());
+    let connection = connection("git.example.com", "alice", "s3cret");
+    assert!(model.remember_password(&connection).is_ok());
+    assert!(path.exists(), "the store is written to disk");
+
+    // 2. A new session starts locked and can reopen the same file.
+    let mut second = Model::for_test(
+        Settings::default(),
+        Location::local("/tmp"),
+        Location::local("/tmp"),
+    );
+    second.secrets_path_override = Some(path.clone());
+    assert!(!second.secrets_unlocked());
+    assert!(
+        second.stored_password(&connection).is_none(),
+        "nothing is available before unlocking"
+    );
+    // The wrong passphrase is refused and changes nothing.
+    assert!(second.unlock_secrets("wrong passphrase").is_err());
+    assert!(!second.secrets_unlocked());
+    // The right one restores the secret.
+    assert!(second.unlock_secrets("correct horse battery").is_ok());
+    assert_eq!(
+        second.stored_password(&connection).as_deref(),
+        Some("s3cret")
+    );
+
+    // 3. Locking drops the in-memory copy.
+    second.lock_secrets();
+    assert!(!second.secrets_unlocked());
+    assert!(second.stored_password(&connection).is_none());
+
+    // 4. The file never contains the plain password.
+    let bytes = std::fs::read(dir.path().join("secrets.enc")).unwrap();
+    assert!(!String::from_utf8_lossy(&bytes).contains("s3cret"));
+}
+
+#[test]
+fn a_password_remembered_while_locked_is_written_after_unlocking() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut model = Model::for_test(
+        Settings::default(),
+        Location::local("/tmp"),
+        Location::local("/tmp"),
+    );
+    model.secrets_path_override = Some(dir.path().join("secrets.enc"));
+    let connection = connection("host.example", "bob", "queued-secret");
+    assert!(model.remember_password(&connection).is_ok());
+    assert_eq!(
+        model.pending_secrets.len(),
+        1,
+        "the secret waits for the store"
+    );
+    assert!(model.status.contains("dialog.secrets.pending"));
+    // Unlocking writes the queued secret out.
+    assert!(model.unlock_secrets("passphrase-123").is_ok());
+    assert!(model.pending_secrets.is_empty());
+    assert_eq!(
+        model.stored_password(&connection).as_deref(),
+        Some("queued-secret")
+    );
+    assert!(dir.path().exists());
+}
+
+#[test]
+fn the_unlock_dialog_validates_both_fields() {
+    let mut create = UnlockSecretsState::new(false);
+    assert!(create.validate().is_err(), "an empty passphrase is refused");
+    create.passphrase = "long-enough".into();
+    create.confirm = "different".into();
+    assert!(create.validate().is_err(), "the confirmation must match");
+    create.confirm = "long-enough".into();
+    assert!(create.validate().is_ok());
+    assert_eq!(create.title(), "dialog.secrets.create");
+    let mut unlock = UnlockSecretsState::new(true);
+    unlock.passphrase = "x".into();
+    assert!(
+        unlock.validate().is_ok(),
+        "an existing store accepts any non-empty passphrase"
+    );
+    assert_eq!(unlock.title(), "dialog.secrets.unlock");
+}

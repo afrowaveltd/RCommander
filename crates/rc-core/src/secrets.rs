@@ -54,6 +54,9 @@ pub trait SecretStore: Send + Sync {
     fn delete(&mut self, account: &str) -> CoreResult<()>;
     /// Which backend this store represents.
     fn source(&self) -> SecretSource;
+    /// Account ids currently stored (unsorted is fine); used to re-serialise and
+    /// to report how many secrets the store holds.
+    fn accounts(&self) -> Vec<String>;
 }
 
 /// The in-memory secret map used inside [`EncryptedStore`].
@@ -111,8 +114,9 @@ impl EncryptedStore {
         self.vault.contains_key(account)
     }
 
-    /// Account ids currently stored, sorted.
-    pub fn accounts(&self) -> Vec<String> {
+    /// Account ids currently stored, sorted (the trait method of the same name
+    /// returns them unsorted).
+    pub fn accounts_list(&self) -> Vec<String> {
         self.vault.keys().cloned().collect()
     }
 
@@ -168,6 +172,10 @@ impl EncryptedStore {
 }
 
 impl SecretStore for EncryptedStore {
+    fn accounts(&self) -> Vec<String> {
+        self.accounts_list()
+    }
+
     fn get(&self, account: &str) -> CoreResult<Option<String>> {
         Ok(self.get_secret(account).map(|s| s.to_string()))
     }
@@ -200,6 +208,10 @@ impl MemoryStore {
 }
 
 impl SecretStore for MemoryStore {
+    fn accounts(&self) -> Vec<String> {
+        self.vault.keys().cloned().collect()
+    }
+
     fn get(&self, account: &str) -> CoreResult<Option<String>> {
         Ok(self.vault.get(account).cloned())
     }

@@ -56,6 +56,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::VerifyChecksum(state) => verify_checksum(ui, model, state),
                 Dialog::CompareFiles(state) => compare_files(ui, model, state),
                 Dialog::Duplicates(state) => duplicates(ui, model, state),
+                Dialog::UnlockSecrets(state) => unlock_secrets(ui, model, state),
                 Dialog::Encode(state) => encode_dialog(ui, model, state),
                 Dialog::Decode(state) => decode_dialog(ui, model, state),
                 Dialog::SaveSelection(state) => save_selection(ui, model, state),
@@ -128,6 +129,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::VerifyChecksum(_) => "cmd.verify_checksums",
         Dialog::CompareFiles(_) => "cmd.compare_by_content",
         Dialog::Duplicates(_) => "cmd.duplicates",
+        Dialog::UnlockSecrets(_) => "dialog.secrets.title",
         Dialog::Encode(_) => "cmd.encode",
         Dialog::Decode(_) => "cmd.decode",
         Dialog::SaveSelection(_) => "cmd.save_selection",
@@ -1459,6 +1461,54 @@ fn load_selection(
         }
     });
     action
+}
+
+fn unlock_secrets(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut UnlockSecretsState,
+) -> DialogAction {
+    ui.label(model.t(state.title()));
+    ui.add(
+        egui::TextEdit::singleline(&mut state.passphrase)
+            .password(true)
+            .desired_width(f32::INFINITY)
+            .hint_text(model.t("dialog.secrets.passphrase")),
+    );
+    if !state.existing {
+        ui.add(
+            egui::TextEdit::singleline(&mut state.confirm)
+                .password(true)
+                .desired_width(f32::INFINITY)
+                .hint_text(model.t("dialog.secrets.confirm")),
+        );
+        ui.label(egui::RichText::new(model.t("dialog.secrets.warning")).small());
+    }
+    if let Some(error) = &state.error {
+        ui.label(egui::RichText::new(error).color(egui::Color32::from_rgb(0xa0, 0x00, 0x00)));
+    }
+    let (ok, cancel) = buttons(ui, model);
+    if cancel {
+        return DialogAction::Close;
+    }
+    if ok {
+        if let Err(message) = state.validate() {
+            state.error = Some(message);
+            return DialogAction::None;
+        }
+        match model.unlock_secrets(&state.passphrase) {
+            Ok(()) => {
+                model.close_dialogs();
+                return DialogAction::Close;
+            }
+            Err(message) => {
+                model.report_error(&message);
+                state.error = Some(message);
+                return DialogAction::None;
+            }
+        }
+    }
+    DialogAction::None
 }
 
 fn buttons_close(ui: &mut egui::Ui, model: &Model) -> (bool, bool) {

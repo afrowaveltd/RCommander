@@ -65,6 +65,8 @@ pub enum Dialog {
     CompareFiles(CompareFilesState),
     /// Duplicate finder.
     Duplicates(DuplicatesState),
+    /// Unlock (or create) the encrypted credential store.
+    UnlockSecrets(UnlockSecretsState),
     /// Encode a file as text (MIME/UUE/XXE).
     Encode(EncodeState),
     /// Decode a text file back to binary.
@@ -1234,6 +1236,54 @@ impl LoadSelectionState {
 impl Default for LoadSelectionState {
     fn default() -> Self {
         LoadSelectionState::new()
+    }
+}
+
+/// Unlock/create dialog for the encrypted credential store.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UnlockSecretsState {
+    /// The store file already exists, so the passphrase must be entered.
+    pub existing: bool,
+    pub passphrase: String,
+    /// Confirmation field, used when creating a new store.
+    pub confirm: String,
+    pub error: Option<String>,
+}
+
+impl UnlockSecretsState {
+    pub fn new(existing: bool) -> Self {
+        UnlockSecretsState {
+            existing,
+            passphrase: String::new(),
+            confirm: String::new(),
+            error: None,
+        }
+    }
+
+    /// Minimum passphrase length; enforced only when creating.
+    pub const MIN_LENGTH: usize = 8;
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.passphrase.is_empty() {
+            return Err("the passphrase must not be empty".to_string());
+        }
+        if !self.existing {
+            if self.passphrase.chars().count() < Self::MIN_LENGTH {
+                return Err(format!("use at least {} characters", Self::MIN_LENGTH));
+            }
+            if self.passphrase != self.confirm {
+                return Err("the two passphrases differ".to_string());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn title(&self) -> &'static str {
+        if self.existing {
+            "dialog.secrets.unlock"
+        } else {
+            "dialog.secrets.create"
+        }
     }
 }
 

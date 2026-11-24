@@ -70,6 +70,11 @@ pub fn hotlist_path() -> PathBuf {
     rc_core::config::config_dir().join("hotlist.toml")
 }
 
+/// Encrypted credential store (master-passphrase protected).
+pub fn secrets_path() -> PathBuf {
+    rc_core::config::config_dir().join("secrets.enc")
+}
+
 /// Session file: last directories, tabs and window geometry.
 pub fn session_path() -> PathBuf {
     rc_core::config::config_dir().join("session.toml")

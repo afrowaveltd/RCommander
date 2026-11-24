@@ -737,3 +737,32 @@ fn the_bundled_icon_font_renders_every_icon() {
     assert!(names.iter().any(|name| name == "alpha.txt"));
     assert!(harness.root().query_all_by_label_contains("sub").count() > 0);
 }
+
+#[test]
+fn the_credential_store_dialog_opens_and_creates_a_store() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let secrets = config.path().join("secrets.enc");
+    let mut app = app(left.path(), right.path());
+    app.model.secrets_path_override = Some(secrets.clone());
+    let mut harness = harness(app);
+    harness.state_mut().model.open_dialog(rcommander::model::Dialog::UnlockSecrets(
+        rcommander::model::dialogs::UnlockSecretsState::new(false),
+    ));
+    harness.run();
+    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::UnlockSecrets(_))));
+    // Type the passphrase into both fields and accept.
+    if let Some(rcommander::model::Dialog::UnlockSecrets(state)) = harness.state_mut().model.top_dialog_mut() {
+        state.passphrase = "correct horse battery".to_string();
+        state.confirm = "correct horse battery".to_string();
+    }
+    harness.run();
+    {
+        let node = harness.root().get_by_label("dialog.config.ok");
+        node.click();
+    }
+    harness.run();
+    harness.run();
+    assert!(harness.state().model.secrets_unlocked(), "the store is unlocked after accepting");
+    assert!(secrets.exists(), "the encrypted store file is created");
+}

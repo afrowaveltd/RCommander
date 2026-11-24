@@ -377,6 +377,70 @@ Avoid claiming feature parity where the OS permission model does not allow it.
   UnderstandMe provider requires a separately defined API/contract. No part of
   this phase is implemented merely by having the current MCP tools.
 
+## Phase 17 — Rich document previewer (PDF, Office, Markdown, source code)
+
+The F3 viewer covers text, images and a hexdump. This phase turns it into a
+document viewer that developers and office users can actually work with, while
+keeping the pixel/byte budgets that stop a single file from freezing the window.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 17.1 | Markdown rendering | headings, lists, tables, code, links and images inside the viewer, using the existing `rc-help` Markdown model as the parser | fixtures render every block type; very large files stay paged; the encoding detection from `rc-viewer` still wins before parsing |
+| 17.2 | Source-code highlighting | a small, bundled syntax highlighter for the languages developers open most (Rust, C/C++, Python, JS/TS, shell, TOML/JSON/YAML, C#, Markdown) with a configurable theme | golden-file tests per language; unknown languages fall back to plain text; highlighting never changes the copied text |
+| 17.3 | PDF preview | first N pages rendered to bitmaps, page navigation, zoom, text selection where the file allows it; a pure-Rust decoder preferred so Android keeps working | fixture PDFs render; a corrupt or encrypted PDF reports a clear error; rendering is cancellable and memory-budgeted |
+| 17.4 | Office documents (read-only) | OOXML (`.docx`, `.xlsx`, `.pptx`) and ODF text extracted to Markdown-ish text plus embedded images; old binary formats (`.doc`, `.xls`) shown as an explicit "not supported, open externally" note | fixtures for each supported format; sheet/table structure preserved reasonably; no format is silently mis-rendered |
+| 17.5 | Viewer plugins and file-type rules | the viewer asks a registry which renderer claims a content type (the same registry Phase 18 uses), so new formats can be added without touching the viewer | a fake plugin claims an extension and renders in tests; ordering and fallback are deterministic |
+| 17.6 | Documentation | a "Previewer formats" topic with the supported list, the limits and how to open a file externally when the internal viewer cannot show it | bilingual topic; status file lists what is native, what needs a plugin and what is not supported |
+
+## Phase 18 — Plugin architecture (data sources and renderers)
+
+Plugins are what turn a closed list of features into a platform: a web API source,
+a new archive format or a document renderer without recompiling the application.
+The reference product used Windows DLL interfaces; this project needs a portable
+contract instead.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 18.1 | Manifest and discovery | `plugins/<id>/plugin.toml` with name, version, capabilities, entry point and permissions; discovered at runtime like `locales/`, `Docs/` and `themes/` | manifest validation tests; a broken plugin is reported and skipped, never fatal |
+| 18.2 | Data-source capability | a `Provider` contract that lists a virtual directory tree and reads/writes entries, so a web API or a custom store appears as a panel — reusing the existing `RemoteBackend`/panel plumbing | an in-process fake provider lists and opens a virtual tree in the panel; write access is opt-in per manifest capability |
+| 18.3 | Renderer capability | a viewer renderer plugin contract (content type → rendered output) used by Phase 17.5 | the fake renderer from 17.5 is the first real plugin; wrong output is rejected by validation |
+| 18.4 | Sandboxed execution | plugins run out of process (child process with a line protocol) with an explicit allowlist of paths and network hosts; a plugin can never reach the credential store | a plugin attempting an unapproved path or host is refused and logged; a crashing plugin does not take the application down |
+| 18.5 | Example plugins and docs | at least one working example (a JSON-over-HTTP web API browser) and a developer guide describing the protocol, versioning and permissions | the example runs against a local fixture server; the guide is bilingual |
+
+## Phase 19 — Integrated SSH terminal (PuTTY-style)
+
+An IT professional who already uses the file manager to look at a server wants the
+shell next to it. This is a **terminal emulator**, not a file transfer, so it gets
+its own isolated phase.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 19.1 | Terminal engine | a VT100/xterm-subset parser in a headless crate (`rc-terminal`): escape sequences, scrollback, cursor movement, colours 0–255 and true colour, UTF-8 and wide characters, resize events | a golden-file test suite of escape-sequence fixtures (the standard `vttest`-style cases) that needs no network; the parser never panics on malformed input |
+| 19.2 | PTY and SSH channel | a local shell through a pseudo-terminal (unix) and a remote shell through the existing SSH session (reusing Phase 13's host-key and credential handling) | in-process tests for the local PTY on Linux; the SSH channel is covered by the opt-in integration test against a real server |
+| 19.3 | Terminal widget | rendering with the bundled monospace font, key mapping (Ctrl/Alt combinations, function keys, clipboard copy/paste, optional Ctrl+Shift+C/V), selection, scrollback search, zoom | widget tests that key sequences reach the engine and that selection + clipboard round trip |
+| 19.4 | Sessions | several terminal tabs bound to saved sessions, per-host profiles, reconnect after a dropped connection, a log file option | model tests for tab lifetimes, reconnect and per-session settings; a dropped connection shows a clear state instead of a frozen screen |
+| 19.5 | Safety | no automatic command execution from the file manager side, confirmation for "open shell on this host", the terminal is a separate window by default | tests that opening a terminal does not run anything else; documentation of what the terminal can and cannot do |
+
+
+## Ideas backlog (not scheduled yet, cheapest value first)
+
+These are candidates that fit the "portable tool for a developer/administrator"
+direction; each one is small enough to schedule as a sub-phase once the phases
+above are green.
+
+| Idea | Why it is worth it | Cost |
+| --- | --- | --- |
+| Portable mode | everything (settings, secrets, session, help, themes, plugins) next to the executable, already half-supported through `RCOMMANDER_CONFIG_DIR`; one documented switch plus an "on a USB stick" test | small |
+| Directory comparison with three panes | a third "reference" directory (for example a Git revision) next to the two panels: shows what differs before syncing | medium |
+| Batch rename presets and saved masks | the multi-rename dialog already has the pattern language; saving named presets makes it reusable per project | small |
+| Archive-as-folder for remote files | stream a remote archive into the existing archive panel without a full download | medium |
+| Disk-usage treemap | a second view of the duplicate finder data: what really occupies the disk | medium |
+| Checksum watch ("fingerprint this folder") | store a checksum file per directory and report drift later; reuses `rc-core::checksum` | small |
+| Command palette (fuzzy) | `Ctrl+Shift+P` over the 594-command catalogue; the model already dispatches by name | small |
+| Session restore with unsaved-edit recovery | reopen tabs, panels and editor buffers after a crash | small |
+| Per-directory action menus | `.rcommander.toml` next to a folder defines buttons (build, test, deploy) with confirmations | medium |
+| Accessibility pass | full keyboard navigation and screen-reader labels (the panels already carry accessible names) | medium |
+
 ## Working rules
 
 1. **Tests first.** A step's tests exist before its implementation; a step is done

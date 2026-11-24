@@ -23,6 +23,8 @@ pub struct Palette {
     pub panel_border: Color32,
     pub status_background: Color32,
     pub accent: Color32,
+    /// Background of every second row, so a long list stays readable.
+    pub row_alternate: Color32,
 }
 
 impl Palette {
@@ -44,6 +46,7 @@ impl Palette {
             panel_border: Color32::from_rgb(0x80, 0x80, 0x80),
             status_background: Color32::from_rgb(0xd4, 0xd0, 0xc8),
             accent: Color32::from_rgb(0x00, 0x00, 0x80),
+            row_alternate: Color32::from_rgb(0xf0, 0xf2, 0xf8),
         }
     }
 
@@ -65,6 +68,7 @@ impl Palette {
             panel_border: Color32::from_rgb(0x55, 0x55, 0x55),
             status_background: Color32::from_rgb(0x2d, 0x2d, 0x2d),
             accent: Color32::from_rgb(0x9c, 0xd0, 0xff),
+            row_alternate: Color32::from_rgb(0x27, 0x27, 0x2b),
         }
     }
 
@@ -250,6 +254,24 @@ mod tests {
         assert_eq!(RowStyle::Normal.color(&p), p.foreground);
         let d = Palette::dark();
         assert_ne!(RowStyle::Hidden.color(&d), RowStyle::Hidden.color(&p));
+    }
+
+    #[test]
+    fn the_alternate_row_colour_is_a_subtle_shift_from_the_background() {
+        for palette in [Palette::light(), Palette::dark()] {
+            assert_ne!(
+                palette.row_alternate, palette.background,
+                "zebra rows must be visible"
+            );
+            let (bg, alt) = (palette.background, palette.row_alternate);
+            let distance = (bg.r() as i32 - alt.r() as i32).abs()
+                + (bg.g() as i32 - alt.g() as i32).abs()
+                + (bg.b() as i32 - alt.b() as i32).abs();
+            assert!(
+                (6..=60).contains(&distance),
+                "the shift should be subtle but visible: {distance}"
+            );
+        }
     }
 
     #[test]

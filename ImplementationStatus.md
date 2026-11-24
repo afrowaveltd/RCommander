@@ -33,6 +33,10 @@ cargo test --workspace
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.5 (SFTP in the panel, verified against a real OpenSSH server) are done; saved session profiles (13.3) are still pending |
 | 14 | Colour themes | **pending** — planned in Phase 14; today the palette is two hardcoded variants |
 | 15 | Git repositories as panels | **pending** — planned in Phase 15; read-only virtual folders (branches/tags/commits) and copying out of a revision come first, write operations only afterwards |
+| 16 | Interactive AI workspace | **pending** — added by the project owner, planned in Phase 16 (bidirectional panes, pluggable model providers, reviewed change sets) |
+| 17 | Rich document previewer (PDF, Office, Markdown, code) | **pending** — planned in Phase 17 |
+| 18 | Plugin architecture (data sources and renderers) | **pending** — planned in Phase 18 |
+| 19 | Integrated SSH terminal (PuTTY-style) | **pending** — planned in Phase 19 |
 
 | 16 | Interactive AI workspace (chat panel, Ollama/remote models, scoped file editing, dictionaries and agent workflows) | **pending** — planned in Phase 16; existing MCP panel can call tools, but is not yet an agent conversation or reviewed multi-file editor |
 
@@ -303,6 +307,7 @@ with `cargo test --workspace`).
 | Gap | Where it is tracked |
 | --- | --- |
 | ~~SSH host keys are not verified (13.1); SFTP not wired into the panel (13.5)~~ | **fixed**: `rc-core::knownhosts` (TOFU/strict/ignore, changed key refused) and the SFTP client verifying it; key-file and ssh-agent authentication; the connect dialog offers protocol, authentication and host-key policy |
+| The credential store was only in memory; the project owner asked for a persistent, passphrase-protected store | **fixed this round**: `Model::unlock_secrets/lock_secrets/persist_secrets`, the unlock/create dialog (minimum length, confirmation, wrong passphrase refused), secrets queued while locked and written on unlock, and `rc-core::secrets` never writing the passphrase anywhere |
 | ~~Passwords stored as plain text in `settings.toml`~~ | **fixed**: `rc-core::secrets` provides an Argon2id + AES-256-GCM store, `SavedConnection::password` is never serialised, and `Model::migrate_plaintext_passwords` moves existing values into the store |
 | Colours are two hardcoded palettes chosen by name (`Palette::light`/`dark`); they cannot be edited or shipped as data | Phase 14 (14.1–14.5): `themes/*.toml` with semantic roles, runtime discovery, a theme editor with live preview and contrast warnings |
 | SFTP compiles behind a cargo feature and is unit-covered but has never been tested against a live server | Phase 13.5, together with the manual verification step |

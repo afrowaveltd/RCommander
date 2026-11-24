@@ -19,6 +19,34 @@ pub enum PanelAction {
     ContextMenu,
 }
 
+/// Background of one file row.
+///
+/// The cursor and the marks win over the zebra pattern, and an inactive panel
+/// only tints its cursor row so it stays visibly "not focused".
+pub fn row_background(
+    index: usize,
+    is_cursor: bool,
+    is_selected: bool,
+    active: bool,
+    palette: &Palette,
+) -> Option<Color32> {
+    if is_cursor && active {
+        return Some(palette.cursor_background);
+    }
+    if is_selected {
+        return Some(palette.selected_background);
+    }
+    if is_cursor {
+        return Some(palette.header_background);
+    }
+    // Every second row gets a very light tint, like the classic commander.
+    if index % 2 == 1 {
+        Some(palette.row_alternate)
+    } else {
+        None
+    }
+}
+
 /// Text of one configured column for an entry.
 fn column_text(id: &str, entry: &Entry, display: &rc_core::config::Display) -> String {
     match id {
@@ -398,12 +426,10 @@ fn file_list(
             let is_selected = selected[index];
             if ui.is_rect_visible(rect) {
                 let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-                if is_cursor && active {
-                    painter.rect_filled(rect, 0, palette.cursor_background);
-                } else if is_selected {
-                    painter.rect_filled(rect, 0, palette.selected_background);
-                } else if is_cursor {
-                    painter.rect_filled(rect, 0, palette.header_background);
+                if let Some(background) =
+                    row_background(index, is_cursor, is_selected, active, palette)
+                {
+                    painter.rect_filled(rect, 0, background);
                 }
                 let style = RowStyle::for_entry(entry);
                 let color: Color32 = if is_cursor && active {
@@ -770,6 +796,44 @@ mod tests {
     fn elide_never_produces_an_empty_result_for_long_input() {
         let out = elide(&"x".repeat(200), 10.0, 14.0);
         assert!(!out.is_empty());
+    }
+
+    #[test]
+    fn the_zebra_pattern_skips_the_cursor_and_marks() {
+        let palette = Palette::light();
+        assert_eq!(
+            row_background(0, false, false, true, &palette),
+            None,
+            "even rows keep the panel background"
+        );
+        assert_eq!(
+            row_background(1, false, false, true, &palette),
+            Some(palette.row_alternate)
+        );
+        assert_eq!(row_background(2, false, false, true, &palette), None);
+        assert_eq!(
+            row_background(3, false, false, true, &palette),
+            Some(palette.row_alternate)
+        );
+        // The cursor row and marked rows win over the pattern.
+        assert_eq!(
+            row_background(1, true, false, true, &palette),
+            Some(palette.cursor_background)
+        );
+        assert_eq!(
+            row_background(1, false, true, true, &palette),
+            Some(palette.selected_background)
+        );
+        assert_eq!(
+            row_background(2, true, false, false, &palette),
+            Some(palette.header_background),
+            "inactive cursor"
+        );
+        let dark = Palette::dark();
+        assert_eq!(
+            row_background(1, false, false, true, &dark),
+            Some(dark.row_alternate)
+        );
     }
 
     #[test]

@@ -621,6 +621,11 @@ impl RCommanderApp {
                 if ui.button(self.model.t("cmd.refresh")).clicked() {
                     command = Some("cm_RereadSource".into());
                 }
+                if ui.button(self.model.t("cmd.secrets")).clicked() {
+                    self.model.open_dialog(Dialog::UnlockSecrets(
+                        crate::model::dialogs::UnlockSecretsState::new(self.model.secrets_exist()),
+                    ));
+                }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
                 }

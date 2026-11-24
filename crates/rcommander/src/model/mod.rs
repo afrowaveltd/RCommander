@@ -385,6 +385,13 @@ pub struct Model {
     /// Where connection credentials are kept. Defaults to an in-memory store, so
     /// nothing is written to disk until the user unlocks the encrypted file.
     pub secrets: Box<dyn SecretStore>,
+    /// Master passphrase of the encrypted store, kept in memory for this session
+    /// only so newly remembered passwords can be written out immediately.
+    pub secret_passphrase: Option<String>,
+    /// Secrets waiting for the store to be unlocked: `(account, secret)`.
+    pub pending_secrets: Vec<(String, String)>,
+    /// Override of the encrypted store location (tests, portable installs).
+    pub secrets_path_override: Option<std::path::PathBuf>,
 }
 
 /// An open F3 viewer.
@@ -470,6 +477,9 @@ impl Model {
             clipboard: Vec::new(),
             settings_dirty: false,
             secrets: Box::new(MemoryStore::new()),
+            secret_passphrase: None,
+            pending_secrets: Vec::new(),
+            secrets_path_override: None,
             keymap,
             settings,
             strings,
