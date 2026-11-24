@@ -588,12 +588,10 @@ pub struct FtpConnectState {
 impl Default for FtpConnectState {
     fn default() -> Self {
         FtpConnectState {
-            connection: SavedConnection {
-                protocol: "ftp".to_string(),
-                auth_method: "password".to_string(),
-                host_key_policy: "tofu".to_string(),
-                ..Default::default()
-            },
+            // Pre-filled and pre-ported: `localhost` on the protocol's default
+            // port, so a local server can be reached without typing anything
+            // beyond a user name.
+            connection: SavedConnection::with_defaults("ftp"),
             save_password: true,
             status: String::new(),
         }
@@ -638,6 +636,16 @@ impl FtpConnectState {
             return Err("empty host".to_string());
         }
         Ok(())
+    }
+
+    /// Move the port when the protocol changes, but only while the user has not
+    /// typed a port of their own.
+    pub fn set_protocol(&mut self, protocol: &str) {
+        let was_default = self.connection.port_is_default();
+        self.connection.protocol = protocol.to_string();
+        if was_default {
+            self.connection.port = SavedConnection::default_port(protocol);
+        }
     }
 
     /// `user@host:port` summary.
@@ -1578,6 +1586,10 @@ mod tests {
     #[test]
     fn ftp_dialog_summary_and_validation() {
         let mut f = FtpConnectState::default();
+        // The defaults are complete enough to connect; only an explicitly
+        // cleared host is refused.
+        assert!(f.validate().is_ok());
+        f.connection.host = String::new();
         assert!(f.validate().is_err());
         f.connection.host = "example.com".into();
         f.connection.port = 21;
@@ -1659,6 +1671,31 @@ mod tests {
         // The reset page has to stay last: it is the one nobody opens by accident.
         assert_eq!(*OptionsTab::all().last().unwrap(), OptionsTab::Dangerous);
         assert!(o.pending_reset.is_none(), "a reset needs an explicit click");
+    }
+
+    #[test]
+    fn the_connect_dialog_starts_on_localhost_and_keeps_a_typed_port() {
+        let state = FtpConnectState::default();
+        assert_eq!(state.connection.host, "localhost");
+        assert_eq!(state.connection.port, 21, "FTP is pre-ported");
+        assert!(
+            state.validate().is_ok(),
+            "the defaults are ready to connect"
+        );
+
+        // Switching to SFTP follows the default port...
+        let mut ssh = FtpConnectState::default();
+        ssh.set_protocol("sftp");
+        assert_eq!(ssh.connection.port, 22);
+        assert!(ssh.validate().is_err(), "SFTP still needs a user name");
+        ssh.connection.user = "alice".into();
+        assert!(ssh.validate().is_ok());
+
+        // ...but never overwrites a port the user chose.
+        let mut custom = FtpConnectState::default();
+        custom.connection.port = 2121;
+        custom.set_protocol("sftp");
+        assert_eq!(custom.connection.port, 2121);
     }
 
     #[test]

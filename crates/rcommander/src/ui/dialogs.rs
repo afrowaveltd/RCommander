@@ -3,6 +3,7 @@
 use crate::model::dialogs::*;
 use crate::model::{CommandOutcome, Model, ResetScope};
 use egui::{Context, RichText};
+use rc_core::config::SavedConnection;
 
 /// What the dialog layer wants the application to do next.
 #[derive(Clone, Debug, PartialEq)]
@@ -852,30 +853,81 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
 }
 
 fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> DialogAction {
+    // Switching the protocol moves the port to that protocol's default, but only
+    // while the shown port is still a default itself.
+    let mut protocol_choice: Option<&'static str> = None;
     ui.horizontal(|ui| {
         ui.label("protocol");
-        ui.selectable_value(&mut state.connection.protocol, "ftp".to_string(), "FTP");
-        ui.selectable_value(&mut state.connection.protocol, "sftp".to_string(), "SFTP");
+        if ui
+            .selectable_label(state.connection.protocol == "ftp", "FTP")
+            .clicked()
+        {
+            protocol_choice = Some("ftp");
+        }
+        if ui
+            .selectable_label(state.connection.protocol == "sftp", "SFTP")
+            .clicked()
+        {
+            protocol_choice = Some("sftp");
+        }
+        // Show what will be used, so nobody has to guess the default.
+        ui.label(
+            egui::RichText::new(format!(
+                "{}:{}",
+                state.connection.host,
+                SavedConnection::default_port(&state.connection.protocol)
+            ))
+            .small(),
+        );
     });
+    if let Some(protocol) = protocol_choice {
+        state.set_protocol(protocol);
+    }
     egui::Grid::new("ftp_grid").num_columns(2).show(ui, |ui| {
         ui.label(model.t("ftp.host"));
-        ui.add(egui::TextEdit::singleline(&mut state.connection.host).desired_width(220.0));
+        ui.add(
+            egui::TextEdit::singleline(&mut state.connection.host)
+                .hint_text("localhost")
+                .desired_width(220.0),
+        );
         ui.end_row();
         ui.label(model.t("ftp.port"));
-        ui.add(egui::DragValue::new(&mut state.connection.port).range(0..=65535));
+        ui.horizontal(|ui| {
+            // `default_port` is pre-selected, so connecting to a local server
+            // needs no port at all; the hint names the default for the protocol.
+            let default_port = SavedConnection::default_port(&state.connection.protocol);
+            ui.add(egui::DragValue::new(&mut state.connection.port).range(0..=65535))
+                .on_hover_text(default_port.to_string());
+            if ui
+                .small_button(format!("{default_port}"))
+                .on_hover_text(model.t("ftp.port_default"))
+                .clicked()
+            {
+                state.connection.port = default_port;
+            }
+        });
         ui.end_row();
         ui.label(model.t("ftp.user"));
-        ui.add(egui::TextEdit::singleline(&mut state.connection.user).desired_width(220.0));
+        ui.add(
+            egui::TextEdit::singleline(&mut state.connection.user)
+                .hint_text(model.t("ftp.user_hint"))
+                .desired_width(220.0),
+        );
         ui.end_row();
         ui.label(model.t("ftp.password"));
         ui.add(
             egui::TextEdit::singleline(&mut state.connection.password)
                 .password(true)
+                .hint_text(model.t("ftp.password_hint"))
                 .desired_width(220.0),
         );
         ui.end_row();
         ui.label(model.t("ftp.remote_dir"));
-        ui.add(egui::TextEdit::singleline(&mut state.connection.remote_dir).desired_width(220.0));
+        ui.add(
+            egui::TextEdit::singleline(&mut state.connection.remote_dir)
+                .hint_text("/")
+                .desired_width(220.0),
+        );
         ui.end_row();
         if state.is_ssh() {
             ui.label("authentication");

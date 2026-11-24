@@ -1023,6 +1023,17 @@ fn render_snapshots() {
         .unwrap();
     drop(second);
 
+    let mut connect = app(left.path(), right.path());
+    connect.model.execute("cm_FtpConnect");
+    let mut fourth = harness(connect);
+    fourth.run();
+    fourth
+        .render()
+        .unwrap()
+        .save(out.join("ftp_connect.png"))
+        .unwrap();
+    drop(fourth);
+
     let mut unlock = app(left.path(), right.path());
     unlock
         .model
@@ -1036,4 +1047,84 @@ fn render_snapshots() {
         .unwrap()
         .save(out.join("unlock.png"))
         .unwrap();
+}
+
+#[test]
+fn clicking_a_row_in_the_other_panel_moves_the_focus_there() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    assert_eq!(harness.state().model.focus, rcommander::Side::Left);
+
+    // Clicking a name in the right panel has to activate that panel; the old
+    // code only moved the focus when the panel was already active, so the left
+    // panel stayed marked as active forever.
+    harness.root().get_by_label("target.txt").click();
+    harness.run();
+    assert_eq!(
+        harness.state().model.focus,
+        rcommander::Side::Right,
+        "a click in the right panel activates it"
+    );
+    assert_eq!(
+        harness
+            .state()
+            .model
+            .right
+            .cursor_entry()
+            .map(|e| e.name.clone())
+            .as_deref(),
+        Some("target.txt")
+    );
+
+    // And back again.
+    harness.root().get_by_label("beta.log").click();
+    harness.run();
+    assert_eq!(harness.state().model.focus, rcommander::Side::Left);
+}
+
+#[test]
+fn view_mode_commands_apply_to_the_panel_that_was_clicked() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.root().get_by_label("target.txt").click();
+    harness.run();
+    assert_eq!(harness.state().model.focus, rcommander::Side::Right);
+    harness.state_mut().execute("cm_SrcThumbs");
+    harness.run();
+    assert_eq!(
+        harness.state().model.right.view_mode,
+        rcommander::model::ViewMode::Thumbnails,
+        "the clicked panel receives the view-mode command"
+    );
+    assert_eq!(
+        harness.state().model.left.view_mode,
+        rcommander::model::ViewMode::Full,
+        "the other panel is untouched"
+    );
+}
+
+#[test]
+fn the_connect_dialog_is_pre_filled_with_localhost_and_a_port() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.state_mut().execute("cm_FtpConnect");
+    harness.run();
+    let Some(rcommander::model::Dialog::FtpConnect(state)) = harness.state().model.top_dialog()
+    else {
+        panic!("the connect dialog should be open");
+    };
+    assert_eq!(state.connection.host, "localhost");
+    assert_eq!(state.connection.port, 21, "FTP is pre-ported");
+    // Switching to SFTP through the dialog state moves the port along.
+    if let Some(rcommander::model::Dialog::FtpConnect(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.set_protocol("sftp");
+    }
+    harness.run();
+    let Some(rcommander::model::Dialog::FtpConnect(state)) = harness.state().model.top_dialog()
+    else {
+        panic!("the connect dialog should still be open");
+    };
+    assert_eq!(state.connection.port, 22);
 }

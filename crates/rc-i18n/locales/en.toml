@@ -256,3 +256,7 @@ authors = ["RCommander contributors"]
 "reset.done" = "Reset done ({count} file(s) deleted)."
 "reset.done_mark" = "done"
 "reset.nothing_to_do" = "Nothing to reset — there was no data of that kind."
+
+"ftp.port_default" = "Use the default port for this protocol"
+"ftp.user_hint" = "user name (empty = anonymous)"
+"ftp.password_hint" = "password (kept in the credential store)"

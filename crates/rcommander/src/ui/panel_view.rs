@@ -110,7 +110,18 @@ pub fn show(
         ))
         .inner_margin(egui::Margin::same(2));
     frame.show(ui, |ui| {
-        tabs_row(ui, model, side, palette, active, rtl, &mut actions);
+        // A click anywhere in the panel body activates it, including the empty
+        // space below the last row and the panel border. Registered before the
+        // widgets so a click on a row still reaches the row first.
+        let background = ui.interact(
+            ui.max_rect(),
+            ui.scope_id().with(("panel_background", side)),
+            Sense::click(),
+        );
+        if background.clicked() {
+            model.focus = side;
+        }
+        tabs_row(ui, model, side, palette, rtl, &mut actions);
         path_row(ui, model, side, palette, active, rtl, &mut actions);
         if model.panel(side).view_mode == ViewMode::Thumbnails {
             thumbnail_grid(ui, model, side, palette, rtl, thumbnails, &mut actions);
@@ -131,7 +142,6 @@ fn tabs_row(
     model: &mut Model,
     side: Side,
     palette: &Palette,
-    active: bool,
     rtl: bool,
     actions: &mut Vec<PanelAction>,
 ) {
@@ -148,6 +158,7 @@ fn tabs_row(
         .collect();
     let mut clicked: Option<usize> = None;
     let mut close: Option<usize> = None;
+    let mut focused = false;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
         for (index, label, is_active) in labels {
@@ -161,8 +172,11 @@ fn tabs_row(
             } else {
                 palette.background
             }));
-            if response.clicked() && !is_active {
-                clicked = Some(index);
+            if response.clicked() {
+                focused = true;
+                if !is_active {
+                    clicked = Some(index);
+                }
             }
             if response.middle_clicked() {
                 close = Some(index);
@@ -172,24 +186,27 @@ fn tabs_row(
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |_| {});
         }
         if ui.small_button("+").clicked() {
+            focused = true;
             actions.push(PanelAction::Command("cm_NewTab".to_string()));
         }
     });
+    if focused {
+        model.focus = side;
+    }
     if let Some(index) = clicked {
         let settings = model.settings.clone();
         let _ = model.panel_mut(side).activate_tab(index, &settings);
-        if active {
-            model.focus = side;
-        }
+        // Clicking a panel activates it, whatever it was before. The old
+        // condition (`if active`) made the focus impossible to move with the
+        // mouse: the left panel stayed active forever.
+        model.focus = side;
     }
     if let Some(index) = close
         && model.panel_mut(side).tabs.close(index)
     {
         let location = model.panel(side).tabs.active().location.clone();
-        if active {
-            let settings = model.settings.clone();
-            let _ = model.panel_mut(side).open(location, &settings);
-        }
+        let settings = model.settings.clone();
+        let _ = model.panel_mut(side).open(location, &settings);
     }
 }
 
@@ -235,9 +252,7 @@ fn path_row(
                 );
             if response.clicked() {
                 model.panel_mut(side).path_edit = Some(path.clone());
-                if active {
-                    model.focus = side;
-                }
+                model.focus = side;
             }
         }
         if rtl {
@@ -463,9 +478,10 @@ fn file_list(
         }
     });
     if let Some((index, kind)) = clicked {
-        if active {
-            model.focus = side;
-        }
+        // Clicking a panel activates it, whatever it was before. The old
+        // condition (`if active`) made the focus impossible to move with the
+        // mouse: the left panel stayed active forever.
+        model.focus = side;
         let name = entries.get(index).map(|e| e.name.clone());
         match kind {
             ClickKind::Select => model.panel_mut(side).set_cursor(index),
@@ -658,9 +674,10 @@ fn thumbnail_grid(
         });
 
     if let Some((index, kind)) = clicked {
-        if active {
-            model.focus = side;
-        }
+        // Clicking a panel activates it, whatever it was before. The old
+        // condition (`if active`) made the focus impossible to move with the
+        // mouse: the left panel stayed active forever.
+        model.focus = side;
         model.panel_mut(side).set_cursor(index);
         if kind == ClickKind::Open
             && let crate::model::CommandOutcome::OpenFile(path) = model.enter()

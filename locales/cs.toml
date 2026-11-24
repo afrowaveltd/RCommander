@@ -252,3 +252,7 @@ authors = ["RCommander contributors"]
 "reset.done" = "Reset hotov (smazáno souborů: {count})."
 "reset.done_mark" = "hotovo"
 "reset.nothing_to_do" = "Není co resetovat — žádná taková data neexistovala."
+
+"ftp.port_default" = "Použít výchozí port pro tento protokol"
+"ftp.user_hint" = "uživatelské jméno (prázdné = anonymně)"
+"ftp.password_hint" = "heslo (ukládá se do úložiště údajů)"

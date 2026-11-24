@@ -172,7 +172,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **223 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **224 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -181,7 +181,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **33 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **37 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -229,6 +229,17 @@ cache fed by `rc-viewer`'s pixel-budgeted decoder.
 * *Create versus unlock.* The credential dialog shows *create* wording when no
   store file exists, *unlock* when it does, and offers *start over* (delete the old
   store and begin again) when it exists.
+* *Panel focus follows the mouse again.* Clicking a row, a tab, the path bar or
+  the empty area of a panel now activates that panel; the row-click handler only
+  moved the focus when the panel was already active (`if active { … }`), so the
+  left panel stayed marked active forever and every view-mode or panel setting
+  went to the wrong side. Two UI tests: click a row in the right panel, then a
+  view-mode command must change the right panel only.
+* *The connect dialog is ready to use.* A new connection starts as `localhost` on
+  the protocol's default port (21 for FTP, 22 for SFTP, 990 for FTPS),
+  `SavedConnection::with_defaults`/`default_port`/`port_is_default` hold that
+  knowledge, switching the protocol moves the port only while it is still a
+  default, and every field carries a placeholder hint.
 * *The "Dangerous" options page* (`reset.rs`, `OptionsTab::Dangerous`) collects the
   factory resets: settings, tabs/history/hotlist, trusted host keys, saved
   credentials, or everything including the session. Each button arms a
@@ -312,12 +323,12 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1141 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1146 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 218, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
   `rc-archive` 134, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3 doctests and
-  one opt-in SFTP integration test), `rcommander` 259 (223 lib + 33 UI + 3 i18n
-  guard) — **1141 tests** (measured
+  one opt-in SFTP integration test), `rcommander` 265 (224 lib + 37 UI + 3 i18n
+  guard) — **1146 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.

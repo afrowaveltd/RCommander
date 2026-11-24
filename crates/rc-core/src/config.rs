@@ -661,6 +661,36 @@ pub struct SavedConnection {
 }
 
 impl SavedConnection {
+    /// Default TCP port of a protocol name, used when a connection is created so
+    /// the user can connect without typing a port at all.
+    pub fn default_port(protocol: &str) -> u16 {
+        match protocol.trim().to_ascii_lowercase().as_str() {
+            "sftp" | "sftp4" | "sftp5" | "ssh" => 22,
+            "ftps" | "ftpsi" | "ftpes" => 990,
+            _ => 21,
+        }
+    }
+
+    /// A connection that is ready to be edited: `localhost` on the protocol's
+    /// default port.
+    pub fn with_defaults(protocol: &str) -> Self {
+        SavedConnection {
+            protocol: protocol.to_string(),
+            port: SavedConnection::default_port(protocol),
+            host: "localhost".to_string(),
+            auth_method: "password".to_string(),
+            host_key_policy: "tofu".to_string(),
+            passive: true,
+            ..Default::default()
+        }
+    }
+
+    /// True when `port` is still the untouched default for `protocol`, which is
+    /// when switching the protocol should move it (21 <-> 22) without asking.
+    pub fn port_is_default(&self) -> bool {
+        self.port == 0 || self.port == SavedConnection::default_port(&self.protocol)
+    }
+
     /// Account id used as the key in the credential store.
     pub fn account_id(&self) -> String {
         let protocol = if self.protocol.is_empty() {
@@ -814,6 +844,28 @@ pub fn default_config_path() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_new_connection_has_a_usable_host_and_port() {
+        let ftp = SavedConnection::with_defaults("ftp");
+        assert_eq!(ftp.host, "localhost");
+        assert_eq!(ftp.port, 21, "FTP defaults to 21");
+        assert!(ftp.passive, "passive mode is the safe default");
+        let sftp = SavedConnection::with_defaults("sftp");
+        assert_eq!(sftp.port, 22, "SFTP defaults to 22");
+        assert_eq!(SavedConnection::default_port("FTPS"), 990);
+        assert_eq!(SavedConnection::default_port("unknown"), 21);
+        // A port the user typed is not a default, so switching the protocol must
+        // leave it alone.
+        assert!(ftp.port_is_default());
+        let mut custom = ftp.clone();
+        custom.port = 2121;
+        assert!(!custom.port_is_default());
+        // An empty port counts as "not chosen yet".
+        let mut unset = ftp.clone();
+        unset.port = 0;
+        assert!(unset.port_is_default());
+    }
 
     #[test]
     fn defaults_are_sane() {
