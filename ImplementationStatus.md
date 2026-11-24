@@ -30,7 +30,7 @@ cargo test --workspace
 | 10 | egui user interface | **partial** — panels, tabs, menus, dialogs, viewer, editor, help, quick view, MCP bridge and the FTP connect flow render and are UI-tested; button-bar editing, the thumbnail grid, the search results table and drag & drop are still simplified |
 | 11 | Platforms | **partial** — Linux verified end to end (runs, renders); with mingw-w64 installed the **Windows release `.exe` links and is a GUI-subsystem binary** (`target/x86_64-pc-windows-gnu/release/rcommander.exe`, 15.8 MB); the Android APK still needs the SDK/NDK |
 | 12 | Verification | **done** for everything marked done above |
-| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.5 (SFTP in the panel, verified against a real OpenSSH server) are done; saved session profiles (13.3) are still pending |
+| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; saved session profiles (13.3) are still pending |
 | 14 | Colour themes | **pending** — planned in Phase 14; today the palette is two hardcoded variants |
 | 15 | Git repositories as panels | **pending** — planned in Phase 15; read-only virtual folders (branches/tags/commits) and copying out of a revision come first, write operations only afterwards |
 | 16 | Interactive AI workspace | **pending** — added by the project owner, planned in Phase 16 (bidirectional panes, pluggable model providers, reviewed change sets) |
@@ -172,7 +172,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **216 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **223 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -181,7 +181,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **28 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **33 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -204,6 +204,37 @@ stops the job, and an end-to-end UI test drives F5 → dialog → OK → finishe
 
 The thumbnail grid (`Ctrl+Shift+F1`) is implemented with a bounded LRU texture
 cache fed by `rc-viewer`'s pixel-budgeted decoder.
+
+**This round: polish and the reported bugs.**
+
+* *Alternate row striping.* `row_background()` paints every second row with
+  `palette.row_alternate` in every view, so long listings stay readable; the
+  cursor and selection colours still win, and the thumbnail cards use the same
+  helper.
+* *Thumbnail cards instead of empty squares.* Each entry is drawn as a card: a
+  rounded background, a thin well for the preview, a large file-type icon (or the
+  decoded image), the upper-case extension and an elided caption. One colour
+  decision per card keeps the icon readable on the cursor and selection
+  backgrounds. Covered by a UI test and verified by rendering the screen to a PNG
+  and inspecting the pixels (the cursor card's icon is white on navy, image cards
+  show the decoded picture).
+* *The dialog × now closes the dialog.* `show()` ignored the window's `open` flag
+  and wrote the state back, so the button did nothing; it now pops the dialog and
+  returns `DialogAction::Close`. UI test: click `Close window`, the dialog is gone
+  and the panels accept keys again.
+* *Enter confirms dialogs.* When no text field has the focus, `Enter` accepts and
+  `Esc` cancels. In the passphrase dialog `Enter` in the first field moves to the
+  confirmation field and the second `Enter` validates and saves, so creating a
+  store never needs the mouse — UI test drives both presses.
+* *Create versus unlock.* The credential dialog shows *create* wording when no
+  store file exists, *unlock* when it does, and offers *start over* (delete the old
+  store and begin again) when it exists.
+* *The "Dangerous" options page* (`reset.rs`, `OptionsTab::Dangerous`) collects the
+  factory resets: settings, tabs/history/hotlist, trusted host keys, saved
+  credentials, or everything including the session. Each button arms a
+  confirmation first — one click deletes nothing — and the model reports what was
+  actually removed. The resets honour `Model::config_dir_override`, so the tests
+  never touch the real profile. Documented in *Configuration* help topic.
 
 **Search and synchronisation are now functional** (they were dialogs whose action
 buttons did nothing): search runs on a worker thread with live results, *Stop*, and
@@ -237,7 +268,8 @@ Encoding (MIME/UUE/XXE, `encode.rs`), saved selections (file and in-memory) and 
 branch view (`branch.rs`, a flat listing of the whole subtree) complete the
 command set of the reference *Files*, *Mark* and *Commands* menus.
 
-Remaining simplifications: the thumbnail view has no per-file cache controls, the
+Remaining simplifications: the thumbnail view has no per-file cache controls or
+zoom slider, the
 in-panel directory tree is a dialog, the search results table lives inside the
 dialog, and the reference product's Windows DLL plugin interfaces (WCX/WLX/WDX/WFX)
 are not reimplemented — a cross-platform plugin format would be a separate design.
@@ -280,12 +312,12 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1073 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1141 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 218, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
   `rc-archive` 134, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3 doctests and
-  one opt-in SFTP integration test), `rcommander` 247 (216 lib + 28 UI + 3 i18n
-  guard) — **1129 tests** (measured
+  one opt-in SFTP integration test), `rcommander` 259 (223 lib + 33 UI + 3 i18n
+  guard) — **1141 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.
@@ -307,6 +339,7 @@ with `cargo test --workspace`).
 | Gap | Where it is tracked |
 | --- | --- |
 | ~~SSH host keys are not verified (13.1); SFTP not wired into the panel (13.5)~~ | **fixed**: `rc-core::knownhosts` (TOFU/strict/ignore, changed key refused) and the SFTP client verifying it; key-file and ssh-agent authentication; the connect dialog offers protocol, authentication and host-key policy |
+| The thumbnail view showed one large empty square per file, and the passphrase dialog was unlock-only with no way back from a forgotten passphrase | **fixed this round**: a card grid with type icons, decoded previews and captions; a visible *create* mode; and *Configuration ▸ Options ▸ Dangerous* with confirmed factory resets (settings, layout, host keys, credentials, everything) |
 | The credential store was only in memory; the project owner asked for a persistent, passphrase-protected store | **fixed this round**: `Model::unlock_secrets/lock_secrets/persist_secrets`, the unlock/create dialog (minimum length, confirmation, wrong passphrase refused), secrets queued while locked and written on unlock, and `rc-core::secrets` never writing the passphrase anywhere |
 | ~~Passwords stored as plain text in `settings.toml`~~ | **fixed**: `rc-core::secrets` provides an Argon2id + AES-256-GCM store, `SavedConnection::password` is never serialised, and `Model::migrate_plaintext_passwords` moves existing values into the store |
 | Colours are two hardcoded palettes chosen by name (`Palette::light`/`dark`); they cannot be edited or shipped as data | Phase 14 (14.1–14.5): `themes/*.toml` with semantic roles, runtime discovery, a theme editor with live preview and contrast warnings |

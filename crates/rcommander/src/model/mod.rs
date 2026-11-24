@@ -8,6 +8,7 @@
 pub mod commands;
 pub mod dialogs;
 pub mod remote;
+pub mod reset;
 pub mod search;
 
 use crate::i18n::{Direction, Strings};
@@ -29,6 +30,7 @@ use rc_core::sorting::{SortField, SortSpec};
 use rc_core::tabs::TabBar;
 
 pub use dialogs::Dialog;
+pub use reset::{ResetReport, ResetScope};
 
 /// Which of the two panels is meant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -392,6 +394,8 @@ pub struct Model {
     pub pending_secrets: Vec<(String, String)>,
     /// Override of the encrypted store location (tests, portable installs).
     pub secrets_path_override: Option<std::path::PathBuf>,
+    /// Override of the per-user config directory (tests, portable installs).
+    pub config_dir_override: Option<std::path::PathBuf>,
 }
 
 /// An open F3 viewer.
@@ -480,6 +484,7 @@ impl Model {
             secret_passphrase: None,
             pending_secrets: Vec::new(),
             secrets_path_override: None,
+            config_dir_override: None,
             keymap,
             settings,
             strings,
@@ -720,6 +725,16 @@ impl Model {
         let text = error.to_string();
         self.last_error = Some(text.clone());
         self.status = text;
+    }
+
+    /// Directory holding per-user files: settings, hotlist, known hosts.
+    ///
+    /// Tests and portable installs point this somewhere else, so a factory
+    /// reset never touches the real profile of the person running the suite.
+    pub fn config_dir(&self) -> std::path::PathBuf {
+        self.config_dir_override
+            .clone()
+            .unwrap_or_else(rc_core::config::config_dir)
     }
 
     /// Remember that the settings changed; the view layer persists them.

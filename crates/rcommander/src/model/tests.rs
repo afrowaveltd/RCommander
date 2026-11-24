@@ -3,7 +3,7 @@
 use crate::i18n::{Direction, KeyEchoStrings};
 use crate::model::commands::apply_rename_pattern;
 use crate::model::dialogs::*;
-use crate::model::{CommandOutcome, Model, Side, ViewMode};
+use crate::model::{CommandOutcome, Model, ResetReport, ResetScope, Side, ViewMode};
 use rc_core::config::Settings;
 use rc_core::keymap::Shortcut;
 use rc_core::location::Location;
@@ -2358,4 +2358,166 @@ fn the_unlock_dialog_validates_both_fields() {
         "an existing store accepts any non-empty passphrase"
     );
     assert_eq!(unlock.title(), "dialog.secrets.unlock");
+}
+
+// ----- dangerous page: factory resets --------------------------------
+
+/// A model whose per-user files live in `dir`, so a reset cannot touch the
+/// real profile of whoever runs the suite.
+fn model_with_config_dir(dir: &std::path::Path) -> Model {
+    let mut model = Model::for_test(
+        Settings::default(),
+        Location::local("/tmp"),
+        Location::local("/tmp"),
+    );
+    model.config_dir_override = Some(dir.to_path_buf());
+    model
+}
+
+#[test]
+fn factory_settings_reset_restores_defaults_and_deletes_the_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut model = model_with_config_dir(dir.path());
+    model.settings.display.font_size = 21.0;
+    model.settings.colors.theme = "dark".into();
+    model.settings.display.show_hidden = true;
+    std::fs::write(
+        model.config_file("settings.toml"),
+        "[display]\nfont_size = 21.0\n",
+    )
+    .unwrap();
+
+    let report = model.reset(ResetScope::Settings);
+
+    let defaults = Settings::default();
+    assert_eq!(model.settings.display.font_size, defaults.display.font_size);
+    assert_eq!(model.settings.colors.theme, defaults.colors.theme);
+    assert!(!model.settings.display.show_hidden);
+    assert_eq!(report.removed_files, 1);
+    assert!(!model.config_file("settings.toml").exists());
+    assert!(
+        model.settings_dirty,
+        "the view has to write the defaults out"
+    );
+}
+
+#[test]
+fn layout_reset_forgets_tabs_history_hotlist_and_command_history() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut model = model_with_config_dir(dir.path());
+    std::fs::write(model.config_file("hotlist.toml"), "[[items]]\n").unwrap();
+    model.command_history.push("cd /tmp".into());
+    model.left.history.record("/tmp/a", None, 1);
+    model.left.tabs.duplicate_active();
+    assert_eq!(model.left.tabs.len(), 2);
+
+    let report = model.reset(ResetScope::Layout);
+
+    assert!(model.command_history.is_empty());
+    assert!(model.left.history.is_empty());
+    assert_eq!(model.left.tabs.len(), 1, "one tab on the current directory");
+    assert!(!model.config_file("hotlist.toml").exists());
+    assert_eq!(report.removed_files, 1);
+    // The panels themselves keep their directories: the user did not ask to
+    // lose their place, only the memory of where they were before.
+    assert_eq!(model.left.location().display(), "/tmp");
+}
+
+#[test]
+fn known_hosts_reset_deletes_the_trust_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut model = model_with_config_dir(dir.path());
+    let path = model.config_file("known_hosts");
+    std::fs::write(&path, "example.com:22 ssh-ed25519 AAAA\n").unwrap();
+
+    let report = model.reset(ResetScope::KnownHosts);
+
+    assert!(!path.exists());
+    assert_eq!(report.removed_files, 1);
+    assert_eq!(report.cleared, vec!["known hosts".to_string()]);
+}
+
+#[test]
+fn credentials_reset_deletes_the_store_and_locks_the_session() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut model = model_with_config_dir(dir.path());
+    assert!(model.unlock_secrets("passphrase-123").is_ok());
+    let connection = connection("git.example.com", "alice", "s3cret");
+    assert!(model.remember_password(&connection).is_ok());
+    let store = model.secrets_file();
+    assert!(store.is_file());
+
+    let report = model.reset(ResetScope::Credentials);
+
+    assert!(!store.exists(), "the encrypted file is gone");
+    assert!(!model.secrets_exist());
+    assert!(!model.secrets_unlocked(), "the session is locked again");
+    assert_eq!(model.secrets_count(), 0);
+    assert_eq!(report.removed_files, 1);
+    // With the store gone the dialog must offer to *create* a passphrase again.
+    assert!(!model.secrets_exist());
+}
+
+#[test]
+fn everything_reset_clears_all_per_user_files_and_the_session() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut model = model_with_config_dir(dir.path());
+    assert!(model.unlock_secrets("passphrase-123").is_ok());
+    for name in [
+        "settings.toml",
+        "hotlist.toml",
+        "known_hosts",
+        "session.toml",
+    ] {
+        std::fs::write(model.config_file(name), "x").unwrap();
+    }
+    model.command_history.push("dir".into());
+
+    let report = model.reset(ResetScope::Everything);
+
+    for name in [
+        "settings.toml",
+        "hotlist.toml",
+        "known_hosts",
+        "session.toml",
+        "secrets.enc",
+    ] {
+        assert!(
+            !model.config_file(name).exists(),
+            "{name} should have been deleted"
+        );
+    }
+    assert!(model.command_history.is_empty());
+    assert!(!model.secrets_unlocked());
+    assert_eq!(report.removed_files, 5);
+    assert!(report.cleared.iter().any(|item| item == "session"));
+}
+
+#[test]
+fn a_reset_without_any_files_says_there_was_nothing_to_do() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut model = model_with_config_dir(dir.path());
+    let report = model.reset(ResetScope::Everything);
+    assert_eq!(report.removed_files, 0);
+    assert!(!report.is_empty(), "the settings themselves were reset");
+    let empty = ResetReport {
+        removed_files: 0,
+        cleared: Vec::new(),
+    };
+    assert!(empty.is_empty());
+}
+
+#[test]
+fn every_reset_scope_has_a_label_and_a_hint() {
+    let mut seen = Vec::new();
+    for scope in ResetScope::all() {
+        assert!(scope.label_key().starts_with("reset."));
+        assert!(scope.hint_key().starts_with("reset."));
+        assert!(!seen.contains(&scope.label_key()));
+        seen.push(scope.label_key());
+    }
+    assert_eq!(ResetScope::all().len(), 5);
+    assert!(ResetScope::Credentials.destroys_credentials());
+    assert!(ResetScope::Everything.destroys_credentials());
+    assert!(!ResetScope::Settings.destroys_credentials());
 }

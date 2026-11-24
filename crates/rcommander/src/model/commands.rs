@@ -1572,6 +1572,11 @@ impl Model {
     pub fn secrets_file(&self) -> std::path::PathBuf {
         self.secrets_path_override
             .clone()
+            .or_else(|| {
+                self.config_dir_override
+                    .as_ref()
+                    .map(|dir| dir.join("secrets.enc"))
+            })
             .unwrap_or_else(crate::paths::secrets_path)
     }
 
@@ -1588,6 +1593,16 @@ impl Model {
     /// Number of secrets the active store holds.
     pub fn secrets_count(&self) -> usize {
         self.secrets.accounts().len()
+    }
+
+    /// Delete the encrypted store file, for the "start over" path and the factory
+    /// reset. Returns true when a file was removed.
+    pub fn reset_secret_store(&mut self) -> bool {
+        self.pending_secrets.clear();
+        self.secret_passphrase = None;
+        self.secrets = Box::new(rc_core::secrets::MemoryStore::new());
+        let path = self.secrets_file();
+        std::fs::remove_file(&path).is_ok()
     }
 
     /// Open the encrypted store with `passphrase`, creating it when it does not

@@ -2,7 +2,7 @@
 
 use crate::model::{Model, Side, ViewMode};
 use crate::theme::{Palette, RowStyle};
-use crate::ui::thumbs::{self, ThumbnailCache};
+use crate::ui::thumbs::ThumbnailCache;
 use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, Ui, Vec2};
 use rc_core::entry::Entry;
 
@@ -512,12 +512,13 @@ fn thumbnail_grid(
         .iter()
         .map(|e| model.panel(side).selection.contains(&e.name))
         .collect();
-    let thumb = model.settings.display.thumbnail_size.max(32) as f32;
-    let cell_w = thumb + 16.0;
-    let cell_h = thumb + 34.0;
+    let thumb = model.settings.display.thumbnail_size.clamp(48, 256) as f32;
+    let cell_w = thumb + 24.0;
+    let cell_h = thumb + 42.0;
     let columns = ((ui.available_width() / cell_w).floor() as usize).max(1);
     let rows = entries.len().div_ceil(columns);
-    let font_id = FontId::proportional(model.settings.display.font_size - 1.0);
+    let caption_font = FontId::proportional(model.settings.display.font_size - 1.0);
+    let icon_font = FontId::proportional(thumb * 0.45);
     let active = model.focus == side;
     let mut clicked: Option<(usize, ClickKind)> = None;
 
@@ -527,6 +528,7 @@ fn thumbnail_grid(
         .show_rows(ui, cell_h, rows, |ui, range| {
             for row in range {
                 ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 8.0;
                     for column in 0..columns {
                         let index = row * columns + column;
                         let Some(entry) = entries.get(index) else {
@@ -538,94 +540,112 @@ fn thumbnail_grid(
                             egui::WidgetInfo::labeled(egui::Role::Label, true, &entry.name)
                         });
                         let is_cursor = index == cursor;
-                        if ui.is_rect_visible(rect) {
-                            let painter =
-                                ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-                            if is_cursor && active {
-                                painter.rect_filled(rect, 2, palette.cursor_background);
-                            } else if selected[index] {
-                                painter.rect_filled(rect, 2, palette.selected_background);
-                            }
-                            let image_rect = Rect::from_min_size(
-                                rect.min + Vec2::new(8.0, 4.0),
-                                Vec2::splat(thumb),
-                            );
-                            if entry.is_dir() {
-                                painter.text(
-                                    image_rect.center(),
-                                    Align2::CENTER_CENTER,
-                                    "[DIR]",
-                                    font_id.clone(),
-                                    palette.directory,
-                                );
-                            } else if thumbs::looks_like_image(&entry.name) {
-                                match thumbnails.thumbnail(ui.ctx(), &entry.path, thumb as u32) {
-                                    Some(texture) => {
-                                        let size = texture.size_vec2();
-                                        let scale = (thumb / size.x).min(thumb / size.y).min(1.0);
-                                        let draw = Rect::from_center_size(
-                                            image_rect.center(),
-                                            size * scale,
-                                        );
-                                        painter.image(
-                                            texture.id(),
-                                            draw,
-                                            Rect::from_min_max(
-                                                egui::pos2(0.0, 0.0),
-                                                egui::pos2(1.0, 1.0),
-                                            ),
-                                            Color32::WHITE,
-                                        );
-                                    }
-                                    None => {
-                                        painter.text(
-                                            image_rect.center(),
-                                            Align2::CENTER_CENTER,
-                                            "?",
-                                            font_id.clone(),
-                                            palette.hidden,
-                                        );
-                                    }
-                                }
-                            } else {
-                                let style = RowStyle::for_entry(entry);
-                                painter.text(
-                                    image_rect.center(),
-                                    Align2::CENTER_CENTER,
-                                    entry.extension().to_uppercase(),
-                                    font_id.clone(),
-                                    style.color(palette),
-                                );
-                            }
-                            let label_rect = Rect::from_min_size(
-                                egui::pos2(rect.left() + 2.0, image_rect.bottom() + 4.0),
-                                Vec2::new(cell_w - 4.0, 16.0),
-                            );
-                            let color = if is_cursor && active {
-                                palette.cursor_foreground
-                            } else if selected[index] {
-                                palette.selected_foreground
-                            } else {
-                                RowStyle::for_entry(entry).color(palette)
-                            };
-                            let align = if rtl {
-                                Align2::RIGHT_TOP
-                            } else {
-                                Align2::LEFT_TOP
-                            };
-                            let anchor = if rtl {
-                                egui::pos2(label_rect.right(), label_rect.top())
-                            } else {
-                                label_rect.left_top()
-                            };
-                            painter.text(
-                                anchor,
-                                align,
-                                elide(&entry.name, cell_w - 4.0, font_id.size),
-                                font_id.clone(),
-                                color,
-                            );
+                        if !ui.is_rect_visible(rect) {
+                            continue;
                         }
+                        let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+                        // Card background: cursor and marks win, otherwise the zebra
+                        // pattern keeps a large grid readable.
+                        let card =
+                            row_background(index, is_cursor, selected[index], active, palette)
+                                .unwrap_or(palette.background);
+                        painter.rect_filled(rect, 3, card);
+                        painter.rect_stroke(
+                            rect,
+                            3,
+                            egui::Stroke::new(
+                                1.0,
+                                if is_cursor && active {
+                                    palette.accent
+                                } else {
+                                    palette.panel_border
+                                },
+                            ),
+                            egui::StrokeKind::Inside,
+                        );
+
+                        let image_rect = Rect::from_min_size(
+                            rect.min + Vec2::new(12.0, 6.0),
+                            Vec2::splat(thumb),
+                        );
+                        // One colour decision for the whole card, so the icon never
+                        // disappears into the cursor or selection background.
+                        let ink = if is_cursor && active {
+                            palette.cursor_foreground
+                        } else if selected[index] {
+                            palette.selected_foreground
+                        } else {
+                            RowStyle::for_entry(entry).color(palette)
+                        };
+                        let icon = crate::icons::Icon::for_entry(entry.kind, &entry.name);
+                        match thumbnails.thumbnail(ui.ctx(), &entry.path, thumb as u32) {
+                            Some(texture) => {
+                                let size = texture.size_vec2();
+                                let scale = (thumb / size.x).min(thumb / size.y).min(1.0);
+                                let draw =
+                                    Rect::from_center_size(image_rect.center(), size * scale);
+                                painter.image(
+                                    texture.id(),
+                                    draw,
+                                    Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                                    Color32::WHITE,
+                                );
+                            }
+                            None => {
+                                // A faint well keeps the grid aligned and makes the
+                                // type icon read as a placeholder instead of a hole.
+                                painter.rect_stroke(
+                                    image_rect,
+                                    2,
+                                    egui::Stroke::new(1.0, palette.panel_border),
+                                    egui::StrokeKind::Inside,
+                                );
+                                painter.text(
+                                    image_rect.center(),
+                                    Align2::CENTER_CENTER,
+                                    icon.glyph(),
+                                    icon_font.clone(),
+                                    ink,
+                                );
+                                let extension = entry.extension().to_uppercase();
+                                if !entry.is_dir() && !extension.is_empty() {
+                                    painter.text(
+                                        egui::pos2(
+                                            image_rect.center().x,
+                                            image_rect.bottom() - 6.0,
+                                        ),
+                                        Align2::CENTER_BOTTOM,
+                                        extension,
+                                        FontId::proportional((thumb * 0.13).max(8.0)),
+                                        palette.hidden,
+                                    );
+                                }
+                            }
+                        }
+
+                        // Caption on one line, elided to the card width.
+                        let label_rect = Rect::from_min_size(
+                            egui::pos2(rect.left() + 4.0, image_rect.bottom() + 4.0),
+                            Vec2::new(cell_w - 8.0, 16.0),
+                        );
+                        let align = if rtl {
+                            Align2::RIGHT_TOP
+                        } else {
+                            Align2::LEFT_TOP
+                        };
+                        let anchor = if rtl {
+                            egui::pos2(label_rect.right(), label_rect.top())
+                        } else {
+                            label_rect.left_top()
+                        };
+                        painter.text(
+                            anchor,
+                            align,
+                            elide(&entry.name, cell_w - 8.0, caption_font.size),
+                            caption_font.clone(),
+                            ink,
+                        );
+
                         if response.clicked() {
                             clicked = Some((index, ClickKind::Select));
                         }
@@ -645,7 +665,7 @@ fn thumbnail_grid(
         if kind == ClickKind::Open
             && let crate::model::CommandOutcome::OpenFile(path) = model.enter()
         {
-            actions.push(PanelAction::OpenFile(path))
+            actions.push(PanelAction::OpenFile(path));
         }
     }
 }

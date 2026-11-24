@@ -98,10 +98,12 @@ pub enum OptionsTab {
     Ftp,
     Agent,
     Shortcuts,
+    /// Factory resets; the page warns loudly because nothing here can be undone.
+    Dangerous,
 }
 
 impl OptionsTab {
-    pub fn all() -> [OptionsTab; 8] {
+    pub fn all() -> [OptionsTab; 9] {
         [
             OptionsTab::Display,
             OptionsTab::Language,
@@ -111,6 +113,7 @@ impl OptionsTab {
             OptionsTab::Ftp,
             OptionsTab::Agent,
             OptionsTab::Shortcuts,
+            OptionsTab::Dangerous,
         ]
     }
 
@@ -124,6 +127,7 @@ impl OptionsTab {
             OptionsTab::Ftp => "dialog.config.ftp",
             OptionsTab::Agent => "dialog.config.agent",
             OptionsTab::Shortcuts => "dialog.config.shortcuts",
+            OptionsTab::Dangerous => "dialog.config.dangerous",
         }
     }
 }
@@ -1242,8 +1246,12 @@ impl Default for LoadSelectionState {
 /// Unlock/create dialog for the encrypted credential store.
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnlockSecretsState {
-    /// The store file already exists, so the passphrase must be entered.
+    /// The store file already exists, so the passphrase must be entered. When the
+    /// user cannot remember it, `force_create` switches to creating a new store
+    /// (which discards the old secrets after an explicit confirmation).
     pub existing: bool,
+    /// Create a fresh store even though an old one exists.
+    pub force_create: bool,
     pub passphrase: String,
     /// Confirmation field, used when creating a new store.
     pub confirm: String,
@@ -1254,10 +1262,25 @@ impl UnlockSecretsState {
     pub fn new(existing: bool) -> Self {
         UnlockSecretsState {
             existing,
+            force_create: false,
             passphrase: String::new(),
             confirm: String::new(),
             error: None,
         }
+    }
+
+    /// True when the dialog creates a store (missing file, or the user asked to
+    /// start over because the passphrase is lost).
+    pub fn is_create(&self) -> bool {
+        !self.existing || self.force_create
+    }
+
+    /// Switch to creating a new store, discarding the old one.
+    pub fn start_over(&mut self) {
+        self.force_create = true;
+        self.passphrase.clear();
+        self.confirm.clear();
+        self.error = None;
     }
 
     /// Minimum passphrase length; enforced only when creating.
@@ -1267,7 +1290,7 @@ impl UnlockSecretsState {
         if self.passphrase.is_empty() {
             return Err("the passphrase must not be empty".to_string());
         }
-        if !self.existing {
+        if self.is_create() {
             if self.passphrase.chars().count() < Self::MIN_LENGTH {
                 return Err(format!("use at least {} characters", Self::MIN_LENGTH));
             }
@@ -1279,10 +1302,10 @@ impl UnlockSecretsState {
     }
 
     pub fn title(&self) -> &'static str {
-        if self.existing {
-            "dialog.secrets.unlock"
-        } else {
+        if self.is_create() {
             "dialog.secrets.create"
+        } else {
+            "dialog.secrets.unlock"
         }
     }
 }
@@ -1349,6 +1372,12 @@ pub struct OptionsState {
     pub draft: rc_core::config::Settings,
     pub language_choice: String,
     pub shortcuts_edit: Vec<(String, String)>,
+    /// Reset the user asked for and has not confirmed yet. A reset is only ever
+    /// one click away from a second click that actually wipes something.
+    pub pending_reset: Option<super::ResetScope>,
+    /// Scopes that were already reset in this dialog, so the page can show a
+    /// "done" mark instead of leaving the button looking untouched.
+    pub applied_resets: Vec<super::ResetScope>,
 }
 
 impl OptionsState {
@@ -1364,6 +1393,8 @@ impl OptionsState {
             draft: settings.clone(),
             language_choice: settings.language.clone(),
             shortcuts_edit,
+            pending_reset: None,
+            applied_resets: Vec::new(),
         }
     }
 
@@ -1623,8 +1654,11 @@ mod tests {
             o.draft.shortcuts.get("f9").map(|s| s.as_str()),
             Some("cm_Test")
         );
-        assert_eq!(OptionsTab::all().len(), 8);
+        assert_eq!(OptionsTab::all().len(), 9);
         assert!(OptionsTab::Language.key().starts_with("dialog.config."));
+        // The reset page has to stay last: it is the one nobody opens by accident.
+        assert_eq!(*OptionsTab::all().last().unwrap(), OptionsTab::Dangerous);
+        assert!(o.pending_reset.is_none(), "a reset needs an explicit click");
     }
 
     #[test]

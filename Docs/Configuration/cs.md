@@ -28,5 +28,20 @@ zůstane s vaší instalací, například na USB disku.
 
 ## Obnovení výchozích hodnot
 
-Smažte `settings.toml` a vrátíte se k výchozímu nastavení; pokud jste si
-přizpůsobili klávesovou mapu, nejprve si pořiďte kopii.
+*Konfigurace ▸ Možnosti ▸ Nebezpečné* obsahuje tovární obnovení. Každá položka se
+ještě jednou zeptá, a seznam u ní říká, co přesně se ztratí:
+
+| Obnovení | Co smaže |
+| --- | --- |
+| Tovární nastavení | všechna nastavení, klávesovou mapu i soubor nastavení |
+| Záložky, historie a hotlist | přebytečné záložky, navštívené adresáře, historii příkazů, hotlist |
+| Důvěryhodné klíče SSH | `known_hosts`, takže příští připojení se zeptá znovu |
+| Uložené přihlašovací údaje | `secrets.enc` včetně hlavního hesla |
+| Vše | vše výše uvedené a navíc uloženou relaci |
+
+První dvě jsou neškodné: na soubory na disku nesahají. Zbývající tři mažou data,
+která už nelze obnovit — o to právě jde: zapomenuté hlavní heslo nemá jinou cestu
+než úložiště smazat.
+
+Ruční smazání `settings.toml` odpovídá první položce; pokud jste si přizpůsobili
+klávesovou mapu, nejprve si pořiďte kopii.

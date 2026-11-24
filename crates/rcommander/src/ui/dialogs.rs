@@ -1,7 +1,7 @@
 //! Modal dialog rendering.
 
 use crate::model::dialogs::*;
-use crate::model::{CommandOutcome, Model};
+use crate::model::{CommandOutcome, Model, ResetScope};
 use egui::{Context, RichText};
 
 /// What the dialog layer wants the application to do next.
@@ -70,6 +70,12 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::Progress(state) => progress(ui, model, state),
             };
         });
+    if !open {
+        // The window's × was pressed: close this dialog instead of writing the
+        // state back (the previous code ignored `open` and the × did nothing).
+        model.dialogs.pop();
+        return DialogAction::Close;
+    }
     if let Some(target) = model.dialogs.pop() {
         let updated = replace_dialog(dialog, target);
         model.dialogs.push(updated);
@@ -80,14 +86,6 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
             DialogAction::Close
         }
         other => other,
-    }
-    .apply(model, open)
-}
-
-impl DialogAction {
-    fn apply(self, model: &mut Model, _open: bool) -> DialogAction {
-        let _ = model;
-        self
     }
 }
 
@@ -154,6 +152,16 @@ fn buttons(ui: &mut egui::Ui, model: &Model) -> (bool, bool) {
             cancel = true;
         }
     });
+    // Enter confirms a dialog; Esc cancels (unless a text field has the focus,
+    // in which case egui consumes the key itself).
+    if ui.memory(|m| m.focused()).is_none() {
+        if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            ok = true;
+        }
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            cancel = true;
+        }
+    }
     (ok, cancel)
 }
 
@@ -600,6 +608,93 @@ fn hotlist(ui: &mut egui::Ui, model: &mut Model, state: &mut HotlistState) -> Di
     action
 }
 
+/// "Dangerous" page: factory resets, each behind an explicit confirmation.
+///
+/// The encrypted credential store cannot be recovered without its master
+/// passphrase, so this page is the documented way out of a forgotten
+/// passphrase: it drops the store and everything in it.
+fn dangerous_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) {
+    let palette = crate::theme::Palette::by_name(&model.settings.colors.theme);
+    ui.label(
+        egui::RichText::new(model.t("reset.warning"))
+            .color(palette.warning)
+            .strong(),
+    );
+    ui.add_space(4.0);
+
+    if let Some(scope) = state.pending_reset {
+        let label = model.t(scope.label_key());
+        ui.label(
+            egui::RichText::new(model.tf("reset.confirm", &[("action", &label)]))
+                .color(palette.warning)
+                .strong(),
+        );
+        ui.horizontal(|ui| {
+            if ui.button(model.t("reset.confirm_yes")).clicked() {
+                let report = model.reset(scope);
+                if !state.applied_resets.contains(&scope) {
+                    state.applied_resets.push(scope);
+                }
+                state.pending_reset = None;
+                // A settings reset replaces the model settings, so the draft the
+                // dialog is editing has to follow or OK would undo the reset.
+                if matches!(scope, ResetScope::Settings | ResetScope::Everything) {
+                    state.draft = model.settings.clone();
+                    state.language_choice = model.settings.language.clone();
+                    state.shortcuts_edit = state
+                        .draft
+                        .shortcuts
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
+                    state.shortcuts_edit.sort();
+                }
+                let message = if report.is_empty() {
+                    model.t("reset.nothing_to_do")
+                } else {
+                    let count = report.removed_files.to_string();
+                    model.tf("reset.done", &[("count", &count)])
+                };
+                model.report(message);
+            }
+            if ui.button(model.t("reset.cancel")).clicked() {
+                state.pending_reset = None;
+            }
+        });
+        ui.separator();
+    }
+
+    egui::ScrollArea::vertical()
+        .max_height(200.0)
+        .id_salt("dangerous_actions")
+        .show(ui, |ui| {
+            for scope in ResetScope::all() {
+                ui.horizontal(|ui| {
+                    let label = model.t(scope.label_key());
+                    let done = state.applied_resets.contains(&scope);
+                    let text = if done {
+                        format!("{} ({})", label, model.t("reset.done_mark"))
+                    } else {
+                        label
+                    };
+                    if ui
+                        .button(
+                            egui::RichText::new(text).color(if scope.destroys_credentials() {
+                                palette.warning
+                            } else {
+                                palette.foreground
+                            }),
+                        )
+                        .clicked()
+                    {
+                        state.pending_reset = Some(scope);
+                    }
+                    ui.label(egui::RichText::new(model.t(scope.hint_key())).color(palette.hidden));
+                });
+            }
+        });
+}
+
 fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> DialogAction {
     ui.horizontal_wrapped(|ui| {
         for tab in OptionsTab::all() {
@@ -717,6 +812,9 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
                     .range(0..=65535)
                     .prefix("port "),
             );
+        }
+        OptionsTab::Dangerous => {
+            dangerous_page(ui, model, state);
         }
         OptionsTab::Shortcuts => {
             ui.label(model.t("dialog.config.shortcuts"));
@@ -1469,34 +1567,77 @@ fn unlock_secrets(
     state: &mut UnlockSecretsState,
 ) -> DialogAction {
     ui.label(model.t(state.title()));
-    ui.add(
+    if state.is_create() && state.existing {
+        ui.label(egui::RichText::new(model.t("dialog.secrets.start_over_warning")).small());
+    }
+
+    // Passphrase. Enter in the first field moves to the confirmation field when
+    // creating, otherwise it submits.
+    ui.label(model.t("dialog.secrets.passphrase"));
+    let first = ui.add(
         egui::TextEdit::singleline(&mut state.passphrase)
             .password(true)
             .desired_width(f32::INFINITY)
             .hint_text(model.t("dialog.secrets.passphrase")),
     );
-    if !state.existing {
-        ui.add(
+    if first.gained_focus() || state.passphrase.is_empty() {
+        first.request_focus();
+    }
+
+    let mut submit = false;
+    if state.is_create() {
+        ui.label(model.t("dialog.secrets.confirm"));
+        let second = ui.add(
             egui::TextEdit::singleline(&mut state.confirm)
                 .password(true)
                 .desired_width(f32::INFINITY)
                 .hint_text(model.t("dialog.secrets.confirm")),
         );
+        if second.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            submit = true;
+        }
+        if first.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            // Move the focus to the confirmation field instead of submitting.
+            second.request_focus();
+        }
         ui.label(egui::RichText::new(model.t("dialog.secrets.warning")).small());
+    } else if first.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+        submit = true;
     }
+
     if let Some(error) = &state.error {
         ui.label(egui::RichText::new(error).color(egui::Color32::from_rgb(0xa0, 0x00, 0x00)));
     }
-    let (ok, cancel) = buttons(ui, model);
-    if cancel {
-        return DialogAction::Close;
+
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.config.ok")).clicked() {
+            submit = true;
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+        if state.existing
+            && !state.force_create
+            && ui.button(model.t("dialog.secrets.start_over")).clicked()
+        {
+            state.start_over();
+        }
+    });
+    if action == DialogAction::Close {
+        return action;
     }
-    if ok {
+    if submit {
         if let Err(message) = state.validate() {
             state.error = Some(message);
             return DialogAction::None;
         }
-        match model.unlock_secrets(&state.passphrase) {
+        let passphrase = state.passphrase.clone();
+        // "Start over" means: remove the old encrypted file first.
+        if state.force_create && state.existing {
+            model.reset_secret_store();
+        }
+        match model.unlock_secrets(&passphrase) {
             Ok(()) => {
                 model.close_dialogs();
                 return DialogAction::Close;

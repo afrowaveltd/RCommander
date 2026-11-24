@@ -15,6 +15,20 @@ fn write(path: &std::path::Path, content: &str) {
     std::fs::write(path, content).unwrap();
 }
 
+/// Smallest possible red PNG, written without an image crate.
+fn write_image(path: &std::path::Path) {
+    // A 16x16 red PNG: small enough to inline, real enough to decode.
+    const PNG: &[u8] = &[
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x10, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+        0x91, 0x68, 0x36, 0x00, 0x00, 0x00, 0x16, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0x38,
+        0x21, 0x27, 0x47, 0x12, 0x62, 0x18, 0xd5, 0x30, 0xaa, 0x61, 0xf8, 0x6a, 0x00, 0x00, 0xe4,
+        0x62, 0x04, 0x10, 0xe9, 0x9b, 0x80, 0xf1, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44,
+        0xae, 0x42, 0x60, 0x82,
+    ];
+    std::fs::write(path, PNG).unwrap();
+}
+
 fn fixture() -> (tempfile::TempDir, tempfile::TempDir) {
     let left = tempfile::tempdir().unwrap();
     let right = tempfile::tempdir().unwrap();
@@ -746,13 +760,21 @@ fn the_credential_store_dialog_opens_and_creates_a_store() {
     let mut app = app(left.path(), right.path());
     app.model.secrets_path_override = Some(secrets.clone());
     let mut harness = harness(app);
-    harness.state_mut().model.open_dialog(rcommander::model::Dialog::UnlockSecrets(
-        rcommander::model::dialogs::UnlockSecretsState::new(false),
-    ));
+    harness
+        .state_mut()
+        .model
+        .open_dialog(rcommander::model::Dialog::UnlockSecrets(
+            rcommander::model::dialogs::UnlockSecretsState::new(false),
+        ));
     harness.run();
-    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::UnlockSecrets(_))));
+    assert!(matches!(
+        harness.state().dialog(),
+        Some(rcommander::model::Dialog::UnlockSecrets(_))
+    ));
     // Type the passphrase into both fields and accept.
-    if let Some(rcommander::model::Dialog::UnlockSecrets(state)) = harness.state_mut().model.top_dialog_mut() {
+    if let Some(rcommander::model::Dialog::UnlockSecrets(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
         state.passphrase = "correct horse battery".to_string();
         state.confirm = "correct horse battery".to_string();
     }
@@ -763,6 +785,255 @@ fn the_credential_store_dialog_opens_and_creates_a_store() {
     }
     harness.run();
     harness.run();
-    assert!(harness.state().model.secrets_unlocked(), "the store is unlocked after accepting");
+    assert!(
+        harness.state().model.secrets_unlocked(),
+        "the store is unlocked after accepting"
+    );
     assert!(secrets.exists(), "the encrypted store file is created");
+}
+
+#[test]
+fn the_window_close_button_closes_a_dialog() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.key_press(egui::Key::F7);
+    harness.run();
+    assert!(harness.state().dialog().is_some(), "a dialog is open");
+    // The × of the dialog window is what users click to back out. It used to do
+    // nothing because the state was written back regardless.
+    harness.root().get_by_label("Close window").click();
+    harness.run();
+    assert!(
+        harness.state().dialog().is_none(),
+        "clicking the × must close the dialog"
+    );
+    // The panels accept keys again.
+    harness.key_press(egui::Key::Tab);
+    harness.run();
+    assert_eq!(harness.state().model.focus, rcommander::Side::Right);
+}
+
+#[test]
+fn the_credential_dialog_offers_to_create_a_passphrase() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
+    let mut harness = harness(app);
+    assert!(!harness.state().model.secrets_exist(), "no store yet");
+    harness
+        .state_mut()
+        .model
+        .open_dialog(rcommander::model::Dialog::UnlockSecrets(
+            rcommander::model::dialogs::UnlockSecretsState::new(false),
+        ));
+    harness.run();
+    // With KeyEchoStrings every label is its key, so the create wording is
+    // directly visible: the dialog says "create", not "unlock".
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("dialog.secrets.create")
+            .count()
+            > 0,
+        "the dialog must offer creating a passphrase"
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("dialog.secrets.locked")
+            .count()
+            == 0
+    );
+}
+
+#[test]
+fn enter_in_the_passphrase_fields_unlocks_the_store() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
+    let mut harness = harness(app);
+    harness
+        .state_mut()
+        .model
+        .open_dialog(rcommander::model::Dialog::UnlockSecrets(
+            rcommander::model::dialogs::UnlockSecretsState::new(false),
+        ));
+    harness.run();
+    // Typing goes straight into the field that asked for the focus.
+    harness
+        .input_mut()
+        .events
+        .push(egui::Event::Text("x".into()));
+    harness.run();
+    if let Some(rcommander::model::Dialog::UnlockSecrets(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.passphrase = "correct horse battery".to_string();
+    }
+    harness.key_press(egui::Key::Enter); // moves to the confirmation field
+    harness.run();
+    assert!(
+        !harness.state().model.secrets_unlocked(),
+        "one Enter is not enough while the passphrase is not repeated"
+    );
+    if let Some(rcommander::model::Dialog::UnlockSecrets(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.confirm = "correct horse battery".to_string();
+    }
+    harness.run();
+    harness.key_press(egui::Key::Enter); // submits
+    harness.run();
+    harness.run();
+    harness.run();
+    assert!(
+        harness.state().model.secrets_unlocked(),
+        "the second Enter creates the store"
+    );
+    assert!(harness.state().model.secrets_file().is_file());
+}
+
+#[test]
+fn the_thumbnail_view_draws_a_card_with_the_file_name() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    // Switch the way the UI does it: through the command, not by editing the
+    // settings behind the panel's back.
+    app.model.execute("cm_SrcThumbs");
+    let mut harness = harness(app);
+    harness.run();
+    assert_eq!(
+        harness
+            .state()
+            .model
+            .panel(rcommander::Side::Left)
+            .view_mode,
+        rcommander::model::ViewMode::Thumbnails
+    );
+    // Every file gets a card whose caption is the file name, so the grid is
+    // readable instead of being a wall of empty squares.
+    for name in ["alpha.txt", "beta.log"] {
+        assert!(
+            harness.root().query_all_by_label_contains(name).count() > 0,
+            "{name} should have a caption in the thumbnail grid"
+        );
+    }
+    // The card is drawn for directories too.
+    assert!(
+        harness.root().query_all_by_label_contains("sub").count() > 0,
+        "the directory card is drawn"
+    );
+}
+
+#[test]
+fn the_dangerous_page_lists_every_reset_and_needs_confirmation() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
+    assert!(app.model.unlock_secrets("passphrase-123").is_ok());
+    let store = app.model.secrets_file();
+    assert!(store.is_file());
+    let mut harness = harness(app);
+    let settings = harness.state().model.settings.clone();
+    harness
+        .state_mut()
+        .model
+        .open_dialog(rcommander::model::Dialog::Options(
+            rcommander::model::dialogs::OptionsState::new(
+                &settings,
+                rcommander::model::dialogs::OptionsTab::Dangerous,
+            ),
+        ));
+    harness.run();
+    // Every scope has a button on the page.
+    for key in [
+        "reset.settings",
+        "reset.layout",
+        "reset.known_hosts",
+        "reset.credentials",
+        "reset.everything",
+    ] {
+        assert!(
+            harness.root().query_all_by_label(key).count() > 0,
+            "{key} is missing from the dangerous page"
+        );
+    }
+    // First click only arms the reset; nothing is deleted yet.
+    harness.root().get_by_label("reset.credentials").click();
+    harness.run();
+    assert!(store.is_file(), "an armed reset deletes nothing");
+    if let Some(rcommander::model::Dialog::Options(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        assert_eq!(
+            state.pending_reset,
+            Some(rcommander::model::ResetScope::Credentials)
+        );
+    }
+    // Second click, on the confirmation button, wipes the store.
+    harness.root().get_by_label("reset.confirm_yes").click();
+    harness.run();
+    harness.run();
+    assert!(!store.exists(), "the encrypted store is deleted");
+    assert!(!harness.state().model.secrets_unlocked());
+    assert!(!harness.state().model.secrets_exist());
+}
+
+/// Render the interesting screens to PNGs for a manual look:
+/// `cargo test -p rcommander --test ui_smoke -- --ignored render_snapshots`.
+#[test]
+#[ignore = "writes screenshots; only useful for a manual look"]
+fn render_snapshots() {
+    let (left, right) = fixture();
+    let out = std::path::Path::new("../../work/snapshots");
+    std::fs::create_dir_all(out).unwrap();
+
+    // A real image, so the snapshot covers a decoded card as well as icons.
+    write_image(&left.path().join("picture.png"));
+    let mut thumbnails = app(left.path(), right.path());
+    thumbnails.model.execute("cm_SrcThumbs");
+    let mut first = harness(thumbnails);
+    first.run();
+    first
+        .render()
+        .unwrap()
+        .save(out.join("thumbnails.png"))
+        .unwrap();
+    drop(first);
+
+    let mut options = app(left.path(), right.path());
+    let settings = options.model.settings.clone();
+    options
+        .model
+        .open_dialog(rcommander::model::Dialog::Options(
+            rcommander::model::dialogs::OptionsState::new(
+                &settings,
+                rcommander::model::dialogs::OptionsTab::Dangerous,
+            ),
+        ));
+    let mut second = harness(options);
+    second.run();
+    second
+        .render()
+        .unwrap()
+        .save(out.join("dangerous.png"))
+        .unwrap();
+    drop(second);
+
+    let mut unlock = app(left.path(), right.path());
+    unlock
+        .model
+        .open_dialog(rcommander::model::Dialog::UnlockSecrets(
+            rcommander::model::dialogs::UnlockSecretsState::new(false),
+        ));
+    let mut third = harness(unlock);
+    third.run();
+    third
+        .render()
+        .unwrap()
+        .save(out.join("unlock.png"))
+        .unwrap();
 }

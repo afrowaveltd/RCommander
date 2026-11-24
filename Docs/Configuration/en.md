@@ -28,5 +28,21 @@ your installation, for example on a USB stick.
 
 ## Resetting
 
-Delete `settings.toml` to return to the defaults; keep a copy first if you have
-customised the key map.
+*Configuration ▸ Options ▸ Dangerous* collects the factory resets. Every entry
+asks once more before it does anything, and the list says exactly what will be
+lost:
+
+| Reset | What it wipes |
+| --- | --- |
+| Factory settings | every option, the key map and the settings file |
+| Tabs, history and hotlist | extra tabs, visited directories, command history, hotlist |
+| Trusted SSH host keys | `known_hosts`, so the next connection asks again |
+| Saved credentials | `secrets.enc` including its master passphrase |
+| Everything | all of the above plus the saved session |
+
+The first two are harmless: they change nothing about your files. The last three
+remove data that cannot be recovered, which is the point — a forgotten master
+passphrase has no recovery path other than deleting the store.
+
+Deleting `settings.toml` by hand is equivalent to the first entry; keep a copy
+first if you have customised the key map.

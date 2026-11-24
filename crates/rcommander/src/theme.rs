@@ -25,6 +25,8 @@ pub struct Palette {
     pub accent: Color32,
     /// Background of every second row, so a long list stays readable.
     pub row_alternate: Color32,
+    /// Destructive warnings: factory resets, overwrite prompts, failed checks.
+    pub warning: Color32,
 }
 
 impl Palette {
@@ -47,6 +49,7 @@ impl Palette {
             status_background: Color32::from_rgb(0xd4, 0xd0, 0xc8),
             accent: Color32::from_rgb(0x00, 0x00, 0x80),
             row_alternate: Color32::from_rgb(0xf0, 0xf2, 0xf8),
+            warning: Color32::from_rgb(0xb0, 0x20, 0x20),
         }
     }
 
@@ -69,6 +72,7 @@ impl Palette {
             status_background: Color32::from_rgb(0x2d, 0x2d, 0x2d),
             accent: Color32::from_rgb(0x9c, 0xd0, 0xff),
             row_alternate: Color32::from_rgb(0x27, 0x27, 0x2b),
+            warning: Color32::from_rgb(0xff, 0x9a, 0x8a),
         }
     }
 

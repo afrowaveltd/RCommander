@@ -52,9 +52,12 @@ the value moves into the credential store and is removed from the file. Saving t
 settings can then never leak it again, because the field is not serialised at all.
 
 The store's key is derived from your passphrase on every unlock and is not cached,
-so closing the application locks the secrets. If you lose the passphrase, the
-passwords are unrecoverable — saved connections themselves (host, user, port) stay
-intact and you only have to type the passwords again.
+so closing the application locks the secrets. The dialog offers *create* when no
+store exists yet and *unlock* when it does; a forgotten passphrase can be replaced
+with the *start over* button in that dialog or with *Configuration ▸ Options ▸
+Dangerous ▸ Saved credentials*, which deletes the store. Saved connections
+themselves (host, user, port) stay intact, so you only have to type the passwords
+again.
 
 ## SFTP and SSH
 
