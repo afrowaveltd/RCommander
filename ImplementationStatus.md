@@ -32,7 +32,7 @@ cargo test --workspace
 | 12 | Verification | **done** for everything marked done above |
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes | **done** — themes are TOML files in `themes/` discovered at runtime, three themes ship, the *Colors* page edits every role with a live preview and contrast warnings |
-| 15 | Git repositories as panels | **partial** — 15.1 (backend decision + read-only engine + fixtures) and the config-approval half of 15.4 are done; the panel integration (`Location::Git`, virtual folders, copy out) is the next step |
+| 15 | Git repositories as panels | **partial** — 15.1 (engine + fixtures), 15.2 (Git panel with virtual folders), 15.6 (status colours + branch header) and the config-approval half of 15.4 are done; copying out of a revision (15.3), clone (15.5) and the write operations of 15.8 (pull/push/merge, staged/commit UI) are next |
 | 16 | Interactive AI workspace | **pending** — added by the project owner, planned in Phase 16 (bidirectional panes, pluggable model providers, reviewed change sets) |
 | 17 | Rich document previewer (PDF, Office, Markdown, code) | **pending** — planned in Phase 17 |
 | 18 | Plugin architecture (data sources and renderers) | **pending** — planned in Phase 18 |
@@ -165,6 +165,31 @@ touch the disk.
 The model keeps the loaded configuration in `git_config`, offering `git_identity()`,
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
+
+## Phase 15.2b — Git repositories as panels (done)
+
+`cargo test -p rcommander --lib git_bridge` → **6 tests**, plus 2 UI tests.
+
+`Location` grew a `Git { root, rev, path }` variant: `rc_core::location` knows how to
+display it (`/path/to/repo [branch:main]/src`), how to walk up and down, and how to name
+it; `Location::Git` never claims to be a local path, so every existing `match` keeps
+working.
+
+`rcommander::git_bridge` turns a Git location into panel entries. The repository root
+shows the working tree **plus** the virtual folders `branches`, `tags`, `commits` and
+`remotes`; `branches/` lists the branches, and entering one switches the panel to that
+revision's tree (`branches/main` is translated into a revision location instead of being
+treated as a directory). `commits/` lists `<short id> <summary>` for the last 500 commits.
+
+*Model ▸ Open as Git repository* (`cm_GitPanel`) converts the active panel into the
+repository that contains its directory, and reports the branch in the status line and in
+the path bar (`/repo  [main]`).
+
+**Status colours** (15.6): the panel keeps a per-entry status map, and rows are tinted by
+the theme role that status maps to — changed files use the warning colour, staged ones the
+archive green, untracked ones the link colour and ignored ones the muted colour. Ignored
+entries are asked per path (`status_should_ignore`), because libgit2's bulk walk does not
+reliably visit them.
 
 ## Phase 15.2a — status and branch switching in the engine (done)
 
@@ -318,7 +343,7 @@ Verified end to end against the release binary with a JSON-RPC probe:
 
 ## Phase 9 — Application model (done)
 
-`cargo test -p rcommander --lib` → **243 tests, 0 failures.** Navigation, cursor
+`cargo test -p rcommander --lib` → **249 tests, 0 failures.** Navigation, cursor
 keeping, selection commands, view/sort commands, dialog validation for every
 dialog, command dispatch over the whole implemented `cm_*` set, transfers,
 deletes, mkdir/rename/attributes/comment/multi-rename against real temp
@@ -327,7 +352,7 @@ dispatch, RTL direction handling.
 
 ## Phase 10 — egui UI (partial)
 
-`cargo test -p rcommander --test ui_smoke` → **43 tests, 0 failures** (headless
+`cargo test -p rcommander --test ui_smoke` → **45 tests, 0 failures** (headless
 `egui_kittest`).
 
 Working and verified: window shell (menu bar, tool bar, two panels with tabs,
@@ -482,16 +507,22 @@ command either by its own name or through a family rule:
 
 ## Phase 12 — Verification (done for the implemented scope)
 
-- `cargo test --workspace`: **1221 tests, 0 failures** (see the per-crate numbers
+- `cargo test --workspace`: **1229 tests, 0 failures** (see the per-crate numbers
   above).
   Totals by crate: `rc-core` 244, `rc-i18n` 81, `rc-viewer` 167 (+6 doctests),
   `rc-archive` 134, `rc-git` 24, `rc-help` 68, `rc-agent` 96, `rc-remote` 114 (+3
-  doctests and one opt-in SFTP integration test), `rcommander` 288 (243 lib + 43 UI
-  + 3 i18n guard) — **1221 tests** (measured
+  doctests and one opt-in SFTP integration test), `rcommander` 297 (249 lib + 45 UI
+  + 3 i18n guard) — **1229 tests** (measured
 with `cargo test --workspace`).
 - `cargo clippy --workspace --all-targets`: **0 warnings** on a fresh build of
   every crate.
 - `cargo fmt --all --check`: clean.
+- Note on the environment: the repository's `target/` directory on this machine has
+  unreadable filesystem objects in `target/debug/incremental` (I/O error, which makes
+  `rustc` die with SIGBUS). The verification numbers above were produced with
+  `CARGO_TARGET_DIR=/tmp/rc-target`; `paths::data_roots()` now also falls back to the
+  compile-time crate directory, so the tests find `locales/` and `Docs/` from any target
+  directory.
 - `cargo build --release -p rcommander`: succeeds; the binary starts on a live X
   display, renders an 1100×700 window and writes nothing to stderr.
 - `cargo check --target x86_64-pc-windows-gnu --workspace` and

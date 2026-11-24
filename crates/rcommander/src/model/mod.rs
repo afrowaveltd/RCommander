@@ -106,6 +106,10 @@ impl ViewMode {
 #[derive(Clone, Debug)]
 pub struct Panel {
     pub tabs: TabBar,
+    /// Git status of the entries in the current listing (empty for plain folders).
+    pub git_status: std::collections::HashMap<String, rc_git::StatusEntry>,
+    /// Branch or revision shown in the header, for a Git panel.
+    pub git_label: String,
     pub listing: Listing,
     pub selection: Selection,
     pub history: DirHistory,
@@ -143,6 +147,8 @@ impl Panel {
         }
         Panel {
             tabs: TabBar::new(location),
+            git_status: std::collections::HashMap::new(),
+            git_label: String::new(),
             listing,
             selection: Selection::new(),
             history,
@@ -324,12 +330,24 @@ impl Panel {
     pub fn open(&mut self, location: Location, settings: &Settings) -> CoreResult<()> {
         let opts = self.read_options(settings);
         let sort = self.sort();
-        let listing = match crate::archive_bridge::read_archive_listing(&location) {
-            Some(result) => {
-                let entries = result.map_err(CoreError::Invalid)?;
-                Listing::from_entries(location.clone(), entries, &opts, sort)
+        // `branches/main` is not a directory inside a tree: it names a revision, so
+        // the panel switches to that revision's root instead.
+        let location = normalise_git_location(location);
+        let listing = if location.is_git() {
+            let listing = crate::git_bridge::read_listing(&location).map_err(CoreError::Invalid)?;
+            self.git_status = listing.status;
+            self.git_label = listing.label;
+            Listing::from_entries(location.clone(), listing.entries, &opts, sort)
+        } else {
+            self.git_status.clear();
+            self.git_label.clear();
+            match crate::archive_bridge::read_archive_listing(&location) {
+                Some(result) => {
+                    let entries = result.map_err(CoreError::Invalid)?;
+                    Listing::from_entries(location.clone(), entries, &opts, sort)
+                }
+                None => Listing::read(&location, &opts, sort)?,
             }
-            None => Listing::read(&location, &opts, sort)?,
         };
         self.listing = listing;
         self.error = None;
@@ -342,6 +360,28 @@ impl Panel {
         }
         Ok(())
     }
+}
+
+/// Turn `<root>/branches/<name>` into a location for that revision.
+fn normalise_git_location(location: Location) -> Location {
+    if !location.is_git() {
+        return location;
+    }
+    let Some((root, rev, path)) = location.git_parts() else {
+        return location;
+    };
+    if !rev.is_empty() {
+        return location;
+    }
+    if let Some((folder, name)) = path.split_once('/')
+        && crate::git_bridge::is_virtual_folder(folder)
+    {
+        let base = Location::git(root, "", folder);
+        if let Some(inner) = crate::git_bridge::location_for_reference(&base, folder, name) {
+            return inner;
+        }
+    }
+    location
 }
 
 /// The whole application state.

@@ -664,6 +664,9 @@ impl RCommanderApp {
                 if ui.button(self.model.t("cmd.gitconfig")).clicked() {
                     command = Some("cm_GitConfig".into());
                 }
+                if ui.button(self.model.t("cmd.gitpanel")).clicked() {
+                    command = Some("cm_GitPanel".into());
+                }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
                 }

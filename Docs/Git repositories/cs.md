@@ -31,8 +31,39 @@ Engine pod panely otevře repozitář (hledá nadřazený, stejně jako git) a n
 tagy, remote větve a log commitů a také obsah kterékoli revize. Nic v něm do repozitáře
 nezapisuje.
 
+## Repozitář jako panel
+
+*Konfigurace ▸ Otevřít jako Git repozitář* přepne aktivní panel na repozitář, který
+obsahuje jeho adresář. Panel pak ukazuje pracovní strom **a čtyři virtuální složky**:
+
+| Složka | Co obsahuje |
+| --- | --- |
+| `branches` | všechny místní větve; otevřením se zobrazí strom té revize |
+| `tags` | všechny tagy, stejný princip |
+| `commits` | posledních 500 commitů jako `<krátké id> <popis>` |
+| `remotes` | remote větve |
+
+Cesta v panelu ukazuje větev v hranatých závorkách (`/home/já/projekt  [main]`) a stavový
+řádek hlásí, který repozitář se otevřel. Uvnitř revize se prochází jako v běžném
+adresáři a `..` jde o úroveň výš.
+
+## Barvy, které řeknou, kde jste
+
+Řádky v Git panelu se barví podle stavu, ne podle typu souboru:
+
+| Stav | Barva |
+| --- | --- |
+| připraveno k commitu (přidáno, přejmenováno, smazané v indexu) | zelená tématu (`archive`) |
+| změněno na disku (modifikováno, smazáno, změna typu) | varovná barva |
+| nesledované | barva odkazů (`symlink`) |
+| ignorované | tlumená barva (`hidden`) |
+| konflikt sloučení | varovná barva |
+
+Odstíny jsou role tématu, takže vysokokontrastní nebo terminálové téma je změní spolu se
+vším ostatním.
+
 ## Co zatím není
 
-Procházení repozitáře jako panelu (větve, tagy a commity jako složky), kopírování
-souborů z revize a klonování jsou další kroky plánu; engine, na kterém staví, je hotový
-a otestovaný.
+Kopírování souborů z revize, klonování remotu a zapisovací operace (stage, commit, pull,
+push, merge, přepínání větví z panelu) jsou další kroky; engine už umí číst stav,
+přepínat a vytvářet větve a na špinavém stromě raději odmítne, než by ztratil úpravu.

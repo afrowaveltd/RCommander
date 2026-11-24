@@ -32,6 +32,51 @@ impl GitConfigGate {
 }
 
 impl Model {
+    /// Show the repository that contains the active directory as a panel.
+    ///
+    /// The panel then lists the working tree with its status colours and carries the
+    /// virtual `branches`, `tags`, `commits` and `remotes` folders.
+    pub fn open_git_panel(&mut self) -> CommandOutcome {
+        let side = self.focus;
+        let Some(path) = self
+            .panel(side)
+            .location()
+            .as_path()
+            .map(|p| p.to_path_buf())
+        else {
+            let message = self.t("git.needs_local_dir");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        };
+        let repo = match rc_git::GitRepo::open(&path) {
+            Ok(repo) => repo,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        let location = rc_core::location::Location::git(repo.root(), "", "");
+        match self.open_in(side, location) {
+            Ok(()) => {
+                let branch = self.panel(side).git_label.clone();
+                let message = self.tf("git.opened", &[("branch", &branch)]);
+                self.report(message);
+                CommandOutcome::Ok
+            }
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                CommandOutcome::Failed(message)
+            }
+        }
+    }
+
+    /// True when the active panel shows a Git repository.
+    pub fn active_panel_is_git(&self) -> bool {
+        self.active().location().is_git()
+    }
+
     /// Where the gate currently stands.
     pub fn git_config_gate(&self) -> GitConfigGate {
         if self.git_config.is_some() {

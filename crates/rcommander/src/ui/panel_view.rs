@@ -238,9 +238,15 @@ fn path_row(
             }
             response.request_focus();
         } else {
+            let label = if model.panel(side).git_label.is_empty() {
+                path.clone()
+            } else {
+                // A Git panel shows which branch (or revision) it is looking at.
+                format!("{path}  [{}]", model.panel(side).git_label)
+            };
             let response =
                 ui.add(
-                    egui::Label::new(egui::RichText::new(&path).font(font(model)).color(
+                    egui::Label::new(egui::RichText::new(&label).font(font(model)).color(
                         if active {
                             palette.foreground
                         } else {
@@ -417,6 +423,9 @@ fn file_list(
         .iter()
         .map(|e| model.panel(side).selection.contains(&e.name))
         .collect();
+    // Git status: the row colour reports changed/ignored/staged files instead of the
+    // file-type colour, which is what a developer wants to see first.
+    let git_status = model.panel(side).git_status.clone();
     let error = model.panel(side).error.clone();
     let display = model.settings.display.clone();
     let font_id = font(model);
@@ -447,12 +456,17 @@ fn file_list(
                     painter.rect_filled(rect, 0, background);
                 }
                 let style = RowStyle::for_entry(entry);
+                let git_colour = git_status
+                    .get(&entry.name)
+                    .copied()
+                    .and_then(crate::git_bridge::status_role)
+                    .map(|role| palette.role(role));
                 let color: Color32 = if is_cursor && active {
                     palette.cursor_foreground
                 } else if is_selected {
                     palette.selected_foreground
                 } else {
-                    style.color(palette)
+                    git_colour.unwrap_or_else(|| style.color(palette))
                 };
                 draw_row(
                     painter, rect, entry, view_mode, &font_id, color, palette, rtl, &display,

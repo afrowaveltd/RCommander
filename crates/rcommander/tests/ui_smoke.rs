@@ -1467,3 +1467,134 @@ fn allowing_the_git_configuration_makes_it_available() {
     };
     assert!(!state.is_asking());
 }
+
+/// Build a repository in `root` with one commit, so the Git panel tests are offline.
+fn git_fixture(root: &std::path::Path) {
+    let mut options = git2::RepositoryInitOptions::new();
+    options.initial_head("main");
+    let repo = git2::Repository::init_opts(root, &options).unwrap();
+    {
+        let mut config = repo.config().unwrap();
+        config.set_str("user.name", "Test Author").unwrap();
+        config.set_str("user.email", "test@example.com").unwrap();
+    }
+    std::fs::write(root.join(".gitignore"), "*.log\n").unwrap();
+    std::fs::write(root.join("tracked.txt"), "one\n").unwrap();
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(root.join("src/lib.rs"), "// lib\n").unwrap();
+    let mut index = repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+    let tree_id = index.write_tree().unwrap();
+    let tree = repo.find_tree(tree_id).unwrap();
+    let signature = git2::Signature::now("Test Author", "test@example.com").unwrap();
+    repo.commit(Some("HEAD"), &signature, &signature, "first", &tree, &[])
+        .unwrap();
+    // A second local branch, and a change on disk for the status colours.
+    let head = repo.head().unwrap().peel_to_commit().unwrap();
+    repo.branch("dev", &head, false).unwrap();
+    std::fs::write(root.join("tracked.txt"), "changed\n").unwrap();
+    std::fs::write(root.join("untracked.txt"), "new\n").unwrap();
+    std::fs::write(root.join("debug.log"), "ignored\n").unwrap();
+}
+
+#[test]
+fn a_git_panel_shows_the_virtual_folders_and_the_branch() {
+    let (_left, right) = fixture();
+    let repo_dir = tempfile::tempdir().unwrap();
+    git_fixture(repo_dir.path());
+    let mut app = app(repo_dir.path(), right.path());
+    app.model.config_dir_override = Some(repo_dir.path().to_path_buf());
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_GitPanel");
+    harness.run();
+    let panel = &harness.state().model.left;
+    let names: Vec<String> = panel.entries().iter().map(|e| e.name.clone()).collect();
+    for folder in ["branches", "tags", "commits", "remotes"] {
+        assert!(names.contains(&folder.to_string()), "{folder} in {names:?}");
+    }
+    assert!(names.contains(&"tracked.txt".to_string()));
+    assert_eq!(panel.git_label, "main", "the header shows the branch");
+    assert!(panel.location().is_git());
+
+    // The working-tree status reaches the panel, which is what colours the rows.
+    let status = panel
+        .git_status
+        .get("tracked.txt")
+        .copied()
+        .unwrap_or_default();
+    assert_eq!(
+        rcommander::git_bridge::status_role(status),
+        Some(rc_core::theme::Role::Warning),
+        "a modified file is drawn in the warning colour"
+    );
+    let ignored = panel
+        .git_status
+        .get("debug.log")
+        .copied()
+        .unwrap_or_default();
+    assert_eq!(
+        rcommander::git_bridge::status_role(ignored),
+        Some(rc_core::theme::Role::Hidden),
+        "an ignored file is muted"
+    );
+    let untracked = panel
+        .git_status
+        .get("untracked.txt")
+        .copied()
+        .unwrap_or_default();
+    assert_eq!(
+        rcommander::git_bridge::status_role(untracked),
+        Some(rc_core::theme::Role::Symlink)
+    );
+}
+
+#[test]
+fn the_branch_folder_lists_branches_and_opens_one() {
+    let (_left, right) = fixture();
+    let repo_dir = tempfile::tempdir().unwrap();
+    git_fixture(repo_dir.path());
+    let mut app = app(repo_dir.path(), right.path());
+    app.model.config_dir_override = Some(repo_dir.path().to_path_buf());
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_GitPanel");
+    harness.run();
+    // Navigate the way the panel does: move the cursor, then enter.
+    let branches = harness
+        .state()
+        .model
+        .left
+        .entries()
+        .iter()
+        .position(|e| e.name == "branches")
+        .expect("the branches folder is listed");
+    harness.state_mut().model.left.set_cursor(branches);
+    harness.state_mut().model.enter();
+    harness.run();
+    let names: Vec<String> = harness
+        .state()
+        .model
+        .left
+        .entries()
+        .iter()
+        .map(|e| e.name.clone())
+        .collect();
+    assert_eq!(names, vec!["dev".to_string(), "main".to_string()]);
+
+    // Opening a branch shows that revision's tree, with a branch label.
+    harness.state_mut().model.left.set_cursor(0);
+    harness.state_mut().model.enter();
+    harness.run();
+    assert_eq!(harness.state().model.left.git_label, "dev");
+    let names: Vec<String> = harness
+        .state()
+        .model
+        .left
+        .entries()
+        .iter()
+        .map(|e| e.name.clone())
+        .collect();
+    assert!(names.contains(&"tracked.txt".to_string()), "{names:?}");
+}

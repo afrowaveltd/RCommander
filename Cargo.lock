@@ -3332,6 +3332,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui_kittest",
+ "git2",
  "image",
  "rc-agent",
  "rc-archive",

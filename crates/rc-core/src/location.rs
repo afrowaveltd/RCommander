@@ -18,6 +18,13 @@ pub enum Location {
         user: Option<String>,
         path: String,
     },
+    /// A Git repository: the working tree (`rev` empty) or a revision, with a
+    /// `/`-separated `path` inside it.
+    Git {
+        root: PathBuf,
+        rev: String,
+        path: String,
+    },
 }
 
 impl Location {
@@ -53,6 +60,35 @@ impl Location {
             user,
             path,
         }
+    }
+
+    /// A Git repository view: `rev` is empty for the working tree, `path` is the
+    /// directory inside it.
+    pub fn git(root: impl Into<PathBuf>, rev: impl Into<String>, path: impl Into<String>) -> Self {
+        Location::Git {
+            root: root.into(),
+            rev: rev.into(),
+            path: normalize_inner(&path.into()),
+        }
+    }
+
+    /// Git root, revision key and inner path.
+    pub fn git_parts(&self) -> Option<(&Path, &str, &str)> {
+        match self {
+            Location::Git { root, rev, path } => {
+                Some((root.as_path(), rev.as_str(), path.as_str()))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn is_git(&self) -> bool {
+        matches!(self, Location::Git { .. })
+    }
+
+    /// True when this is a Git *working tree* view (not a revision).
+    pub fn is_git_worktree(&self) -> bool {
+        matches!(self, Location::Git { rev, .. } if rev.is_empty())
     }
 
     /// Parse user input: an `ftp://`, `ftps://`, `sftp://` or `zip://` URL, or a
@@ -111,6 +147,14 @@ impl Location {
         }
     }
 
+    /// The repository root of a Git location, even inside a revision.
+    pub fn git_root(&self) -> Option<&Path> {
+        match self {
+            Location::Git { root, .. } => Some(root.as_path()),
+            _ => None,
+        }
+    }
+
     /// Archive container and inner path.
     pub fn archive_parts(&self) -> Option<(&Path, &str)> {
         match self {
@@ -144,6 +188,19 @@ impl Location {
                 match user {
                     Some(u) => format!("{scheme}://{u}@{host}{path}"),
                     None => format!("{scheme}://{host}{path}"),
+                }
+            }
+            Location::Git { root, rev, path } => {
+                let root = root.to_string_lossy().replace('\\', "/");
+                let rev = if rev.is_empty() {
+                    String::new()
+                } else {
+                    format!(" [{rev}]")
+                };
+                if path.is_empty() {
+                    format!("{root}{rev}")
+                } else {
+                    format!("{root}{rev}/{path}")
                 }
             }
         }
@@ -186,6 +243,13 @@ impl Location {
                     cut,
                 ))
             }
+            Location::Git { root, rev, path } => {
+                if path.is_empty() {
+                    return None;
+                }
+                let cut = path.rfind('/').map(|i| &path[..i]).unwrap_or("");
+                Some(Location::git(root.clone(), rev.clone(), cut))
+            }
         }
     }
 
@@ -224,6 +288,14 @@ impl Location {
                 };
                 Location::remote(scheme.clone(), host.clone(), user.clone(), path)
             }
+            Location::Git { root, rev, path } => {
+                let path = if path.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{path}/{name}")
+                };
+                Location::git(root.clone(), rev.clone(), path)
+            }
         })
     }
 
@@ -246,6 +318,13 @@ impl Location {
                     Some(host.clone())
                 } else {
                     Some(t.rsplit('/').next().unwrap_or(t).to_string())
+                }
+            }
+            Location::Git { root, path, .. } => {
+                if path.is_empty() {
+                    root.file_name().map(|n| n.to_string_lossy().to_string())
+                } else {
+                    Some(path.rsplit('/').next().unwrap_or(path).to_string())
                 }
             }
         }

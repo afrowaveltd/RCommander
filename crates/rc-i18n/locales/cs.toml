@@ -328,3 +328,7 @@ authors = ["RCommander contributors"]
 "git.gate.allowed" = "povoleno"
 "git.gate.denied" = "odmítnuto"
 "cmd.gitconfig" = "Konfigurace Gitu…"
+
+"cmd.gitpanel" = "Otevřít jako Git repozitář"
+"git.opened" = "Git repozitář otevřen na větvi {branch}"
+"git.needs_local_dir" = "Jako Git repozitář lze otevřít jen místní adresář"

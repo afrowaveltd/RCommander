@@ -7,6 +7,7 @@
 
 pub mod agent_host;
 pub mod archive_bridge;
+pub mod git_bridge;
 pub mod i18n;
 pub mod icons;
 pub mod keys;

@@ -554,6 +554,7 @@ impl Model {
                 CommandOutcome::Ok
             }
             "cm_gitconfig" | "cm_gitsettings" | "cm_git" => self.request_git_config(),
+            "cm_gitpanel" | "cm_opengitrepository" => self.open_git_panel(),
             "cm_themetoggle" => self.toggle_theme(),
             "cm_themenext" => self.cycle_theme(1),
             "cm_themeprevious" => self.cycle_theme(-1),

@@ -47,6 +47,7 @@ egui_kittest = { version = "0.37", features = ["eframe", "wgpu"] }
 # Reads the bundled icon font in tests, so a glyph that the font does not contain
 # fails the suite instead of panicking in front of the user.
 read-fonts = "0.41"
+git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2"] }
 
 # Metadata read by `cargo apk`, see android/README.md.
 [package.metadata.android]

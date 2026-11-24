@@ -36,6 +36,21 @@ pub fn data_roots() -> Vec<PathBuf> {
     if let Ok(cwd) = std::env::current_dir() {
         roots.push(cwd);
     }
+    // A test binary can run from an out-of-tree `CARGO_TARGET_DIR`, where neither the
+    // executable's directory nor the working directory leads to `locales/` or `Docs/`.
+    // The crate directory compiled into the binary always does.
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    roots.push(manifest.to_path_buf());
+    for up in [1, 2] {
+        let mut p = manifest.to_path_buf();
+        for _ in 0..up {
+            p = match p.parent() {
+                Some(parent) => parent.to_path_buf(),
+                None => break,
+            };
+            roots.push(p.clone());
+        }
+    }
     roots
 }
 

@@ -332,3 +332,7 @@ authors = ["RCommander contributors"]
 "git.gate.allowed" = "allowed"
 "git.gate.denied" = "refused"
 "cmd.gitconfig" = "Git configuration…"
+
+"cmd.gitpanel" = "Open as Git repository"
+"git.opened" = "Git repository opened on {branch}"
+"git.needs_local_dir" = "Only a local directory can be opened as a Git repository"
