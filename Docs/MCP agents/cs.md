@@ -4,17 +4,15 @@ RCommander mluví protokolem Model Context Protocol (MCP) oběma směry.
 
 ## Aplikace jako MCP server
 
-Zapněte *Server* v *Konfigurace ▸ Možnosti ▸ Agent*. Externí agenti pak mohou
-ovládat správce souborů: vypisovat panely a adresáře, navigovat, označovat
+MCP server spustíte samostatně příkazem `rcommander mcp` přes standardní
+vstup a výstup (stdio). Externí agenti pak mohou ovládat správce souborů: vypisovat panely a adresáře, navigovat, označovat
 soubory, kopírovat, přesouvat, mazat, vytvářet adresáře, přejmenovávat, číst
 a zapisovat textové soubory, hledat, zjišťovat volné místo a číst tuto nápovědu.
 
-K dispozici jsou dva přenosy:
-
-- **stdio** — agent spustí `rcommander mcp` a komunikuje JSON-RPC po standardním
-  vstupu a výstupu. To očekává většina MCP klientů.
-- **HTTP** — místní koncový bod pro klienty, kteří nemohou spouštět procesy.
-  Nastavte token, chcete-li vyžadovat ověření.
+**Aktuálně funkční přenos serveru:** pouze stdio (`rcommander mcp`).
+Nápověda příkazového řádku sice zmiňuje režim HTTP, ale funkce `run_mcp`
+zatím jeho argumenty nezpracovává, takže HTTP **server** není zapojen.
+Připojení k HTTP serverům v roli **klienta** níže je odlišná funkce.
 
 Rizikové nástroje (mazání, přesun, přepis, zápis souborů) mohou vyžadovat
 potvrzení. Server v takovém případě odpoví chybou vysvětlující, že akci musí
@@ -38,8 +36,9 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
 
 Server zpřístupňuje jen to, co protokol inzeruje; nic se nespustí, dokud není
 nástroj zavolán. Každé volání je vidět ve stavovém řádku a politiku potvrzování
-si určujete sami. HTTP přenos berte jako každou jinou místní službu: připojte ho
-na localhost a použijte token.
+si určujete sami. Při připojování **klienta** k HTTP MCP serveru používejte důvěryhodný
+ověřený koncový bod a chraňte přístupové údaje. Nezaměňujte to za dosud
+nezapojený HTTP **server** RCommanderu.
 
 ## Panel agenta
 
