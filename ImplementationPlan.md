@@ -292,6 +292,29 @@ operation and target, a per-tool allowlist in the settings, and an audit trail t
 read afterwards. Shell or disk-level investigation is only reachable when the user has
 explicitly enabled it for the session, never by default.
 
+### Phase 16.0 — Common policy and safe-change foundation (prerequisite)
+
+Phase 16.0 is the **shared policy mechanism**, not an additional AI model and
+not a requirement to install the privileged system helper from Phase 20. Implement
+it before enabling any agent with filesystem, process, Git, network or MCP
+side-effects. The ordinary file manager continues to work without it.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 16.0a | Central capability decision | policy engine shared by chat, built-in commands, MCP tools, plugin adapters and workspace operations; grants bind to canonical resources, operations, destinations and expiry, not whichever pane happens to be focused | tests cover deny-overrides-allow, expired/revoked grants, symlink/path traversal, switching panes, remote identities and no implicit privilege escalation |
+| 16.0b | Approval and provenance | structured request describing exact action, target and consequences, user approval, cancellable execution, origin/tool trace and redacted audit events | tests verify no destructive, external-publication or shell action runs from an unapproved model response; secrets never appear in logs or approval previews |
+| 16.0c | Reviewed file transaction | prepare → validate → verified backup when writing outside the explicitly granted sandbox → apply → verify → restore; manifest records original hash, target and backup; new-file creation is recorded for rollback | any required backup failure refuses the write, stale hashes refuse overwrite, and a simulated crash or partial multi-file failure leaves a recoverable manifest; remote write failures report whether restore is available |
+| 16.0d | Scope boundaries and diagnostics | distinguish proposed edits from applied edits, enforce read versus write access and separate local changes from remote/privileged effects; explicit Stop/Revoke controls | headless tests with malicious tool outputs, symlink swaps and races; UI never claims a remote or privileged operation was undone unless it can verify restoration |
+
+For a file outside a granted sandbox, the **backup must be copied and verified
+before modifying the original**; creating or deleting files requires an
+equivalent recoverable transaction plan where feasible. Not every external
+action (for example a Git push, a service restart or an arbitrary remote
+command) can be rolled back by restoring a local file: show this difference
+before approval. A sandbox is a permission scope, not an OS security boundary.
+Any OS-level elevation is delegated to Phase 20; lacking that optional
+component must never weaken the policy.
+
 **Goal:** keep the familiar two-pane commander workflow, but allow either pane
 (or a tab inside it) to become an interactive **agent/chat view**. For example,
 the left pane is a conversation with a local Ollama model and the right pane
@@ -455,27 +478,14 @@ Avoid claiming feature parity where the OS permission model does not allow it.
   UnderstandMe provider requires a separately defined API/contract. No part of
   this phase is implemented merely by having the current MCP tools.
 
-## Phase 17 — Rich document previewer (PDF, Office, Markdown, source code)
+## Phase 17.0 — Shared visual foundation: Markdown and syntax highlighting
 
-The F3 viewer covers text, images and a hexdump. This phase turns it into a
-document viewer that developers and office users can actually work with, while
-keeping the pixel/byte budgets that stop a single file from freezing the window.
-
-| # | Step | Output | DoD |
-| --- | --- | --- | --- |
-| 17.1 | Markdown rendering | headings, lists, tables, code, links and images inside the viewer, using the existing `rc-help` Markdown model as the parser | fixtures render every block type; very large files stay paged; the encoding detection from `rc-viewer` still wins before parsing |
-| 17.2 | Source-code highlighting | a small, bundled syntax highlighter for the languages developers open most (Rust, C/C++, Python, JS/TS, shell, TOML/JSON/YAML, C#, Markdown) with a configurable theme | golden-file tests per language; unknown languages fall back to plain text; highlighting never changes the copied text |
-| 17.3 | PDF preview | first N pages rendered to bitmaps, page navigation, zoom, text selection where the file allows it; a pure-Rust decoder preferred so Android keeps working | fixture PDFs render; a corrupt or encrypted PDF reports a clear error; rendering is cancellable and memory-budgeted |
-| 17.4 | Office documents (read-only) | OOXML (`.docx`, `.xlsx`, `.pptx`) and ODF text extracted to Markdown-ish text plus embedded images; old binary formats (`.doc`, `.xls`) shown as an explicit "not supported, open externally" note | fixtures for each supported format; sheet/table structure preserved reasonably; no format is silently mis-rendered |
-| 17.5 | Viewer plugins and file-type rules | the viewer asks a registry which renderer claims a content type (the same registry Phase 18 uses), so new formats can be added without touching the viewer | a fake plugin claims an extension and renders in tests; ordering and fallback are deterministic |
-| 17.6 | Documentation | a "Previewer formats" topic with the supported list, the limits and how to open a file externally when the internal viewer cannot show it | bilingual topic; status file lists what is native, what needs a plugin and what is not supported |
-
-## Phase 17.0 — Visual polish: Markdown and syntax highlighting
+**Order:** implement this shared parser/tokenizer/annotation layer before Phase 17.1–17.2 and reuse it for the later chat/TUI; Phase 17.0 is a prerequisite, not a competing viewer. Tests must keep the existing `rc-help` behaviour intact.
 
 Requested by the panel owner: first impressions are visual, so chat messages, quoted code and
 the editor must look right before anything else is polished.
 
-**One parser, two renderers.** `rc-markdown` turns the subset we support (headings, emphasis,
+**One parser, two renderers.** Extract/adapt the existing `rc-help` Markdown model into the shared `rc-markdown` crate (migrate `rc-help` to consume it, preserving existing help tests rather than introducing a second independent parser). `rc-markdown` turns the subset we support (headings, emphasis,
 lists, quotes, fenced code, tables, links) into a small AST; an egui renderer draws it with
 `LayoutJob` (colours, spacing, code blocks with a background) and a TUI renderer maps the same
 AST onto terminal text with attributes (bold/italic/reverse) and true colour. Parsing once and
@@ -546,6 +556,39 @@ Tests: a tokenizer table test per language (source snippet → expected spans), 
 test per construct, and a renderer test asserting that a fenced block reaches the output as
 highlighted spans in both renderers.
 
+
+## Phase 17 — Rich document previewer (PDF, Office, Markdown, source code)
+
+The F3 viewer covers text, images and a hexdump. This phase turns it into a
+document viewer that developers and office users can actually work with, while
+keeping the pixel/byte budgets that stop a single file from freezing the window.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 17.1 | Markdown rendering | headings, lists, tables, code, links and images inside the viewer, using the shared `rc-markdown` parser from Phase 17.0 (adapted from the existing `rc-help` model; do not maintain two competing Markdown parsers) | fixtures render every block type; very large files stay paged; the encoding detection from `rc-viewer` still wins before parsing |
+| 17.2 | Source-code highlighting | consume the shared Phase 17.0 tokenizer and theme roles for Rust, C/C++, Python, JS/TS, shell, TOML/JSON/YAML, C#, Markdown and other listed languages; unknown file types fall back to plain text | golden-file tests per language; unknown languages fall back to plain text; highlighting never changes the copied text |
+| 17.3 | PDF preview | first N pages rendered to bitmaps, page navigation, zoom, text selection where the file allows it; a pure-Rust decoder preferred so Android keeps working | fixture PDFs render; a corrupt or encrypted PDF reports a clear error; rendering is cancellable and memory-budgeted |
+| 17.4 | Office documents (read-only) | OOXML (`.docx`, `.xlsx`, `.pptx`) and ODF text extracted to Markdown-ish text plus embedded images; old binary formats (`.doc`, `.xls`) shown as an explicit "not supported, open externally" note | fixtures for each supported format; sheet/table structure preserved reasonably; no format is silently mis-rendered |
+| 17.5 | Viewer plugins and file-type rules | the viewer asks a registry which renderer claims a content type (the same registry Phase 18 uses), so new formats can be added without touching the viewer | a fake plugin claims an extension and renders in tests; ordering and fallback are deterministic |
+| 17.6 | Documentation | a "Previewer formats" topic with the supported list, the limits and how to open a file externally when the internal viewer cannot show it | bilingual topic; status file lists what is native, what needs a plugin and what is not supported |
+
+
+## Phase 18 — Plugin architecture (data sources and renderers)
+
+Plugins are what turn a closed list of features into a platform: a web API source,
+a new archive format or a document renderer without recompiling the application.
+The reference product used Windows DLL interfaces; this project needs a portable
+contract instead.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 18.1 | Manifest and discovery | `plugins/<id>/plugin.toml` with name, version, capabilities, entry point and permissions; discovered at runtime like `locales/`, `Docs/` and `themes/` | manifest validation tests; a broken plugin is reported and skipped, never fatal |
+| 18.2 | Data-source capability | a `Provider` contract that lists a virtual directory tree and reads/writes entries, so a web API or a custom store appears as a panel — reusing the existing `RemoteBackend`/panel plumbing | an in-process fake provider lists and opens a virtual tree in the panel; write access is opt-in per manifest capability |
+| 18.3 | Renderer capability | a viewer renderer plugin contract (content type → rendered output) used by Phase 17.5 | the fake renderer from 17.5 is the first real plugin; wrong output is rejected by validation |
+| 18.4 | Isolated plugin execution | plugins run out of process with a versioned protocol, least-privilege brokered operations, permission manifests and OS-enforced confinement where supported (e.g. Linux sandbox facilities, Windows AppContainer/restricted token); platform-specific restrictions are documented | tests enforce broker allowlists and fail-closed requests, verify process crash isolation, and exercise supported OS isolation; **a child process alone is not a sandbox**: where OS confinement cannot be enforced, untrusted executable plugins stay disabled unless the user explicitly accepts the reduced isolation; no guarantee that protocol checks alone stop direct filesystem/network access |
+| 18.5 | Example plugins and docs | at least one working example (a JSON-over-HTTP web API browser) and a developer guide describing the protocol, versioning and permissions | the example runs against a local fixture server; the guide is bilingual |
+| 18.6 | Evidence-based binary review | built-in deterministic `rc-core::binary_review` plus optional separately approved Ghidra/REA analyzer adapter; annotated PE/ELF/Mach-O report | fixtures include benign and suspicious-looking samples, corruption, truncation, packing/entropy hints and false positives; no execution, silent upload or unsupported "clean" verdict |
+
 ### Binary inspection (requested 2026-11) — Phase 18 capability, not antivirus
 
 The same "rules find the place, evidence decides" idea applies to an unknown executable: the
@@ -569,20 +612,13 @@ clean verdict: a packed or staged binary can look innocent, and the report says 
 sample anywhere (VirusTotal and friends) only ever happens after an explicit consent that names
 the service, because that may leak the user's data.
 
-## Phase 18 — Plugin architecture (data sources and renderers)
-
-Plugins are what turn a closed list of features into a platform: a web API source,
-a new archive format or a document renderer without recompiling the application.
-The reference product used Windows DLL interfaces; this project needs a portable
-contract instead.
-
-| # | Step | Output | DoD |
-| --- | --- | --- | --- |
-| 18.1 | Manifest and discovery | `plugins/<id>/plugin.toml` with name, version, capabilities, entry point and permissions; discovered at runtime like `locales/`, `Docs/` and `themes/` | manifest validation tests; a broken plugin is reported and skipped, never fatal |
-| 18.2 | Data-source capability | a `Provider` contract that lists a virtual directory tree and reads/writes entries, so a web API or a custom store appears as a panel — reusing the existing `RemoteBackend`/panel plumbing | an in-process fake provider lists and opens a virtual tree in the panel; write access is opt-in per manifest capability |
-| 18.3 | Renderer capability | a viewer renderer plugin contract (content type → rendered output) used by Phase 17.5 | the fake renderer from 17.5 is the first real plugin; wrong output is rejected by validation |
-| 18.4 | Sandboxed execution | plugins run out of process (child process with a line protocol) with an explicit allowlist of paths and network hosts; a plugin can never reach the credential store | a plugin attempting an unapproved path or host is refused and logged; a crashing plugin does not take the application down |
-| 18.5 | Example plugins and docs | at least one working example (a JSON-over-HTTP web API browser) and a developer guide describing the protocol, versioning and permissions | the example runs against a local fixture server; the guide is bilingual |
+**Trust boundary:** a plugin executable normally inherits the user's OS
+permissions unless a real OS sandbox or privilege separation prevents it. An
+allowlist checked by RCommander only constrains operations mediated through its
+protocol; it cannot by itself stop a process opening files or sockets directly.
+Store secrets behind the host broker and do not forward credentials to arbitrary
+plugins. Headless fixtures exercise policy decisions; separate platform tests
+are required to claim actual sandbox enforcement.
 
 ## Phase 19 — Integrated SSH terminal (PuTTY-style)
 
@@ -598,6 +634,27 @@ its own isolated phase.
 | 19.4 | Sessions | several terminal tabs bound to saved sessions, per-host profiles, reconnect after a dropped connection, a log file option | model tests for tab lifetimes, reconnect and per-session settings; a dropped connection shows a clear state instead of a frozen screen |
 | 19.5 | Safety | no automatic command execution from the file manager side, confirmation for "open shell on this host", the terminal is a separate window by default | tests that opening a terminal does not run anything else; documentation of what the terminal can and cannot do |
 
+
+## Phase 20 — Optional privileged system capabilities
+
+This is the **OS integration** for operations a normal desktop account cannot
+perform. It is deliberately separate from Phase 16.0's mandatory user-level
+policy engine: local chat and ordinary file management must not require an
+administrator account, helper installation or privileged agent.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 20.1 | Limited helper protocol | small rcommander-system process exposing enumerated operations (status, logs, config_test, targeted write_file, restart); each validates caller, input, target, size and policy again | fuzz/negative tests for path traversal, symlink swaps, unsupported operations and arbitrary command strings; **no general root shell** and no model-supplied command interpreter |
+| 20.2 | OS-managed elevation | Linux polkit/pkexec policy and Windows system-authorised elevation broker/UAC flow; authenticated grants are scoped to a single operation, no password stored by the GUI or agent | desktop integration tests verify deny/cancel/timeouts and unprivileged behaviour; if system elevation is absent, feature is unavailable rather than bypassed; any askpass fallback must still delegate authentication outside the AI/model process |
+| 20.3 | Verified backup and restore | reuse Phase 16.0 transaction manifest and backup verification for system-file writes; restore is separately permission-checked | corruption, insufficient space, backup failure, changed target and interrupted write tests; no privileged mutation before verified backup, and audit links each change to its restore record |
+| 20.4 | Optional capability packaging | system helper and policy are separately selectable installer components; runtime capabilities are detected and surfaced in GUI/help, including portable mode | install/uninstall/upgrade tests avoid stale policies and report exact availability; non-privileged and Android builds work without the helper |
+| 20.5 | Audit and user documentation | explicit permissions and effects in English/Czech, per-host/per-target logs, risk notice for portable elevated operation | approval displays exact operation and destination; no secrets in logs, help distinguishes user-level sandbox scopes from OS-enforced privilege boundaries |
+
+**Dependency:** Phase 20 uses the Phase 16.0 policy and audit contracts but
+is **not** a prerequisite for the basic chat panel, previewer, Git read operations
+or unprivileged MCP tools. The assistant cannot self-authorise elevation.
+Running portable RCommander as administrator/root does not count as a sandbox
+and must never silently relax tool permissions.
 
 ## Ideas backlog (not scheduled yet, cheapest value first)
 
