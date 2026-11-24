@@ -482,11 +482,25 @@ AST onto terminal text with attributes (bold/italic/reverse) and true colour. Pa
 rendering twice is what keeps the chat panel and the future TUI consistent.
 
 **One highlighter, five consumers.** A small tokenizer in `rc-core` produces
-`(range, TokenKind)` spans for the languages we actually care about (Rust, C/C++, Python,
-JavaScript/TypeScript, shell, TOML/JSON/YAML, Markdown, HTML/CSS). It is used by the F4 editor,
+`(range, TokenKind)` spans for the languages the panel owner actually uses — Rust, C/C++,
+**C#/.NET**, Python, JavaScript/TypeScript, **HTML, CSS**, **Bash**, **cmd/batch**,
+**PowerShell**, TOML/JSON/YAML, Markdown — plus an **assembler** mode (mnemonics, registers,
+labels, directives, immediates; x86-64 first) and **hex dump** colouring (offset, bytes,
+ASCII sidebar, changed bytes). The shell dialects matter most: a user investigating an unknown
+script asks the agent in the other panel what it does, so both sides need to read the same
+code fluently. It is used by the F4 editor,
 the viewer, fenced code in Markdown, chat messages quoting code, and the TUI. No heavy grammar
 dependency by default; `syntect` stays an option behind a feature flag if coverage ever becomes
 a problem.
+
+**Agent annotations in the code view.** The same span machinery gets an annotation layer
+(`Annotation { first_line, last_line, kind, label }`) so the chat can point at code: the agent
+marks a range (through a validated marker in its fenced block, stripped before rendering) and
+the file view paints a gutter band and a subtle row tint for exactly those lines, with the
+annotation listed in the chat. Clicking either side scrolls to and selects the other. The layer
+is display-only — it never modifies the buffer, ranges are clamped, and annotations are dropped
+when the file's hash changes — and it is the same primitive that will show a proposed patch
+(the reviewed change set) and compiler/search hits.
 
 **Theme roles grow accordingly**: `code_keyword`, `code_string`, `code_comment`, `code_number`,
 `code_function`, `code_type`, `code_punctuation`, so a theme controls the code colours like it
