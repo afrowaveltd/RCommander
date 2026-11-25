@@ -111,22 +111,31 @@ fn win_home_dir() -> Option<PathBuf> {
 pub fn volumes() -> Vec<Volume> {
     #[cfg(target_os = "windows")]
     {
+        // Query the system drive-letter bitmask instead of checking whether
+        // each root exists. A disconnected network mapping or an empty optical
+        // drive can be a valid selectable Windows volume even when exists()
+        // returns false (or blocks on a slow network connection).
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GetLogicalDrives() -> u32;
+        }
+        // SAFETY: GetLogicalDrives takes no arguments and returns a bitmask.
+        let mask = unsafe { GetLogicalDrives() };
         let mut out = Vec::new();
         for letter in b'A'..=b'Z' {
-            let root = format!("{}:\\", letter as char);
-            let p = PathBuf::from(&root);
-            if p.exists() {
-                let kind = if win_get_drive_type(letter) == 5 {
-                    VolumeKind::Optical
-                } else if win_get_drive_type(letter) == 4 {
-                    VolumeKind::Network
-                } else if letter == b'A' || letter == b'B' {
-                    VolumeKind::Removable
-                } else {
-                    VolumeKind::Fixed
-                };
-                out.push(Volume::new(p, root.clone(), kind));
+            if mask & (1u32 << (letter - b'A')) == 0 {
+                continue;
             }
+            let root = format!("{}:\\", letter as char);
+            let kind = match win_get_drive_type(letter) {
+                2 => VolumeKind::Removable,
+                3 => VolumeKind::Fixed,
+                4 => VolumeKind::Network,
+                5 => VolumeKind::Optical,
+                6 => VolumeKind::Virtual,
+                _ => VolumeKind::Unknown,
+            };
+            out.push(Volume::new(PathBuf::from(&root), root, kind));
         }
         return out;
     }
@@ -317,6 +326,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn volumes_include_the_root() {
         let vols = volumes();
@@ -326,6 +336,27 @@ mod tests {
             "root volume present: {:?}",
             vols.iter().map(|v| &v.root).collect::<Vec<_>>()
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_volumes_use_drive_letter_roots() {
+        let mounted = volumes();
+        assert!(
+            !mounted.is_empty(),
+            "GetLogicalDrives should report at least the system drive"
+        );
+        for volume in mounted {
+            let root = volume.root.to_string_lossy();
+            let bytes = root.as_bytes();
+            assert!(
+                bytes.len() == 3
+                    && bytes[0].is_ascii_alphabetic()
+                    && bytes[1] == b':'
+                    && bytes[2] == b'\\',
+                "invalid Windows drive root: {root}"
+            );
+        }
     }
 
     #[test]
