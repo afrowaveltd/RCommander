@@ -836,6 +836,42 @@ and an authorised remote execution policy. Desktop Windows/Linux first; Android
 does not need system-repair or administrator feature parity. Keep ordinary file
 management fully functional with no workload packs, model or helper installed.
 
+## Phase 22 — Native WSL integration and cross-OS workspaces (requested 2026-11-25)
+
+Treat Windows Subsystem for Linux (WSL) as a first-class RCommander location and
+execution backend on Windows, not just a shortcut to a UNC folder or an SSH
+session. A Windows panel and a Linux panel may coexist, independently browse
+their native filesystems, and optionally follow each other when both refer to
+the same mounted data. This phase is also a practical proving ground for future
+ARI (Afrowave Redmond Interconnectivity) integration on Linux; RCommander must
+not depend on ARI or require it to be installed.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 22.1 | WSL discovery and capability detection | distribution catalogue, default distribution, WSL version/state, native location identity | installed/running/stopped distributions enumerated correctly; absent WSL, failed commands, Unicode names and unavailable distributions handled without crashing or starting all distributions |
+| 22.2 | First-class WSL filesystem provider | distribution-qualified paths, drive menu, tabs/hotlist/history, independent left/right panels | navigate Windows and WSL side by side; use supported `\\\\wsl.localhost\\<distribution>\\...` / `\\\\wsl$\\...` access or native WSL helper as appropriate; no direct distro VHDX access; list/read/write errors and permissions reported honestly |
+| 22.3 | Cross-OS file operations | copy/move/rename/delete, preview/edit, transfer progress, cancellation and metadata policy | round-trip real files between Windows and WSL; test Unicode, case collisions, symlinks, executable bits, permission errors, interrupted transfers, overwrite and cross-filesystem move; no silent metadata loss or deletion after failed copy |
+| 22.4 | Path and mount interoperability | distribution-aware path translator, actual mount discovery, optional linked panel navigation | translate paths using WSL facilities and actual mounts rather than assuming every Windows drive lives under /mnt; distinguish shared underlying locations from different files; handle custom mounts, network shares, missing paths and mount changes |
+| 22.5 | Native WSL terminal and execution | panel-aware Bash/other shell, distribution/user/cwd selection, Windows host PowerShell/CMD and WSL shells | launch in selected panel directory; preserve interactive PTY/resize, stdin/stdout/stderr as appropriate, exit status and cancellation; safe argument handling; test paths containing spaces, quotes and Unicode |
+| 22.6 | Developer workloads and agent integration | explicit host/distro execution targets, shared repository context, cross-platform builds/tests | build and test the same workspace with Windows and WSL toolchains without clobbering platform-specific outputs; report actual target and results; reuse Phase 16 approvals and workload contracts; no automatic privilege escalation |
+| 22.7 | Interoperability contract and acceptance suite | reusable environment, path, terminal, filesystem and capability interfaces | mocked unit tests plus real Windows/WSL end-to-end tests with at least one Debian distribution; test distro restart, disconnection, no-WSL host and permissions; no claim of completion until actual acceptance evidence is recorded |
+
+**Design rules:** WSL 1 and WSL 2 are detected; expose only supported features,
+prefer supported WSL interfaces such as `wsl.exe` and distro-aware `wslpath`,
+and keep distribution/user identity explicit. Use native Linux operations for
+Linux-specific metadata where UNC semantics are insufficient. Do not silently
+start stopped distributions, install WSL, change mount configuration, elevate
+privileges or share credentials. Explicit user navigation may start a selected
+distribution with clear feedback. Treat the same underlying file as one file
+when both panels see it; do not copy a file onto itself. Preserve independent
+navigation by default; linked navigation is optional.
+
+**Order:** discovery and read-only browsing may begin with the existing panel and
+provider abstractions; reuse Phase 18 plugin architecture where appropriate,
+Phase 19 terminal facilities and Phase 16 for agent execution/approvals. Keep
+ordinary Windows/Linux file management unaffected when WSL is unavailable.
+This is a planned phase, not a claim of implemented support.
+
 ## Ideas backlog (not scheduled yet, cheapest value first)
 
 These are candidates that fit the "portable tool for a developer/administrator"
