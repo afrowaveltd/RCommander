@@ -1,0 +1,98 @@
+name: Windows portable test build
+
+# Bootstrap when this workflow is introduced/edited, then manual reruns.
+# Frequent normal source commits do not launch expensive builds.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/windows-portable.yml"
+
+permissions:
+  contents: write # For publishing the test executable as a GitHub Release asset.
+
+jobs:
+  windows-x64:
+    name: Compile RCommander (Windows x64)
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust (Windows MSVC)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache dependencies and build results
+        uses: Swatinem/rust-cache@v2
+
+      # SFTP uses libssh2/OpenSSL: link OpenSSL statically so no OpenSSL DLL
+      # is required at runtime when running the portable ZIP.
+      - name: Install MSVC OpenSSL with vcpkg
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:\vcpkg\vcpkg.exe')) { throw 'vcpkg unavailable on runner' }
+          & 'C:\vcpkg\vcpkg.exe' install openssl:x64-windows-static-md
+          if ($LASTEXITCODE -ne 0) { throw 'vcpkg OpenSSL installation failed' }
+
+      - name: Compile Windows x64 release
+        shell: pwsh
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          VCPKGRS_TRIPLET: x64-windows-static-md
+        run: |
+          cargo build --locked --release --target x86_64-pc-windows-msvc -p rcommander
+          if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
+
+      - name: Package portable ZIP with runtime data
+        shell: pwsh
+        run: |
+          $exe = 'target\x86_64-pc-windows-msvc\release\rcommander.exe'
+          if (-not (Test-Path $exe)) { throw 'Missing rcommander.exe' }
+          $dest = Join-Path $env:RUNNER_TEMP 'RCommander-Windows-x64'
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          Copy-Item $exe $dest
+          foreach ($name in @('locales', 'Docs', 'themes')) {
+            if (-not (Test-Path $name -PathType Container)) { throw "Missing folder: $name" }
+            Copy-Item $name (Join-Path $dest $name) -Recurse
+          }
+          Copy-Item README.md $dest
+          Copy-Item LICENSE $dest
+          $notes = @(
+            'RCommander - Windows x64 portable test build',
+            '',
+            'Extract the entire ZIP, then run rcommander.exe.',
+            'Keep Docs, locales and themes alongside the executable.',
+            'No Rust installation is required on the target PC.',
+            'This build is UNSIGNED; workplace endpoint policies may block it.',
+            'Do not bypass your employer security policy.',
+            'Configuration defaults to %APPDATA%\RCommander.',
+            'Set RCOMMANDER_CONFIG_DIR for a custom configuration directory.'
+          )
+          $notes | Set-Content (Join-Path $dest 'WINDOWS-README.txt') -Encoding utf8
+          Compress-Archive -Path "$dest\*" -DestinationPath 'RCommander-Windows-x64.zip' -Force
+          $zip = Get-Item 'RCommander-Windows-x64.zip'
+          Write-Host "Package: $($zip.Length) bytes"
+          if ($zip.Length -lt 200000) { throw 'Suspiciously small ZIP' }
+
+      - name: Upload GitHub Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RCommander-Windows-x64
+          path: RCommander-Windows-x64.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish public Windows test prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "windows-test-${{ github.run_number }}"
+          $sha = "${{ github.sha }}"
+          gh release create $tag 'RCommander-Windows-x64.zip' --repo "${{ github.repository }}" --target $sha --title "RCommander Windows test build #${{ github.run_number }}" --notes "Unsigned Windows x64 portable test build from commit $sha. Extract ZIP and start rcommander.exe; locales, Docs and themes are included. No Rust required. Obey workplace endpoint policies." --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Release publishing failed' }
