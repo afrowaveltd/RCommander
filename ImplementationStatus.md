@@ -33,7 +33,7 @@ cargo test --workspace
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes | **done** — TOML themes, theme editor, contrast checks and unified window styling; eight themes shipped |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **pending** — two-way chat/file panels, providers, reviewed edits, MCP/Git orchestration, editable prompt catalog, workload packs and reusable agent runtime (16.16–16.21); opt-in Agent Commons knowledge exchange (16.22–16.26) is planned, with contracts early; Phase 16.0 policy is a prerequisite to agent side-effects |
+| 16 | Interactive AI workspace | **pending** — two-way chat/file panels, providers, reviewed edits, MCP/Git orchestration, editable prompt catalog, workload packs and reusable agent runtime (16.16–16.21); opt-in Agent Commons (16.22–16.26): private temporary agent collaboration and a separate durable public results catalogue, with contracts early; Phase 16.0 policy is a prerequisite to agent side-effects |
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **pending** — common parser/tokenizer and rendering foundation before 17.1–17.2 |
 | 17 | Rich document previewer (PDF, Office, Markdown, code) | **pending** — planned in Phase 17 |
 | 18 | Plugin architecture (data sources and renderers) | **pending** — planned in Phase 18 |
@@ -659,7 +659,7 @@ command either by its own name or through a family rule:
 | Explorer-style right-click integration and capability-aware RCommander submenu are planned | Phase 10.10: native shell actions where supported, internal fallback, explicit selection/pane targeting |
 | Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
 | No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions; establish editable prompt and declarative workload contracts early (16.16–16.21) |
-| No shared agent knowledge service or verified community repair recipes | Phase 16.22–16.26; early contracts, voluntary exchange, provenance and safe reuse |
+| No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped temporary collaboration, expiry, sanitised publication, provenance and safe reuse |
 | Shared Markdown parser, syntax highlighting and annotations not implemented | Phase 17.0 before Phase 17.1–17.2 |
 | No general data/render plugin framework or enforceable isolation for untrusted plugins | Phase 18; process separation alone is insufficient |
 | MCP HTTP server advertised in CLI help is not connected: `run_mcp` ignores `--http` arguments | Implement and secure server transport separately, or remove the unused CLI help flag; stdio server and MCP HTTP **client** are distinct |
@@ -683,8 +683,10 @@ command either by its own name or through a family rule:
    translation changes with mocked providers. Establish the prompt composition and
    workload contracts early (16.16–16.18); build one reusable headless runtime,
    then extend it with checkpointing, budget accounting and developer workflows.
-   Define the Agent Commons knowledge/API contracts in parallel (16.22); use
-   mocks first and add external access only with consent and policy enforcement.
+   Define the separate Agent Commons workspace/catalogue contracts in parallel
+   (16.22); use mocks first, with bounded cross-provider collaboration, expiry
+   and controlled promotion of sanitised results. External access requires consent
+   and policy enforcement.
 7. Continue Phase 17 previewers and Phase 18 plugin APIs; distinguish genuine
    OS sandbox enforcement from out-of-process crash isolation.
 8. Add Phase 19 SSH terminal separately; implement optional Phase 20 privileged
