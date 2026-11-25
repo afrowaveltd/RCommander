@@ -8,7 +8,7 @@
 //! parser (which is what makes rendering a half-received stream safe).
 
 use crate::theme::Palette;
-use egui::{RichText, TextStyle};
+use egui::{Color32, RichText};
 use rc_help::{Block, Span};
 
 pub fn render_blocks(
@@ -82,22 +82,15 @@ pub fn render_blocks(
                 ui.add_space(4.0);
             }
             Block::CodeBlock { language, lines } => {
-                let mut text = String::new();
-                if !language.is_empty() {
-                    text.push_str(&format!("// {language}\n"));
-                }
-                for line in lines {
-                    text.push_str(line);
-                    text.push('\n');
-                }
+                // Syntax highlighting. The colouring never changes the text, so a half-received
+                // answer still reads exactly as it arrived.
+                let mut job = code_layout(language, lines, palette);
+                job.wrap.max_width = ui.available_width() - 12.0;
                 egui::Frame::new()
                     .fill(palette.header_background)
                     .inner_margin(egui::Margin::same(6))
                     .show(ui, |ui| {
-                        ui.add(
-                            egui::Label::new(RichText::new(text).text_style(TextStyle::Monospace))
-                                .selectable(true),
-                        );
+                        ui.add(egui::Label::new(job).selectable(true));
                     });
                 ui.add_space(4.0);
             }
@@ -160,6 +153,40 @@ pub fn plain(spans: &[Span]) -> String {
         }
     }
     out
+}
+
+/// Build the layout job for a fenced code block: monospaced, syntax coloured, selectable.
+///
+/// The language label is shown as a comment above the code, and the code keeps its own line breaks,
+/// so copying a block out of an answer gives back something a person could paste into a file.
+pub fn code_layout(language: &str, lines: &[String], palette: &Palette) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    let body = |colour: Color32| egui::TextFormat {
+        font_id: egui::FontId::monospace(13.0),
+        color: colour,
+        ..Default::default()
+    };
+    if !language.trim().is_empty() {
+        let mut label = body(palette.hidden);
+        label.italics = true;
+        job.append(language.trim(), 0.0, label);
+        job.append("\n", 0.0, body(palette.foreground));
+    }
+    // One highlighter for the whole block, so a block comment carries across lines.
+    let mut highlighter = rc_core::syntax::Highlighter::new(language);
+    for line in lines {
+        for span in highlighter.line(line) {
+            let colour = span
+                .kind
+                .role_name()
+                .and_then(rc_core::theme::Role::from_name)
+                .map(|role| palette.role(role))
+                .unwrap_or(palette.foreground);
+            job.append(&span.text, 0.0, body(colour));
+        }
+        job.append("\n", 0.0, body(palette.foreground));
+    }
+    job
 }
 
 #[cfg(test)]
@@ -238,5 +265,70 @@ mod tests {
             harness.root().query_all_by_label_contains("ls -l").count() > 0,
             "an unfinished fence does not lose the code"
         );
+    }
+}
+
+#[cfg(test)]
+mod code_tests {
+    use super::*;
+
+    fn text_of(job: &egui::text::LayoutJob) -> String {
+        job.text.clone()
+    }
+
+    #[test]
+    fn a_code_block_keeps_its_text_and_gains_colour() {
+        let palette = Palette::light();
+        let lines = vec!["let count: usize = 42;".to_string(), "// done".to_string()];
+        let job = code_layout("rust", &lines, &palette);
+        let text = text_of(&job);
+        assert!(text.contains("let count: usize = 42;"), "{text}");
+        assert!(text.contains("// done"), "{text}");
+        assert!(
+            text.starts_with("rust\n"),
+            "the language is labelled: {text}"
+        );
+        // At least three different colours: the keyword, the number and the comment.
+        let mut colours: Vec<Color32> = job.sections.iter().map(|s| s.format.color).collect();
+        colours.sort_by_key(|c| (c.r(), c.g(), c.b()));
+        colours.dedup();
+        assert!(colours.len() >= 4, "the block is coloured: {colours:?}");
+        assert!(colours.contains(&palette.code_keyword), "{colours:?}");
+        assert!(colours.contains(&palette.code_number), "{colours:?}");
+        assert!(colours.contains(&palette.code_comment), "{colours:?}");
+    }
+
+    #[test]
+    fn a_block_without_a_language_is_still_copied_verbatim() {
+        let palette = Palette::dark();
+        let lines = vec!["plain text".to_string(), "second line".to_string()];
+        let job = code_layout("", &lines, &palette);
+        assert_eq!(job.text, "plain text\nsecond line\n");
+        // Everything is the foreground colour, and nothing is invented.
+        assert!(
+            job.sections
+                .iter()
+                .all(|section| section.format.color == palette.foreground
+                    || section.format.color == palette.hidden)
+        );
+    }
+
+    #[test]
+    fn every_highlighted_kind_maps_to_a_distinct_colour() {
+        // The six roles must be distinguishable, or the colouring is decoration.
+        let palette = Palette::light();
+        let colours = [
+            palette.code_keyword,
+            palette.code_string,
+            palette.code_comment,
+            palette.code_number,
+            palette.code_type,
+            palette.code_function,
+        ];
+        for (index, colour) in colours.iter().enumerate() {
+            for other in colours.iter().skip(index + 1) {
+                assert_ne!(colour, other, "two code roles share a colour");
+            }
+        }
     }
 }

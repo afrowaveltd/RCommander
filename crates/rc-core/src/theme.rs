@@ -33,11 +33,18 @@ pub enum Role {
     Accent,
     RowAlternate,
     Warning,
+    /// Syntax highlighting: keywords, strings, comments, numbers, types and calls.
+    CodeKeyword,
+    CodeString,
+    CodeComment,
+    CodeNumber,
+    CodeType,
+    CodeFunction,
 }
 
 impl Role {
     /// Every role, in the order the editor lists them.
-    pub const ALL: [Role; 17] = [
+    pub const ALL: [Role; 23] = [
         Role::Background,
         Role::Foreground,
         Role::CursorBackground,
@@ -55,6 +62,12 @@ impl Role {
         Role::Accent,
         Role::RowAlternate,
         Role::Warning,
+        Role::CodeKeyword,
+        Role::CodeString,
+        Role::CodeComment,
+        Role::CodeNumber,
+        Role::CodeType,
+        Role::CodeFunction,
     ];
 
     /// Name used in the TOML file and the localisation key.
@@ -77,6 +90,12 @@ impl Role {
             Role::Accent => "accent",
             Role::RowAlternate => "row_alternate",
             Role::Warning => "warning",
+            Role::CodeKeyword => "code_keyword",
+            Role::CodeString => "code_string",
+            Role::CodeComment => "code_comment",
+            Role::CodeNumber => "code_number",
+            Role::CodeType => "code_type",
+            Role::CodeFunction => "code_function",
         }
     }
 
@@ -368,6 +387,13 @@ impl Resolved {
             (Role::Accent, Rgb::new(0x00, 0x00, 0x80)),
             (Role::RowAlternate, Rgb::new(0xf0, 0xf2, 0xf8)),
             (Role::Warning, Rgb::new(0xb0, 0x20, 0x20)),
+            // Chosen for contrast on white: keywords blue, strings green, comments grey.
+            (Role::CodeKeyword, Rgb::new(0x00, 0x00, 0xa0)),
+            (Role::CodeString, Rgb::new(0x00, 0x70, 0x30)),
+            (Role::CodeComment, Rgb::new(0x70, 0x70, 0x70)),
+            (Role::CodeNumber, Rgb::new(0xa0, 0x40, 0x00)),
+            (Role::CodeType, Rgb::new(0x60, 0x20, 0x90)),
+            (Role::CodeFunction, Rgb::new(0x00, 0x50, 0x80)),
         ] {
             resolved.set(role, colour);
         }
@@ -398,6 +424,13 @@ impl Resolved {
             (Role::Accent, Rgb::new(0x9c, 0xd0, 0xff)),
             (Role::RowAlternate, Rgb::new(0x27, 0x27, 0x2b)),
             (Role::Warning, Rgb::new(0xff, 0x9a, 0x8a)),
+            // The same hues, lifted so they read on the dark background.
+            (Role::CodeKeyword, Rgb::new(0x8a, 0xb4, 0xff)),
+            (Role::CodeString, Rgb::new(0x9c, 0xd0, 0x90)),
+            (Role::CodeComment, Rgb::new(0x8a, 0x8a, 0x8a)),
+            (Role::CodeNumber, Rgb::new(0xff, 0xb0, 0x70)),
+            (Role::CodeType, Rgb::new(0xd0, 0xa0, 0xff)),
+            (Role::CodeFunction, Rgb::new(0x80, 0xc8, 0xe0)),
         ] {
             resolved.set(role, colour);
         }

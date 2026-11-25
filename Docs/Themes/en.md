@@ -66,6 +66,18 @@ the three states stay distinguishable in every theme — including the monochrom
 | `accent` | focused panel frame, tool-bar icons |
 | `row_alternate` | every second row, so long lists stay readable |
 | `warning` | destructive actions and failed checks |
+| `code_keyword` | syntax highlighting: `fn`, `let`, `if`, … |
+| `code_string` | string literals |
+| `code_comment` | comments |
+| `code_number` | numeric literals |
+| `code_type` | type names and `SCREAMING_CASE` constants |
+| `code_function` | a name directly followed by `(` |
+
+The six `code_*` roles are what make a code block in a model answer, a help topic
+or the F3 viewer readable without a grammar: a small highlighter labels keywords,
+strings, comments, numbers, types and calls, and the theme decides the colours. A
+theme that lists none of them inherits the base theme's choice, so an old theme
+file keeps working and simply gains colour.
 
 ## Shipped themes
 

@@ -26,6 +26,12 @@ status_background = "#00240f"
 accent = "#8fffb0"
 row_alternate = "#001b0c"
 warning = "#ff6b6b"
+code_keyword = "#8fffb0"
+code_string = "#ccffdd"
+code_comment = "#1f9c4a"
+code_number = "#e0ffe8"
+code_type = "#33ff66"
+code_function = "#b0ffc8"
 
 [file_types]
 "*.txt" = "#a8ffc0"

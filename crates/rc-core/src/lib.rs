@@ -38,6 +38,7 @@ pub mod selection;
 pub mod sessions;
 pub mod sorting;
 pub mod split;
+pub mod syntax;
 pub mod tabs;
 pub mod theme;
 pub mod transaction;

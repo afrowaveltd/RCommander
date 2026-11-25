@@ -26,6 +26,12 @@ status_background = "#202020"
 accent = "#ffff00"
 row_alternate = "#101010"
 warning = "#ff8000"
+code_keyword = "#ffff66"
+code_string = "#66ff99"
+code_comment = "#c0c0c0"
+code_number = "#ffb366"
+code_type = "#d9b3ff"
+code_function = "#66e6ff"
 
 [file_types]
 "*.rs" = "#ffcc66"

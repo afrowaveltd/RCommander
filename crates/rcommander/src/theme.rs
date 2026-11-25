@@ -27,6 +27,13 @@ pub struct Palette {
     pub row_alternate: Color32,
     /// Destructive warnings: factory resets, overwrite prompts, failed checks.
     pub warning: Color32,
+    /// Syntax highlighting: keywords, strings, comments, numbers, types and calls.
+    pub code_keyword: Color32,
+    pub code_string: Color32,
+    pub code_comment: Color32,
+    pub code_number: Color32,
+    pub code_type: Color32,
+    pub code_function: Color32,
 }
 
 fn colour(rgb: rc_core::theme::Rgb) -> Color32 {
@@ -58,6 +65,12 @@ impl Palette {
             accent: colour(resolved.get(Role::Accent)),
             row_alternate: colour(resolved.get(Role::RowAlternate)),
             warning: colour(resolved.get(Role::Warning)),
+            code_keyword: colour(resolved.get(Role::CodeKeyword)),
+            code_string: colour(resolved.get(Role::CodeString)),
+            code_comment: colour(resolved.get(Role::CodeComment)),
+            code_number: colour(resolved.get(Role::CodeNumber)),
+            code_type: colour(resolved.get(Role::CodeType)),
+            code_function: colour(resolved.get(Role::CodeFunction)),
         }
     }
 
@@ -85,6 +98,12 @@ impl Palette {
             Role::Accent => self.accent,
             Role::RowAlternate => self.row_alternate,
             Role::Warning => self.warning,
+            Role::CodeKeyword => self.code_keyword,
+            Role::CodeString => self.code_string,
+            Role::CodeComment => self.code_comment,
+            Role::CodeNumber => self.code_number,
+            Role::CodeType => self.code_type,
+            Role::CodeFunction => self.code_function,
         }
     }
 
@@ -113,6 +132,12 @@ impl Palette {
             accent: Color32::from_rgb(0x00, 0x00, 0x80),
             row_alternate: Color32::from_rgb(0xf0, 0xf2, 0xf8),
             warning: Color32::from_rgb(0xb0, 0x20, 0x20),
+            code_keyword: Color32::from_rgb(0x00, 0x00, 0xa0),
+            code_string: Color32::from_rgb(0x00, 0x70, 0x30),
+            code_comment: Color32::from_rgb(0x70, 0x70, 0x70),
+            code_number: Color32::from_rgb(0xa0, 0x40, 0x00),
+            code_type: Color32::from_rgb(0x60, 0x20, 0x90),
+            code_function: Color32::from_rgb(0x00, 0x50, 0x80),
         }
     }
 
@@ -136,6 +161,12 @@ impl Palette {
             accent: Color32::from_rgb(0x9c, 0xd0, 0xff),
             row_alternate: Color32::from_rgb(0x27, 0x27, 0x2b),
             warning: Color32::from_rgb(0xff, 0x9a, 0x8a),
+            code_keyword: Color32::from_rgb(0x8a, 0xb4, 0xff),
+            code_string: Color32::from_rgb(0x9c, 0xd0, 0x90),
+            code_comment: Color32::from_rgb(0x8a, 0x8a, 0x8a),
+            code_number: Color32::from_rgb(0xff, 0xb0, 0x70),
+            code_type: Color32::from_rgb(0xd0, 0xa0, 0xff),
+            code_function: Color32::from_rgb(0x80, 0xc8, 0xe0),
         }
     }
 

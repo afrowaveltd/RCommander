@@ -65,6 +65,18 @@ stavy zůstanou rozlišitelné v každém tématu — i v těch monochromatický
 | `accent` | rámeček aktivního panelu, ikony v liště |
 | `row_alternate` | každý druhý řádek, aby dlouhé seznamy zůstaly čitelné |
 | `warning` | nebezpečné akce a nezdařené kontroly |
+| `code_keyword` | zvýrazňování syntaxe: `fn`, `let`, `if`, … |
+| `code_string` | řetězcové literály |
+| `code_comment` | komentáře |
+| `code_number` | číselné literály |
+| `code_type` | názvy typů a konstanty `VELKÝMI_PÍSMENY` |
+| `code_function` | název přímo následovaný `(` |
+
+Šest rolí `code_*` dělá blok kódu v odpovědi modelu, v tématu nápovědy nebo v F3
+prohlížeči čitelným i bez gramatiky: malý zvýrazňovač označí klíčová slova,
+řetězce, komentáře, čísla, typy a volání a o barvách rozhoduje téma. Téma, které
+žádnou z nich neuvádí, zdědí volbu základního tématu — starý soubor tématu tedy
+funguje dál a jen získá barvy.
 
 ## Dodávaná témata
 

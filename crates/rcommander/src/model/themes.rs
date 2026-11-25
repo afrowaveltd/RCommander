@@ -250,6 +250,22 @@ mod tests {
                     "{name}: {front:?} on {back:?} is only {ratio:.2}:1"
                 );
             }
+            // Syntax colours are small text, so they need the same treatment: a theme that
+            // paints keywords dark blue on a black background is decoration, not highlighting.
+            for role in [
+                Role::CodeKeyword,
+                Role::CodeString,
+                Role::CodeComment,
+                Role::CodeNumber,
+                Role::CodeType,
+                Role::CodeFunction,
+            ] {
+                let ratio = resolved.get(role).contrast(resolved.get(Role::Background));
+                assert!(
+                    ratio >= 3.0,
+                    "{name}: {role:?} on the background is only {ratio:.2}:1"
+                );
+            }
         }
         let high = model.resolved_theme_named("high contrast");
         assert_eq!(high.get(Role::Background).r, 0x00);

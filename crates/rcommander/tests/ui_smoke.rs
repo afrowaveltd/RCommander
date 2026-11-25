@@ -2430,3 +2430,33 @@ fn the_font_page_offers_three_roles_and_a_sample() {
         "an impossible size is clamped instead of accepted"
     );
 }
+
+#[test]
+fn a_code_block_in_an_answer_is_syntax_coloured() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.show_chat_panel = true;
+    app.model.chat().push(
+        rcommander::model::chat::Speaker::Model,
+        "Run this:\n\n```rust\nlet x: usize = 42; // the answer\n```\n",
+    );
+    let harness = harness(app);
+    // The code is on screen, and the markup around it is not.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("let x: usize = 42;")
+            .count()
+            > 0,
+        "the code line is rendered"
+    );
+    // The fence marker is markup and must not be drawn; the language label is not markup and is.
+    assert!(
+        harness.root().query_all_by_label_contains("```").count() == 0,
+        "the fence is not shown"
+    );
+    assert!(
+        harness.root().query_all_by_label_contains("rust").count() > 0,
+        "the language is labelled above the code"
+    );
+}

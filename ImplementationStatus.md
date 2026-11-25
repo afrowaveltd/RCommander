@@ -167,6 +167,36 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 17.0 — a small highlighter and six colour roles (done)
+
+`cargo test -p rc-core --lib syntax` → **13 tests**, `cargo test -p rcommander --lib code_tests` →
+**3**, plus a UI test that an answer's code block is drawn coloured.
+
+Code blocks in a model answer, in a help topic and in the F3 viewer were monospaced grey text. They
+are now coloured by a highlighter in `rc_core::syntax`: Rust, TOML, JSON, shell, Python,
+JavaScript/TypeScript, C/C++, Go and Markdown, each with its own keyword table and its primitives
+(`usize`, `string`, `rune`), plus strings with escapes, numbers, types, calls and comments.
+
+Three properties were designed in rather than hoped for:
+
+* **Colouring never changes the text.** Every test in the module checks that the concatenation of a
+  line's spans equals the line, for all ten languages and for hostile input (unterminated strings
+  and comments, tabs, Czech diacritics, triple quotes, a stray comment terminator). That property
+  is what makes it safe to highlight an answer that is still streaming in.
+* **The state that crosses a newline is the only state.** A block comment or a Python triple-quoted
+  string continues on the next line because the highlighter carries exactly that, not because the
+  caller re-reads the block.
+* **No dependencies.** A regex engine would have been a large build cost for colouring a dozen
+  tokens per line; the tokenizer is a single pass over `Vec<char>`.
+
+Six theme roles (`code_keyword`, `code_string`, `code_comment`, `code_number`, `code_type`,
+`code_function`) were added, so highlighting follows the theme instead of hard-coded colours. Every
+shipped theme got its own six colours chosen for its character — the amber and AS/400 terminals stay
+in their own hue, Solarized keeps Schoonover's accents — and the shipped-theme test now measures
+each of them against that theme's background at 3:1. That test immediately failed on Solarized's
+own `base01` comment colour (2.79:1), which is a real readability problem in that palette and not a
+mistake in the test.
+
 ## Phase 14.7 — three text roles and your own fonts (done)
 
 `cargo test -p rc-core --lib font` → **5 tests**, `cargo test -p rcommander --lib fonts` → **4**,
@@ -925,7 +955,7 @@ command either by its own name or through a family rule:
 | No prompt manager, so every start is a blank input | Phase 16.16–16.17 (planned): a TOML catalogue grouped by category (files, Git, remote, packages, diagnostics, general), typed variables filled from the current selection and shown in a preview, shipped prompts read-only with a resettable built-in text and a diff against it, custom prompts of the user's own, and a picker with search, recency and pins. A prompt stays **data**: it can never grant a permission |
 | No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, tag-first classification, controlled SQL gateway, reviewed Knowledge Pull Requests, provenance and safe reuse |
 | No first-class database panels or administration | Phase 23; independent database providers, read-only browser and SQL editor first, reviewed mutations and administration later, native MongoDB document support (23.10) |
-| Shared Markdown parser, syntax highlighting and annotations not implemented | Phase 17.0 before Phase 17.1–17.2 |
+| Editor **annotations** (Phase 17.2) and the remaining previewer work are still open; the shared Markdown parser and the syntax highlighter are done | Phase 17.1–17.2 next |
 | No general data/render plugin framework or enforceable isolation for untrusted plugins | Phase 18; process separation alone is insufficient |
 | MCP HTTP server advertised in CLI help is not connected: `run_mcp` ignores `--http` arguments | Implement and secure server transport separately, or remove the unused CLI help flag; stdio server and MCP HTTP **client** are distinct |
 | Integrated SSH shell remains planned | Phase 19 |

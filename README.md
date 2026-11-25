@@ -272,10 +272,12 @@ sentence in the transcript can suggest an action but never perform one.
 
 ---
 
-Answers are rendered as Markdown (headings, lists, tables, quotes, code blocks).
+Answers are rendered as Markdown (headings, lists, tables, quotes, code blocks) and
+code blocks are syntax highlighted for Rust, TOML, JSON, shell, Python, Go, C/C++,
+JavaScript and Markdown.
 
-**Planned, not implemented:** tool calling from the chat, syntax highlighting of
-code, reviewed file changes and agent-coordinated tool calls (Phase 16 of
+**Planned, not implemented:** tool calling from the chat, the prompt manager,
+reviewed file changes and agent-coordinated tool calls (Phase 16 of
 `ImplementationPlan.md`).
 
 ---

@@ -45,7 +45,8 @@ jen zbytek textu, nikdy data.
 - Chat sám nespouští nástroje; volání nástrojů potřebuje model, který to umí, a v
   tomto okně zatím zapojené není.
 - Odpovědi se vykreslují jako Markdown — nadpisy, seznamy, tabulky, citace,
-  řádkový kód i bloky kódu — ale kód zatím **není** zvýrazněný syntaxí a odkazy
+  řádkový kód i bloky kódu, a bloky kódu mají **zvýrazněnou syntaxi** pro Rust,
+  TOML, JSON, shell, Python, JavaScript/TypeScript, C/C++, Go a Markdown. Odkazy
   v odpovědi se kreslí jako text, nikoli otevírají.
 - Transkript je jen v paměti. Zavřením RCommanderu rozhovor skončí; místní
   úložiště je v plánu.
