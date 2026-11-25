@@ -33,13 +33,15 @@ cargo test --workspace
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes | **done** — TOML themes, theme editor, contrast checks and unified window styling; eight themes shipped |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **pending** — two-way chat/file panels, providers, reviewed edits, MCP/Git orchestration, editable prompt catalog, workload packs and reusable agent runtime (16.16–16.21); opt-in Agent Commons (16.22–16.26): automatic pseudonymous enrolment, text-only private temporary collaboration, agent-organised taxonomy and reviewed Knowledge Pull Requests for the public catalogue, with contracts early; Phase 16.0 policy is a prerequisite to agent side-effects |
+| 16 | Interactive AI workspace | **pending** — two-way chat/file panels, providers, reviewed edits, MCP/Git orchestration, editable prompt catalog, workload packs and reusable agent runtime (16.16–16.21); opt-in Agent Commons (16.22–16.26): automatic pseudonymous enrolment, text-only private temporary collaboration, agent-organised tags/taxonomy, controlled SQL gateway and reviewed Knowledge Pull Requests for the public catalogue, with contracts early; Phase 16.0 policy is a prerequisite to agent side-effects |
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **pending** — common parser/tokenizer and rendering foundation before 17.1–17.2 |
 | 17 | Rich document previewer (PDF, Office, Markdown, code) | **pending** — planned in Phase 17 |
 | 18 | Plugin architecture (data sources and renderers) | **pending** — planned in Phase 18 |
 | 19 | Integrated SSH terminal (PuTTY-style) | **pending** — planned in Phase 19 |
 | 20 | Optional privileged system capabilities | **pending** — narrow helper, OS authentication, verified backup/restore and optional installation; not required for normal chat |
 | 21 | Portable host diagnostics, System Check and repair workloads | **pending** — read-only diagnostics, evidence-based approved repairs, preventive checks, portable technician mode, remote .NET/Apache deployment and optional diagnostic integrations |
+| 22 | Native WSL integration and cross-OS workspaces | **pending** — native filesystem/execution providers, mount-aware path mapping and cross-OS tests |
+| 23 | SQL database panels and administration | **pending** — SQLite/PostgreSQL first, read-only browsing and SQL workspace, reviewed edits, comparison, transfers, backup/restore and AI DBA; additional engine adapters later |
 
 
 ---
@@ -659,7 +661,8 @@ command either by its own name or through a family rule:
 | Explorer-style right-click integration and capability-aware RCommander submenu are planned | Phase 10.10: native shell actions where supported, internal fallback, explicit selection/pane targeting |
 | Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
 | No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions; establish editable prompt and declarative workload contracts early (16.16–16.21) |
-| No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, dynamic taxonomy, reviewed Knowledge Pull Requests, provenance and safe reuse |
+| No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, tag-first classification, controlled SQL gateway, reviewed Knowledge Pull Requests, provenance and safe reuse |
+| No first-class database panels or SQL administration | Phase 23; independent database providers, read-only browser and SQL editor first, reviewed mutations and administration later |
 | Shared Markdown parser, syntax highlighting and annotations not implemented | Phase 17.0 before Phase 17.1–17.2 |
 | No general data/render plugin framework or enforceable isolation for untrusted plugins | Phase 18; process separation alone is insufficient |
 | MCP HTTP server advertised in CLI help is not connected: `run_mcp` ignores `--http` arguments | Implement and secure server transport separately, or remove the unused CLI help flag; stdio server and MCP HTTP **client** are distinct |
@@ -697,6 +700,10 @@ command either by its own name or through a family rule:
    not a separate agent or privilege path.
 10. Keep Windows release checks, Android compile checks and an actual tested
     Android APK as distinct milestones.
+11. Implement Phase 23 incrementally after relevant panel, credential and editor
+    foundations; SQLite/PostgreSQL browsing and SQL execution before write/DBA
+    features. Reuse logical query abstractions for Agent Commons without sharing
+    database administrator privileges.
 
 These are planned priorities, not assertions of new implementation. Earlier
 per-phase narrative remains historical evidence; the summary and current gaps
