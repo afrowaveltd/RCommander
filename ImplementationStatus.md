@@ -189,6 +189,32 @@ it. Testing asks the model a trivial question on a worker thread, so a 60 GB mod
 not freeze the window, and the answer is shown in the dialog and the status line. A fresh
 installation with no model chosen takes the first tool-capable one.
 
+## Phase 16.0c — an approval source outside the GUI (done)
+
+`cargo test -p rc-agent --lib confirm` → **6 tests**, `cargo test -p rcommander --test
+agent_approval` → **4 tests**, plus the flag test in the binary.
+
+Until now the stdio server had **no** confirmer, so every destructive tool failed closed and the
+Git tools it advertises (`git_commit`, `git_checkout`, `git_push`) could not be used at all. The
+reason was not laziness: the obvious implementation is wrong. Standard input and output carry the
+JSON-RPC protocol, so a question printed on stdout corrupts the stream and an answer read from
+stdin swallows a message.
+
+`rc_agent::confirm` therefore asks on the **terminal device** (`/dev/tty`, `CONIN$`) and answers
+by these rules: only an explicit `y`/`yes`/`a`/`ano`/`ok` allows the call, everything else — an
+empty line, a closed stream, a poisoned lock — is a **no**, and a process without a terminal gets
+no confirmer at all, which keeps the historical fail-closed default as a deliberate choice.
+`AllowAllConfirmer` exists only for `--yes`, and its name says what it does.
+
+The `mcp` subcommand now takes `--ask` (default), `--yes`/`-y` and `--no-ask`, and the flags that
+were advertised but never implemented (`--http`, `--token`) fail with an explicit message instead
+of being silently ignored — an option that does nothing is worse than one that refuses.
+
+`rcommander::agent_host::serve_streams` is the seam the tests drive: four integration tests run a
+real `delete` through the real server with a fixed confirmer and check the outcome — refused means
+the file is still there and the human was asked exactly once, approved means the file is gone, no
+confirmer means nothing is deleted, and reading a directory asks nobody.
+
 ## Phase 16.1 — streaming answers and the agent chat (first slice, done)
 
 `cargo test -p rc-llm` → **11 tests**, `cargo test -p rcommander --lib chat` → **6 tests**, plus

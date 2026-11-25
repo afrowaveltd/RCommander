@@ -6,8 +6,31 @@ use std::sync::{Arc, Mutex};
 /// Shared model handed to the MCP server.
 pub type SharedModel = Arc<Mutex<Model>>;
 
-/// Serve the Model Context Protocol on stdin/stdout.
+/// Serve the Model Context Protocol on stdin/stdout with no approval source.
+///
+/// Destructive tools then fail closed: the server answers that the action needs approval, and
+/// nothing is changed. Use [`serve_stdio_with`] to supply one.
 pub fn serve_stdio(model: Model) -> Result<(), String> {
+    serve_stdio_with(model, None)
+}
+
+/// Serve the Model Context Protocol on stdin/stdout, asking `confirmer` before destructive tools.
+pub fn serve_stdio_with(
+    model: Model,
+    confirmer: Option<Arc<dyn rc_agent::Confirmer>>,
+) -> Result<(), String> {
+    let stdin = std::io::stdin();
+    let stdout = std::io::stdout();
+    serve_streams(model, confirmer, stdin.lock(), stdout.lock())
+}
+
+/// The server over any pair of streams; `serve_stdio_with` and the tests both use this.
+pub fn serve_streams<R: std::io::BufRead, W: std::io::Write>(
+    model: Model,
+    confirmer: Option<Arc<dyn rc_agent::Confirmer>>,
+    input: R,
+    output: W,
+) -> Result<(), String> {
     let shared: SharedModel = Arc::new(Mutex::new(model));
     let host = Arc::new(HostBridge {
         model: shared.clone(),
@@ -23,11 +46,10 @@ pub fn serve_stdio(model: Model) -> Result<(), String> {
     let server = rc_agent::McpServer::new(host, config)
         .with_language_host(language_host)
         .with_git_host(git_host);
-    let stdin = std::io::stdin();
-    let stdout = std::io::stdout();
-    server
-        .serve_stdio(stdin.lock(), stdout.lock())
-        .map_err(|e| e.to_string())
+    if let Some(confirmer) = confirmer {
+        server.set_confirmer(Some(confirmer));
+    }
+    server.serve_stdio(input, output).map_err(|e| e.to_string())
 }
 
 /// Bridge between the MCP tool calls and the application model.

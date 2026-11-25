@@ -10,13 +10,32 @@ soubory, kopírovat, přesouvat, mazat, vytvářet adresáře, přejmenovávat, 
 a zapisovat textové soubory, hledat, zjišťovat volné místo a číst tuto nápovědu.
 
 **Aktuálně funkční přenos serveru:** pouze stdio (`rcommander mcp`).
-Nápověda příkazového řádku sice zmiňuje režim HTTP, ale funkce `run_mcp`
-zatím jeho argumenty nezpracovává, takže HTTP **server** není zapojen.
-Připojení k HTTP serverům v roli **klienta** níže je odlišná funkce.
+HTTP **server** zapojený není; požadavek na něj (`--http`, `--token`) skončí
+výslovnou chybou, místo aby se tiše ignoroval. Připojení k HTTP serverům v roli
+**klienta** níže je odlišná funkce.
 
-Rizikové nástroje (mazání, přesun, přepis, zápis souborů) mohou vyžadovat
-potvrzení. Server v takovém případě odpoví chybou vysvětlující, že akci musí
-schválit uživatel, místo aby ji tiše provedl.
+### Schvalování rizikových nástrojů
+
+Nástroje, které mohou zničit data (mazání, přesun, přepis, zápis souborů a
+gitové nástroje `git_commit`/`git_checkout`/`git_push`), jsou chráněné branou.
+Způsob schvalování se volí na příkazové řádce:
+
+| Příkaz | Co se stane |
+| --- | --- |
+| `rcommander mcp` | před spuštěním takového nástroje se **zeptá na terminálu**; bez terminálu (build agent, kontejner) je každý rizikový nástroj odmítnut |
+| `rcommander mcp --yes` | na nic se neptá a nástroj spustí. Oprávnění (policy) i audit se přesto uplatní |
+| `rcommander mcp --no-ask` | nikdy se neptá a nikdy nepovolí — agent jen pro čtení |
+
+Spolehlivost odpovědi stojí na dvou detailech. Za prvé jde otázka na
+**terminál**, ne na standardní výstup: ten nese protokol JSON-RPC, takže otázka
+zapsaná tam by ho rozbila — a čtení odpovědi ze standardního vstupu by spolklo
+zprávu. Za druhé je čímkoli jiným než výslovným `y`/`yes`/`ano` **ne**, takže
+omylem odeslaný prázdný řádek ani zavřený terminál nikdy neschválí smazání.
+Výchozí je odmítnutí a chybějící terminál není souhlas.
+
+Schválení je jen jedna z bran. Nejdřív se kontrolují oprávnění (v nastavení
+`[agent] profile`, `require_approval`, granty) a každé rozhodnutí se zapíše do
+auditu s hashovým řetězem popsaným v tématu *Konfigurace*.
 
 ## Aplikace jako MCP klient
 

@@ -218,11 +218,20 @@ rcommander mcp                # JSON-RPC over stdio (currently wired)
 
 External agents can then list panels and directories, navigate, select, copy,
 move, delete, create directories, rename, read/write text files, search, query
-free space and read the help. Destructive tools are gated by a confirmation
-policy. The CLI currently **does not implement HTTP server mode**: even
-though the binary's command-line help still advertises `mcp --http`, those
-arguments are not handled by `run_mcp` in `crates/rcommander/src/main.rs`.
-Do not expose or rely on an HTTP MCP server until it is implemented and tested.
+free space and read the help.
+
+Destructive tools (delete, move, overwrite, writing files, and the Git tools
+`git_commit`/`git_checkout`/`git_push`) are gated. By default `rcommander mcp`
+asks on your terminal and anything that is not an explicit yes is a no — the
+question goes to the terminal, never to standard output, because that stream
+carries the JSON-RPC protocol. Without a terminal every destructive tool is
+refused. `--yes` skips the question for a human who has already decided;
+`--no-ask` gives a read-only agent. The capability policy and the audit log apply
+in all three cases.
+
+There is **no HTTP server mode**: `--http`/`--token` fail with an explicit
+message rather than being silently ignored. Do not expose or rely on an HTTP MCP
+server until it is implemented and tested.
 
 ### As a client
 
