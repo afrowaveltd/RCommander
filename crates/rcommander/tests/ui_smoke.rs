@@ -2034,3 +2034,121 @@ fn the_model_picker_lists_models_and_selects_one() {
         "the choice is persisted in the settings"
     );
 }
+
+// ---- agent chat (Phase 16.1) ---------------------------------------------
+
+/// A model provider that streams a fixed answer, for the chat window tests.
+struct ChatStub {
+    pieces: Vec<String>,
+}
+
+impl std::fmt::Debug for ChatStub {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ChatStub")
+    }
+}
+
+impl rc_llm::Provider for ChatStub {
+    fn kind(&self) -> &'static str {
+        "ollama"
+    }
+    fn base_url(&self) -> &str {
+        "http://stub"
+    }
+    fn list_models(&self) -> Result<Vec<rc_llm::Model>, rc_llm::LlmError> {
+        Ok(vec![rc_llm::Model {
+            id: "chat:3b".into(),
+            size: None,
+            parameters: None,
+            capabilities: vec!["completion".into()],
+        }])
+    }
+    fn chat(&self, request: &rc_llm::ChatRequest) -> Result<rc_llm::ChatReply, rc_llm::LlmError> {
+        Ok(rc_llm::ChatReply {
+            content: self.pieces.join(""),
+            model: request.model.clone(),
+            done_reason: Some("stop".into()),
+            prompt_tokens: None,
+            answer_tokens: None,
+        })
+    }
+    fn chat_stream(
+        &self,
+        request: &rc_llm::ChatRequest,
+        on_chunk: &mut dyn FnMut(&str),
+    ) -> Result<rc_llm::ChatReply, rc_llm::LlmError> {
+        for piece in &self.pieces {
+            on_chunk(piece);
+        }
+        Ok(rc_llm::ChatReply {
+            content: self.pieces.join(""),
+            model: request.model.clone(),
+            done_reason: Some("stop".into()),
+            prompt_tokens: Some(3),
+            answer_tokens: Some(2),
+        })
+    }
+}
+
+fn chat_harness(
+    left: &std::path::Path,
+    right: &std::path::Path,
+) -> egui_kittest::Harness<'static, RCommanderApp> {
+    let mut app = app(left, right);
+    app.model
+        .set_ai_provider(Some(std::sync::Arc::new(ChatStub {
+            pieces: vec!["Two ".into(), "files.".into()],
+        })));
+    app.model.settings.agent.model = "chat:3b".to_string();
+    app.model.show_chat_panel = true;
+    harness(app)
+}
+
+#[test]
+fn the_chat_window_opens_from_the_menu_and_streams_an_answer() {
+    let (left, right) = fixture();
+    let mut harness = chat_harness(left.path(), right.path());
+    // The window is on screen with its empty-transcript hint.
+    harness.root().get_by_label("ai.chat.empty");
+    // Typing and pressing Send puts the question in the transcript.
+    harness.state_mut().model.chat().input = "how many files?".to_string();
+    harness.run();
+    if let Some(button) = harness.root().query_all_by_label("ai.chat.send").last() {
+        button.click_accesskit();
+    }
+    // Let the worker finish and the frames catch up.
+    for _ in 0..200 {
+        if !harness.state().model.chat_is_running() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        harness.run();
+    }
+    harness.run();
+    let lines = harness.state().model.chat_session.lines.clone();
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert_eq!(lines[1].text, "Two files.");
+    harness.root().get_by_label("how many files?");
+    harness.root().get_by_label("Two files.");
+}
+
+#[test]
+fn the_chat_window_toggles_with_its_command() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    assert!(!harness.state().model.show_chat_panel);
+    harness.state_mut().execute("cm_AiChat");
+    assert!(
+        harness.state().model.show_chat_panel,
+        "the command opens the chat"
+    );
+    harness.run();
+    harness.root().get_by_label("ai.chat.title");
+    // Closing the window clears the flag through the window's own close button.
+    harness.state_mut().model.show_chat_panel = false;
+    harness.run();
+    assert!(
+        harness.root().query_all_by_label("ai.chat.empty").count() == 0,
+        "a closed chat draws nothing"
+    );
+}

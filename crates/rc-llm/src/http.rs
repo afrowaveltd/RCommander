@@ -189,6 +189,139 @@ fn request(
     Ok(Response { status, body })
 }
 
+/// POST a JSON body and hand every line of the response to `on_line` as it arrives.
+///
+/// This is what streaming needs: the caller sees each NDJSON object while the model is still
+/// generating. Both a chunked response (what Ollama sends) and a plain one are handled.
+pub fn post_json_stream(
+    target: &Target,
+    path: &str,
+    body: &str,
+    timeout: Duration,
+    on_line: &mut dyn FnMut(&str),
+) -> Result<(), HttpError> {
+    let address = format!("{}:{}", target.host, target.port);
+    let stream = TcpStream::connect(&address).map_err(|error| {
+        HttpError::new(format!(
+            "cannot reach {address}: {error} (is the server running?)"
+        ))
+    })?;
+    stream
+        .set_read_timeout(Some(timeout))
+        .map_err(|error| HttpError::new(error.to_string()))?;
+    stream
+        .set_write_timeout(Some(timeout))
+        .map_err(|error| HttpError::new(error.to_string()))?;
+    let mut stream = stream;
+    let full_path = format!("{}{}", target.prefix, path);
+    let head = format!(
+        "POST {full_path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nAccept: application/json\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+        body.len()
+    );
+    stream
+        .write_all(head.as_bytes())
+        .and_then(|()| stream.write_all(body.as_bytes()))
+        .map_err(|error| HttpError::new(error.to_string()))?;
+    let mut reader = BufReader::new(stream);
+    let mut status_line = String::new();
+    reader
+        .read_line(&mut status_line)
+        .map_err(|error| HttpError::new(error.to_string()))?;
+    let status = status_line
+        .split_whitespace()
+        .nth(1)
+        .and_then(|code| code.parse::<u16>().ok())
+        .ok_or_else(|| HttpError::new(format!("bad status line “{}”", status_line.trim())))?;
+    if !(200..300).contains(&status) {
+        return Err(HttpError::new(format!(
+            "the server answered {status} for {full_path}"
+        )));
+    }
+    let mut chunked = false;
+    loop {
+        let mut line = String::new();
+        if reader
+            .read_line(&mut line)
+            .map_err(|error| HttpError::new(error.to_string()))?
+            == 0
+        {
+            break;
+        }
+        if line.trim().is_empty() {
+            break;
+        }
+        if let Some(encoding) = line.to_ascii_lowercase().strip_prefix("transfer-encoding:")
+            && encoding.contains("chunked")
+        {
+            chunked = true;
+        }
+    }
+    if !chunked {
+        // A plain body: forward each line as it arrives.
+        let mut line = String::new();
+        while reader
+            .read_line(&mut line)
+            .map_err(|error| HttpError::new(error.to_string()))?
+            > 0
+        {
+            let trimmed = line.trim_end();
+            if !trimmed.is_empty() {
+                on_line(trimmed);
+            }
+            line.clear();
+        }
+        return Ok(());
+    }
+    stream_chunked(&mut reader, on_line)
+}
+
+/// Read a chunked body incrementally, forwarding each completed line.
+fn stream_chunked(
+    reader: &mut impl BufRead,
+    on_line: &mut dyn FnMut(&str),
+) -> Result<(), HttpError> {
+    let mut pending = String::new();
+    loop {
+        let mut size_line = String::new();
+        if reader
+            .read_line(&mut size_line)
+            .map_err(|error| HttpError::new(error.to_string()))?
+            == 0
+        {
+            break;
+        }
+        let size_text = size_line.trim();
+        if size_text.is_empty() {
+            continue;
+        }
+        let size = usize::from_str_radix(size_text, 16)
+            .map_err(|_| HttpError::new(format!("bad chunk size “{size_text}”")))?;
+        if size == 0 {
+            break;
+        }
+        let mut buffer = vec![0u8; size];
+        reader
+            .read_exact(&mut buffer)
+            .map_err(|error| HttpError::new(error.to_string()))?;
+        // A trailing CRLF after every chunk.
+        let mut crlf = String::new();
+        let _ = reader.read_line(&mut crlf);
+        pending.push_str(&String::from_utf8_lossy(&buffer));
+        while let Some(index) = pending.find('\n') {
+            let line = pending[..index].trim_end().to_string();
+            pending.drain(..=index);
+            if !line.is_empty() {
+                on_line(&line);
+            }
+        }
+    }
+    let rest = pending.trim_end();
+    if !rest.is_empty() {
+        on_line(rest);
+    }
+    Ok(())
+}
+
 /// Decode a `Transfer-Encoding: chunked` body.
 fn read_chunked(reader: &mut impl BufRead) -> Result<String, HttpError> {
     let mut out = String::new();

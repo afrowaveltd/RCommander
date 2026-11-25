@@ -86,6 +86,8 @@ pub struct RCommanderApp {
     quick_view_path: Option<std::path::PathBuf>,
     /// The MCP client panel state.
     agent_ui: AgentUi,
+    /// Scroll and focus state of the chat window.
+    chat_ui: crate::ui::chat_window::ChatUi,
     /// Thumbnail textures for the thumbnail view mode.
     thumbnails: ThumbnailCache,
     /// Index of the search result the user picked.
@@ -152,6 +154,7 @@ impl RCommanderApp {
             quick_viewer: ViewerUi::default(),
             quick_view_path: None,
             agent_ui: AgentUi::default(),
+            chat_ui: crate::ui::chat_window::ChatUi::default(),
             thumbnails: ThumbnailCache::new(),
             search_hit_selection: 0,
             panel_rects: [None, None],
@@ -689,6 +692,9 @@ impl RCommanderApp {
                 if ui.button(self.model.t("cmd.aimodel")).clicked() {
                     command = Some("cm_AiModel".into());
                 }
+                if ui.button(self.model.t("ai.chat.title")).clicked() {
+                    command = Some("cm_AiChat".into());
+                }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
                 }
@@ -1072,6 +1078,10 @@ impl eframe::App for RCommanderApp {
             ctx.copy_text(parts.join("\n"));
         }
         self.handle_dropped_files(ctx);
+        if self.model.poll_chat() {
+            // A streaming answer has to be redrawn to look alive.
+            ctx.request_repaint_after(std::time::Duration::from_millis(60));
+        }
         if self.model.poll_ai_test() {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
@@ -1125,6 +1135,12 @@ impl eframe::App for RCommanderApp {
             let palette = self.palette.clone();
             if crate::ui::transfer_window::show(ctx, &mut self.model, &palette) {
                 self.model.show_transfer_manager = false;
+            }
+        }
+        if self.model.show_chat_panel {
+            let palette = self.palette.clone();
+            if crate::ui::chat_window::show(ctx, &mut self.model, &mut self.chat_ui, &palette) {
+                self.model.show_chat_panel = false;
             }
         }
         if self.model.show_agent_panel {

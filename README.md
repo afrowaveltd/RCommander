@@ -239,12 +239,25 @@ command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
 ```
 
+### Agent chat
+
+*Configuration ▸ Agent chat* (`cm_AiChat`) is a conversation pane with a local
+model: pick one in *AI model…*, ask a question and the answer **streams** in while
+the model generates it. *Stop* keeps what already arrived, *New conversation*
+clears the transcript, and the transcript becomes the request history, so
+follow-up questions work. Ollama is the built-in provider
+(`[agent] provider_url`, default `http://127.0.0.1:11434`), so nothing leaves the
+machine; see `Docs/Agent chat/`.
+
+The chat **cannot touch files**. Everything with a side effect still goes through
+the capability policy, which asks for approval and writes an audit entry — a
+sentence in the transcript can suggest an action but never perform one.
+
 ---
 
-**Planned, not implemented:** a two-way AI chat workspace using Ollama or
-other model providers, reviewed file changes and agent-coordinated tool calls
-is specified in Phase 16 of `ImplementationPlan.md`. The existing MCP client
-is a tool-runner, not yet a conversational AI model client.
+**Planned, not implemented:** tool calling from the chat, Markdown rendering of
+answers, reviewed file changes and agent-coordinated tool calls (Phase 16 of
+`ImplementationPlan.md`).
 
 ---
 
@@ -260,6 +273,8 @@ crates/
   rc-archive/   archive reading/writing with path-safety guarantees
   rc-remote/    FTP/SFTP client and connection manager
   rc-agent/     MCP server and client (JSON-RPC, stdio + HTTP)
+  rc-llm/       language-model providers (Ollama first), streaming answers
+  rc-git/       Git repository access through libgit2
   rc-help/      Docs/ discovery and Markdown model for the help window
   rcommander/   the application: headless model + egui view
 locales/        runtime language packs (en.toml, cs.toml)

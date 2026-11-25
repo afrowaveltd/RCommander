@@ -191,6 +191,20 @@ pub trait Provider: std::fmt::Debug + Send + Sync {
     fn list_models(&self) -> Result<Vec<Model>, LlmError>;
     /// Ask one question.
     fn chat(&self, request: &ChatRequest) -> Result<ChatReply, LlmError>;
+
+    /// Ask one question and hand every piece of the answer to `on_chunk` as it arrives.
+    ///
+    /// The default implementation falls back to a non-streaming call, so a provider that cannot
+    /// stream still works — the caller just sees one big chunk.
+    fn chat_stream(
+        &self,
+        request: &ChatRequest,
+        on_chunk: &mut dyn FnMut(&str),
+    ) -> Result<ChatReply, LlmError> {
+        let reply = self.chat(request)?;
+        on_chunk(&reply.content);
+        Ok(reply)
+    }
     /// True when the server answers at all (used to enable the UI).
     fn is_available(&self) -> bool {
         self.list_models().is_ok()
@@ -378,6 +392,118 @@ impl Provider for OllamaProvider {
         }
         parse_chat(&response.body)
     }
+
+    fn chat_stream(
+        &self,
+        request: &ChatRequest,
+        on_chunk: &mut dyn FnMut(&str),
+    ) -> Result<ChatReply, LlmError> {
+        let body = chat_body_streaming(request);
+        let target = self.target()?;
+        let mut reply = ChatReply {
+            content: String::new(),
+            model: request.model.clone(),
+            done_reason: None,
+            prompt_tokens: None,
+            answer_tokens: None,
+        };
+        let mut failure: Option<LlmError> = None;
+        let mut lines: Vec<String> = Vec::new();
+        http::post_json_stream(&target, "/api/chat", &body, self.timeout, &mut |line| {
+            lines.push(line.to_string());
+        })
+        .map_err(|error| LlmError::new(error.to_string()))?;
+        for line in lines {
+            match parse_stream_line(&line) {
+                Ok(Some(chunk)) => {
+                    reply.content.push_str(&chunk.text);
+                    if let Some(model) = chunk.model {
+                        reply.model = model;
+                    }
+                    if let Some(reason) = chunk.done_reason {
+                        reply.done_reason = Some(reason);
+                    }
+                    if chunk.prompt_tokens.is_some() {
+                        reply.prompt_tokens = chunk.prompt_tokens;
+                    }
+                    if chunk.answer_tokens.is_some() {
+                        reply.answer_tokens = chunk.answer_tokens;
+                    }
+                    if !chunk.text.is_empty() {
+                        on_chunk(&chunk.text);
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    failure = Some(error);
+                    break;
+                }
+            }
+        }
+        match failure {
+            Some(error) => Err(error),
+            None => Ok(reply),
+        }
+    }
+}
+
+/// One piece of a streamed answer.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct StreamChunk {
+    pub text: String,
+    pub model: Option<String>,
+    pub done_reason: Option<String>,
+    pub prompt_tokens: Option<u64>,
+    pub answer_tokens: Option<u64>,
+}
+
+/// Parse one NDJSON line of a `/api/chat` stream.
+///
+/// Returns `Ok(None)` for a line that carries no text (a keep-alive or a bare `done`), so the
+/// caller can keep streaming without special cases.
+pub fn parse_stream_line(line: &str) -> Result<Option<StreamChunk>, LlmError> {
+    let line = line.trim();
+    if line.is_empty() {
+        return Ok(None);
+    }
+    let value: serde_json::Value = serde_json::from_str(line)
+        .map_err(|error| LlmError::new(format!("a streamed line is not JSON: {error}")))?;
+    if let Some(error) = value.get("error").and_then(|error| error.as_str()) {
+        return Err(LlmError::new(error.to_string()));
+    }
+    let text = value
+        .get("message")
+        .and_then(|message| message.get("content"))
+        .and_then(|content| content.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let chunk = StreamChunk {
+        text,
+        model: value
+            .get("model")
+            .and_then(|model| model.as_str())
+            .map(|model| model.to_string()),
+        done_reason: value
+            .get("done_reason")
+            .and_then(|reason| reason.as_str())
+            .map(|reason| reason.to_string()),
+        prompt_tokens: value
+            .get("prompt_eval_count")
+            .and_then(|count| count.as_u64()),
+        answer_tokens: value.get("eval_count").and_then(|count| count.as_u64()),
+    };
+    if chunk.text.is_empty() && chunk.done_reason.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(chunk))
+}
+
+/// The `/api/chat` body asking for a stream.
+pub fn chat_body_streaming(request: &ChatRequest) -> String {
+    let mut body: serde_json::Value =
+        serde_json::from_str(&chat_body(request)).unwrap_or_else(|_| serde_json::json!({}));
+    body["stream"] = serde_json::Value::Bool(true);
+    body.to_string()
 }
 
 #[cfg(test)]

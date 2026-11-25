@@ -6,6 +6,7 @@
 //! without a display.
 
 pub mod ai;
+pub mod chat;
 pub mod commands;
 pub mod dialogs;
 pub mod git;
@@ -425,6 +426,8 @@ pub struct Model {
     pub next_job_id: u64,
     /// The MCP client panel is open.
     pub show_agent_panel: bool,
+    /// The agent chat window is open (Phase 16.1).
+    pub show_chat_panel: bool,
     /// Running search, if any.
     pub search_job: Option<search::SearchJob>,
     /// The background transfer manager window is open.
@@ -473,6 +476,8 @@ pub struct Model {
     pub theme_set: rc_core::theme::ThemeSet,
     /// Where themes are read from (tests and portable installs point elsewhere).
     pub themes_dir_override: Option<std::path::PathBuf>,
+    /// The agent chat (Phase 16.1).
+    pub chat_session: chat::ChatSession,
 }
 
 /// An open F3 viewer.
@@ -552,6 +557,7 @@ impl Model {
             transfers: Vec::new(),
             next_job_id: 1,
             show_agent_panel: false,
+            show_chat_panel: false,
             search_job: None,
             show_transfer_manager: false,
             saved_selection: None,
@@ -575,6 +581,7 @@ impl Model {
             git_push_job: None,
             theme_set: rc_core::theme::ThemeSet::with_builtins(),
             themes_dir_override: None,
+            chat_session: chat::ChatSession::default(),
             keymap,
             settings,
             strings,

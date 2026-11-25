@@ -189,6 +189,34 @@ it. Testing asks the model a trivial question on a worker thread, so a 60 GB mod
 not freeze the window, and the answer is shown in the dialog and the status line. A fresh
 installation with no model chosen takes the first tool-capable one.
 
+## Phase 16.1 — streaming answers and the agent chat (first slice, done)
+
+`cargo test -p rc-llm` → **11 tests**, `cargo test -p rcommander --lib chat` → **6 tests**, plus
+**2 UI tests**.
+
+**Streaming.** `Provider::chat_stream` reads `/api/chat` with `"stream": true` and hands each piece
+to a callback as it arrives, so the window can draw text while a large model is still generating.
+The HTTP client grew a chunked-body reader, because that is how Ollama frames a stream; NDJSON
+lines are parsed one at a time (`parse_stream_line`), and the final message is assembled from the
+pieces the same way the non-streaming call builds it. A piece that carries only metadata (a bare
+final `done`) is not a chunk. The tests drive an in-process fake server that emits the body in
+several `Transfer-Encoding: chunked` writes, which is what exposed the need for the incremental
+reader: the pieces arrive split (`"Hel"`, `"lo "`, `"there"`) and still come out as `"Hello there"`.
+
+**The chat.** *Configuration ▸ Agent chat* (`cm_AiChat`) opens a conversation pane: transcript,
+input line, the model in use, *New conversation* and *Stop*. The transcript **is** the request
+history, so a follow-up question sees what was said before. The answer streams into the last line;
+*Stop* keeps what arrived and marks it; a failure is written into the transcript and the status
+line instead of vanishing. The call runs on a worker thread and the model polls a channel, so a
+model that takes half a minute to load cannot freeze the UI, and the model layer stays free of
+egui (the TUI frontend can use the same session).
+
+The boundary is deliberate: the chat **cannot touch files**. Every action with side effects still
+belongs to the policy gate, so a clever sentence in the transcript can never become a write
+without an approval and an audit entry. `Docs/Agent chat/{en,cs}.md` says so plainly, together
+with the honest limits (no tool calling in this window yet, plain-text answers, transcript only in
+memory).
+
 ## Phase 16.0 / MCP — Git tools for the agent (done)
 
 `cargo test -p rc-agent --test server_protocol` → **44 tests**, `cargo test -p rcommander --lib

@@ -569,6 +569,15 @@ impl Model {
                 ));
                 CommandOutcome::Ok
             }
+            "cm_aichat" | "cm_chat" | "cm_agentchat" => {
+                // Opening the chat is also the first place a model list is needed, so a
+                // fresh installation does not have to open the picker first.
+                if self.ai_models.models.is_empty() {
+                    let _ = self.refresh_ai_models();
+                }
+                self.show_chat_panel = true;
+                CommandOutcome::Ok
+            }
             "cm_themetoggle" => self.toggle_theme(),
             "cm_themenext" => self.cycle_theme(1),
             "cm_themeprevious" => self.cycle_theme(-1),
