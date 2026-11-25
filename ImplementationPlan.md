@@ -135,6 +135,37 @@ Headless and fully testable; the UI is only a view over it.
 | 10.8 | Agent panel | integration | MCP server toggle, client connections, tool calls |
 | 10.9 | UI tests | `tests/ui_*.rs` with `egui_kittest` | toolbar interactions produce the expected model state |
 
+### Phase 10.10 — Native context menus and contextual actions
+
+Right-click selects the item under the pointer (preserving an existing multi-selection
+when the clicked item is already marked), focuses the correct pane, and opens a context
+menu for that exact selection. A right-click on empty space has directory/background
+semantics; it must not silently act on the cursor's old file. This applies to list and
+thumbnail modes, keyboard context-menu invocation and accessibility.
+
+- Windows local filesystem: use supported Windows Shell context-menu interfaces where
+  available, including installed shell verbs/handlers, with a **RCommander submenu at
+  the top** of the composed menu. Preserve normal Open, Open with, Cut, Copy, Paste,
+  Properties and other applicable system verbs. Use the documented Shell COM lifetime,
+  owner-window and message handling rules; do not promise an exact Windows 11 Explorer
+  menu clone. If native integration cannot be used, offer an honest internal fallback.
+- Linux: use desktop-supported actions (MIME associations, desktop entry actions and
+  available integration interfaces); there is no single portable Explorer-equivalent
+  context-menu API. Android uses platform-appropriate long-press actions.
+- Virtual/remote panels (Git, archive, SFTP, future providers): build the menu from the
+  provider's advertised capabilities. Never invoke a local Shell verb on a remote or
+  virtual path by accident.
+- RCommander actions reuse the command catalog: F3/F4, compare, checksums, Git,
+  open terminal here, and (once available) Ask Agent, review script/binary,
+  translate, and applicable workloads. Show unavailable capabilities as disabled or
+  omit them. Context actions that send data or change a host pass Phase 16.0 policy;
+  selecting a workload does not grant permissions.
+
+DoD: headless tests cover target selection, marked/unmarked item behaviour, empty-space
+menus, capability filtering and dispatch to the originating pane; UI tests cover both
+pane sides and thumbnails; actual Windows desktop smoke tests cover Shell verbs,
+multi-selection and fallback. Test native integration separately from mock menus.
+
 ## Phase 11 — Platforms and packaging
 
 | # | Step | Output | DoD |
@@ -366,6 +397,60 @@ Example user journey:
 | 16.13 | Project scaffolding and approved commands | bounded project-task runner with working-directory constraints, configured commands such as `dotnet new`, `dotnet test`, `git init` and local commit, streaming logs and live file updates | temp-directory integration test creates a C# solution and test project using fixture/fake command runners; tests prohibit arbitrary commands, unsafe working paths, secrets in command/log output and unapproved external publication |
 | 16.14 | Remote SSH workspace actions | browse/preview/edit via SFTP provider, optional separately authorised SSH command transport using verified host keys, isolated command scope, per-host identity and operation logs | mock SSH/SFTP integration tests for host verification, reauthentication, network loss, stale remote file conflicts and refusal of remote shell execution without its specific grant; depends on Phase 13 |
 | 16.15 | Platform capability matrix | desktop-first feature toggles for agent chat, model runtime, MCP tools, project execution and SSH commands; optional/limited Android UI with no forced parity | Linux/Windows test matrix covers chat and tool workflows; Android build remains valid with desktop-only extensions disabled and unsupported actions hidden or clearly disabled; no requirement to ship an Android AI workstation |
+
+### Phase 16.16–16.21 — Prompt library, workload packs and reusable agent runtime
+
+These are foundational to the AI layer, not a separate chatbot or a late add-on.
+The user can configure a provider, choose a workload, adjust prompts, and inspect the
+effective context before asking the agent to act. The initial translation demo may use
+a minimal version of these contracts; the complete editor and advanced orchestration
+can follow without breaking stored prompts/workloads.
+
+**Prompt Manager / editor.** Ship readable, versioned default prompts as runtime
+resources, for all AI-assisted actions (general chat, translation, code review,
+development, script/binary review, administration, diagnostics and others as added).
+Keep bundled originals separate from user content. Users can edit via overrides,
+restore the shipped version, duplicate, create new prompts, append reusable fragments,
+import/export and compare versions after an update. Provide a preview of the assembled
+prompt and resolved typed variables (workspace, selection, language, platform, Git diff,
+etc.); missing or sensitive variables are explicit, never silently substituted or
+uploaded. Store prompt IDs, language, revision and applicable model/workload metadata.
+
+Use a deterministic composition order: application defaults → provider adaptation →
+workload → approved workspace conventions → user additions/overrides → current task.
+Files, tool output and third-party prompt packs are untrusted content, not authority.
+All editable instructions are advisory to the model: **the Phase 16.0 policy engine
+and OS isolation are external to prompts and cannot be overridden by any prompt**.
+No API keys or raw credentials are prompt variables. Workspace conventions require
+trust/approval before being loaded as instructions.
+
+**Workload Manager.** A workload is a versioned declarative work profile, not just
+one prompt: manifest, task templates/workflows, required and optional tool capabilities,
+provider/model preferences, input/output schemas, validators, budget, desired permission
+scope, applicable platforms and backup/recovery expectations. Capability requests
+are intersected with actual user grants; a manifest cannot confer permission. Allow
+bundled examples, user-created workloads, derived overrides, import/export and
+capability discovery; prefer declarative packs with no executable plugin code.
+Executable extensions reuse Phase 18's trust and isolation rules. Do not silently
+install tools or execute imported workflow steps.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 16.16 | Prompt catalog and composition | bundled default prompt resources, user override/extension layer, deterministic resolver and typed variable expansion | test stable IDs, order, missing variables, unknown references/cycles, escaping, secret exclusion, update preserving overrides and reset |
+| 16.17 | Prompt Manager UI | edit/copy/extend/restore, version comparison, import/export, effective-prompt preview and provider/workload choice | UI tests cover edited defaults surviving app update, user-created templates and previews without network calls |
+| 16.18 | Workload contracts and manager | versioned declarative manifests, workflow steps, model preferences, tool capability requests, validation and user-editable profiles | fake packs cover missing/unsupported capabilities, invalid schemas, conflicting grants, import trust and repeatable results; never elevate from pack data |
+| 16.19 | Reusable agent runtime | headless planning/tool-result loop shared by GUI, future TUI and optional CLI; cancellation, bounded tool calls, checkpoints, pause/resume, tool provenance and workspace state | mock provider/MCP tests cover multi-step tasks, partial failure, cancellation, restart/resume with stale targets and revoked grants; no automatic repeat of non-idempotent actions |
+| 16.20 | Context, cost and session orchestration | local history, context budgeting/compaction with provenance, provider-reported token usage (including cache hits when available), per-task budgets, model routing and optional subagents | fake models verify accounting without invented prices, budget stops, checkpoint recovery and separate child scopes no broader than parent; no data sent to additional models without permission |
+| 16.21 | Reference developer workload | inspect a chosen repo, create a C# project, edit files, run approved build/tests, review F3/diff, stage/commit and optionally push/create issues with separate external-action grants | temp repo and mock remote prove plan→changes→tests→review, no publish on denied approval, resume without duplicate actions; the same runtime works without GUI |
+
+Reference workload families: General Assistant, Software Developer, Documentation
+Writer, Translator (UnderstandMe/LibreTranslate where configured), Security Reviewer,
+Data Analyst and System Administrator. Later workload packs can cover Apache,
+Samba, PostgreSQL, Debian maintenance and disk diagnostics. Use the same provider/tool
+registry, command model, and audit system throughout. An optional future headless
+CLI may offer a workflow comparable in scope to coding agents such as Claude Code
+(e.g. `rcommander agent --workload developer --provider deepseek`); this is an
+interface proposal, not a claim of current functionality or complete parity.
 
 ### Shared, bidirectional pane workspace
 
@@ -656,6 +741,101 @@ or unprivileged MCP tools. The assistant cannot self-authorise elevation.
 Running portable RCommander as administrator/root does not count as a sandbox
 and must never silently relax tool permissions.
 
+## Phase 21 — Portable host diagnostics, System Check and repair workloads
+
+**Goal:** a technician can launch RCommander from removable storage (without
+installing the ordinary file manager on the target), choose a local or explicitly
+approved remote host, and either investigate a reported fault or perform a preventive
+System Check. The agent collects evidence, explains a diagnosis, proposes remediation,
+and verifies the original symptom after approved changes. RCommander is an assistant
+to the technician, not a replacement for OS security, managed endpoint policies,
+backups or qualified judgment.
+
+Two separate first-class workloads use the same diagnostic adapters:
+
+- **Host Diagnostics & Repair:** symptom-driven (e.g. "Windows has no sound").
+  Identify OS/device/runtime, inspect audio endpoints and default device, service
+  status/dependencies, PnP driver identity/error state and relevant event logs.
+  Distinguish missing driver, disabled device, incorrect endpoint, stopped audio
+  service and possible physical faults. Prefer the least disruptive supported remedy;
+  offer scoped service restart or device reinitialisation only with the appropriate
+  grant. Re-query state and play an optional user-approved test sound; ask the user
+  whether it is audible. A successful command is not proof of working audio.
+- **System Check:** proactive, read-only by default. Inventory OS/support status,
+  hardware/devices and driver problems, official pending updates and reboot status,
+  storage/free space and health, service failures, selected event logs, networking/DNS,
+  system integrity, time sync, resource pressure, application dependencies and
+  security posture (including firewall and endpoint protection status, not disabling
+  them). On Linux use the distribution's supported package/service facilities;
+  on Windows use documented Windows APIs, management interfaces and update policy.
+  Checks are capability-based and extensible: report passed, finding, not applicable,
+  unavailable/permission denied, or not verified with timestamps/evidence; never claim
+  to have checked "everything". Produce prioritised findings with a proposed repair
+  plan, user-selectable remediation, follow-up validation and before/after report.
+
+**Repair lifecycle:** Diagnose → Plan → Backup/recovery preparation → Approve →
+Repair → Verify → Report. Diagnose first without changing state; distinguish observed
+facts, hypotheses and unknowns. For each change show the specific host, affected
+resource, proposed operation, expected impact, dependencies, downtime/reboot and
+recovery limits. Reuse Phase 16.0 verified backups for changes outside the sandbox,
+with OS-appropriate rollback/snapshots/exported settings for non-file changes where
+available. Refuse required changes if the backup/recovery precondition cannot be
+satisfied. Report non-reversible effects before approval; do not promise complete
+rollback for drivers, packages, firmware, reboots or remote commands. Apply one
+bounded step or approved batch at a time; stop on failed validation, lost connection,
+changed targets, denied permission or cancellation. Never bypass UAC/polkit, MDM/GPO,
+WSUS, endpoint protection, locked-down update policy or the host owner's restrictions.
+Do not perform blind driver replacement, unsigned-driver installation, registry-cleaner
+sweeps, unsupported upgrades, firmware flashing, destructive disk tests or automatic
+reboots. Use supported vendor/OS sources, signed packages where applicable and
+explicit approval for changes, particularly disruptive or privileged operations.
+
+**Portable technician mode.** Add an explicit portable launch/profile and store
+prompts, workload packs, settings, history, reports, encrypted credentials and
+verified transaction backups on the chosen USB directory by default for this mode.
+Warn on read-only/insufficient space and do not silently fall back to a persistent
+host location. Bind session and restore records to a locally generated host identity;
+avoid sending hardware serials, user names, credentials, raw logs or unnecessary
+identifiers to a remote model. Offer preview/redaction of outgoing diagnostic evidence.
+A USB launch is not a guarantee of no OS traces: host logs, approved repairs and
+system-managed activity persist. Do not leave RCommander-installed persistent helpers,
+scheduled tasks or agents behind in portable mode; close owned processes/SSH sessions
+and flush reports before detach. If elevated repair needs a helper that is unavailable
+or forbidden on the host, mark that action unavailable; no workaround to evade policy.
+Local/offline deterministic check packs remain useful without any LLM or internet.
+Use the existing Phase 13 saved SSH identity and Phase 16.14 tool transport for remote
+targets; never confuse the local USB host with the remote system.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 21.1 | Diagnostic adapter and evidence contracts | platform capability discovery, read-only typed probes, bounded/redacted evidence, finding severity/confidence and coverage result | fixture tests for healthy/unhealthy/unsupported/access-denied states, timeout, cancellation, no changes during probing; evidence links and no fabricated measurements |
+| 21.2 | Windows and Linux System Check packs | common inventory + OS-specific checks for updates, devices/drivers, services/logs, resources, storage, network and integrity | deterministic fixtures for missing driver, pending reboot, failed service, low space, inaccessible logs, managed update policy; no unsupported probe is reported as passed |
+| 21.3 | Host Diagnostics & Repair | symptom-driven audio/network/printing/application and Linux service diagnostics; supported bounded repair adapters and user-confirmed functional checks | audio fixture detects stopped service and offers restart; denied approval leaves state unchanged; simulated successful restart with still-broken audio is not marked fixed; real host tests only in disposable/authorised test environments |
+| 21.4 | System Check remediation workflow | prioritised findings, select/defer repair actions, exact scope approval, verified recovery record, pre/post checks and partial-failure handling | policy tests reject unsafe or out-of-scope changes, preserve managed update settings, stop on stale evidence; re-run the affected checks and never report an unverified repair as success |
+| 21.5 | Portable technician mode and handover | explicit portable data root, local/offline workload support, encrypted local secrets, host-scoped reports and recovery manifests, safe shutdown and detach readiness | removable-drive fixture tests for missing/read-only/full storage, disconnect, restart/recovery and no application-owned persistent services; no silent storage fallback or disclosure to remote AI |
+| 21.6 | Reports and repeat checks | structured and human-readable before/after report, individual evidence links, attempted/fixed/failed/deferred findings, uncovered checks, optional export and comparison with previous user-selected baseline | offline report fixtures show coverage and unknowns; redact secrets and identifiers; distinguish no findings from not checked, and command success from verified repair |
+| 21.7 | Remote administration and deployment workload | approved SSH/SFTP workflow: inspect Debian host, publish .NET app, configure scoped systemd service and Apache reverse proxy, validate configuration and health | mock SSH then opt-in disposable Debian integration test; verify host key, paths and host identity, required backups, apache configtest, systemd/app and HTTP health; failure or lost session stops and reports recovery; no unapproved privileged command or exposure |
+| 21.8 | Optional diagnostic integrations | DiskChecker non-destructive SMART/latency evidence and optional trusted tool/MCP packs for further diagnostics | fixtures handle missing tools, USB/SMART unsupported devices and inaccessible counters without inventing values; no destructive disk operation reachable from a routine System Check |
+
+**Example deployment** (not a special privileged agent): the user opens an approved
+Debian SSH/SFTP target in one pane and the agent chat in the other. The workload
+checks existing .NET/runtime, ports, Apache modules, site configuration and service
+state, proposes package/install and deployment changes, transfers the application,
+prepares reviewed config/service files, and validates before enabling/reloading
+services. Use a dedicated least-privilege application account and loopback binding
+where appropriate; public exposure, DNS/TLS changes and firewall modifications
+require separately authorised scope. Verify actual service and HTTP endpoint
+functionality, not merely process exit codes. The user can inspect generated files
+with F3 and logs in the terminal. Reuse the Phase 16 runtime and approval system,
+Phase 19 terminal, and Phase 20 privileged helper where applicable.
+
+**Order:** Phase 21.1 and read-only offline check fixtures can start with Phase 16.18
+workload contracts. All AI-controlled changes require Phase 16.0 and the agent runtime;
+privileged local actions require Phase 20, remote actions require Phase 13/16.14
+and an authorised remote execution policy. Desktop Windows/Linux first; Android
+does not need system-repair or administrator feature parity. Keep ordinary file
+management fully functional with no workload packs, model or helper installed.
+
 ## Ideas backlog (not scheduled yet, cheapest value first)
 
 These are candidates that fit the "portable tool for a developer/administrator"
@@ -664,7 +844,7 @@ above are green.
 
 | Idea | Why it is worth it | Cost |
 | --- | --- | --- |
-| Portable mode | everything (settings, secrets, session, help, themes, plugins) next to the executable, already half-supported through `RCOMMANDER_CONFIG_DIR`; one documented switch plus an "on a USB stick" test | small |
+| Basic portable file-manager mode | explicit data/config root next to the executable, reusing `RCOMMANDER_CONFIG_DIR`; coordinate with Phase 21.5 portable technician profile rather than creating a second storage mechanism | small |
 | Directory comparison with three panes | a third "reference" directory (for example a Git revision) next to the two panels: shows what differs before syncing | medium |
 | Batch rename presets and saved masks | the multi-rename dialog already has the pattern language; saving named presets makes it reusable per project | small |
 | Archive-as-folder for remote files | stream a remote archive into the existing archive panel without a full download | medium |
