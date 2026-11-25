@@ -569,6 +569,23 @@ impl Model {
                 ));
                 CommandOutcome::Ok
             }
+            "cm_srcchat" | "cm_leftchat" => self.toggle_panel_chat(crate::model::Side::Left),
+            "cm_trgchat" | "cm_rightchat" => self.toggle_panel_chat(crate::model::Side::Right),
+            "cm_chatpane" | "cm_chatbesidefiles" => self.open_chat_beside_files(),
+            "cm_chatfiles" | "cm_closechatpane" => {
+                let focus = self.focus;
+                let mut outcome = self.set_panel_chat(focus, false);
+                // A second panel showing the chat would leave no file list at all, so close it
+                // as well; asking twice for "give me the files back" must not need two keys.
+                let other = focus.other();
+                if self.panel_shows_chat(other) {
+                    let second = self.set_panel_chat(other, false);
+                    if matches!(outcome, CommandOutcome::None) {
+                        outcome = second;
+                    }
+                }
+                outcome
+            }
             "cm_aichat" | "cm_chat" | "cm_agentchat" => {
                 // Opening the chat is also the first place a model list is needed, so a
                 // fresh installation does not have to open the picker first.

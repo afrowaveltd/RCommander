@@ -7,6 +7,7 @@
 
 pub mod ai;
 pub mod chat;
+pub mod chatpane;
 pub mod commands;
 pub mod dialogs;
 pub mod fonts;
@@ -125,6 +126,11 @@ pub struct Panel {
     pub error: Option<String>,
     /// Path typed into the inline path editor (None = not editing).
     pub path_edit: Option<String>,
+    /// Show the agent chat in this panel instead of the file list (Phase 16.1).
+    ///
+    /// The listing is untouched while the chat is shown, so switching back restores the directory,
+    /// the cursor and the selection exactly.
+    pub chat: bool,
 }
 
 impl Panel {
@@ -161,6 +167,7 @@ impl Panel {
             mask_spec,
             error: None,
             path_edit: None,
+            chat: false,
         }
     }
 

@@ -2460,3 +2460,91 @@ fn a_code_block_in_an_answer_is_syntax_coloured() {
         "the language is labelled above the code"
     );
 }
+
+#[test]
+fn the_chat_can_live_in_a_panel_while_the_other_panel_shows_files() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.chat().push(
+        rcommander::model::chat::Speaker::User,
+        "what is in this folder?",
+    );
+    app.model.chat().push(
+        rcommander::model::chat::Speaker::Model,
+        "Three files, listed above.",
+    );
+    let mut harness = harness(app);
+    harness.state_mut().model.focus = rcommander::model::Side::Left;
+    harness
+        .state_mut()
+        .model
+        .set_panel_chat(rcommander::model::Side::Right, true);
+    harness.run();
+    // The conversation is in the panel...
+    harness.root().get_by_label("what is in this folder?");
+    harness.root().get_by_label("Three files, listed above.");
+    // ...and the left panel still lists the files, so both are on screen at once.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("alpha.txt")
+            .count()
+            > 0,
+        "the file list is still visible"
+    );
+    // "Show files" puts the listing back and keeps the conversation.
+    harness
+        .root()
+        .get_by_label("agent.pane.files")
+        .click_accesskit();
+    harness.run();
+    assert!(
+        !harness
+            .state()
+            .model
+            .panel_shows_chat(rcommander::model::Side::Right)
+    );
+    assert_eq!(harness.state().model.chat_session.lines.len(), 2);
+}
+
+#[test]
+fn the_panel_command_opens_the_chat_beside_the_files() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.state_mut().model.focus = rcommander::model::Side::Left;
+    harness.state_mut().execute("cm_ChatPane");
+    harness.run();
+    // The focused panel keeps its files; the other one hosts the chat.
+    assert!(
+        !harness
+            .state()
+            .model
+            .panel_shows_chat(rcommander::model::Side::Left)
+    );
+    assert!(
+        harness
+            .state()
+            .model
+            .panel_shows_chat(rcommander::model::Side::Right)
+    );
+    harness.root().get_by_label("ai.chat.empty");
+    // Closing it gives the panel back its listing.
+    harness.state_mut().execute("cm_ChatFiles");
+    harness.run();
+    assert!(
+        !harness
+            .state()
+            .model
+            .panel_shows_chat(rcommander::model::Side::Right)
+    );
+    // The listing is back, and the "show files" button is gone with the pane.
+    harness.root().get_by_label("alpha.txt");
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("agent.pane.files")
+            .count()
+            == 0,
+        "no chat pane, no pane button"
+    );
+}

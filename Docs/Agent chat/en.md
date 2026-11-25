@@ -13,6 +13,23 @@ can ask about what you are looking at without switching windows. Open it from
 - *New conversation* clears the transcript and starts from scratch.
 - `Enter` sends, `Shift+Enter` adds a line — so multi-line questions work.
 
+## In a panel, beside the files
+
+The chat can live **in a panel** instead of in its own window, which is what you
+want when the conversation is about the directory you are looking at:
+
+- *Configuration ▸ Chat in the other panel* (`cm_ChatPane`) puts the chat in the
+  **passive** panel, so the files you were reading stay on screen. The panel that
+  showed the chat takes the focus.
+- `cm_SrcChat` / `cm_TrgChat` toggle it in one named panel.
+- **Show files** in the pane's header, or `cm_ChatFiles`, puts the listing back —
+  in both panels at once, because two chat panes would leave no file list at all.
+
+The listing is never thrown away while the chat is shown: switching back restores
+the same directory, the same cursor row and the same selection, so a question
+about "the third file" does not cost you your place. Both arrangements can be
+open at once; the window and the pane share one conversation and one model.
+
 ## Models
 
 The chat uses the model selected in the model picker (see the *Configuration*

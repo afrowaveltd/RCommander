@@ -13,6 +13,23 @@ zeptat na to, na co se právě díváte, aniž byste přepínali okna. Otevřete
 - *Nový rozhovor* transkript vymaže a začne od začátku.
 - `Enter` odešle, `Shift+Enter` přidá řádek — víceřádkové otázky tedy fungují.
 
+## V panelu, vedle souborů
+
+Chat může být **v panelu** místo ve vlastním okně — to se hodí, když se rozhovor
+týká adresáře, na který se díváte:
+
+- *Konfigurace ▸ Chat v druhém panelu* (`cm_ChatPane`) dá chat do **pasivního**
+  panelu, takže soubory, které jste četli, zůstanou na obrazovce. Panel s chatem
+  převezme fokus.
+- `cm_SrcChat` / `cm_TrgChat` ho přepnou v konkrétním panelu.
+- **Zobrazit soubory** v hlavičce panelu nebo `cm_ChatFiles` vrátí seznam — v obou
+  panelech najednou, protože dva chat panely by nezbyly žádný seznam souborů.
+
+Seznam se při zobrazení chatu nikam nezahazuje: přepnutí zpět vrátí stejný
+adresář, stejný řádek kurzoru i stejné označení, takže otázka na „ten třetí
+soubor" vás nepřipraví o místo. Okno i panel mohou být otevřené současně; sdílejí
+jeden rozhovor a jeden model.
+
 ## Modely
 
 Chat používá model vybraný v nabídce modelů (viz téma *Konfigurace*). RCommander

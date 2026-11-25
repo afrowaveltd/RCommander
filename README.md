@@ -266,6 +266,10 @@ follow-up questions work. Ollama is the built-in provider
 (`[agent] provider_url`, default `http://127.0.0.1:11434`), so nothing leaves the
 machine; see `Docs/Agent chat/`.
 
+*Configuration ▸ Chat in the other panel* (`cm_ChatPane`) puts the chat **in a
+panel** with the file list still on screen; the listing is never thrown away, so
+switching back restores the same directory, cursor and selection.
+
 The chat **cannot touch files**. Everything with a side effect still goes through
 the capability policy, which asks for approval and writes an audit entry — a
 sentence in the transcript can suggest an action but never perform one.

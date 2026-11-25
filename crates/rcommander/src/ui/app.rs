@@ -756,6 +756,9 @@ impl RCommanderApp {
                 if ui.button(self.model.t("ai.chat.title")).clicked() {
                     command = Some("cm_AiChat".into());
                 }
+                if ui.button(self.model.t("agent.pane.menu")).clicked() {
+                    command = Some("cm_ChatPane".into());
+                }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
                 }
@@ -892,6 +895,20 @@ impl RCommanderApp {
                     egui::vec2(widths[index], available.y),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
+                        if self.model.panel_shows_chat(*side) {
+                            let pane = crate::ui::chat_window::pane(
+                                ui,
+                                &mut self.model,
+                                &mut self.chat_ui,
+                                &palette,
+                                *side,
+                            );
+                            if pane.show_files {
+                                self.pending_command = Some("cm_ChatFiles".to_string());
+                            }
+                            self.panel_rects[*side as usize] = Some(ui.min_rect());
+                            return;
+                        }
                         let response = panel_view::show(
                             ui,
                             &mut self.model,

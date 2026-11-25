@@ -167,6 +167,29 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 16.1c — the chat lives in a panel (done)
+
+`cargo test -p rcommander --lib chatpane` → **4 tests**, plus **2 UI tests**.
+
+The chat was only a floating window, which is the wrong shape for the question it exists to answer:
+a window covers the files it is talking about. A panel can host the conversation with the other
+panel still listing a directory, and that is what the plan asked for.
+
+`Panel.chat` is the whole state: when it is set the panel draws the chat instead of its listing, and
+the listing is **not** touched — same directory, same cursor row, same marks. That is the property
+the tests pin down, because the opposite (a pane that quietly reloads and loses your place) is the
+kind of thing a user only notices after it bites them. `cm_ChatPane` puts the chat in the *passive*
+panel, `cm_SrcChat`/`cm_TrgChat` toggle one named panel, and `cm_ChatFiles` — or the pane's own *Show
+files* button — restores **both** panels, since two chat panes would leave no file list at all.
+
+The window and the pane share one rendering function, so they cannot drift: the window keeps its
+frame and title, the pane gets a header with the panel name and *Show files*. A panel is narrower, so
+its input row is one line instead of two rather than pushing the transcript out of sight.
+
+Keyboard handling needed no new rule: typing into the input takes the focus, and the existing
+shortcut handler already steps aside when a widget has focus. That is why F-keys do not navigate the
+hidden list while somebody is typing a question.
+
 ## Phase 17.0 — a small highlighter and six colour roles (done)
 
 `cargo test -p rc-core --lib syntax` → **13 tests**, `cargo test -p rcommander --lib code_tests` →
