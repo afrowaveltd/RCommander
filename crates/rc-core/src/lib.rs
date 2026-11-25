@@ -9,6 +9,7 @@
 //! async runtime or network dependency so that it can be reused by the desktop
 //! app, the Android front-end and the MCP server.
 
+pub mod audit;
 pub mod branch;
 pub mod checksum;
 pub mod command;

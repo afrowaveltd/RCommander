@@ -1887,3 +1887,67 @@ fn right_clicking_a_row_opens_the_context_menu() {
     // internal command is covered by a unit test in `panel_view`, because a headless
     // harness cannot reliably click inside an egui popup.
 }
+
+#[test]
+fn the_approval_dialog_shows_the_operation_and_can_be_refused() {
+    use rc_core::policy::Request;
+    let (left, right) = fixture();
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(dir.path().to_path_buf());
+    app.model.audit = rc_core::audit::AuditLog::new(dir.path().join("audit.log"), true);
+    app.model.settings.agent.profile = "privileged".to_string();
+    app.model.refresh_policy();
+    let mut harness = harness(app);
+
+    let request = Request::privileged("systemctl restart apache2", "agent");
+    harness
+        .state_mut()
+        .model
+        .ask_approval(&request, "the service fails to start");
+    harness.run();
+    // The dialog names the operation and its target, and warns that this one is irreversible.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("agent.op.privileged")
+            .count()
+            > 0
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("systemctl restart apache2")
+            .count()
+            > 0
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("agent.approval.irreversible")
+            .count()
+            > 0
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("agent.approval.why")
+            .count()
+            > 0
+    );
+
+    // Refusing closes the dialog and lands in the audit trail.
+    harness
+        .root()
+        .get_by_label("agent.approval.refuse")
+        .click_accesskit();
+    harness.run();
+    harness.run();
+    assert!(harness.state().model.top_dialog().is_none());
+    let events = harness.state().model.audit().read();
+    assert_eq!(
+        events.last().unwrap().verdict,
+        rc_core::audit::Verdict::Refused
+    );
+    assert!(harness.state().model.audit_state().is_intact());
+}

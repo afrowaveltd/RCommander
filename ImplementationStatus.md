@@ -195,8 +195,25 @@ created. The manifest (original hash, new hash, backup path, created flag) is wr
 "restore from backup" is a real feature and a tampered backup is reported instead of pretending a
 restore happened.
 
-Not wired to a UI yet: the approval dialog, the audit log file and the settings section belong to
-16.0b/16.0d and come with the agent panel.
+**16.0b — approval and audit.** `rc_core::audit` writes an append-only trail where every line
+carries the hash of the previous one, so `verify()` reports the exact line where a log was edited
+or shortened; `redact()` is the single place that decides how a secret looks, and an event can
+never break the one-line rule (tabs and newlines are neutralised). `Policy::from_settings` builds
+the policy from `[agent]` (profile, roots, deny list, approval list, with safe fallbacks so an
+empty list cannot mean "no approvals").
+
+The model wires it together: `Model::evaluate` checks the policy, writes the decision, and either
+runs the request or refuses it; `Model::ask_approval` opens the dialog for approval-worthy work;
+`approve_pending`/`refuse_pending` record the answer and can create a session grant;
+`revoke_agent_grants()` is the stop button; `audit_state()` reports the chain. The **approval
+dialog** names the origin, the operation, the canonical target, the destination, the agent's
+reason and whether a verified backup makes it reversible — and says plainly when it does not
+(a restart, a push, an elevated command). The human path is not policy-gated: the policy limits
+the *agent's* reach, and `origin` keeps that visible in the log.
+
+Writing this exposed a real gap: a write was only checked at its **resource**, so copying a file
+*out of* the sandbox to an outside destination passed. A local destination is now a second
+resource and must be covered by the same grant.
 
 ## Phase 14.6 — the window chrome follows the theme (done)
 

@@ -391,6 +391,21 @@ impl Policy {
             other => other.clone(),
         };
 
+        // 1b. A local destination is a second resource: writing *into* the sandbox from
+        //     outside it (or out of it) is exactly the case a grant must not silently allow.
+        let destination_path = match &request.destination {
+            Some(Destination::Local(path)) => match canonical_for_check(path) {
+                Some(path) => Some(path),
+                None => {
+                    return Decision::Deny(Denial {
+                        reason: DenialReason::Unresolvable,
+                        message: format!("cannot resolve the destination {}", path.display()),
+                    });
+                }
+            },
+            _ => None,
+        };
+
         // 2. The deny list wins over every grant.
         if let Some(resource) = &resource {
             for denied in &self.deny_paths {
@@ -417,7 +432,10 @@ impl Policy {
                 }
                 continue;
             }
-            if resource_covers(grant, resource.as_deref()) {
+            if resource_covers(grant, resource.as_deref())
+                && (destination_path.is_none()
+                    || resource_covers(grant, destination_path.as_deref()))
+            {
                 covering.push(grant);
             }
         }
@@ -465,6 +483,113 @@ impl Policy {
             grant: covering[0].id.clone(),
         }
     }
+}
+
+impl Policy {
+    /// Build the policy from the `[agent]` settings section.
+    ///
+    /// `fallback_roots` is used when no sandbox root is configured (the other panel's
+    /// directory), so a fresh installation starts working without a detour through the
+    /// options dialog.
+    pub fn from_settings(agent: &crate::config::Agent, fallback_roots: &[PathBuf]) -> Policy {
+        let profile = Profile::parse(&agent.profile);
+        let mut policy = Policy {
+            profile,
+            grants: Vec::new(),
+            deny_paths: agent.deny_paths.iter().map(PathBuf::from).collect(),
+            require_approval: agent
+                .require_approval
+                .iter()
+                .filter_map(|name| parse_operation(name))
+                .collect(),
+        };
+        if policy.require_approval.is_empty() {
+            // An empty list must not become "no approvals at all"; the safe default stays.
+            policy.require_approval = [
+                Operation::Execute,
+                Operation::Publish,
+                Operation::Privileged,
+            ]
+            .into_iter()
+            .collect();
+        }
+        let mut roots: Vec<PathBuf> = agent.sandbox_roots.iter().map(PathBuf::from).collect();
+        if roots.is_empty() {
+            roots = fallback_roots.to_vec();
+        }
+        match profile {
+            Profile::Sandbox => {
+                if !roots.is_empty() {
+                    policy.grant(
+                        Grant::new(
+                            "sandbox",
+                            "the workspace the user shared",
+                            &[
+                                Operation::Read,
+                                Operation::Write,
+                                Operation::Create,
+                                Operation::Delete,
+                                Operation::Rename,
+                            ],
+                        )
+                        .root(roots[0].clone()),
+                    );
+                }
+            }
+            Profile::User | Profile::Privileged => {
+                policy.grant(
+                    Grant::new(
+                        "user-read",
+                        "read anything the user can read",
+                        &[Operation::Read, Operation::Network],
+                    )
+                    .any_root(),
+                );
+                for root in &roots {
+                    policy.grant(
+                        Grant::new(
+                            format!("workspace-{}", root.display()),
+                            "the workspace the user shared",
+                            &[
+                                Operation::Write,
+                                Operation::Create,
+                                Operation::Delete,
+                                Operation::Rename,
+                            ],
+                        )
+                        .root(root.clone()),
+                    );
+                }
+                if profile == Profile::Privileged {
+                    policy.grant(
+                        Grant::new(
+                            "elevated",
+                            "administration",
+                            &[Operation::Privileged, Operation::Execute],
+                        )
+                        .any_root(),
+                    );
+                }
+            }
+        }
+        policy
+    }
+}
+
+/// Parse an operation name from the settings file.
+pub fn parse_operation(name: &str) -> Option<Operation> {
+    Some(match name.trim().to_ascii_lowercase().as_str() {
+        "read" => Operation::Read,
+        "write" => Operation::Write,
+        "create" => Operation::Create,
+        "delete" => Operation::Delete,
+        "rename" => Operation::Rename,
+        "execute" | "exec" => Operation::Execute,
+        "publish" => Operation::Publish,
+        "network" => Operation::Network,
+        "privileged" | "sudo" => Operation::Privileged,
+        _ => return None,
+    })
 }
 
 /// True when the operation's resource is a filesystem path.

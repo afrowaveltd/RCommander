@@ -77,6 +77,8 @@ pub enum Dialog {
     GitRemote(GitRemoteState),
     /// Clone a remote into the panel.
     GitClone(GitCloneState),
+    /// Ask the user to allow one side-effecting operation.
+    AgentApproval(AgentApprovalState),
     /// Encode a file as text (MIME/UUE/XXE).
     Encode(EncodeState),
     /// Decode a text file back to binary.
@@ -210,6 +212,19 @@ impl GitCommitState {
             count => format!("{count} files"),
         }
     }
+}
+
+/// The approval dialog for one side-effecting operation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AgentApprovalState {
+    /// What the user is being asked about.
+    pub pending: super::policy::PendingApproval,
+    /// The request the answer applies to.
+    pub request: rc_core::policy::Request,
+    /// Allow this operation for the rest of the session.
+    pub remember_for_session: bool,
+    /// Result of the last action.
+    pub status: String,
 }
 
 /// The clone dialog.

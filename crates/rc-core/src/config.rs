@@ -794,6 +794,18 @@ pub struct Agent {
     pub clients: Vec<McpServerConfig>,
     /// Show the agent panel in the UI.
     pub panel_enabled: bool,
+    /// Privilege profile the agent runs under: `sandbox`, `user` or `privileged`.
+    pub profile: String,
+    /// Roots the sandbox profile may touch (filled from the other panel when empty).
+    pub sandbox_roots: Vec<String>,
+    /// Path prefixes that are never touched, whatever a grant says.
+    pub deny_paths: Vec<String>,
+    /// Operations that always need an approval (`execute`, `publish`, `privileged`).
+    pub require_approval: Vec<String>,
+    /// Programs the agent may run without asking. Empty by default: nothing runs.
+    pub allow_exec: Vec<String>,
+    /// Write an audit log next to the other per-user files.
+    pub audit: bool,
 }
 
 impl Default for Agent {
@@ -806,6 +818,16 @@ impl Default for Agent {
             require_confirmation: true,
             clients: Vec::new(),
             panel_enabled: true,
+            profile: "sandbox".to_string(),
+            sandbox_roots: Vec::new(),
+            deny_paths: Vec::new(),
+            require_approval: vec![
+                "execute".to_string(),
+                "publish".to_string(),
+                "privileged".to_string(),
+            ],
+            allow_exec: Vec::new(),
+            audit: true,
         }
     }
 }

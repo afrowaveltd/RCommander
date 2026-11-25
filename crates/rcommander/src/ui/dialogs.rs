@@ -63,6 +63,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::GitBranches(state) => git_branches(ui, model, state),
                 Dialog::GitRemote(state) => git_remote(ui, model, state),
                 Dialog::GitClone(state) => git_clone(ui, model, state),
+                Dialog::AgentApproval(state) => agent_approval(ui, model, state),
                 Dialog::Encode(state) => encode_dialog(ui, model, state),
                 Dialog::Decode(state) => decode_dialog(ui, model, state),
                 Dialog::SaveSelection(state) => save_selection(ui, model, state),
@@ -139,6 +140,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::GitBranches(_) => "git.branches.title",
         Dialog::GitRemote(_) => "git.remote.title",
         Dialog::GitClone(_) => "git.clone.title",
+        Dialog::AgentApproval(_) => "agent.approval.title",
         Dialog::Encode(_) => "cmd.encode",
         Dialog::Decode(_) => "cmd.decode",
         Dialog::SaveSelection(_) => "cmd.save_selection",
@@ -2035,6 +2037,90 @@ fn unlock_secrets(
         }
     }
     DialogAction::None
+}
+
+/// Ask the user to allow one side-effecting operation.
+fn agent_approval(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut AgentApprovalState,
+) -> DialogAction {
+    let palette = crate::theme::Palette::for_model(model);
+    let pending = &state.pending;
+    ui.label(
+        egui::RichText::new(model.tf("agent.approval.origin", &[("origin", &pending.origin)]))
+            .strong(),
+    );
+    egui::Grid::new("agent_approval_grid")
+        .num_columns(2)
+        .show(ui, |ui| {
+            ui.label(model.t("agent.approval.operation"));
+            ui.label(
+                egui::RichText::new(model.t(operation_key(pending.operation)))
+                    .color(palette.accent)
+                    .strong(),
+            );
+            ui.end_row();
+            ui.label(model.t("agent.approval.target"));
+            ui.label(egui::RichText::new(&pending.target).monospace().small());
+            ui.end_row();
+            if !pending.destination.is_empty() {
+                ui.label(model.t("agent.approval.destination"));
+                ui.label(
+                    egui::RichText::new(&pending.destination)
+                        .monospace()
+                        .small(),
+                );
+                ui.end_row();
+            }
+        });
+    if !pending.explanation.is_empty() {
+        ui.separator();
+        ui.label(model.t("agent.approval.why"));
+        ui.label(egui::RichText::new(&pending.explanation).italics());
+    }
+    if pending.irreversible {
+        ui.separator();
+        ui.label(
+            egui::RichText::new(model.t("agent.approval.irreversible"))
+                .color(palette.warning)
+                .strong(),
+        );
+    } else {
+        ui.label(
+            egui::RichText::new(model.t("agent.approval.reversible"))
+                .color(palette.hidden)
+                .small(),
+        );
+    }
+    ui.checkbox(
+        &mut state.remember_for_session,
+        model.t("agent.approval.remember"),
+    );
+    if !state.status.is_empty() {
+        ui.label(egui::RichText::new(&state.status).color(palette.warning));
+    }
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui
+            .add(egui::Button::new(model.t("agent.approval.allow")).fill(palette.header_background))
+            .clicked()
+        {
+            let remember = state.remember_for_session;
+            model.approve_pending(remember);
+            action = DialogAction::Close;
+        }
+        if ui.button(model.t("agent.approval.refuse")).clicked() {
+            model.refuse_pending();
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+/// Localisation key of an operation name, for the dialog.
+fn operation_key(operation: rc_core::policy::Operation) -> &'static str {
+    operation.key()
 }
 
 /// Clone a remote into the panel's directory.

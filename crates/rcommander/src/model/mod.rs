@@ -8,6 +8,7 @@
 pub mod commands;
 pub mod dialogs;
 pub mod git;
+pub mod policy;
 pub mod remote;
 pub mod reset;
 pub mod search;
@@ -362,6 +363,11 @@ impl Panel {
     }
 }
 
+/// Whether the audit log is switched on in the settings.
+fn settings_audit_enabled(model: &Model) -> bool {
+    model.settings.agent.audit
+}
+
 /// Turn `<root>/branches/<name>` into a location for that revision.
 fn normalise_git_location(location: Location) -> Location {
     if !location.is_git() {
@@ -448,6 +454,10 @@ pub struct Model {
     pub connect_job: Option<sessions::ConnectJob>,
     /// The user's Git configuration, loaded only after approval.
     pub git_config: Option<rc_git::GitConfig>,
+    /// Capability policy for everything with side effects (Phase 16.0).
+    pub policy: rc_core::policy::Policy,
+    /// Append-only trail of what was allowed, refused and approved.
+    pub audit: rc_core::audit::AuditLog,
     /// A push started by "commit on save", running on a worker thread.
     pub git_push_job: Option<git::GitNetJob>,
     /// Colour themes found on disk plus the built-ins.
@@ -547,6 +557,8 @@ impl Model {
             sessions_dirty: false,
             connect_job: None,
             git_config: None,
+            policy: rc_core::policy::Policy::restrictive(),
+            audit: rc_core::audit::AuditLog::new(crate::paths::audit_path(), false),
             git_push_job: None,
             theme_set: rc_core::theme::ThemeSet::with_builtins(),
             themes_dir_override: None,
@@ -556,6 +568,11 @@ impl Model {
         };
         model.load_sessions();
         model.load_themes();
+        model.audit = rc_core::audit::AuditLog::new(
+            model.config_file("audit.log"),
+            settings_audit_enabled(&model),
+        );
+        model.refresh_policy();
         model.status = model.strings.get("status.ready");
         model
     }

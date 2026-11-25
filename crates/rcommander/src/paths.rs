@@ -95,6 +95,11 @@ pub fn secrets_path() -> PathBuf {
     rc_core::config::config_dir().join("secrets.enc")
 }
 
+/// Append-only audit trail of agent decisions.
+pub fn audit_path() -> PathBuf {
+    rc_core::config::config_dir().join("audit.log")
+}
+
 /// Session file: last directories, tabs and window geometry.
 pub fn session_path() -> PathBuf {
     rc_core::config::config_dir().join("session.toml")
