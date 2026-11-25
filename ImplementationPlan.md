@@ -470,7 +470,7 @@ functional without the service or an account.
   evidence, request independent reproduction, and coordinate bounded work.
   No public indexing or human discussion forum is required here. Owners retain
   access to their own relevant audit/status and a stop/revoke control. Raw
-  messages and temporary attachments expire under a configurable TTL and storage
+  messages and permitted temporary text excerpts expire under a configurable TTL and storage
   quota; close/expire abandoned sessions and document backup/deletion retention.
   Retain only necessary, minimal audit metadata separately, not perpetual transcripts.
 - Public Knowledge Catalogue: proposed
@@ -486,6 +486,33 @@ targets, not an assertion of deployment. Publish API terms, permissions,
 rate limits, versioning, authentication and abuse reporting. Use supported model
 provider interfaces, not browser scraping, account impersonation or shared keys.
 
+**Registration and authorisation:** public catalogue reads need no account;
+write and private collaboration capabilities require a server-side pseudonymous
+installation identity. On explicit opt-in, generate a local key pair (Ed25519
+is a candidate), automatically enrol the public key, prove possession and obtain
+revocable scoped credentials through a standard authenticated protocol. No
+manual email/password registration, hardware fingerprint or provider account
+identity is required. The local client holds keys and tokens outside model
+context; never expose credentials to agents. Limit new identities, registration
+and requests; use contribution quality, independent evidence and abuse controls
+rather than message counts for reputation. Key possession does not prove that a
+client is genuine or trustworthy; defend against mass identity creation and
+colluding identities. Keep authentication protocol selection open pending review.
+Document REST/OpenAPI and expose capability-scoped agent tools via MCP.
+
+**Text-only contract:** both the temporary workspace and durable catalogue accept
+bounded UTF-8 text and structured textual data only (plain text, Markdown,
+JSON, textual AJIS when supported, source excerpts and sanitised log excerpts).
+No binary attachments, images, archives, arbitrary file hosting, encoded binary
+payloads (including Base64), or executable uploads. Validate content, not merely
+extensions or declared MIME types; reject oversize, malformed or suspicious
+payloads and enforce per-message, per-record, per-room and per-identity quotas,
+including absolute lifetime and deletion policies. Treat source and commands as
+inert text; never execute server-side. Render Markdown without active HTML,
+scripts or automatic external fetches. Analyse large logs locally and send only
+the necessary evidence. Text-only is a design boundary, not proof that all
+accepted text is harmless or that every covert encoding can be detected.
+
 **Collaboration loop:** search existing catalogue first; if unresolved, open a
 sanitised temporary question with problem fingerprint, applicable versions,
 observations and desired help. Match it to opted-in capable agents (including
@@ -500,16 +527,50 @@ explicitly enabled; no background provider calls, cost, or work on another
 user's machine without the applicable opt-in policy, running client/service
 and budget. A question may stay unresolved or expire if no helper is available.
 
-When an exchange resolves a problem, automatically prepare a distilled,
-deduplicated catalogue candidate (not the raw transcript). Run schema,
-privacy, provenance, licensing and evidence validation; classify it as
-reported, reproduced, independently verified or disputed, as appropriate.
-Publish automatically only under a narrowly preauthorised publication policy
-and validation gates; otherwise hold it for review. A failed validation or
-unresolved case never silently becomes an authoritative solution. Use
-corrections, revisions, supersession and takedowns. Retain successful and
-unsuccessful tested approaches where useful, and expire the scratch exchange
-independently of the approved result.
+**Knowledge Pull Request (KPR):** the server records a problem owner and
+contributors. The owner is responsible for a distilled report/documentation
+when the problem is resolved; allow an authorised participant to take over an
+abandoned task. Automatically prepare a candidate from a resolved exchange
+(not its raw transcript). Use a GitHub-like proposal/review/check/merge lifecycle:
+draft, submitted, checks pending, changes requested, accepted/merged, rejected
+or withdrawn. The server-side Knowledge Gatekeeper validates authorisation,
+schema, text/size limits, privacy, provenance, licensing, relevance, duplicates
+and evidence; independent reviewers and an optional librarian role organise
+and improve records, not execute uploaded code. Classify evidence as reported,
+reproduced, independently verified or disputed as appropriate. A reviewer
+cannot approve its own contribution as independent verification. Only the
+validated merge path may publish or revise public records, including automatic
+merge under narrowly preauthorised policies and required review gates. Otherwise
+hold for review. Link the KPR to the source task and contributors, preserve
+versioned diffs, corrections, supersession and takedowns, and expire scratch
+content independently. An unresolved or failed validation case never silently
+becomes an authoritative solution. Prefer GitHub-like semantics without making
+GitHub accounts or hosting a dependency. An optional Git export of approved
+public text is possible; private scratch data must not enter persistent Git
+history. The authoritative persistence and export architecture remain open.
+
+**Agent-organised taxonomy:** start with an empty or minimal catalogue, not a
+hard-coded list of platforms or subject areas. Agents classify contributions
+using semantic search across all existing topics/records and progressively
+broader parent matches: (1) find an existing suitable category/subcategory/topic;
+(2) if no suitable topic, find a category/subcategory and propose a new topic;
+(3) if no suitable subcategory, find a category and propose a new subcategory
+and topic; (4) if no suitable category, propose all three levels. A KPR includes
+the proposed contribution and any missing taxonomy nodes together. Search
+existing records first for duplicates or evidence to append; support aliases,
+synonyms, descriptions, tags and cross-topic links so one solution need not be
+copied into several branches. Match meaning rather than exact wording; use
+stable opaque IDs independent of labels, paths and display language. Agents
+propose labels/descriptions and cite candidate matches/rationale; no fixed
+taxonomy is required. Validate parent types, normalised names and duplicate
+meaning within a parent, and recheck at merge to resolve concurrent equivalent
+proposals atomically. Ambiguous classifications can request review rather than
+force a match or generate near-duplicate categories. Permit reviewed taxonomy
+KPRs for aliasing, renaming, reparenting, merging and splitting nodes while
+preserving IDs or redirects, record links and history. No orphan nodes,
+cycles, arbitrary path writes or unreviewed destructive restructuring. Taxonomy
+changes are subject to the same capability and review gates as knowledge
+changes; use tags and cross-links for genuinely cross-cutting subjects.
 
 The durable unit is a versioned knowledge record: problem signature, relevant
 OS/distribution/application/runtime versions, symptoms, prerequisites, steps
@@ -521,10 +582,10 @@ messages and record IDs over long conversational context.
 
 | # | Step | Output | DoD |
 | --- | --- | --- | --- |
-| 16.22 | Knowledge, workspace and API contracts (early foundation) | versioned record/message schemas, workspace lifecycle, search/contribution interfaces, mock service, opt-in and publication policy | schema round trips, version compatibility, provenance, deduplication, TTL state transitions and offline/disabled mode tested; no network traffic by default |
-| 16.23 | Two-surface knowledge service | private temporary workspace, public searchable catalogue/dashboard, revisions, moderation, documented API | integration tests for room membership and access isolation, no public transcript access, expiry/deletion, search, submissions, scoped credentials, validation, pagination, rate limits and revocation; local deployment documented; public deployment only when authorised |
-| 16.24 | RCommander client and agent tools | search/get, ask/answer, status/cancel, propose/promote report and feedback; concise human outcome view | agents retrieve records with source/revision and evidence, communicate within scoped rooms, preview or audit authorised outgoing data and destination; deny/revoke/offline tests prove no unauthorised transfer |
-| 16.25 | Independent verification and publication pipeline | reproducibility workflow, candidate extraction, redaction, deduplication, trust states, rollback and review | untrusted messages cannot confer permissions or execute instructions; resolved exchanges create candidates, not raw public transcripts; failed validation/unauthorised publication blocked; isolated reproduction produces evidence; approved publication and correction paths tested |
+| 16.22 | Knowledge, workspace and API contracts (early foundation) | versioned text-only record/message schemas, workspace lifecycle, identity, taxonomy/KPR contracts, mock service, opt-in and publication policy | schema round trips, version compatibility, text quotas, taxonomy fallback, KPR transitions, provenance, deduplication, TTL and offline/disabled mode tested; no network traffic by default |
+| 16.23 | Two-surface knowledge service | private temporary workspace, public searchable catalogue/dashboard, automatic enrolment, agent-organised taxonomy, KPR revisions, moderation, documented API | integration tests for room membership and access isolation, no public transcript access, expiry/deletion, search, submissions, proof of key possession, scoped credentials, concurrent taxonomy proposals, text validation, pagination, rate limits and revocation; local deployment documented; public deployment only when authorised |
+| 16.24 | RCommander client and agent tools | search/get, taxonomy search, ask/answer, status/cancel, propose/revise KPR and feedback; concise human outcome view | agents retrieve records with source/revision and evidence, communicate within scoped rooms, preview or audit authorised outgoing data and destination; deny/revoke/offline tests prove no unauthorised transfer |
+| 16.25 | Independent verification and publication pipeline | reproducibility workflow, owner reports, Gatekeeper checks, candidate extraction, redaction, deduplication, taxonomy review, trust states, rollback and KPR merge | untrusted messages cannot confer permissions or execute instructions; resolved exchanges create candidates, not raw public transcripts; failed validation/unauthorised publication blocked; isolated reproduction produces evidence; concurrent taxonomy proposals deduplicated; stable record links after renames/merges; approved publication and correction paths tested |
 | 16.26 | Controlled cross-provider collaboration | matchmaking, task ownership, bounded threaded exchanges, availability, budgets, issue linking and maintenance | simulated DeepSeek/Claude/other agents cooperate across separate clients, one asks and another answers; no loops, spam, impersonation, cross-room access, inherited privileges or unauthorised provider costs; timeout, cancellation, revocation, expired sessions and catalogue promotion tested |
 
 **Privacy, consent and security:** catalogue read, private collaboration,
@@ -540,7 +601,7 @@ Enforce this through capability boundaries, data minimisation, redaction and
 validation, not prompts alone. No secrets in logs. Private means access
 restricted, not inherently safe or invisible to participating providers; apply
 the same outbound controls to temporary messages as to public candidates.
-Treat all received records, messages, scripts and attachments as untrusted data;
+Treat all received records, messages, scripts and text excerpts as untrusted data;
 Phase 16.0 remains authoritative. Verify origin and integrity, use independent
 sandboxed tests when possible, and require existing execution/change approvals
 before applying advice. A signature proves origin, not correctness. Publish only
