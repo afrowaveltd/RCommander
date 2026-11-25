@@ -19,6 +19,8 @@ pub struct Settings {
     pub text_direction: String,
     pub layout: Layout,
     pub display: Display,
+    /// Which faces the interface uses (Phase 14.7).
+    pub fonts: Fonts,
     pub colors: Colors,
     pub behavior: Behavior,
     pub copy: CopySettings,
@@ -46,6 +48,7 @@ impl Default for Settings {
             text_direction: "auto".to_string(),
             layout: Layout::default(),
             display: Display::default(),
+            fonts: Fonts::default(),
             colors: Colors::default(),
             behavior: Behavior::default(),
             copy: CopySettings::default(),
@@ -101,6 +104,65 @@ impl Default for Layout {
             show_tabs: true,
             vertical_button_bar: false,
         }
+    }
+}
+
+/// Which fonts the interface uses, and how big each role is.
+///
+/// Three roles, because three kinds of text need different faces: prose and menus (body),
+/// headings, and anything where character alignment matters (monospace). An empty family name
+/// means "the built-in font", so a fresh installation looks exactly as before.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Fonts {
+    /// Family for lists, menus and dialogs; empty = the built-in sans.
+    pub body_family: String,
+    /// Family for headings; empty = the body family, one size larger.
+    pub heading_family: String,
+    /// Family for paths, code and the hex viewer; empty = the built-in monospace.
+    pub mono_family: String,
+    /// Size of headings, in points.
+    pub heading_size: f32,
+    /// Size of monospaced text, in points.
+    pub mono_size: f32,
+}
+
+impl Default for Fonts {
+    fn default() -> Self {
+        Fonts {
+            body_family: String::new(),
+            heading_family: String::new(),
+            mono_family: String::new(),
+            heading_size: 18.0,
+            mono_size: 14.0,
+        }
+    }
+}
+
+impl Fonts {
+    /// True when no custom face is used, so the theme does not need to load any font file.
+    pub fn is_builtin(&self) -> bool {
+        self.body_family.trim().is_empty()
+            && self.heading_family.trim().is_empty()
+            && self.mono_family.trim().is_empty()
+    }
+
+    /// Every family name the settings ask for.
+    pub fn families(&self) -> Vec<&str> {
+        [
+            self.body_family.as_str(),
+            self.heading_family.as_str(),
+            self.mono_family.as_str(),
+        ]
+        .into_iter()
+        .filter(|family| !family.trim().is_empty())
+        .collect()
+    }
+
+    /// Clamp sizes into a range that stays readable and cannot break a layout.
+    pub fn sanitise(&mut self) {
+        self.heading_size = self.heading_size.clamp(8.0, 48.0);
+        self.mono_size = self.mono_size.clamp(8.0, 48.0);
     }
 }
 

@@ -336,6 +336,8 @@ pub enum OptionsTab {
     Display,
     Language,
     Colors,
+    /// The three text roles: body, heading and monospaced (Phase 14.7).
+    Fonts,
     Editor,
     Packer,
     Ftp,
@@ -348,11 +350,12 @@ pub enum OptionsTab {
 }
 
 impl OptionsTab {
-    pub fn all() -> [OptionsTab; 10] {
+    pub fn all() -> [OptionsTab; 11] {
         [
             OptionsTab::Display,
             OptionsTab::Language,
             OptionsTab::Colors,
+            OptionsTab::Fonts,
             OptionsTab::Editor,
             OptionsTab::Packer,
             OptionsTab::Ftp,
@@ -368,6 +371,7 @@ impl OptionsTab {
             OptionsTab::Display => "dialog.config.display",
             OptionsTab::Language => "dialog.config.language",
             OptionsTab::Colors => "dialog.config.colors",
+            OptionsTab::Fonts => "dialog.config.fonts",
             OptionsTab::Editor => "dialog.config.editor",
             OptionsTab::Packer => "dialog.config.packer",
             OptionsTab::Ftp => "dialog.config.ftp",
@@ -1944,7 +1948,7 @@ mod tests {
             o.draft.shortcuts.get("f9").map(|s| s.as_str()),
             Some("cm_Test")
         );
-        assert_eq!(OptionsTab::all().len(), 10, "a new page must be counted");
+        assert_eq!(OptionsTab::all().len(), 11, "a new page must be counted");
         assert!(
             OptionsTab::all().contains(&OptionsTab::Security),
             "the security page is reachable"

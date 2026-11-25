@@ -9,6 +9,7 @@ pub mod ai;
 pub mod chat;
 pub mod commands;
 pub mod dialogs;
+pub mod fonts;
 pub mod git;
 pub mod policy;
 pub mod remote;
@@ -489,6 +490,12 @@ pub struct Model {
     )>,
     /// Id for the next bridge request.
     pub next_bridge_id: u64,
+    /// Fonts found on this machine, scanned on first use.
+    pub fonts: Vec<rc_core::font::FontFile>,
+    /// Whether the font scan has happened.
+    pub fonts_scanned: bool,
+    /// Font choices that could not be loaded, so the options page can say which one failed.
+    pub font_problems: Vec<String>,
 }
 
 /// An open F3 viewer.
@@ -596,6 +603,9 @@ impl Model {
             bridge_requests: std::collections::HashMap::new(),
             bridge_backlog: std::collections::VecDeque::new(),
             next_bridge_id: 1,
+            fonts: Vec::new(),
+            fonts_scanned: false,
+            font_problems: Vec::new(),
             keymap,
             settings,
             strings,

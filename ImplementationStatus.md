@@ -167,6 +167,36 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 14.7 — three text roles and your own fonts (done)
+
+`cargo test -p rc-core --lib font` → **5 tests**, `cargo test -p rcommander --lib fonts` → **4**,
+`--lib font_tests` → **3**, `--lib icon_fallback_tests` → **1**, plus a UI test.
+
+There was one font size and no say about the face. There are now three roles — body (lists, menus,
+dialogs), headings, and monospace (paths, the hex viewer, the editor, code in help) — each with its
+own family and size, and each family can be any `ttf`/`otf` installed on the machine.
+
+`rc_core::font` finds them: it walks the platform's font directories, depth-limited and with a file
+budget, and turns a file name into a family (`DejaVuSansMono-Bold.ttf` → *DejaVu Sans Mono*, the
+Bold not offered as a family of its own). Two things are deliberately strict. Only files that
+**start** like a font are offered — a stray `.ttf` would be parsed lazily by egui and turn into a
+panic on the first glyph — and a name with no recognisable family (`ab12cd.ttf`) is dropped, because
+offering "Ab12cd" as a font would be a lie. `.ttc` collections are skipped: they hold several faces
+and somebody would have to choose one.
+
+The scan happens **once**, on first use: an installation that keeps the built-in fonts never walks
+the font directories at all. The options page shows a live sample in all three roles, and a family
+that was chosen but has since been removed from the system is reported on the page with the
+built-in face still in use, instead of failing at start-up.
+
+The subtle part was the icons. Their font is the *lowest* fallback of the built-in families, so a
+custom family would have left every tool-bar symbol undrawable — and egui treats a missing glyph as
+a panic. The icon font is therefore registered again as the last fallback of each custom family,
+under a **unique name per family**: `add_font` ignores an insert whose name already exists, so
+reusing the icon font's own name silently did nothing. A test asks egui for the family's font chain
+and then for a glyph of every one of the 38 icons, which is exactly the check that fails if that
+registration regresses.
+
 ## Phase 16.2a — model providers and in-app model choice (done)
 
 `cargo test -p rc-llm` → **8 tests**, `cargo test -p rcommander --lib ai::` → **5 tests**, plus a

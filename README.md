@@ -72,6 +72,9 @@ text files you can extend without recompiling anything.
   start-up is fast and the binary stays small.
 - **Lazy work** — directory trees, thumbnails, sizes and checksums are computed
   only when a command asks for them.
+- **Your own text** — three roles (body, headings, monospace) each take any font
+  installed on the machine, and the font directories are only scanned when you ask
+  for them. See `Docs/Fonts/`.
 
 ---
 

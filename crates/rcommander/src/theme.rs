@@ -3,7 +3,7 @@
 //! The palette mirrors the classic commander look: white lists with a dark blue
 //! cursor bar, blue directories, grey hidden entries and red marks.
 
-use egui::{Color32, FontId, TextStyle};
+use egui::{Color32, TextStyle};
 
 /// A resolved palette for one theme.
 #[derive(Clone, Debug, PartialEq)]
@@ -327,21 +327,157 @@ pub fn icon_text(icon: crate::icons::Icon) -> String {
     icon.glyph().to_string()
 }
 
-/// Register the monospace and proportional text styles.
-pub fn install_text_styles(ctx: &egui::Context, font_size: f32) {
+/// Family names registered from the user's own font files.
+pub const FAMILY_BODY: &str = "rc-body";
+pub const FAMILY_HEADING: &str = "rc-heading";
+pub const FAMILY_MONO: &str = "rc-mono";
+
+/// Load the user's chosen font files and register them as families.
+///
+/// Returns the families that were actually installed. A file that cannot be read, or that does not
+/// start like a font, is skipped and named in the error list, so the options dialog can say which
+/// choice did not take effect instead of pretending it did.
+pub fn install_user_fonts(
+    ctx: &egui::Context,
+    fonts: &rc_core::config::Fonts,
+    discovered: &[rc_core::font::FontFile],
+) -> (Vec<&'static str>, Vec<String>) {
+    use egui::{FontData, FontFamily, FontPriority};
+    let mut installed: Vec<&'static str> = Vec::new();
+    let mut failures: Vec<String> = Vec::new();
+    for (family_name, role, chosen) in [
+        (FAMILY_BODY, "body", fonts.body_family.as_str()),
+        (FAMILY_HEADING, "heading", fonts.heading_family.as_str()),
+        (FAMILY_MONO, "mono", fonts.mono_family.as_str()),
+    ] {
+        if chosen.trim().is_empty() {
+            continue;
+        }
+        let Some(file) = rc_core::font::find(discovered, chosen) else {
+            failures.push(format!("{role}: “{chosen}” was not found"));
+            continue;
+        };
+        // eguis font parser is lazy, so a broken file would panic on the first frame that draws a
+        // glyph; checking the header here turns that into a message instead.
+        if !rc_core::font::looks_like_font(&file.path) {
+            failures.push(format!(
+                "{role}: {} is not a font file",
+                file.path.display()
+            ));
+            continue;
+        }
+        let Ok(bytes) = std::fs::read(&file.path) else {
+            failures.push(format!("{role}: {} cannot be read", file.path.display()));
+            continue;
+        };
+        ctx.add_font(egui::epaint::text::FontInsert::new(
+            // One registration per role, so changing the family replaces only that role.
+            &format!("user-{role}-{}", file.family),
+            FontData::from_owned(bytes),
+            vec![egui::epaint::text::InsertFontFamily {
+                family: FontFamily::Name(family_name.into()),
+                priority: FontPriority::Highest,
+            }],
+        ));
+        // The icon font has to stay a fallback of the custom family too, or every icon in the tool
+        // bar becomes a glyph the font cannot draw — and egui turns a missing glyph into a panic.
+        // The name has to be unique per family: `add_font` ignores an insert whose name already
+        // exists, so reusing [`crate::icons::FONT_NAME`] here would silently do nothing.
+        ctx.add_font(egui::epaint::text::FontInsert::new(
+            &format!("{}-{role}", crate::icons::FONT_NAME),
+            FontData::from_static(crate::icons::FONT_BYTES),
+            vec![egui::epaint::text::InsertFontFamily {
+                family: FontFamily::Name(family_name.into()),
+                priority: FontPriority::Lowest,
+            }],
+        ));
+        installed.push(role);
+    }
+    (installed, failures)
+}
+
+/// The egui family of a text role, falling back to the built-in face.
+pub fn family(role: &str) -> egui::FontFamily {
+    match role {
+        "body" | "heading" | "mono" => egui::FontFamily::Name(role_family(role).into()),
+        _ => egui::FontFamily::Proportional,
+    }
+}
+
+fn role_family(role: &str) -> &'static str {
+    match role {
+        "heading" => FAMILY_HEADING,
+        "mono" => FAMILY_MONO,
+        _ => FAMILY_BODY,
+    }
+}
+
+/// Register the text styles for the three roles.
+///
+/// `body_size` is the list font size from the display settings; headings and monospaced text have
+/// their own sizes. A role without a custom file keeps egui's built-in face.
+pub fn install_text_styles(
+    ctx: &egui::Context,
+    fonts: &rc_core::config::Fonts,
+    body_size: f32,
+    installed: &[&'static str],
+) {
+    let heading = pick(
+        installed,
+        "heading",
+        egui::FontId::proportional(fonts.heading_size.max(body_size + 2.0)),
+        fonts.heading_size,
+    );
+    let body = pick(
+        installed,
+        "body",
+        egui::FontId::proportional(body_size),
+        body_size,
+    );
+    let mono = pick(
+        installed,
+        "mono",
+        egui::FontId::monospace(fonts.mono_size),
+        fonts.mono_size,
+    );
+    let small_size = (body_size - 2.0).max(8.0);
+    let small = if installed.contains(&"body") {
+        egui::FontId::new(small_size, family("body"))
+    } else {
+        egui::FontId::proportional(small_size)
+    };
     let styles = [
-        (TextStyle::Heading, FontId::proportional(font_size + 4.0)),
-        (TextStyle::Body, FontId::proportional(font_size)),
-        (TextStyle::Button, FontId::proportional(font_size)),
-        (
-            TextStyle::Small,
-            FontId::proportional((font_size - 2.0).max(8.0)),
-        ),
-        (TextStyle::Monospace, FontId::monospace(font_size)),
+        (TextStyle::Heading, heading),
+        (TextStyle::Body, body.clone()),
+        (TextStyle::Button, body),
+        (TextStyle::Small, small),
+        (TextStyle::Monospace, mono),
     ];
     ctx.all_styles_mut(|style| {
         style.text_styles = styles.iter().cloned().collect();
     });
+}
+
+/// The font for one role: the user's family when it was installed, otherwise `fallback`.
+fn pick(installed: &[&'static str], role: &str, fallback: egui::FontId, size: f32) -> egui::FontId {
+    if installed.contains(&role) {
+        egui::FontId::new(size, family(role))
+    } else {
+        fallback
+    }
+}
+
+/// A key that changes whenever the font settings change, so the theme can be reinstalled.
+pub fn font_signature(fonts: &rc_core::config::Fonts, body_size: f32) -> String {
+    format!(
+        "{}|{}|{}|{}|{}|{}",
+        fonts.body_family,
+        fonts.heading_family,
+        fonts.mono_family,
+        fonts.heading_size,
+        fonts.mono_size,
+        body_size
+    )
 }
 
 #[cfg(test)]
@@ -472,5 +608,131 @@ mod tests {
         let v = visuals(&p, true);
         assert_eq!(v.panel_fill, p.background);
         assert_eq!(v.override_text_color, Some(p.foreground));
+    }
+}
+
+#[cfg(test)]
+mod font_tests {
+    use super::*;
+    use rc_core::config::Fonts;
+
+    /// The bundled icon font is a real font file, so it can stand in for an installed one.
+    fn temp_font_family() -> (tempfile::TempDir, Vec<rc_core::font::FontFile>) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("RcTestSans-Regular.ttf");
+        std::fs::write(&path, crate::icons::FONT_BYTES).unwrap();
+        let found = rc_core::font::discover_in(&[dir.path().to_path_buf()]);
+        (dir, found)
+    }
+
+    #[test]
+    fn a_chosen_font_is_registered_and_reported() {
+        let (_dir, found) = temp_font_family();
+        assert_eq!(found.len(), 1, "the test font is found: {found:?}");
+        let ctx = egui::Context::default();
+        let fonts = Fonts {
+            body_family: found[0].family.clone(),
+            mono_family: found[0].family.clone(),
+            ..Default::default()
+        };
+        let (installed, failures) = install_user_fonts(&ctx, &fonts, &found);
+        assert!(failures.is_empty(), "{failures:?}");
+        assert_eq!(installed, vec!["body", "mono"]);
+        // The styles then point at those families.
+        install_text_styles(&ctx, &fonts, 14.0, &installed);
+        let style = ctx.style_of(egui::Theme::Dark);
+        let body = style.text_styles.get(&TextStyle::Body).cloned().unwrap();
+        assert_eq!(body.family, family("body"));
+        assert_eq!(body.size, 14.0);
+        let mono = style
+            .text_styles
+            .get(&TextStyle::Monospace)
+            .cloned()
+            .unwrap();
+        assert_eq!(mono.family, family("mono"));
+        // The heading family was not chosen, so it stays the built-in one, one size larger.
+        let heading = style.text_styles.get(&TextStyle::Heading).cloned().unwrap();
+        assert_eq!(heading.family, egui::FontFamily::Proportional);
+    }
+
+    #[test]
+    fn a_missing_family_is_reported_instead_of_silently_ignored() {
+        let ctx = egui::Context::default();
+        let fonts = Fonts {
+            body_family: "No Such Font".to_string(),
+            ..Default::default()
+        };
+        let (installed, failures) = install_user_fonts(&ctx, &fonts, &[]);
+        assert!(installed.is_empty());
+        assert_eq!(failures.len(), 1, "{failures:?}");
+        assert!(failures[0].contains("No Such Font"), "{failures:?}");
+        // And the styles fall back to the built-in face, so nothing breaks.
+        install_text_styles(&ctx, &fonts, 14.0, &installed);
+        let style = ctx.style_of(egui::Theme::Dark);
+        let body = style.text_styles.get(&TextStyle::Body).cloned().unwrap();
+        assert_eq!(body.family, egui::FontFamily::Proportional);
+    }
+
+    #[test]
+    fn the_signature_changes_with_any_font_setting() {
+        let base = Fonts::default();
+        let signature = font_signature(&base, 14.0);
+        assert_eq!(signature, font_signature(&Fonts::default(), 14.0));
+        assert_ne!(signature, font_signature(&base, 15.0));
+        let mut other = base.clone();
+        other.mono_family = "X".to_string();
+        assert_ne!(signature, font_signature(&other, 14.0));
+        let mut sizes = base.clone();
+        sizes.heading_size = 20.0;
+        assert_ne!(signature, font_signature(&sizes, 14.0));
+    }
+}
+
+#[cfg(test)]
+mod icon_fallback_tests {
+    use super::*;
+    use rc_core::config::Fonts;
+
+    /// A custom family must keep the icon font as its last fallback, or the tool bar's icons
+    /// become characters the font cannot draw — and a missing glyph is a panic in egui.
+    #[test]
+    fn a_custom_family_keeps_the_icon_font_as_a_fallback() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("RcTestSans-Regular.ttf");
+        std::fs::write(&path, crate::icons::FONT_BYTES).unwrap();
+        let found = rc_core::font::discover_in(&[dir.path().to_path_buf()]);
+        let ctx = egui::Context::default();
+        let fonts = Fonts {
+            body_family: found[0].family.clone(),
+            ..Default::default()
+        };
+        let (installed, failures) = install_user_fonts(&ctx, &fonts, &found);
+        assert!(failures.is_empty(), "{failures:?}");
+        assert!(installed.contains(&"body"));
+        // egui only builds its font atlas during a pass, so run one before asking questions.
+        // The texture deltas have to be collected, or dropping them panics.
+        let output = ctx.run_ui(egui::RawInput::default(), |_| {});
+        let mut deltas = output.textures_delta;
+        deltas.clear();
+        // Ask egui itself which fonts the family is built from.
+        let families = ctx.fonts(|f| f.definitions().families.clone());
+        let body = families
+            .get(&family("body"))
+            .expect("the custom family is registered");
+        assert_eq!(body.len(), 2, "the user font plus the icons: {body:?}");
+        assert!(
+            body.last().unwrap().contains(crate::icons::FONT_NAME),
+            "the icons are the fallback: {body:?}"
+        );
+        // Every icon must therefore still be drawable: laying text out would panic on a missing
+        // glyph, so this is the check that matters.
+        ctx.fonts_mut(|f| {
+            for icon in crate::icons::Icon::all() {
+                assert!(
+                    f.has_glyph(&egui::FontId::new(14.0, family("body")), icon.glyph()),
+                    "{icon:?} cannot be drawn in the custom family"
+                );
+            }
+        });
     }
 }

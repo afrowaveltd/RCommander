@@ -21,6 +21,7 @@ pub mod dupes;
 pub mod encode;
 pub mod entry;
 pub mod error;
+pub mod font;
 pub mod format;
 pub mod history;
 pub mod hotlist;

@@ -97,6 +97,8 @@ pub struct RCommanderApp {
     pub panel_rects: [Option<egui::Rect>; 2],
     /// Theme name that is currently applied to the egui context.
     applied_theme: String,
+    /// Font settings the context was built from, so a change reinstalls the fonts.
+    font_signature: String,
     /// Persists the settings file whenever something changes.
     pub settings_writer: SettingsWriter,
     /// Requests from `rcommander mcp` waiting for the human (Phase 16.0e).
@@ -163,6 +165,7 @@ impl RCommanderApp {
             search_hit_selection: 0,
             panel_rects: [None, None],
             applied_theme: String::new(),
+            font_signature: String::new(),
             settings_writer,
             bridge_queue: None,
             approval_server: None,
@@ -231,16 +234,34 @@ impl RCommanderApp {
     fn apply_theme(&mut self, ctx: &Context) {
         let theme_name = self.model.settings.colors.theme.clone();
         let font_size = self.model.settings.display.font_size;
-        if self.fonts_installed && self.applied_theme == theme_name {
+        let signature = theme::font_signature(&self.model.settings.fonts, font_size);
+        if self.fonts_installed
+            && self.applied_theme == theme_name
+            && self.font_signature == signature
+        {
             return;
         }
         self.palette = Palette::for_model(&self.model);
         theme::install_icon_font(ctx);
-        theme::install_text_styles(ctx, font_size);
+        // Only scan the machine when a custom face was actually chosen: the default installation
+        // must not pay for a directory walk on every start.
+        let (installed, failures) = if self.model.settings.fonts.is_builtin() {
+            (Vec::new(), Vec::new())
+        } else {
+            let discovered = self.model.font_choices();
+            let (installed, failures) =
+                theme::install_user_fonts(ctx, &self.model.settings.fonts, &discovered);
+            // The icon font has to be re-registered for the built-in families as well.
+            theme::install_icon_font(ctx);
+            (installed, failures)
+        };
+        theme::install_text_styles(ctx, &self.model.settings.fonts, font_size, &installed);
         ctx.set_visuals(theme::visuals(&self.palette, theme_name == "dark"));
         theme::install_menu_style(ctx);
         self.applied_theme = theme_name;
+        self.font_signature = signature;
         self.fonts_installed = true;
+        self.model.font_problems = failures;
     }
 
     /// Name of the theme currently applied to the window.

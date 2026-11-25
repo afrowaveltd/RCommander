@@ -2373,3 +2373,60 @@ fn the_security_page_shows_the_profile_the_preapprovals_and_the_log() {
     );
     assert!(harness.state().model.settings.agent.preapproved.is_empty());
 }
+
+#[test]
+fn the_font_page_offers_three_roles_and_a_sample() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.execute("cm_Config");
+    let mut harness = harness(app);
+    if let Some(rcommander::model::Dialog::Options(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.tab = rcommander::model::dialogs::OptionsTab::Fonts;
+    }
+    harness.run();
+    // The three roles are named, and the page says where the list comes from...
+    harness.root().get_by_label("fonts.body");
+    harness.root().get_by_label("fonts.heading");
+    harness.root().get_by_label("fonts.mono");
+    harness.root().get_by_label("fonts.sample");
+    // ...and it has a live sample in each of the three sizes.
+    harness.root().get_by_label("fonts.sample.heading");
+    harness.root().get_by_label("fonts.sample.body");
+    harness.root().get_by_label("fonts.sample.mono");
+    // Picking a family writes it into the draft, not straight into the live settings.
+    if let Some(rcommander::model::Dialog::Options(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.draft.fonts.mono_family = "DejaVu Sans Mono".to_string();
+        state.draft.fonts.heading_size = 22.0;
+    }
+    harness.run();
+    assert!(
+        harness.state().model.settings.fonts.mono_family.is_empty(),
+        "the draft is not the settings"
+    );
+    // Accepting the dialog commits it and sanitises the sizes.
+    if let Some(rcommander::model::Dialog::Options(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.draft.fonts.mono_size = 999.0;
+    }
+    harness.run();
+    harness
+        .root()
+        .get_by_label("dialog.config.ok")
+        .click_accesskit();
+    harness.run();
+    assert_eq!(
+        harness.state().model.settings.fonts.mono_family,
+        "DejaVu Sans Mono"
+    );
+    assert_eq!(harness.state().model.settings.fonts.heading_size, 22.0);
+    assert_eq!(
+        harness.state().model.settings.fonts.mono_size,
+        48.0,
+        "an impossible size is clamped instead of accepted"
+    );
+}

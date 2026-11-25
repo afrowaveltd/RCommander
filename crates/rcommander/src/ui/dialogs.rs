@@ -911,6 +911,158 @@ fn parse_ui_color(text: &str) -> [u8; 3] {
     }
 }
 
+/// The font page: three roles, each with a family and a size, and a live sample.
+///
+/// The three roles exist because three kinds of text need different faces. Nothing here touches
+/// the panels directly: the page edits the draft, and accepting the dialog reinstalls the fonts.
+fn fonts_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) {
+    let palette = crate::theme::Palette::for_model(model);
+    ui.label(
+        egui::RichText::new(model.t("fonts.help"))
+            .small()
+            .color(palette.hidden),
+    );
+    ui.separator();
+
+    // The scan is done on first use and kept; a rescan is one click for a just-installed font.
+    let body_size = state.draft.display.font_size;
+    let mono_choices = model.font_choices_for("mono");
+    let all_choices = model.font_choices_for("body");
+    let mut rescan = false;
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new(
+                model.tf("fonts.found", &[("count", &all_choices.len().to_string())]),
+            )
+            .small()
+            .color(palette.hidden),
+        );
+        if ui.button(model.t("fonts.rescan")).clicked() {
+            rescan = true;
+        }
+    });
+    if rescan {
+        let count = model.rescan_fonts();
+        let text = model.tf("fonts.rescanned", &[("count", &count.to_string())]);
+        model.report(text);
+    }
+
+    // One row per role: family picker, then the size that belongs to it.
+    for (role, label_key) in [
+        ("body", "fonts.body"),
+        ("heading", "fonts.heading"),
+        ("mono", "fonts.mono"),
+    ] {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(model.t(label_key)).strong());
+            let choices: &[rc_core::font::FontFile] = if role == "mono" {
+                &mono_choices
+            } else {
+                &all_choices
+            };
+            let current = match role {
+                "body" => state.draft.fonts.body_family.clone(),
+                "heading" => state.draft.fonts.heading_family.clone(),
+                _ => state.draft.fonts.mono_family.clone(),
+            };
+            let shown = if current.trim().is_empty() {
+                model.t(match role {
+                    "mono" => "fonts.default.mono",
+                    "heading" => "fonts.default.heading",
+                    _ => "fonts.default.body",
+                })
+            } else {
+                current.clone()
+            };
+            egui::ComboBox::from_id_salt(("font", role))
+                .selected_text(shown)
+                .width(260.0)
+                .show_ui(ui, |ui| {
+                    let builtin = match role {
+                        "mono" => model.t("fonts.default.mono"),
+                        "heading" => model.t("fonts.default.heading"),
+                        _ => model.t("fonts.default.body"),
+                    };
+                    if ui
+                        .selectable_label(current.trim().is_empty(), builtin)
+                        .clicked()
+                    {
+                        set_family(&mut state.draft.fonts, role, String::new());
+                    }
+                    for font in choices {
+                        if ui
+                            .selectable_label(current == font.family, font.label())
+                            .clicked()
+                        {
+                            set_family(&mut state.draft.fonts, role, font.family.clone());
+                        }
+                    }
+                });
+            match role {
+                "body" => {
+                    ui.add(
+                        egui::DragValue::new(&mut state.draft.display.font_size)
+                            .range(8.0..=28.0)
+                            .suffix(" pt"),
+                    );
+                }
+                "heading" => {
+                    ui.add(
+                        egui::DragValue::new(&mut state.draft.fonts.heading_size)
+                            .range(8.0..=48.0)
+                            .suffix(" pt"),
+                    );
+                }
+                _ => {
+                    ui.add(
+                        egui::DragValue::new(&mut state.draft.fonts.mono_size)
+                            .range(8.0..=48.0)
+                            .suffix(" pt"),
+                    );
+                }
+            }
+        });
+    }
+
+    ui.separator();
+    ui.label(
+        egui::RichText::new(model.t("fonts.sample"))
+            .small()
+            .color(palette.hidden),
+    );
+    // The sample uses the draft sizes, so the effect is visible before accepting.
+    ui.label(
+        egui::RichText::new(model.t("fonts.sample.heading"))
+            .size(state.draft.fonts.heading_size.clamp(8.0, 48.0)),
+    );
+    ui.label(egui::RichText::new(model.t("fonts.sample.body")).size(body_size.clamp(8.0, 28.0)));
+    ui.label(
+        egui::RichText::new(model.t("fonts.sample.mono"))
+            .monospace()
+            .size(state.draft.fonts.mono_size.clamp(8.0, 48.0)),
+    );
+    if !model.font_problems.is_empty() {
+        ui.separator();
+        for problem in &model.font_problems {
+            ui.label(egui::RichText::new(problem).color(palette.warning).small());
+        }
+    }
+    ui.label(
+        egui::RichText::new(model.t("fonts.note"))
+            .small()
+            .italics()
+            .color(palette.hidden),
+    );
+}
+
+fn set_family(fonts: &mut rc_core::config::Fonts, role: &str, family: String) {
+    match role {
+        "body" => fonts.body_family = family,
+        "heading" => fonts.heading_family = family,
+        _ => fonts.mono_family = family,
+    }
+}
+
 /// The security page: who may do what, what is pre-approved, and what the log says.
 ///
 /// Everything on the page is a *policy* control, so it applies to the agent — not to the human
@@ -1223,6 +1375,9 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
         OptionsTab::Colors => {
             colors_page(ui, model, state);
         }
+        OptionsTab::Fonts => {
+            fonts_page(ui, model, state);
+        }
         OptionsTab::Editor => {
             ui.add(
                 egui::Slider::new(&mut state.draft.editor.font_size, 8.0..=28.0).text("font size"),
@@ -1319,6 +1474,7 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
             km.apply_overrides(&model.settings.shortcuts);
             km
         };
+        model.settings.fonts.sanitise();
         model.dialogs.clear();
         // A changed profile or pre-approval list has to take effect now, not after a restart.
         model.refresh_policy();

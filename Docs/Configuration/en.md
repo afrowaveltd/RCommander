@@ -8,6 +8,7 @@ written to `settings.toml` when you accept them.
 | Display | view mode, hidden files, `..` entry, font size, row height, icons, thumbnails, natural sorting |
 | Language | the interface language, direction preview |
 | Colors | light/dark theme, cursor and selection colours, per-file-type colours |
+| Fonts | the three text roles — body, headings and monospace — with their own family and size |
 | Editor | internal editor or an external command, font, tab width, line endings, word wrap |
 | Packer | default archive format, compression level, archive extensions |
 | FTP | passive mode, MLSD, encoding, timeouts, saved connections |

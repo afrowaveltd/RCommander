@@ -8,6 +8,7 @@
 | Zobrazení | režim zobrazení, skryté soubory, položku `..`, velikost písma, výšku řádku, ikony, náhledy, přirozené řazení |
 | Jazyk | jazyk rozhraní, náhled směru |
 | Barvy | světlý/tmavý motiv, barvy kurzoru a označení, barvy podle typu souboru |
+| Písma | tři role textu — základní, nadpisy a nepoměrné — každá s vlastní rodinou a velikostí |
 | Editor | vestavěný editor nebo externí příkaz, písmo, šířka tabulátoru, konce řádků, zalamování |
 | Archivy | výchozí formát archivu, úroveň komprese, přípony archivů |
 | FTP | pasivní režim, MLSD, kódování, časové limity, uložená připojení |
