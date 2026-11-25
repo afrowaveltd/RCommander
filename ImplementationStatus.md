@@ -189,6 +189,24 @@ it. Testing asks the model a trivial question on a worker thread, so a 60 GB mod
 not freeze the window, and the answer is shown in the dialog and the status line. A fresh
 installation with no model chosen takes the first tool-capable one.
 
+## Phase 16.1b — answers rendered as Markdown (done)
+
+`cargo test -p rcommander --lib markdown_view` → **5 tests**, plus **2 UI tests**.
+
+A language model writes Markdown, so the chat was showing `**` and `#` instead of emphasis and
+headings — the answer was correct and unpleasant to read. The block renderer that already existed
+inside the help window now lives in `ui::markdown_view`: one module turns `rc_help`'s
+[`Block`]s into widgets, and both the help window and the chat use it, so the two cannot drift
+apart. Headings, paragraphs, lists, quotes, tables, fenced code and rules all render; inline bold,
+italic and code keep their shape.
+
+Rendering a **stream** needed two details. Parsing every line on every frame would re-parse the
+whole transcript sixty times a second, so each line carries a stable `seq` and the view caches its
+parsed blocks, re-parsing only while the text is still growing — keyed by identity rather than
+position, because positions shift when the transcript is cleared. And because the parser never
+fails (partial markup degrades to text), a half-received answer renders as it arrives: an unfinished
+code fence keeps its code lines visible, which the tests check.
+
 ## Phase 16.0c — an approval source outside the GUI (done)
 
 `cargo test -p rc-agent --lib confirm` → **6 tests**, `cargo test -p rcommander --test

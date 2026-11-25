@@ -2152,3 +2152,81 @@ fn the_chat_window_toggles_with_its_command() {
         "a closed chat draws nothing"
     );
 }
+
+#[test]
+fn a_markdown_answer_is_rendered_instead_of_showing_its_markup() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.show_chat_panel = true;
+    app.model.chat().push(
+        rcommander::model::chat::Speaker::Model,
+        "## Result\n\nThere are **two** files:\n\n- `a.txt`\n- b.txt\n",
+    );
+    let harness = harness(app);
+    // The words are on screen...
+    harness.root().get_by_label("Result");
+    harness.root().get_by_label("two");
+    assert!(
+        harness.root().query_all_by_label_contains("a.txt").count() > 0,
+        "the inline code keeps its text"
+    );
+    // ...and the markup characters are not.
+    for markup in ["##", "**"] {
+        assert!(
+            harness.root().query_all_by_label_contains(markup).count() == 0,
+            "{markup} should not be on screen"
+        );
+    }
+}
+
+#[test]
+fn a_streaming_answer_grows_without_losing_its_place() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.show_chat_panel = true;
+    let chat = app.model.chat();
+    chat.push(rcommander::model::chat::Speaker::User, "and then?");
+    let index = chat.push(rcommander::model::chat::Speaker::Model, "");
+    let seq = chat.lines[index].seq;
+    chat.lines[index].streaming = true;
+    let mut harness = harness(app);
+
+    // Three frames of a growing answer: the text is replaced in place, the line keeps its identity.
+    for piece in ["Look", " at this", " file."] {
+        if let Some(line) = harness
+            .state_mut()
+            .model
+            .chat()
+            .lines
+            .iter_mut()
+            .find(|line| line.seq == seq)
+        {
+            line.text.push_str(piece);
+        }
+        harness.run();
+    }
+    harness.run();
+    let line = harness
+        .state()
+        .model
+        .chat_session
+        .lines
+        .iter()
+        .find(|line| line.seq == seq)
+        .cloned()
+        .expect("the answer is still there");
+    assert_eq!(line.text, "Look at this file.");
+    assert_eq!(
+        harness
+            .state()
+            .model
+            .chat_session
+            .lines
+            .iter()
+            .filter(|line| line.seq == seq)
+            .count(),
+        1,
+        "one line, not three partial ones"
+    );
+    harness.root().get_by_label("Look at this file.");
+}

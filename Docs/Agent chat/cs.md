@@ -44,7 +44,10 @@ jen zbytek textu, nikdy data.
 
 - Chat sám nespouští nástroje; volání nástrojů potřebuje model, který to umí, a v
   tomto okně zatím zapojené není.
-- Odpovědi se zobrazují jako prostý text. Vykreslování Markdownu a zvýrazňování
-  syntaxe jsou samostatný krok práce na AI a v tomto sestavení nejsou.
+- Odpovědi se vykreslují jako Markdown — nadpisy, seznamy, tabulky, citace,
+  řádkový kód i bloky kódu — ale kód zatím **není** zvýrazněný syntaxí a odkazy
+  v odpovědi se kreslí jako text, nikoli otevírají.
 - Transkript je jen v paměti. Zavřením RCommanderu rozhovor skončí; místní
   úložiště je v plánu.
+- Nedokončená odpověď se vykresluje průběžně, takže Markdown tabulka nebo blok
+  kódu může chvíli vypadat divně a srovná se, až dorazí zbytek řádku.

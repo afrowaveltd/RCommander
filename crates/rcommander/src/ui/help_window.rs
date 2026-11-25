@@ -5,8 +5,9 @@
 
 use crate::model::Model;
 use crate::theme::Palette;
-use egui::{Context, RichText, TextStyle};
-use rc_help::{Align, Block, HelpDocument, HelpIndex, Span};
+use crate::ui::markdown_view::render_blocks;
+use egui::{Context, RichText};
+use rc_help::{Align, HelpDocument, HelpIndex};
 
 /// Help view state.
 #[derive(Default)]
@@ -181,157 +182,6 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut HelpUi, palette: &P
     !open
 }
 
-fn render_blocks(
-    ui: &mut egui::Ui,
-    blocks: &[Block],
-    palette: &Palette,
-    link_target: &mut Option<String>,
-) {
-    for block in blocks {
-        match block {
-            Block::Heading { level, spans } => {
-                let text = plain(spans);
-                let size = match level {
-                    1 => 20.0,
-                    2 => 17.0,
-                    3 => 15.0,
-                    _ => 13.0,
-                };
-                ui.add_space(6.0);
-                ui.label(RichText::new(text).size(size).strong());
-            }
-            Block::Paragraph(spans) => {
-                ui.horizontal_wrapped(|ui| render_spans(ui, spans, palette, link_target));
-                ui.add_space(4.0);
-            }
-            Block::Quote(spans) => {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("│").color(palette.panel_border));
-                    ui.horizontal_wrapped(|ui| render_spans(ui, spans, palette, link_target));
-                });
-            }
-            Block::BulletList(items) => {
-                for item in items {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label("•");
-                        render_spans(ui, item, palette, link_target);
-                    });
-                }
-                ui.add_space(4.0);
-            }
-            Block::NumberedList { start, items } => {
-                for (index, item) in items.iter().enumerate() {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(format!("{}.", start + index as u64));
-                        render_spans(ui, item, palette, link_target);
-                    });
-                }
-                ui.add_space(4.0);
-            }
-            Block::Table {
-                header,
-                align,
-                rows,
-            } => {
-                egui::Grid::new(format!("help_table_{}", rows.len()))
-                    .striped(true)
-                    .show(ui, |ui| {
-                        for cell in header {
-                            let text = plain(cell);
-                            ui.label(RichText::new(text).strong());
-                        }
-                        ui.end_row();
-                        for row in rows {
-                            for (index, cell) in row.iter().enumerate() {
-                                let _ = align.get(index);
-                                ui.label(plain(cell));
-                            }
-                            ui.end_row();
-                        }
-                    });
-                ui.add_space(4.0);
-            }
-            Block::CodeBlock { language, lines } => {
-                let mut text = String::new();
-                if !language.is_empty() {
-                    text.push_str(&format!("// {language}\n"));
-                }
-                for line in lines {
-                    text.push_str(line);
-                    text.push('\n');
-                }
-                egui::Frame::new()
-                    .fill(palette.header_background)
-                    .inner_margin(egui::Margin::same(6))
-                    .show(ui, |ui| {
-                        ui.add(
-                            egui::Label::new(RichText::new(text).text_style(TextStyle::Monospace))
-                                .selectable(true),
-                        );
-                    });
-                ui.add_space(4.0);
-            }
-            Block::Rule => {
-                ui.separator();
-            }
-        }
-    }
-}
-
-fn render_spans(
-    ui: &mut egui::Ui,
-    spans: &[Span],
-    palette: &Palette,
-    link_target: &mut Option<String>,
-) {
-    for span in spans {
-        match span {
-            Span::Text(text) => {
-                ui.label(RichText::new(text));
-            }
-            Span::Bold(inner) => {
-                let text = plain(inner);
-                ui.label(RichText::new(text).strong());
-            }
-            Span::Italic(inner) => {
-                let text = plain(inner);
-                ui.label(RichText::new(text).italics());
-            }
-            Span::Code(text) => {
-                ui.label(
-                    RichText::new(text)
-                        .monospace()
-                        .background_color(palette.header_background),
-                );
-            }
-            Span::Link { text, target } => {
-                let label = plain(text);
-                if ui.link(label).clicked() {
-                    *link_target = Some(target.clone());
-                }
-            }
-            Span::LineBreak => {
-                ui.label(" ");
-            }
-        }
-    }
-}
-
-fn plain(spans: &[Span]) -> String {
-    let mut out = String::new();
-    for span in spans {
-        match span {
-            Span::Text(t) => out.push_str(t),
-            Span::Bold(inner) | Span::Italic(inner) | Span::Link { text: inner, .. } => {
-                out.push_str(&plain(inner))
-            }
-            Span::Code(t) => out.push_str(t),
-            Span::LineBreak => out.push(' '),
-        }
-    }
-    out
-}
-
 /// Align is part of the model; the table renderer keeps the API stable.
 pub fn alignment_label(align: Align) -> &'static str {
     match align {
@@ -344,31 +194,6 @@ pub fn alignment_label(align: Align) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn spans(text: &str) -> Vec<Span> {
-        vec![Span::Text(text.to_string())]
-    }
-
-    #[test]
-    fn plain_flattens_nested_spans() {
-        let input = vec![
-            Span::Text("a ".into()),
-            Span::Bold(spans("bold")),
-            Span::Italic(spans(" italic")),
-            Span::Code(" code".into()),
-            Span::Link {
-                text: spans(" link"),
-                target: "x".into(),
-            },
-        ];
-        assert_eq!(plain(&input), "a bold italic code link");
-    }
-
-    #[test]
-    fn plain_handles_line_breaks_and_empty_input() {
-        assert_eq!(plain(&[Span::LineBreak]), " ");
-        assert_eq!(plain(&[]), "");
-    }
 
     #[test]
     fn alignment_labels_are_stable() {

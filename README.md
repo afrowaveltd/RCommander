@@ -264,8 +264,10 @@ sentence in the transcript can suggest an action but never perform one.
 
 ---
 
-**Planned, not implemented:** tool calling from the chat, Markdown rendering of
-answers, reviewed file changes and agent-coordinated tool calls (Phase 16 of
+Answers are rendered as Markdown (headings, lists, tables, quotes, code blocks).
+
+**Planned, not implemented:** tool calling from the chat, syntax highlighting of
+code, reviewed file changes and agent-coordinated tool calls (Phase 16 of
 `ImplementationPlan.md`).
 
 ---

@@ -3,19 +3,50 @@
 //! A roomy conversation pane: the transcript scrolls, the answer streams in as the model writes it,
 //! and *Stop* keeps what already arrived. Buttons are labelled through the i18n packs and coloured
 //! from the active theme palette, so the window survives a theme switch like every other panel.
+//!
+//! Model answers are Markdown — that is what a language model writes — so they are rendered
+//! through [`crate::ui::markdown_view`] instead of showing their asterisks. Parsing a line costs a
+//! few microseconds, but a transcript is redrawn every frame while an answer streams, so finished
+//! lines keep their parsed form until their text changes.
+
+use std::collections::HashMap;
 
 use crate::model::Model;
 use crate::model::chat::Speaker;
 use crate::theme::Palette;
+use crate::ui::markdown_view::render_blocks;
 use egui::{Context, RichText};
 
-/// State the view keeps between frames (scroll position, focus).
+/// State the view keeps between frames (scroll position, focus, parsed answers).
 #[derive(Default)]
 pub struct ChatUi {
     /// Scroll to the newest line on the next frame.
     pub follow: bool,
-    /// The transcript changed since the last frame.
-    pub dirty: bool,
+    /// Parsed Markdown keyed by a line's stable identity, with the text length it was parsed from.
+    parsed: HashMap<u64, (usize, Vec<rc_help::Block>)>,
+}
+
+impl ChatUi {
+    /// The parsed blocks of a line, reusing the previous parse while the text is unchanged.
+    ///
+    /// The length is enough of a fingerprint here: a streaming answer only ever grows, and any
+    /// other change comes with a new line identity.
+    fn blocks(&mut self, seq: u64, text: &str) -> &[rc_help::Block] {
+        let stale = match self.parsed.get(&seq) {
+            Some((len, _)) => *len != text.len(),
+            None => true,
+        };
+        if stale {
+            self.parsed
+                .insert(seq, (text.len(), rc_help::parse_markdown(text)));
+        }
+        &self.parsed.get(&seq).expect("just inserted").1
+    }
+
+    /// Forget the cache; the transcript was cleared.
+    pub fn invalidate(&mut self) {
+        self.parsed.clear();
+    }
 }
 
 /// Render the chat window; returns true when the user closed it.
@@ -79,17 +110,19 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut ChatUi, palette: &P
                 .max_height((available - input_height).max(80.0))
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
-                    let lines = &model.chat().lines;
+                    // A read-only borrow: rendering needs the transcript, not the session.
+                    let lines = &model.chat_session.lines;
+                    if lines.is_empty() {
+                        ui_state.invalidate();
+                        ui.label(RichText::new(&label_empty).italics().color(palette.hidden));
+                    }
                     for line in lines {
                         let speaker = match line.speaker {
                             Speaker::User => &you,
                             Speaker::Model => &assistant,
                             Speaker::System => &system,
                         };
-                        transcript_line(ui, line, speaker, palette);
-                    }
-                    if lines.is_empty() {
-                        ui.label(RichText::new(&label_empty).italics().color(palette.hidden));
+                        transcript_line(ui, line, speaker, palette, ui_state);
                     }
                 });
             ui.separator();
@@ -141,6 +174,7 @@ fn transcript_line(
     line: &crate::model::chat::ChatLine,
     speaker: &str,
     palette: &Palette,
+    ui_state: &mut ChatUi,
 ) {
     ui.horizontal_wrapped(|ui| {
         let colour = match line.speaker {
@@ -153,14 +187,26 @@ fn transcript_line(
             ui.label(RichText::new("…").color(palette.hidden));
         }
     });
-    // A system note is an aside, so it is dimmed and indented.
-    let mut text = RichText::new(&line.text);
-    if line.speaker == Speaker::System {
-        text = text.italics().color(palette.hidden);
-    }
-    ui.horizontal_wrapped(|ui| {
+    ui.horizontal(|ui| {
+        // Indent the body so a long answer is visibly the answer, not another speaker.
         ui.add_space(12.0);
-        ui.label(text);
+        ui.vertical(|ui| match line.speaker {
+            // An answer is Markdown: headings, lists, tables and code fences are what a model
+            // writes, and showing the markup characters instead would be harder to read.
+            Speaker::Model => {
+                let mut link_target = None;
+                let blocks = ui_state.blocks(line.seq, &line.text);
+                render_blocks(ui, blocks, palette, &mut link_target);
+            }
+            // A question and a system note are plain text, indented so they line up.
+            _ => {
+                let mut text = RichText::new(&line.text);
+                if line.speaker == Speaker::System {
+                    text = text.italics().color(palette.hidden);
+                }
+                ui.add(egui::Label::new(text).wrap());
+            }
+        });
     });
     ui.add_space(6.0);
 }

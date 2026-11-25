@@ -14,10 +14,27 @@ use rc_llm::{ChatReply, ChatRequest, Message};
 /// One line of the transcript.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChatLine {
+    /// Stable identity of this line, unique within the session.
+    ///
+    /// A view uses it to cache derived state (a parsed Markdown answer, a highlighted code block)
+    /// without guessing from the line's position, which shifts when the transcript is cleared.
+    pub seq: u64,
     pub speaker: Speaker,
     pub text: String,
     /// True while the answer is still being received.
     pub streaming: bool,
+}
+
+impl ChatLine {
+    /// A line with no identity yet; the session stamps it when it is pushed.
+    pub fn new(speaker: Speaker, text: impl Into<String>) -> Self {
+        ChatLine {
+            seq: 0,
+            speaker,
+            text: text.into(),
+            streaming: false,
+        }
+    }
 }
 
 /// Who said it.
@@ -52,6 +69,36 @@ pub struct ChatSession {
     job: Option<ChatJob>,
     /// Model the transcript belongs to, so a model switch is visible.
     pub model: String,
+    /// Counter behind [`ChatLine::seq`].
+    next_seq: u64,
+}
+
+impl ChatSession {
+    /// Append a line, giving it a fresh identity.
+    pub fn push(&mut self, speaker: Speaker, text: impl Into<String>) -> usize {
+        let seq = self.next_seq;
+        self.next_seq += 1;
+        self.lines.push(ChatLine {
+            seq,
+            speaker,
+            text: text.into(),
+            streaming: false,
+        });
+        self.lines.len() - 1
+    }
+
+    /// Append a line that is still being written, and return its index.
+    fn push_streaming(&mut self) -> usize {
+        let seq = self.next_seq;
+        self.next_seq += 1;
+        self.lines.push(ChatLine {
+            seq,
+            speaker: Speaker::Model,
+            text: String::new(),
+            streaming: true,
+        });
+        self.lines.len() - 1
+    }
 }
 
 impl std::fmt::Debug for ChatSession {
@@ -115,11 +162,7 @@ impl Model {
         let model = match self.chat_model() {
             Ok(model) => model,
             Err(message) => {
-                self.chat_session.lines.push(ChatLine {
-                    speaker: Speaker::System,
-                    text: message.clone(),
-                    streaming: false,
-                });
+                self.chat_session.push(Speaker::System, message.clone());
                 self.report_error(&message);
                 return CommandOutcome::Failed(message);
             }
@@ -149,17 +192,9 @@ impl Model {
                 _ => {}
             }
         }
-        self.chat_session.lines.push(ChatLine {
-            speaker: Speaker::User,
-            text: input.clone(),
-            streaming: false,
-        });
+        self.chat_session.push(Speaker::User, input.clone());
         messages.push(Message::user(input.clone()));
-        self.chat_session.lines.push(ChatLine {
-            speaker: Speaker::Model,
-            text: String::new(),
-            streaming: true,
-        });
+        self.chat_session.push_streaming();
         self.chat_session.input.clear();
         self.chat_session.model = model.clone();
 
@@ -270,11 +305,7 @@ impl Model {
 
     /// Append a system note to the transcript (used by the agent tools later).
     pub fn chat_note(&mut self, text: impl Into<String>) {
-        self.chat_session.lines.push(ChatLine {
-            speaker: Speaker::System,
-            text: text.into(),
-            streaming: false,
-        });
+        self.chat_session.push(Speaker::System, text);
     }
 }
 

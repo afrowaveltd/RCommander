@@ -46,7 +46,10 @@ only loses the rest of the text, never data.
 
 - The chat does not run tools by itself; tool calling needs a model that supports
   it and is not wired into this window yet.
-- Answers are shown as plain text. Markdown rendering and syntax highlighting are
-  a separate step of the AI work and are not in this build.
+- Answers are rendered as Markdown — headings, lists, tables, quotes, inline code
+  and fenced code blocks — but code is **not** syntax-highlighted yet, and links
+  in an answer are drawn as text rather than opened.
 - The transcript is kept in memory only. Closing RCommander ends the
   conversation; a local store is planned.
+- A half-received answer is rendered as it arrives, so a Markdown table or fence
+  can look odd for a moment and settles when the rest of the line arrives.
