@@ -809,6 +809,9 @@ and policy controls. This is local application orchestration; participation
 in the optional cross-client Agent Commons (16.22–16.26) is a separate
 explicitly authorised capability, not a prerequisite for multi-model teams.
 
+For optional persona selection, creative teams and text/image/document generation,
+see Phase 24. Keep persona independent of role, provider and permission grants.
+
 ### Shared, bidirectional pane workspace
 
 The **two panes are peers**. The chat pane is not a separate, blind command
@@ -1292,6 +1295,122 @@ testing approved real connections. Start 23.1–23.3 as an independent vertical
 slice after the relevant foundation is ready, then add reviewed mutation,
 comparison, transfers and administration incrementally. Normal file management
 must remain independent of installed database drivers or running servers.
+
+## Phase 24 — Afrowave Personality Studio and creative agent teams (planned)
+
+Create an optional creative environment spanning playful conversations,
+absurd fictional notices and certificates, and serious educational or
+professional materials. The same capable model can behave like a dry
+pessimistic robot, a cheerful cooperative engineer, a meticulous bureaucrat,
+a polite butler, an old-school administrator or a patient professor. Do not
+deliberately reduce the model's factual accuracy or problem-solving ability
+to achieve a character. Keep this project open to affordable and local
+models, not tied to one provider or an expensive subscription.
+
+**Separate four concepts:** the model/provider supplies capabilities; the
+persona supplies communication style and character; the workload/role supplies
+the task and acceptance criteria; the output template and renderer supply the
+presentation. Tools and permissions remain the responsibility of the runtime,
+never of persona text. Reuse the editable prompt catalogue (16.16–16.17),
+workload contracts (16.18), agent runtime (16.19–16.20) and multi-model team
+assignments (16.27–16.30). A single affordable model may play several roles,
+or different local/remote models may be selected for the same team. Personality
+is optional; neutral, normal technical assistance remains available.
+
+**Persona packs:** data-driven, versioned, localisable, user-editable character
+definitions with stable IDs, names, descriptions, prompts, optional original
+avatars, examples of tone and preferred presentation. Support preview,
+copy/override/reset, import/export and community sharing of explicitly
+authorised packs; preserve user variants on upgrade. Persona examples may
+include an original gloomy, highly intelligent robot (working nickname
+Marwin), an absurdly formal bureaucrat, a cooperative engineer (Soudruh),
+professor, illustrator, butler and veteran administrator. Publicly distributed
+characters, names, artwork and voices should be original or appropriately
+licensed; do not assume permission to distribute familiar fictional characters
+or impersonate real people. Character humour must not override accuracy,
+safety, respectful treatment or the user's ability to switch to neutral
+assistance, especially for serious or sensitive requests.
+
+**Creative workflows:** let users assemble reusable teams and sequential
+or parallel roles through existing delegation contracts. For example:
+
+- Kabaret: a bureaucrat writes an absurd fictional tavern ordinance banning
+  snails and slugs because intoxicated patrons might slip on them; a comic
+  reviewer adds theatrical redactions or a fictional approval stamp; a graphic
+  designer lays it out for printing.
+- University: a professor prepares a clear lesson about C pointers, stack
+  memory, CPU registers or another subject at a chosen student level; an
+  independent subject reviewer checks facts, examples and diagrams; an
+  illustrator makes suitable figures; a designer assembles the lesson.
+- Publishing: author, editor, translator and designer prepare a coherent
+  multilingual document with review and editable source.
+- Development workshop or help desk: architect, engineer, reviewer, diagnostician
+  or veteran administrator retain their real workload and tool contracts,
+  but may communicate in user-selected styles.
+
+Teams and personas are not mandatory for simple requests. Prefer one model,
+one pass or deterministic rendering when that is sufficient. Let the user
+select output language, persona, team, document type, visual style and format
+independently. Optional voice support is a later idea, not an initial dependency.
+
+**Visual generation and document composition:** add capability-aware image
+providers (local and explicitly configured remote APIs), independently of
+text providers. Use them for illustrations, backgrounds, diagrams where
+appropriate, and decorative artwork. A graphic role may prepare an image
+brief and review the generated asset. Keep important text, numbers, headings,
+code, form fields and diagram labels in structured editable source and use
+real layout/rendering for exact placement, rather than relying on an image
+model to reproduce a long document correctly. Support an initial set of
+notices, posters, fictional certificates, forms, handouts and lessons with
+preview and editable text/asset sources, followed by export to suitable
+formats such as SVG, PDF and PNG. Implementation and rendering libraries are
+open choices; investigate actual platform support, font embedding, Unicode,
+print margins, page sizes, pagination, accessibility and memory usage before
+claiming support. Generated images need not be used when ordinary vector
+graphics or typesetting do the job better.
+
+Preserve content revisions, source/asset provenance and the distinction
+between factual and fictional work. Educational materials should have a
+factual review step with verifiable examples, and disclose uncertainties;
+do not let a playful persona silently rewrite facts. Comic redactions,
+stamps and approvals are fictional presentation, not actual authorisation.
+Public examples of mock official documents should be visibly marked as
+fiction/satire and avoid real official seals or deceptive credentials.
+Show the exact output for review before export, sharing or printing.
+
+**Optional public Afrowave service:** a separate future Personality Studio web
+gateway could expose selected personas and creative workflows on inexpensive
+or free-to-user models where sustainable, with optional image generation.
+Reuse portable persona/workload/document contracts rather than require the
+desktop application. Provider terms must permit the intended gateway use.
+Keep provider keys server-side, isolate sessions, apply request and image
+quotas, rate limits, per-user/team cost ceilings and cancellation, and make
+cost or feature restrictions visible. No promise of unlimited free requests,
+no hidden paid fallback and no automatic public sharing of private prompts
+or assets. Minimise collected data, define retention/deletion and protect
+against abuse; local RCommander functionality must work without this service.
+The service is not Agent Commons: its image assets must not be sent through
+the text-only Commons protocol. Deployment, hosting, model selection,
+funding and public availability remain separate decisions.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 24.1 | Persona contracts and catalogue | original starter characters, optional personality selection, typed versioned packs and localisation, reuse prompt layering | mock model tests show the same workload with different styles, neutral fallback, preserved overrides, invalid pack handling, no privilege changes or provider calls from pack import |
+| 24.2 | Creative teams and workflow templates | user-defined role/persona/model assignments, Kabaret, University, Publishing and technical examples, structured drafts/reviews | fake providers prove single-model role switching and multi-model delegation, bounded costs, reviewer disagreement, cancellation, language selection and no silent fact changes |
+| 24.3 | Image provider capability | optional local/remote adapters, asset requests, previews, image metadata and provenance | fixture image providers cover unsupported capabilities, size limits, failed jobs, cancellation, approved destinations and budget enforcement; text-only operation unaffected |
+| 24.4 | Document composition and export | structured editable source, reusable templates, exact text and vector layout, generated image placement and print/export preview | tests cover Unicode/Czech text, code labels, dimensions, margins, pagination, missing assets/fonts and deterministic output where applicable; visual review of a fictional snail notice and a serious C lesson; verify advertised export formats |
+| 24.5 | Personality Studio UI and sharing | persona/team/style picker, editor, template/asset browser, preview, export/import and local packs | headless/UI tests verify changes, overrides, neutral mode, source retention, valid export, explicit overwrite/publication and safe pack import without execution |
+| 24.6 | Optional public gateway | separately deployable affordable-model web service using shared contracts, cost controls, privacy and abuse protections | local/mock service verifies session isolation, quotas, rate limits, key protection, cancellation, provider errors, opt-in sharing and separate image storage; public deployment only after approval and review |
+
+**Order:** define the persona/workload separation alongside Phase 16 prompt
+and role contracts to avoid later redesign. Implement a small text-only
+persona slice first; creative teams reuse the Phase 16 runtime and policy.
+Add image generation and document composition independently, then combine
+them. Reuse Phase 17.0/17 rendering and preview where appropriate, without
+confusing document viewing with generation. The public service is optional
+and later; no impact on the basic file manager, offline mode or Agent Commons.
+No particular model, visual style, framework, budget or deployment date is
+mandated by this plan.
 
 ## Ideas backlog (not scheduled yet, cheapest value first)
 
