@@ -79,8 +79,8 @@ neserializuje.
 Klíč úložiště se odvozuje z vaší passphrase při každém odemčení a neukládá se do
 mezipaměti, takže zavřením aplikace se pověření uzamknou. Dialog nabídne *vytvoření*
 hesla, když úložiště ještě neexistuje, a *odemčení*, když existuje. Zapomenuté heslo
-lze nahradit tlačítkem *začít znovu* v tomto dialogu nebo položkou *Konfigurace ▸
-Možnosti ▸ Nebezpečné ▸ Uložené přihlašovací údaje*, která úložiště smaže. Uložená
+lze nahradit tlačítkem *začít znovu* v tomto dialogu nebo položkou *Konfigurace →
+Možnosti → Nebezpečné → Uložené přihlašovací údaje*, která úložiště smaže. Uložená
 připojení (hostitel, uživatel, port) zůstanou, takže stačí znovu zadat hesla.
 
 ## SFTP a SSH

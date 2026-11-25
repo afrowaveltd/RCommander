@@ -68,7 +68,7 @@ nezapojený HTTP **server** RCommanderu.
 
 ## Panel agenta
 
-*Síť ▸ MCP agenti* otevře panel. Každá položka `[[agent.clients]]`
+*Síť → MCP agenti* otevře panel. Každá položka `[[agent.clients]]`
 v `settings.toml` se stane tlačítkem; stiskem se aplikace připojí k danému
 serveru, vypíše jeho nástroje a umožní jeden vybrat, upravit jeho JSON argumenty
 a spustit. Výsledek (nebo chyba vrácená serverem) se zobrazí pod volbou nástroje.

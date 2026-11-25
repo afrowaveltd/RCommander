@@ -68,7 +68,7 @@ je zase `report.pdf`.
 
 ## Branch view
 
-*Příkazy ▸ Branch View* (`Ctrl+B`) nahradí obsah panelu plochým výpisem všeho pod
+*Příkazy → Branch View* (`Ctrl+B`) nahradí obsah panelu plochým výpisem všeho pod
 aktuálním adresářem s cestami místo názvů (`src/main.rs`). Celý podstrom se stane
 jedním řaditelným, filtrovatelným a označitelným seznamem — hodí se k nalezení
 všech souborů určitého typu, ke kopírování výběru z mnoha složek najednou nebo ke

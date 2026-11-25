@@ -1,7 +1,7 @@
 # Písma
 
 RCommander si nese dvě vlastní písma a každé z nich můžete nahradit jakýmkoli
-řezem nainstalovaným v počítači. **Konfigurace ▸ Možnosti ▸ Písma**.
+řezem nainstalovaným v počítači. **Konfigurace → Možnosti → Písma**.
 
 ## Tři role
 

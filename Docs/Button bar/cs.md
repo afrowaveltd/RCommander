@@ -5,7 +5,7 @@ myší. Jsou dvě: vodorovná a svislá, zobrazit lze kteroukoli z nich.
 
 ## Přidání tlačítka
 
-*Konfigurace ▸ Tlačítková lišta* otevře editor. Každé tlačítko má:
+*Konfigurace → Tlačítková lišta* otevře editor. Každé tlačítko má:
 
 - **příkaz** — interní příkaz jako `cm_Copy`, externí program nebo adresář
   k otevření,
@@ -24,7 +24,7 @@ přecházejí mezi tlačítky a `Enter` spustí to zaměřené.
 
 ## Úprava lišty
 
-*Konfigurace ▸ Tlačítková lišta* (nebo tlačítko `…` na pravém konci lišty)
+*Konfigurace → Tlačítková lišta* (nebo tlačítko `…` na pravém konci lišty)
 otevře editor. Kliknutím na tlačítko se jeho údaje načtou do polí, tlačítkem `+`
 vytvoříte nové:
 

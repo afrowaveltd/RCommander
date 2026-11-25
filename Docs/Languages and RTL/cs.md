@@ -19,7 +19,7 @@ direction = "ltr"      # nepovinné, jinak se odvodí z kódu
 ```
 
 Soubor vložte vedle aplikace (nebo do uživatelského konfiguračního adresáře),
-restartujte a vyberte jej v *Konfigurace ▸ Možnosti ▸ Jazyk*. Chybějící klíče se
+restartujte a vyberte jej v *Konfigurace → Možnosti → Jazyk*. Chybějící klíče se
 doplní z angličtiny, takže částečný balíček je použitelný okamžitě.
 
 ## Jazyky zprava doleva

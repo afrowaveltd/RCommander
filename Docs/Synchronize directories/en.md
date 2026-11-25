@@ -1,6 +1,6 @@
 # Synchronise directories
 
-*Commands ▸ Synchronize Dirs* compares the two panels and shows, file by file,
+*Commands → Synchronize Dirs* compares the two panels and shows, file by file,
 what differs. Use it to mirror a folder, to make a backup, or to compare a local
 directory with an FTP server.
 

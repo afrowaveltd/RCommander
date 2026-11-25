@@ -35,11 +35,11 @@ entries are dropped), which keeps memory flat.
 
 Directories show as `[DIR]` and everything that is not a decodable image falls
 back to its extension, so the grid never stalls on a huge or broken file. The
-thumbnail size is configurable (*Configuration ▸ Options ▸ Display*).
+thumbnail size is configurable (*Configuration → Options → Display*).
 
 ## The column editor
 
-*Show ▸ Custom columns* opens the editor. The current columns are shown as
+*Show → Custom columns* opens the editor. The current columns are shown as
 removable chips; clicking one removes it, and the `+ name` buttons add a column
 that is not shown yet. The available columns are:
 

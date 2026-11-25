@@ -1,6 +1,6 @@
 # Konfigurace
 
-*Konfigurace ▸ Možnosti* upravuje vše; změny se projevují živě a do
+*Konfigurace → Možnosti* upravuje vše; změny se projevují živě a do
 `settings.toml` se zapíší po potvrzení.
 
 | Sekce | Co ovládá |
@@ -20,7 +20,7 @@
 
 `settings.toml` je určen i k ruční úpravě. Neznámé klíče se zachovají, takže se
 soubor z novější verze stále načte. Soubor vznikne při prvním spuštění a přepíše
-se po volbě *Konfigurace ▸ Uložit nastavení*.
+se po volbě *Konfigurace → Uložit nastavení*.
 
 ## Zabezpečení
 
@@ -76,7 +76,7 @@ zůstane s vaší instalací, například na USB disku.
 
 ## Obnovení výchozích hodnot
 
-*Konfigurace ▸ Možnosti ▸ Nebezpečné* obsahuje tovární obnovení. Každá položka se
+*Konfigurace → Možnosti → Nebezpečné* obsahuje tovární obnovení. Každá položka se
 ještě jednou zeptá, a seznam u ní říká, co přesně se ztratí:
 
 | Obnovení | Co smaže |

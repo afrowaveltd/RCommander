@@ -1,6 +1,6 @@
 # Klávesové zkratky
 
-Všechny zkratky lze změnit v *Konfigurace ▸ Možnosti ▸ Zkratky*; ukládají se do
+Všechny zkratky lze změnit v *Konfigurace → Možnosti → Zkratky*; ukládají se do
 tabulky `[shortcuts]` v souboru `settings.toml` jako `"ctrl+f3" = "cm_SrcByName"`.
 
 ## Základní zkratky

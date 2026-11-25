@@ -2,7 +2,7 @@
 
 Colours are data, not code. Every colour the application draws comes from a theme
 file in `themes/` next to the executable (or in the repository root when running
-from a build directory). *Configuration ▸ Options ▸ Colors* edits them; the file
+from a build directory). *Configuration → Options → Colors* edits them; the file
 format is meant to be edited by hand as well.
 
 ## The file format
@@ -110,7 +110,7 @@ bright red warning colour therefore also has bright red delete icons.
 1. Copy an existing file to `themes/<name>.toml` and change `[meta] name`.
 2. Set `base` to the theme you want to start from and list only the roles you are
    changing.
-3. Use *Configuration ▸ Options ▸ Colors ▸ Reload themes*, or restart.
+3. Use *Configuration → Options → Colors → Reload themes*, or restart.
 
 The themes are discovered at start-up, exactly like `locales/` and `Docs/`; no
 recompilation is needed and an unknown or broken file is reported in the options
@@ -133,14 +133,14 @@ always a way back to a readable colour scheme.
 
 `[file_types]` maps a mask to a colour, e.g. `"*.log" = "#808080"`. The mask syntax
 is the same as everywhere else in the application (it can be edited in
-*Configuration ▸ Options ▸ Display*). When several masks match a name, the most
+*Configuration → Options → Display*). When several masks match a name, the most
 specific rule wins; a rule from the active theme takes precedence over nothing —
 there is no second source of colours.
 
 ## Notes
 
 * A theme file is read-only data: deleting every theme file restores the built-in
-  light theme, and *Configuration ▸ Options ▸ Dangerous ▸ Factory settings* clears
+  light theme, and *Configuration → Options → Dangerous → Factory settings* clears
   the selected theme as part of the settings reset.
 * The theme name stored in `settings.toml` is the file name in lower case, so
   renaming `name` inside a file does not lose the selection; the new name is simply

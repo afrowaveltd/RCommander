@@ -5,7 +5,7 @@ na Windows, Linuxu i Androidu.
 
 ## Vaše konfigurace Gitu
 
-*Konfigurace ▸ Konfigurace Gitu…* nabídne načtení konfigurace Gitu z tohoto počítače.
+*Konfigurace → Konfigurace Gitu…* nabídne načtení konfigurace Gitu z tohoto počítače.
 Nejprve se zeptá, protože ta konfigurace může obsahovat tajemství:
 
 | Položka | K čemu se používá |
@@ -33,7 +33,7 @@ nezapisuje.
 
 ## Repozitář jako panel
 
-*Konfigurace ▸ Otevřít jako Git repozitář* přepne aktivní panel na repozitář, který
+*Konfigurace → Otevřít jako Git repozitář* přepne aktivní panel na repozitář, který
 obsahuje jeho adresář. Panel pak ukazuje pracovní strom **a čtyři virtuální složky**:
 
 | Složka | Co obsahuje |
@@ -49,7 +49,7 @@ adresáři a `..` jde o úroveň výš.
 
 ## Přepínání větví
 
-*Konfigurace ▸ Přepnout větev…* otevře výběr větve pro repozitář v aktivním panelu. Vypíše
+*Konfigurace → Přepnout větev…* otevře výběr větve pro repozitář v aktivním panelu. Vypíše
 všechny místní větve, označí tu, která je právě vybraná, a nabídne:
 
 * **Přepnout** — přepne na zvolenou větev; panel se načte znovu a cesta ukáže novou větev;
@@ -64,7 +64,7 @@ panel není nijak zvláštní — každý může být na jiné větvi.
 ## Kopírování souborů z revize
 
 Vyberte jednu nebo více položek v panelu repozitáře — pracovní strom, větev, tag nebo
-commit — a použijte *Konfigurace ▸ Zkopírovat z repozitáře* (`cm_GitCopyOut`). Soubory se
+commit — a použijte *Konfigurace → Zkopírovat z repozitáře* (`cm_GitCopyOut`). Soubory se
 přečtou z té revize a zapíší se do protějšího panelu:
 
 * soubor se zkopíruje jako soubor, adresář **rekurzivně**;
@@ -82,9 +82,9 @@ V panelu repozitáře je jednotkou práce výběr:
 
 | Příkaz | Co dělá |
 | --- | --- |
-| *Konfigurace ▸ Připravit výběr* (`cm_GitStage`) | dá označené soubory (nebo soubor pod kurzorem) do indexu — zezelenají |
-| *Konfigurace ▸ Vyřadit z indexu* (`cm_GitUnstage`) | vrátí je na verzi z `HEAD` |
-| *Konfigurace ▸ Commitnout výběr…* (`cm_GitCommit`) | otevře dialog commitu pro přesně tyto cesty |
+| *Konfigurace → Připravit výběr* (`cm_GitStage`) | dá označené soubory (nebo soubor pod kurzorem) do indexu — zezelenají |
+| *Konfigurace → Vyřadit z indexu* (`cm_GitUnstage`) | vrátí je na verzi z `HEAD` |
+| *Konfigurace → Commitnout výběr…* (`cm_GitCommit`) | otevře dialog commitu pro přesně tyto cesty |
 
 Dialog commitu ukáže, co se commituje (jeden soubor, nebo `3 soubory`), nechá upravit
 zprávu, nabídne zaškrtávací pole pro push a nic dalšího nepřipraví — nesouvisející změna ve
@@ -93,7 +93,7 @@ připravila jako smazání.
 
 ## Klonování
 
-*Konfigurace ▸ Klonovat repozitář…* se zeptá na URL, adresář a název složky (nabídne ho
+*Konfigurace → Klonovat repozitář…* se zeptá na URL, adresář a název složky (nabídne ho
 z URL: `…/project.git` → `project`). Klonování běží na vlákně na pozadí se schválenými
 přihlašovacími údaji a po dokončení se panel přepne do nového repozitáře.
 
@@ -103,7 +103,7 @@ vypadalo jako použitelný repozitář.
 
 ## Práce s remotem
 
-*Konfigurace ▸ Git remote…* ukáže aktuální větev, její remote a jak daleko jsou obě strany
+*Konfigurace → Git remote…* ukáže aktuální větev, její remote a jak daleko jsou obě strany
 (`2 k odeslání, 1 ke stažení`) a nabídne tři operace:
 
 | Akce | Co dělá |

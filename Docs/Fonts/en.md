@@ -1,7 +1,7 @@
 # Fonts
 
 RCommander ships with two fonts and lets you replace either of them with any face
-already installed on your machine. **Configuration ▸ Options ▸ Fonts**.
+already installed on your machine. **Configuration → Options → Fonts**.
 
 ## The three roles
 

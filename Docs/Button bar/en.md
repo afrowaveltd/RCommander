@@ -5,7 +5,7 @@ are two of them: a horizontal bar and a vertical one, either can be shown.
 
 ## Adding a button
 
-*Configuration ▸ Button Bar* opens the editor. Every button has:
+*Configuration → Button Bar* opens the editor. Every button has:
 
 - a **command** — an internal command such as `cm_Copy`, an external program, or a
   directory to open,
@@ -24,7 +24,7 @@ the arrow keys move between buttons and `Enter` runs the focused one.
 
 ## Editing the bar
 
-*Configuration ▸ Button Bar* (or the `…` button at the right end of the bar) opens
+*Configuration → Button Bar* (or the `…` button at the right end of the bar) opens
 the editor. Pick a button to load it into the fields, or press `+` to create a new
 one:
 

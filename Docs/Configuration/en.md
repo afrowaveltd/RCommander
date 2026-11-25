@@ -1,6 +1,6 @@
 # Configuration
 
-*Configuration ▸ Options* edits everything; the changes are previewed live and
+*Configuration → Options* edits everything; the changes are previewed live and
 written to `settings.toml` when you accept them.
 
 | Section | What it controls |
@@ -20,7 +20,7 @@ written to `settings.toml` when you accept them.
 
 `settings.toml` is meant to be edited by hand as well. Unknown keys are kept, so a
 newer version's file still loads. The file is created on first start and rewritten
-when you choose *Configuration ▸ Save Settings*.
+when you choose *Configuration → Save Settings*.
 
 ## Security
 
@@ -76,7 +76,7 @@ your installation, for example on a USB stick.
 
 ## Resetting
 
-*Configuration ▸ Options ▸ Dangerous* collects the factory resets. Every entry
+*Configuration → Options → Dangerous* collects the factory resets. Every entry
 asks once more before it does anything, and the list says exactly what will be
 lost:
 

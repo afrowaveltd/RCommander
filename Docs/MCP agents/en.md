@@ -70,7 +70,7 @@ unimplemented RCommander HTTP **server** provides protection.
 
 ## The agent panel
 
-*Net ▸ MCP agents* opens the panel. Each entry of `[[agent.clients]]` in
+*Net → MCP agents* opens the panel. Each entry of `[[agent.clients]]` in
 `settings.toml` becomes a button; pressing it connects to that server, lists the
 tools it publishes and lets you pick one, edit its JSON arguments and run it. The
 result (or the error the server returned) is shown below the tool selector.

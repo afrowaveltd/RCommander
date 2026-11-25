@@ -18,7 +18,7 @@ can ask about what you are looking at without switching windows. Open it from
 The chat can live **in a panel** instead of in its own window, which is what you
 want when the conversation is about the directory you are looking at:
 
-- *Configuration ▸ Chat in the other panel* (`cm_ChatPane`) puts the chat in the
+- *Configuration → Chat in the other panel* (`cm_ChatPane`) puts the chat in the
   **passive** panel, so the files you were reading stay on screen. The panel that
   showed the chat takes the focus.
 - `cm_SrcChat` / `cm_TrgChat` toggle it in one named panel.

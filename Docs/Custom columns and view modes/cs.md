@@ -36,11 +36,11 @@ konstantní.
 
 Adresáře se zobrazují jako `[DIR]`, vše, co není dekódovatelný obrázek, se
 zobrazí podle přípony, takže mřížka se nikdy nezasekne na obřím nebo poškozeném
-souboru. Velikost náhledu je nastavitelná (*Konfigurace ▸ Možnosti ▸ Zobrazení*).
+souboru. Velikost náhledu je nastavitelná (*Konfigurace → Možnosti → Zobrazení*).
 
 ## Editor sloupců
 
-*Zobrazení ▸ Vlastní sloupce* otevře editor. Aktuální sloupce jsou zobrazeny jako
+*Zobrazení → Vlastní sloupce* otevře editor. Aktuální sloupce jsou zobrazeny jako
 odstranitelné štítky; kliknutím se sloupec odebere a tlačítky `+ název` přidáte
 sloupec, který zobrazený není. K dispozici jsou:
 

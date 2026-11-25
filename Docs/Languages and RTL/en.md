@@ -19,7 +19,7 @@ direction = "ltr"      # optional, detected from the code otherwise
 ```
 
 Drop the file next to the application (or into the user configuration
-directory), restart, and choose it in *Configuration ▸ Options ▸ Language*.
+directory), restart, and choose it in *Configuration → Options → Language*.
 Missing keys fall back to English, so a partial pack is usable immediately.
 
 ## Right-to-left languages

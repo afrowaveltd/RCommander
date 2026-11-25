@@ -18,7 +18,7 @@ zeptat na to, na co se právě díváte, aniž byste přepínali okna. Otevřete
 Chat může být **v panelu** místo ve vlastním okně — to se hodí, když se rozhovor
 týká adresáře, na který se díváte:
 
-- *Konfigurace ▸ Chat v druhém panelu* (`cm_ChatPane`) dá chat do **pasivního**
+- *Konfigurace → Chat v druhém panelu* (`cm_ChatPane`) dá chat do **pasivního**
   panelu, takže soubory, které jste četli, zůstanou na obrazovce. Panel s chatem
   převezme fokus.
 - `cm_SrcChat` / `cm_TrgChat` ho přepnou v konkrétním panelu.

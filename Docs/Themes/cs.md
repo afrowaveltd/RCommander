@@ -2,7 +2,7 @@
 
 Barvy jsou data, ne kód. Každá barva, kterou aplikace vykreslí, pochází ze souboru
 tématu v adresáři `themes/` vedle spustitelného souboru (vývojářsky v kořeni
-repozitáře). Upravuje je *Konfigurace ▸ Možnosti ▸ Barvy*; formát souboru je
+repozitáře). Upravuje je *Konfigurace → Možnosti → Barvy*; formát souboru je
 určený i pro ruční úpravy.
 
 ## Formát souboru
@@ -108,7 +108,7 @@ barvou má tedy i jasně červené ikony mazání.
 
 1. Zkopírujte existující soubor na `themes/<jméno>.toml` a změňte `[meta] name`.
 2. Nastavte `base` na téma, ze kterého chcete vycházet, a vypište jen měněné role.
-3. Použijte *Konfigurace ▸ Možnosti ▸ Barvy ▸ Načíst témata znovu*, nebo restartujte.
+3. Použijte *Konfigurace → Možnosti → Barvy → Načíst témata znovu*, nebo restartujte.
 
 Témata se načítají při startu stejně jako `locales/` a `Docs/`; není potřeba nic
 kompilovat a neznámý nebo poškozený soubor se ohlásí v dialogu možností, aniž by
@@ -129,14 +129,14 @@ vždy.
 ## Barvy podle typu souboru
 
 `[file_types]` přiřazuje masce barvu, např. `"*.log" = "#808080"`. Syntaxe masek je
-stejná jako všude jinde v aplikaci (upravují se v *Konfigurace ▸ Možnosti ▸
+stejná jako všude jinde v aplikaci (upravují se v *Konfigurace → Možnosti →
 Zobrazení*). Když jméno odpovídá více maskám, vyhraje ta nejkonkrétnější; pravidlo z
 aktivního tématu má přednost — žádný druhý zdroj barev neexistuje.
 
 ## Poznámky
 
 * Soubor tématu je datový: smazání všech souborů témat obnoví vestavěné světlé téma a
-  *Konfigurace ▸ Možnosti ▸ Nebezpečné ▸ Tovární nastavení* vymaže vybrané téma v
+  *Konfigurace → Možnosti → Nebezpečné → Tovární nastavení* vymaže vybrané téma v
   rámci resetu nastavení.
 * Jméno tématu v `settings.toml` je název souboru malými písmeny, takže přejmenování
   `name` uvnitř souboru neznamená ztrátu volby; nové jméno se prostě zobrazí v

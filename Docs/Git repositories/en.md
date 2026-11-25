@@ -5,7 +5,7 @@ code runs on Windows, Linux and Android.
 
 ## Your Git configuration
 
-*Configuration ▸ Git configuration…* offers to read the Git configuration of this
+*Configuration → Git configuration…* offers to read the Git configuration of this
 machine. It asks first, because that configuration can contain secrets:
 
 | Item | What it is used for |
@@ -34,7 +34,7 @@ contents of any revision. Nothing in it writes to a repository.
 
 ## A repository as a panel
 
-*Configuration ▸ Open as Git repository* turns the active panel into the repository that
+*Configuration → Open as Git repository* turns the active panel into the repository that
 contains its directory. The panel then shows the working tree **plus four virtual
 folders**:
 
@@ -51,7 +51,7 @@ directory, and `..` goes back up.
 
 ## Switching branches
 
-*Configuration ▸ Switch branch…* opens the branch picker for the repository in the active
+*Configuration → Switch branch…* opens the branch picker for the repository in the active
 panel. It lists every local branch, marks the one that is checked out, and offers:
 
 * **Switch** — check the selected branch out; the panel reloads and the path bar shows the
@@ -67,7 +67,7 @@ staged changes. Neither panel is special: each can sit on its own branch.
 ## Copying files out of a revision
 
 Select one or more entries in a repository panel — the working tree, a branch, a tag or a
-commit — and use *Configuration ▸ Copy out of the repository* (`cm_GitCopyOut`). The files
+commit — and use *Configuration → Copy out of the repository* (`cm_GitCopyOut`). The files
 are read from that revision and written into the active panel's counterpart:
 
 * a file is copied as a file, a directory is copied **recursively**;
@@ -85,9 +85,9 @@ Inside a repository panel the selection is the unit of work:
 
 | Command | What it does |
 | --- | --- |
-| *Configuration ▸ Stage selection* (`cm_GitStage`) | puts the marked files (or the cursor) into the index — they turn green |
-| *Configuration ▸ Unstage selection* (`cm_GitUnstage`) | puts them back to the `HEAD` version |
-| *Configuration ▸ Commit selection…* (`cm_GitCommit`) | opens the commit dialog for exactly those paths |
+| *Configuration → Stage selection* (`cm_GitStage`) | puts the marked files (or the cursor) into the index — they turn green |
+| *Configuration → Unstage selection* (`cm_GitUnstage`) | puts them back to the `HEAD` version |
+| *Configuration → Commit selection…* (`cm_GitCommit`) | opens the commit dialog for exactly those paths |
 
 The commit dialog lists the change (one file, or `3 files`), lets you edit the message,
 offers the push checkbox, and stages nothing else — an unrelated modification in the tree
@@ -96,7 +96,7 @@ of being silently staged as a deletion.
 
 ## Cloning
 
-*Configuration ▸ Clone repository…* asks for the URL, the directory and a folder name
+*Configuration → Clone repository…* asks for the URL, the directory and a folder name
 (suggested from the URL: `…/project.git` → `project`). The clone runs on a worker thread
 with the credentials you approved, and when it finishes the panel switches to the new
 repository.
@@ -107,7 +107,7 @@ something that looks like a usable repository.
 
 ## Working with a remote
 
-*Configuration ▸ Git remote…* shows the current branch, its remote and how far the two
+*Configuration → Git remote…* shows the current branch, its remote and how far the two
 sides have drifted (`2 to push, 1 to pull`), and offers three operations:
 
 | Action | What it does |

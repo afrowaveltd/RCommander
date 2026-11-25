@@ -1,6 +1,6 @@
 # Keyboard shortcuts
 
-All shortcuts can be changed in *Configuration ▸ Options ▸ Shortcuts*; they are
+All shortcuts can be changed in *Configuration → Options → Shortcuts*; they are
 stored in the `[shortcuts]` table of `settings.toml` as `"ctrl+f3" = "cm_SrcByName"`.
 
 ## The essentials

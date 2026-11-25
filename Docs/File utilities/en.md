@@ -71,7 +71,7 @@ envelope is restored — so `report.pdf.b64` becomes `report.pdf` again.
 
 ## Branch view
 
-*Commands ▸ Branch View* (`Ctrl+B`) replaces the panel content with a flat list of
+*Commands → Branch View* (`Ctrl+B`) replaces the panel content with a flat list of
 everything below the current directory, using paths as names (`src/main.rs`). The
 whole subtree becomes one sortable, filterable, markable list — useful to find all
 files of a type, to copy a selection out of many folders in one go, or to check

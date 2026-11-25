@@ -2548,3 +2548,53 @@ fn the_panel_command_opens_the_chat_beside_the_files() {
         "no chat pane, no pane button"
     );
 }
+
+/// Every character the shipped help topics use must be drawable with the fonts we ship.
+///
+/// The app draws a "tofu" box for a character nothing can render, which is how a menu path written
+/// with an exotic arrow ends up looking like a defect (and how `egui_kittest` turns it into a
+/// panic). This test is the guard: a topic that gains such a character fails here instead of in a
+/// user's window.
+#[test]
+fn every_help_character_can_be_drawn_with_the_bundled_fonts() {
+    let docs = rcommander::paths::docs_dir();
+    if !docs.is_dir() {
+        return;
+    }
+    let ctx = egui::Context::default();
+    rcommander::theme::install_icon_font(&ctx);
+    let output = ctx.run_ui(egui::RawInput::default(), |_| {});
+    let mut deltas = output.textures_delta;
+    deltas.clear();
+    let mut missing: Vec<(String, char)> = Vec::new();
+    for entry in std::fs::read_dir(&docs).unwrap().flatten() {
+        let topic = entry.path();
+        if !topic.is_dir() {
+            continue;
+        }
+        for file in std::fs::read_dir(&topic).unwrap().flatten() {
+            let path = file.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            for ch in text.chars() {
+                // Newlines and tabs are layout, not glyphs.
+                if ch == '\n' || ch == '\r' || ch == '\t' {
+                    continue;
+                }
+                let drawable =
+                    ctx.fonts_mut(|fonts| fonts.has_glyph(&egui::FontId::proportional(14.0), ch));
+                if !drawable && !missing.iter().any(|(_, seen)| *seen == ch) {
+                    missing.push((path.display().to_string(), ch));
+                }
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "these characters would be drawn as empty boxes: {missing:?}"
+    );
+}

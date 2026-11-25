@@ -43,7 +43,7 @@ stays on disk and the status line reports what was completed.
 ## Background transfers
 
 Tick *background* in the copy/move dialog (or set it as the default under
-*Configuration ▸ Options*) and the transfer runs on a worker thread: the panels
+*Configuration → Options*) and the transfer runs on a worker thread: the panels
 stay usable, the status bar shows aggregate progress with the file currently being
 written, and *Cancel* stops the job. Every job checks a cancellation token between
 chunks, so stopping is immediate and the partial result stays on disk.
@@ -60,7 +60,7 @@ Existing names are **never overwritten** by a drop: the incoming file is stored 
 
 ## The background transfer manager
 
-*Commands ▸ Background Transfer* opens a window listing every running job with its
+*Commands → Background Transfer* opens a window listing every running job with its
 own progress bar, the file being written, the number of completed files and a `×`
 button that cancels just that job; the button in the header cancels all of them.
 The window stays usable while transfers run, so you can start a second copy and

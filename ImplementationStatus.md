@@ -167,6 +167,21 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Help text: a guard against characters nothing can draw (fix)
+
+`cargo test -p rcommander --test ui_smoke every_help_character` → **1 test**.
+
+Writing the new help topics exposed a mistake that had been in the documentation from the beginning:
+the menu paths were written with `▸` (U+25B8), which none of the bundled fonts contains. The
+application draws a **tofu box** for such a character, so every "Configuration ▸ Options" in the help
+had been showing a small empty rectangle. `egui_kittest` turns the same thing into a panic, which is
+how it was finally noticed.
+
+28 help files now use `→`, which the fonts do contain, and a new test walks every `Docs/*/*.md` and
+asks egui whether each character can be drawn with the bundled faces. A future topic that gains an
+emoji or an exotic arrow fails here instead of shipping a box — help topics are user-editable files,
+so this is the editor's guard as much as ours.
+
 ## Phase 16.1c — the chat lives in a panel (done)
 
 `cargo test -p rcommander --lib chatpane` → **4 tests**, plus **2 UI tests**.

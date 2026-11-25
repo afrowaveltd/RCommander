@@ -40,7 +40,7 @@ zůstane na disku a stavový řádek hlásí, co bylo dokončeno.
 ## Přenosy na pozadí
 
 Zaškrtněte *na pozadí* v dialogu kopírování/přesunu (nebo si to nastavte jako
-výchozí v *Konfigurace ▸ Možnosti*) a přenos poběží ve vlákně na pozadí: panely
+výchozí v *Konfigurace → Možnosti*) a přenos poběží ve vlákně na pozadí: panely
 zůstanou použitelné, stavový řádek ukazuje souhrnný průběh a právě zapisovaný
 soubor, a tlačítko *Zrušit* úlohu zastaví. Každá úloha kontroluje token zrušení
 mezi bloky, takže zastavení je okamžité a částečný výsledek zůstane na disku.
@@ -57,7 +57,7 @@ Existující názvy se přetažením **nikdy nepřepíší**: příchozí soubor
 
 ## Správce přenosů na pozadí
 
-*Příkazy ▸ Přenosy na pozadí* otevře okno se seznamem všech běžících úloh, každou
+*Příkazy → Přenosy na pozadí* otevře okno se seznamem všech běžících úloh, každou
 s vlastním pruhem průběhu, zapisovaným souborem, počtem hotových souborů
 a tlačítkem `×`, které zruší jen tuto úlohu; tlačítko v záhlaví zruší všechny.
 Okno zůstává použitelné i během přenosů, takže můžete spustit druhou kopii a

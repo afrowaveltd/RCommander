@@ -1,6 +1,6 @@
 # Synchronizace adresářů
 
-*Příkazy ▸ Synchronizovat adresáře* porovná oba panely a ukáže soubor po
+*Příkazy → Synchronizovat adresáře* porovná oba panely a ukáže soubor po
 souboru, co se liší. Hodí se na zrcadlení složky, zálohu nebo porovnání místního
 adresáře s FTP serverem.
 
