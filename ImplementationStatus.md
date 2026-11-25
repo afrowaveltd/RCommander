@@ -41,7 +41,7 @@ cargo test --workspace
 | 20 | Optional privileged system capabilities | **pending** — narrow helper, OS authentication, verified backup/restore and optional installation; not required for normal chat |
 | 21 | Portable host diagnostics, System Check and repair workloads | **pending** — read-only diagnostics, evidence-based approved repairs, preventive checks, portable technician mode, remote .NET/Apache deployment and optional diagnostic integrations |
 | 22 | Native WSL integration and cross-OS workspaces | **pending** — native filesystem/execution providers, mount-aware path mapping and cross-OS tests |
-| 23 | SQL database panels and administration | **pending** — SQLite/PostgreSQL first, read-only browsing and SQL workspace, reviewed edits, comparison, transfers, backup/restore and AI DBA; additional engine adapters later |
+| 23 | Database panels and administration (SQL and document stores) | **pending** — SQLite/PostgreSQL first, read-only browsing and SQL workspace, reviewed edits, comparison, transfers, backup/restore and AI DBA; SQL Server/MySQL/MariaDB and native MongoDB document provider (23.10) later |
 
 
 ---
@@ -662,7 +662,7 @@ command either by its own name or through a family rule:
 | Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
 | No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions; establish editable prompt and declarative workload contracts early (16.16–16.21) |
 | No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, tag-first classification, controlled SQL gateway, reviewed Knowledge Pull Requests, provenance and safe reuse |
-| No first-class database panels or SQL administration | Phase 23; independent database providers, read-only browser and SQL editor first, reviewed mutations and administration later |
+| No first-class database panels or administration | Phase 23; independent database providers, read-only browser and SQL editor first, reviewed mutations and administration later, native MongoDB document support (23.10) |
 | Shared Markdown parser, syntax highlighting and annotations not implemented | Phase 17.0 before Phase 17.1–17.2 |
 | No general data/render plugin framework or enforceable isolation for untrusted plugins | Phase 18; process separation alone is insufficient |
 | MCP HTTP server advertised in CLI help is not connected: `run_mcp` ignores `--http` arguments | Implement and secure server transport separately, or remove the unused CLI help flag; stdio server and MCP HTTP **client** are distinct |
