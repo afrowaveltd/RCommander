@@ -60,7 +60,8 @@ vynechá systémový kořen, obrazy `snap` a pseudosystémové systémy, protož
 `/snap/core22/3129` nikomu nepomůže. Kořen zůstává dostupný napsáním `/` do cesty.
 
 Jména pocházejí ze samotného svazku (`/dev/disk/by-label` v Linuxu, informace o svazku ve
-Windows), jinak se zobrazí přípojný bod.
+Windows), jinak se zobrazí přípojný bod. U každé položky je volné místo (`DATA — 220 GB`) a
+odpojitelná média jsou nahoře, protože disk, který jsi právě připojil, je ten, který hledáš.
 
 ## Nabídka pravého tlačítka
 
@@ -68,6 +69,11 @@ Pravý klik na řádek ho označí (jako v Průzkumníku) a otevře nabídku ope
 smysl: u adresáře *Otevřít*, u souboru *Zobrazit* a *Upravit*, dále *Kopírovat*, *Přesunout*,
 *Nový adresář*, *Přejmenovat*, *Smazat* a *Atributy*. U každé položky je klávesová zkratka, takže
 kdo ji nezná, naučí se ji používáním nabídky.
+
+Pravý klik do **prázdné plochy** pod řádky (nebo na rámeček panelu) otevře nabídku pro samotný
+adresář: *Nový adresář*, *Obnovit*, *Nadřazený adresář*, *Označit vše* a položky úložiště
+přihlašovacích údajů a konfigurace. Klik zároveň aktivuje panel, takže nabídka vždy platí pro ten
+panel, na který jsi ukázal.
 
 Až bude vrstva agenta, patří sem i věci typu „zkontrolovat agentem" nebo „publikovat na server" —
 nabídka je pro ně přirozené místo.

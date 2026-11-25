@@ -61,7 +61,9 @@ a selector full of `/snap/core22/3129` entries helps nobody. The root stays reac
 `/` into the path bar.
 
 Labels come from the volume itself (`/dev/disk/by-label` on Linux, the volume information on
-Windows) and fall back to the mount path.
+Windows) and fall back to the mount path. Each entry shows the free space (`DATA — 220 GB`) and
+removable media are listed first, because the disk you just plugged in is the one you are
+looking for.
 
 ## Right-click menu
 
@@ -69,6 +71,11 @@ Right-clicking a row selects it (as Explorer does) and opens a menu of the opera
 matter there: *Open* for a directory, *View* and *Edit* for a file, then *Copy*, *Move*, *New
 folder*, *Rename*, *Delete* and *Attributes*, each with its keyboard shortcut next to the name —
 so someone who does not know the keys learns them by using the menu.
+
+Right-clicking **the empty space** below the rows (or the panel border) opens the menu for the
+directory itself: *New folder*, *Reload*, *Parent directory*, *Select all*, and the credential
+store and configuration entries. The panel becomes active on the click, so the menu always acts
+on the panel you pointed at.
 
 Commands that would grow past this (compile this project, check with the agent, publish to the
 server) belong here too once the agent layer exists; the menu is the natural place for them.

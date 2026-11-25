@@ -124,6 +124,24 @@ pub fn show(
         if background.clicked() {
             model.focus = side;
         }
+        if background.secondary_clicked() {
+            model.focus = side;
+        }
+        // Right-clicking the empty space below the rows (or the panel border) offers the
+        // operations that are about the directory itself, not about one row.
+        background.context_menu(|ui| {
+            ui.set_min_width(230.0);
+            for item in folder_menu_items(model) {
+                if item.separator {
+                    ui.separator();
+                    continue;
+                }
+                if menu_entry(ui, item.icon, &item.label) {
+                    actions.push(PanelAction::Command(item.command));
+                    ui.close();
+                }
+            }
+        });
         tabs_row(ui, model, side, palette, rtl, &mut actions);
         path_row(ui, model, side, palette, active, rtl, &mut actions);
         if model.panel(side).view_mode == ViewMode::Thumbnails {
@@ -227,7 +245,7 @@ fn path_row(
     let mut submitted = false;
     // Volume selector: `C: System` on Windows, `DATA (/mnt/data)` elsewhere.
     if !editing {
-        let volumes = model.selectable_volumes();
+        let volumes = rc_core::drive::selector_entries();
         if !volumes.is_empty() {
             let current = model.current_volume(side);
             let current_label = current
@@ -237,10 +255,9 @@ fn path_row(
             let mut chosen: Option<std::path::PathBuf> = None;
             egui::ComboBox::from_id_salt(("panel_volume", side))
                 .selected_text(current_label)
-                .width(140.0)
+                .width(180.0)
                 .show_ui(ui, |ui| {
-                    for volume in &volumes {
-                        let label = rc_core::drive::selector_label(volume);
+                    for (volume, label) in &volumes {
                         let selected = current.as_ref().is_some_and(|c| c.root == volume.root);
                         if ui.selectable_label(selected, label).clicked() {
                             chosen = Some(volume.root.clone());
@@ -390,6 +407,14 @@ fn path_row(
     }
 }
 
+/// Width of the flexible (name) column, shared by the header and the rows so the
+/// captions always sit over their content.
+fn name_column_width(specs: &[rc_core::config::ColumnSpec], width: f32) -> f32 {
+    const MARGIN: f32 = 4.0;
+    let fixed: f32 = specs.iter().skip(1).map(|c| c.width.max(20.0)).sum();
+    (width - fixed - 2.0 * MARGIN).max(40.0)
+}
+
 fn list_header(
     ui: &mut Ui,
     model: &mut Model,
@@ -414,8 +439,7 @@ fn list_header(
     // Column headers follow `settings.display.columns`, so hiding, adding and
     // reordering columns also changes the header row.
     let specs = model.settings.display.columns.clone();
-    let fixed: f32 = specs.iter().skip(1).map(|c| c.width.max(20.0)).sum();
-    let flex = (rect.width() - fixed - 12.0).max(60.0);
+    let flex = name_column_width(&specs, rect.width());
     let columns: Vec<(
         String,
         f32,
@@ -679,6 +703,61 @@ fn menu_entry(ui: &mut egui::Ui, icon: Option<Icon>, label: &str) -> bool {
     response
         .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &caption));
     response.clicked()
+}
+
+/// The entries of the folder (empty area) menu.
+fn folder_menu_items(model: &Model) -> Vec<MenuItem> {
+    let shortcut = |command: &str| {
+        model
+            .keymap
+            .shortcut_for(command)
+            .map(crate::keys::display_shortcut)
+            .unwrap_or_default()
+    };
+    let labelled = |label: String, command: &str| {
+        let keys = shortcut(command);
+        if keys.is_empty() {
+            label
+        } else {
+            format!("{label}\t{keys}")
+        }
+    };
+    let mut items = Vec::new();
+    let mut push = |label: String, command: &str, icon: Option<Icon>, separator: bool| {
+        items.push(MenuItem {
+            label,
+            command: command.to_string(),
+            icon,
+            separator,
+        })
+    };
+    push(
+        model.t("cmd.mkdir"),
+        "cm_MkDir",
+        Some(Icon::FolderPlus),
+        false,
+    );
+    push(
+        labelled(model.t("cmd.refresh"), "cm_RereadSource"),
+        "cm_RereadSource",
+        Some(Icon::Refresh),
+        false,
+    );
+    push(model.t("cmd.up"), "cm_GoToParent", Some(Icon::Up), false);
+    push(
+        model.t("cmd.select_all"),
+        "cm_SelectAll",
+        Some(Icon::Check),
+        true,
+    );
+    push(model.t("cmd.secrets"), "cm_Secrets", Some(Icon::Lock), true);
+    push(
+        model.t("cmd.config"),
+        "cm_Config",
+        Some(Icon::Settings),
+        false,
+    );
+    items
 }
 
 /// One entry of a context menu.
@@ -1008,8 +1087,7 @@ fn draw_row(
     let margin = 4.0;
     // The columns come from the configuration, so the full view is user-defined.
     let specs = &display.columns;
-    let fixed: f32 = specs.iter().skip(1).map(|c| c.width.max(20.0)).sum();
-    let flex = (rect.width() - fixed - 2.0 * margin).max(40.0);
+    let flex = name_column_width(specs, rect.width());
     let mut cells: Vec<(String, f32, Align2)> = Vec::with_capacity(specs.len());
     for (index, spec) in specs.iter().enumerate() {
         let width = if index == 0 {
@@ -1160,6 +1238,37 @@ mod tests {
 #[cfg(test)]
 mod menu_tests {
     use super::*;
+
+    #[test]
+    fn the_folder_menu_maps_entries_to_real_commands() {
+        let model = Model::for_test(
+            rc_core::config::Settings::default(),
+            rc_core::location::Location::local("/tmp"),
+            rc_core::location::Location::local("/tmp"),
+        );
+        let items = folder_menu_items(&model);
+        let commands: Vec<&str> = items.iter().map(|item| item.command.as_str()).collect();
+        for expected in ["cm_MkDir", "cm_RereadSource", "cm_Config"] {
+            assert!(commands.contains(&expected), "{expected} in {commands:?}");
+        }
+        assert!(items.iter().filter(|item| item.separator).count() >= 2);
+        for item in &items {
+            assert!(!item.label.trim().is_empty());
+            assert!(item.icon.is_some());
+        }
+    }
+
+    #[test]
+    fn the_header_and_the_rows_share_one_column_layout() {
+        let specs = rc_core::config::Settings::default().display.columns;
+        // The flexible name column is the same for both, so captions sit over their data.
+        let width = 600.0;
+        let flex = name_column_width(&specs, width);
+        let fixed: f32 = specs.iter().skip(1).map(|c| c.width.max(20.0)).sum();
+        assert!((flex + fixed + 8.0 - width).abs() < 0.01, "flex {flex}");
+        // A very narrow panel still leaves a usable name column.
+        assert!(name_column_width(&specs, 120.0) >= 40.0);
+    }
 
     #[test]
     fn the_row_menu_maps_entries_to_real_commands() {

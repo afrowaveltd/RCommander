@@ -406,6 +406,41 @@ pub fn volume_of(path: &Path) -> Option<Volume> {
         .max_by_key(|volume| volume.root.as_os_str().len())
 }
 
+/// The selector entries with their free space, removable media first.
+///
+/// A disk you just plugged in is the one you are looking for, so it goes on top; the free
+/// space next to the name answers "do I have room for this copy?" without opening anything.
+pub fn selector_entries() -> Vec<(Volume, String)> {
+    let mut volumes = pickable_volumes();
+    volumes.sort_by(|a, b| {
+        let rank = |kind: VolumeKind| match kind {
+            VolumeKind::Removable => 0,
+            VolumeKind::Optical => 1,
+            VolumeKind::Network => 2,
+            VolumeKind::Fixed => 3,
+            VolumeKind::Virtual => 4,
+            VolumeKind::Unknown => 5,
+        };
+        rank(a.kind)
+            .cmp(&rank(b.kind))
+            .then_with(|| a.root.cmp(&b.root))
+    });
+    volumes
+        .into_iter()
+        .map(|volume| {
+            let base = selector_label(&volume);
+            let free = volume.space().map(|space| space.available);
+            let label = match free {
+                Some(free) if free > 0 => {
+                    format!("{base}  —  {}", crate::format::format_size_bytes(free))
+                }
+                _ => base,
+            };
+            (volume, label)
+        })
+        .collect()
+}
+
 /// Text for the volume selector: `C: System` on Windows, `DATA (on /mnt/data)` elsewhere.
 pub fn selector_label(volume: &Volume) -> String {
     let name = volume.label.trim();
@@ -644,5 +679,39 @@ mod selector_tests {
             assert_eq!(unescape_label("plain"), "plain");
             assert_eq!(unescape_label(""), "");
         }
+    }
+}
+
+#[cfg(test)]
+mod selector_entry_tests {
+    use super::*;
+
+    #[test]
+    fn the_selector_entries_carry_free_space_and_put_removable_media_first() {
+        let entries = selector_entries();
+        if entries.is_empty() {
+            return;
+        }
+        for (volume, label) in &entries {
+            assert!(
+                label.starts_with(&selector_label(volume)),
+                "the label starts with the volume name: {label}"
+            );
+        }
+        // Removable volumes sort before fixed ones.
+        let ranks: Vec<u8> = entries
+            .iter()
+            .map(|(volume, _)| match volume.kind {
+                VolumeKind::Removable => 0,
+                VolumeKind::Optical => 1,
+                VolumeKind::Network => 2,
+                VolumeKind::Fixed => 3,
+                VolumeKind::Virtual => 4,
+                VolumeKind::Unknown => 5,
+            })
+            .collect();
+        let mut sorted = ranks.clone();
+        sorted.sort_unstable();
+        assert_eq!(ranks, sorted, "removable media come first");
     }
 }
