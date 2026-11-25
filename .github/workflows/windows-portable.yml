@@ -39,6 +39,19 @@ jobs:
           & 'C:\vcpkg\vcpkg.exe' install openssl:x64-windows-static-md
           if ($LASTEXITCODE -ne 0) { throw 'vcpkg OpenSSL installation failed' }
 
+      - name: Run Windows regression tests for drives and delete text
+        shell: pwsh
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          VCPKGRS_TRIPLET: x64-windows-static-md
+        run: |
+          cargo test --locked -p rc-core --lib windows_volumes_use_drive_letter_roots
+          if ($LASTEXITCODE -ne 0) { throw 'Windows drive enumeration test failed' }
+          cargo test --locked -p rcommander --lib delete_confirmation_tests
+          if ($LASTEXITCODE -ne 0) { throw 'Delete confirmation test failed' }
+          cargo test --locked -p rcommander --test ui_smoke drive_selector_is_shown_in_each_panel_and_respects_layout_setting
+          if ($LASTEXITCODE -ne 0) { throw 'Drive-picker UI test failed' }
+
       - name: Compile Windows x64 release
         shell: pwsh
         env:
