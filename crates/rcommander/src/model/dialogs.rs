@@ -234,6 +234,10 @@ pub struct AgentApprovalState {
     pub request: rc_core::policy::Request,
     /// Allow this operation for the rest of the session.
     pub remember_for_session: bool,
+    /// The user asked for "allow always", so the confirmation step is showing.
+    pub confirming_always: bool,
+    /// What the user typed into that confirmation step; must equal [`super::policy::CONFIRM_WORD`].
+    pub typed: String,
     /// Result of the last action.
     pub status: String,
 }
@@ -334,13 +338,15 @@ pub enum OptionsTab {
     Packer,
     Ftp,
     Agent,
+    /// Capability policy, stored pre-approvals and the audit trail (Phase 16.0d).
+    Security,
     Shortcuts,
     /// Factory resets; the page warns loudly because nothing here can be undone.
     Dangerous,
 }
 
 impl OptionsTab {
-    pub fn all() -> [OptionsTab; 9] {
+    pub fn all() -> [OptionsTab; 10] {
         [
             OptionsTab::Display,
             OptionsTab::Language,
@@ -349,6 +355,7 @@ impl OptionsTab {
             OptionsTab::Packer,
             OptionsTab::Ftp,
             OptionsTab::Agent,
+            OptionsTab::Security,
             OptionsTab::Shortcuts,
             OptionsTab::Dangerous,
         ]
@@ -363,6 +370,7 @@ impl OptionsTab {
             OptionsTab::Packer => "dialog.config.packer",
             OptionsTab::Ftp => "dialog.config.ftp",
             OptionsTab::Agent => "dialog.config.agent",
+            OptionsTab::Security => "dialog.config.security",
             OptionsTab::Shortcuts => "dialog.config.shortcuts",
             OptionsTab::Dangerous => "dialog.config.dangerous",
         }
@@ -1934,7 +1942,11 @@ mod tests {
             o.draft.shortcuts.get("f9").map(|s| s.as_str()),
             Some("cm_Test")
         );
-        assert_eq!(OptionsTab::all().len(), 9);
+        assert_eq!(OptionsTab::all().len(), 10, "a new page must be counted");
+        assert!(
+            OptionsTab::all().contains(&OptionsTab::Security),
+            "the security page is reachable"
+        );
         assert!(OptionsTab::Language.key().starts_with("dialog.config."));
         // The reset page has to stay last: it is the one nobody opens by accident.
         assert_eq!(*OptionsTab::all().last().unwrap(), OptionsTab::Dangerous);

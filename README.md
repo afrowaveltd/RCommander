@@ -221,7 +221,12 @@ move, delete, create directories, rename, read/write text files, search, query
 free space and read the help.
 
 Destructive tools (delete, move, overwrite, writing files, and the Git tools
-`git_commit`/`git_checkout`/`git_push`) are gated. By default `rcommander mcp`
+`git_commit`/`git_checkout`/`git_push`) are gated. Inside the application a dialog
+asks with three answers — allow now, allow for this session, and allow always,
+which explains its exact scope and requires typing `yes` before it is stored in
+`settings.toml`. *Configuration ▸ Security* lists every stored answer with a
+*Take it back* button, the live session permissions with *Stop everything now*,
+and whether the audit log's hash chain is intact. By default `rcommander mcp`
 asks on your terminal and anything that is not an explicit yes is a no — the
 question goes to the terminal, never to standard output, because that stream
 carries the JSON-RPC protocol. Without a terminal every destructive tool is

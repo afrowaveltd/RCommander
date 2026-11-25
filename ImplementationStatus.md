@@ -207,6 +207,40 @@ position, because positions shift when the transcript is cleared. And because th
 fails (partial markup degrades to text), a half-received answer renders as it arrives: an unfinished
 code fence keeps its code lines visible, which the tests check.
 
+## Phase 16.0d — three answers, permanent pre-approvals and a security page (done)
+
+`cargo test -p rcommander --lib policy` → **13 tests**, `cargo test -p rc-core --lib policy` →
+**19 tests**, **2 UI tests** for the dialog and the page, plus the risk-statement key guard.
+
+The approval dialog used to offer two buttons and a checkbox, which hid the most interesting
+question: *how long* does this yes last? It now offers the three answers the panel owner asked for —
+**allow now**, **allow for this session** and **allow always**, the last one being the red one.
+
+**Allow now** is unchanged. **Allow for this session** writes an in-memory
+`Policy::approved_this_session` entry next to the session grant, because an approval-worthy
+operation is gated *after* the grant check: a grant alone would have been silently ignored and the
+same question would have come back on the next call. The stop button clears both.
+
+**Allow always** opens a second window that states the exact scope ("the agent may push and
+upload, without asking, in every session"), says the decision is written to `settings.toml`, and
+requires typing `yes` before *Confirm* is clickable. Only the exact word counts — `ano`, `yess` and
+`true` are refusals — because a click can be a mis-click and a typed word cannot. The answer is
+stored as `[[agent.preapproved]]` and read back by `Policy::from_settings`, so a restart remembers
+it. It is deliberately bounded: the deny list still wins, and a profile that never offers an
+operation (elevated work under `sandbox`) cannot pre-approve it either.
+
+Writing the test for the session case exposed a real policy hole: `publish`, `execute` and
+`network` take no path, so nothing can cover them with a path grant, and "no grant" made them a
+**hard denial** — the dialog was unreachable for exactly the operations the panel owner wants to be
+asked about (a push). A non-path operation without a grant now falls through to the approval gate
+instead: "nobody pre-allowed it" means the human decides, not that the answer is no.
+
+**Configuration ▸ Security** is the page that makes all of this inspectable: the profile with one
+honest sentence each, which operations always ask, every stored pre-approval with its date and a
+*Take it back* button, the live session approvals with *Stop everything now*, and the audit log's
+hash-chain state plus its last line. The page also fixed a real bug: accepting the options dialog
+never rebuilt the policy, so changing the profile had no effect until a restart.
+
 ## Phase 16.0c — an approval source outside the GUI (done)
 
 `cargo test -p rc-agent --lib confirm` → **6 tests**, `cargo test -p rcommander --test

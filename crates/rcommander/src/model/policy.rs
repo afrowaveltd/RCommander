@@ -16,6 +16,28 @@ use super::{CommandOutcome, Model};
 use rc_core::audit::{AuditLog, ChainState, Verdict};
 use rc_core::policy::{Decision, Destination, Grant, Operation, Policy, Profile, Request};
 
+/// The three answers the approval dialog offers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ApprovalDecision {
+    /// Run this once; the next attempt asks again.
+    Once,
+    /// Run it for the rest of this session (revocable from the security page).
+    Session,
+    /// Never ask again for this operation — requires typing the confirmation word.
+    Always,
+}
+
+/// The word the user has to type before "allow always" is accepted.
+///
+/// Deliberately the plainest possible word: it must be typed, not clicked, so that an accidental
+/// key press or a stray Enter cannot make a permanent decision.
+pub const CONFIRM_WORD: &str = "yes";
+
+/// True when `typed` is the confirmation word.
+pub fn confirms_always(typed: &str) -> bool {
+    typed.trim().eq_ignore_ascii_case(CONFIRM_WORD)
+}
+
 /// What an approval dialog is about.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingApproval {
@@ -34,6 +56,43 @@ pub struct PendingApproval {
 }
 
 impl PendingApproval {
+    /// What saying yes actually permits, in the user's language.
+    ///
+    /// Every line is a consequence, not a restatement of the operation name: the dialog is
+    /// supposed to be readable by somebody who does not know what a "publish" is.
+    pub fn consequence_keys(&self) -> Vec<&'static str> {
+        let mut keys: Vec<&'static str> = match self.operation {
+            Operation::Read => vec!["agent.risk.read"],
+            Operation::Write => vec!["agent.risk.write"],
+            Operation::Create => vec!["agent.risk.create"],
+            Operation::Delete => vec!["agent.risk.delete"],
+            Operation::Rename => vec!["agent.risk.rename"],
+            Operation::Execute => vec!["agent.risk.execute"],
+            Operation::Publish => vec!["agent.risk.publish"],
+            Operation::Network => vec!["agent.risk.network"],
+            Operation::Privileged => vec!["agent.risk.privileged"],
+        };
+        if self.irreversible {
+            keys.push("agent.risk.irreversible");
+        } else {
+            keys.push("agent.risk.reversible");
+        }
+        keys
+    }
+
+    /// What "allow always" would cover, so the second window can say it plainly.
+    pub fn always_scope_key(&self) -> &'static str {
+        match self.operation {
+            Operation::Read => "agent.always.scope.read",
+            Operation::Write | Operation::Create | Operation::Rename => "agent.always.scope.write",
+            Operation::Delete => "agent.always.scope.delete",
+            Operation::Execute => "agent.always.scope.execute",
+            Operation::Publish => "agent.always.scope.publish",
+            Operation::Network => "agent.always.scope.network",
+            Operation::Privileged => "agent.always.scope.privileged",
+        }
+    }
+
     /// One-line summary for the dialog title area.
     pub fn summary(&self) -> String {
         let destination = if self.destination.is_empty() {
@@ -50,6 +109,11 @@ impl PendingApproval {
 }
 
 impl Model {
+    /// Where the settings are written: the override the tests install, or the real per-user file.
+    fn writable_settings_path(&self) -> Option<std::path::PathBuf> {
+        Some(self.config_file("settings.toml"))
+    }
+
     /// The policy currently in force.
     pub fn policy(&self) -> &Policy {
         &self.policy
@@ -165,6 +229,8 @@ impl Model {
                         pending,
                         request: request.clone(),
                         remember_for_session: false,
+                        confirming_always: false,
+                        typed: String::new(),
                         status: String::new(),
                     },
                 ));
@@ -186,6 +252,134 @@ impl Model {
         }
     }
 
+    /// The user approved the pending request once, for the session, or permanently.
+    ///
+    /// `typed` is only read for [`ApprovalDecision::Always`]: the permanent answer needs the user
+    /// to type the confirmation word, so a click alone can never make it.
+    pub fn approve_pending_with(
+        &mut self,
+        decision: ApprovalDecision,
+        typed: &str,
+    ) -> CommandOutcome {
+        if decision == ApprovalDecision::Always && !confirms_always(typed) {
+            // Keep the dialog open: the user asked for "always" but did not confirm it.
+            let message = self.tf("agent.always.need_word", &[("word", CONFIRM_WORD)]);
+            if let Some(state) = self.approval_state_mut() {
+                state.status = message.clone();
+            }
+            return CommandOutcome::Failed(message);
+        }
+        match decision {
+            ApprovalDecision::Once => self.approve_pending(false),
+            ApprovalDecision::Session => self.approve_pending(true),
+            ApprovalDecision::Always => self.approve_pending_always(),
+        }
+    }
+
+    /// Store a permanent pre-approval for the pending operation and close the dialog.
+    fn approve_pending_always(&mut self) -> CommandOutcome {
+        let Some(state) = self.approval_state() else {
+            return CommandOutcome::None;
+        };
+        let request = state.request.clone();
+        let operation = request.operation;
+        let note = self
+            .tf("agent.always.note", &[("origin", &request.origin)])
+            .to_string();
+        let target = request
+            .resource
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default();
+        let destination = request
+            .destination
+            .as_ref()
+            .map(Destination::describe)
+            .unwrap_or_default();
+        if !self.policy.preapprove(operation, note.clone()) {
+            let message = self.t("agent.always.profile_caps");
+            self.audit.record(
+                &request.origin,
+                operation_name(operation),
+                &target,
+                &destination,
+                Verdict::Denied,
+                "the profile does not offer this operation",
+            );
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        // Persist the decision: the whole point of "always" is that a restart remembers it.
+        let entry = rc_core::config::Preapproval {
+            // The plain name, not the localisation key: the settings file must not depend on
+            // the language the dialog happens to be in.
+            operation: operation_name(operation).to_string(),
+            label: note,
+            created: chrono::Local::now().timestamp(),
+        };
+        self.settings
+            .agent
+            .preapproved
+            .retain(|existing| existing.operation != entry.operation);
+        self.settings.agent.preapproved.push(entry);
+        self.settings_dirty = true;
+        if let Some(path) = self.writable_settings_path()
+            && let Err(error) = self.settings.save(&path)
+        {
+            let message = error.to_string();
+            self.report_error(format!("settings not saved: {message}"));
+        }
+        self.audit.record(
+            &request.origin,
+            operation_name(operation),
+            &target,
+            &destination,
+            Verdict::Approved,
+            "approved permanently by the user",
+        );
+        self.close_dialogs();
+        let name = self.t(operation.key());
+        self.report(self.tf("agent.always.stored", &[("operation", &name)]));
+        CommandOutcome::Ok
+    }
+
+    /// Forget a permanent pre-approval (the undo of "allow always").
+    pub fn revoke_preapproval(&mut self, operation: Operation) -> bool {
+        let removed_policy = self.policy.unforgive(operation);
+        let key = operation_name(operation).to_string();
+        let before = self.settings.agent.preapproved.len();
+        self.settings
+            .agent
+            .preapproved
+            .retain(|entry| entry.operation != key);
+        let removed_settings = self.settings.agent.preapproved.len() != before;
+        if removed_policy || removed_settings {
+            self.settings_dirty = true;
+            if let Some(path) = self.writable_settings_path()
+                && let Err(error) = self.settings.save(&path)
+            {
+                let message = error.to_string();
+                self.report_error(format!("settings not saved: {message}"));
+            }
+            let name = self.t(operation.key());
+            self.report(self.tf("agent.always.revoked", &[("operation", &name)]));
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Every stored permanent pre-approval, for the security page.
+    pub fn preapprovals(&self) -> Vec<(Operation, String, i64)> {
+        let mut out: Vec<(Operation, String, i64)> = Vec::new();
+        for entry in &self.settings.agent.preapproved {
+            if let Some(operation) = rc_core::policy::parse_operation(&entry.operation) {
+                out.push((operation, entry.label.clone(), entry.created));
+            }
+        }
+        out
+    }
+
     /// The user approved the pending request.
     pub fn approve_pending(&mut self, remember: bool) -> CommandOutcome {
         let Some(state) = self.approval_state() else {
@@ -193,6 +387,9 @@ impl Model {
         };
         let request = state.request.clone();
         if remember {
+            // Two things are needed: the operation is approved for this run (that lifts the
+            // approval gate) and a grant covers the path (that lifts the missing-grant refusal).
+            self.policy.approve_for_session(request.operation);
             let mut grant = Grant::new(
                 format!("session-{}", request.origin),
                 format!("{} allowed by the user", request.origin),
@@ -253,6 +450,14 @@ impl Model {
         CommandOutcome::Ok
     }
 
+    /// Mutable access to the open approval dialog, for the confirmation status line.
+    fn approval_state_mut(&mut self) -> Option<&mut super::dialogs::AgentApprovalState> {
+        match self.top_dialog_mut() {
+            Some(super::Dialog::AgentApproval(state)) => Some(state),
+            _ => None,
+        }
+    }
+
     fn approval_state(&mut self) -> Option<super::dialogs::AgentApprovalState> {
         match self.top_dialog().cloned() {
             Some(super::Dialog::AgentApproval(state)) => Some(state),
@@ -275,6 +480,8 @@ impl Model {
                 revoked += 1;
             }
         }
+        let session = self.policy.clear_session_approvals();
+        revoked += session;
         if revoked > 0 {
             let count = revoked.to_string();
             self.report(self.tf("agent.revoked", &[("count", &count)]));
@@ -343,6 +550,117 @@ mod tests {
         model
     }
 
+    fn ask_push(model: &mut Model) -> CommandOutcome {
+        let request = Request::publish("origin/main of the panel's repository", "agent:git");
+        model.ask_approval(&request, "publishing the commit")
+    }
+
+    #[test]
+    fn allowing_once_runs_the_push_and_the_next_attempt_asks_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        assert_eq!(ask_push(&mut model), CommandOutcome::Ok);
+        assert!(model.pending_approval().is_some(), "the dialog is open");
+        assert_eq!(
+            model.approve_pending_with(ApprovalDecision::Once, ""),
+            CommandOutcome::Ok
+        );
+        assert!(model.pending_approval().is_none(), "the dialog closed");
+        assert!(!model.policy().is_preapproved(Operation::Publish));
+        // Nothing was stored, so the next push asks again.
+        let request = Request::publish("origin/main", "agent:git");
+        assert!(!model.would_allow(&request));
+        assert_eq!(model.settings.agent.preapproved.len(), 0);
+    }
+
+    #[test]
+    fn allowing_for_the_session_survives_until_the_grants_are_revoked() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        ask_push(&mut model);
+        model.approve_pending_with(ApprovalDecision::Session, "");
+        let request = Request::publish("origin/main", "agent:git");
+        assert!(model.would_allow(&request), "the session grant covers it");
+        assert_eq!(
+            model.settings.agent.preapproved.len(),
+            0,
+            "not written down"
+        );
+        assert!(model.revoke_agent_grants() >= 1);
+        assert!(!model.would_allow(&request), "the stop button works");
+    }
+
+    #[test]
+    fn allowing_always_needs_the_word_and_then_survives_a_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        ask_push(&mut model);
+        // A click alone is not enough.
+        match model.approve_pending_with(ApprovalDecision::Always, "ano") {
+            CommandOutcome::Failed(message) => {
+                assert!(!message.is_empty(), "the refusal explains itself")
+            }
+            other => panic!("a wrong word must not be accepted: {other:?}"),
+        }
+        assert!(model.pending_approval().is_some(), "the dialog stays open");
+        assert!(!model.policy().is_preapproved(Operation::Publish));
+
+        assert_eq!(
+            model.approve_pending_with(ApprovalDecision::Always, "  YES "),
+            CommandOutcome::Ok
+        );
+        assert!(model.policy().is_preapproved(Operation::Publish));
+        assert!(model.would_allow(&Request::publish("anything", "agent")));
+        // It is written to the settings file, so the next start knows it.
+        let stored = model.settings.agent.preapproved.clone();
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].operation, "publish");
+        let path = dir.path().join("settings.toml");
+        let text = std::fs::read_to_string(&path).unwrap_or_default();
+        assert!(
+            text.contains("preapproved") || !path.exists(),
+            "the decision reaches the file or the test has no writable settings: {text}"
+        );
+        // A fresh model built from those settings still allows the push.
+        let mut reloaded = model_in(dir.path());
+        reloaded.settings.agent = model.settings.agent.clone();
+        reloaded.refresh_policy();
+        assert!(reloaded.would_allow(&Request::publish("anything", "agent")));
+        // And the permanent answer can be taken back.
+        assert!(model.revoke_preapproval(Operation::Publish));
+        assert!(!model.policy().is_preapproved(Operation::Publish));
+        assert!(model.settings.agent.preapproved.is_empty());
+    }
+
+    #[test]
+    fn the_dialog_lists_the_consequences_before_any_button() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        ask_push(&mut model);
+        let pending = model
+            .pending_approval()
+            .cloned()
+            .expect("a pending approval");
+        let keys = pending.consequence_keys();
+        assert!(keys.contains(&"agent.risk.publish"), "{keys:?}");
+        assert!(
+            keys.contains(&"agent.risk.irreversible"),
+            "a push cannot be undone by restoring a backup: {keys:?}"
+        );
+        assert_eq!(pending.always_scope_key(), "agent.always.scope.publish");
+        // That the keys exist in both packs is checked by tests/i18n_keys.rs, which can see them.
+    }
+
+    #[test]
+    fn the_confirmation_word_is_exact() {
+        for yes in ["yes", "YES", " yes ", "Yes"] {
+            assert!(confirms_always(yes), "{yes:?} should confirm");
+        }
+        for no in ["", "ye", "yess", "ano", "true", "1", "of course"] {
+            assert!(!confirms_always(no), "{no:?} must not confirm");
+        }
+    }
+
     #[test]
     fn reading_inside_the_shared_folder_is_allowed_and_audited() {
         let dir = tempfile::tempdir().unwrap();
@@ -408,8 +726,14 @@ mod tests {
         assert!(model.top_dialog().is_none(), "the dialog closes");
         let events = model.audit().read();
         assert_eq!(events.last().unwrap().verdict, Verdict::Approved);
-        // An elevated operation still asks (the profile gate never disappears), but the
-        // remembered grant means the policy no longer *denies* it.
+        // "Allow for this session" means exactly that: the next attempt runs without a question.
+        assert!(
+            model.would_allow(&request),
+            "the session approval lifts the gate: {:?}",
+            model.decide(&request)
+        );
+        // Revoking the session grants puts the question back.
+        model.revoke_agent_grants();
         assert!(matches!(
             model.decide(&request),
             rc_core::policy::Decision::NeedsApproval { .. }

@@ -911,6 +911,270 @@ fn parse_ui_color(text: &str) -> [u8; 3] {
     }
 }
 
+/// The security page: who may do what, what is pre-approved, and what the log says.
+///
+/// Everything on the page is a *policy* control, so it applies to the agent — not to the human
+/// using the panels. The two live controls (revoking session approvals and the audit state) act on
+/// the running model, because a safety button that waits for OK would be useless.
+fn security_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) {
+    let palette = crate::theme::Palette::for_model(model);
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .id_salt("security_scroll")
+        .show(ui, |ui| {
+            // ---- the profile ----------------------------------------------------
+            ui.label(
+                egui::RichText::new(model.t("agent.security.profile"))
+                    .strong()
+                    .color(palette.accent),
+            );
+            ui.horizontal_wrapped(|ui| {
+                for (name, key) in [
+                    ("sandbox", "agent.profile.sandbox"),
+                    ("user", "agent.profile.user"),
+                    ("privileged", "agent.profile.privileged"),
+                ] {
+                    if ui
+                        .selectable_label(state.draft.agent.profile == name, model.t(key))
+                        .clicked()
+                    {
+                        state.draft.agent.profile = name.to_string();
+                    }
+                }
+            });
+            let profile_key = match state.draft.agent.profile.as_str() {
+                "user" => "agent.security.profile.user.help",
+                "privileged" => "agent.security.profile.privileged.help",
+                _ => "agent.security.profile.sandbox.help",
+            };
+            ui.label(
+                egui::RichText::new(model.t(profile_key))
+                    .small()
+                    .color(palette.hidden),
+            );
+            ui.separator();
+
+            // ---- what needs an approval -----------------------------------------
+            ui.label(
+                egui::RichText::new(model.t("agent.security.approvals"))
+                    .strong()
+                    .color(palette.accent),
+            );
+            ui.label(
+                egui::RichText::new(model.t("agent.security.approvals.help"))
+                    .small()
+                    .color(palette.hidden),
+            );
+            for operation in [
+                rc_core::policy::Operation::Execute,
+                rc_core::policy::Operation::Publish,
+                rc_core::policy::Operation::Network,
+                rc_core::policy::Operation::Privileged,
+                rc_core::policy::Operation::Delete,
+                rc_core::policy::Operation::Write,
+            ] {
+                let name = crate::model::policy::operation_name(operation);
+                let mut checked = state
+                    .draft
+                    .agent
+                    .require_approval
+                    .iter()
+                    .any(|entry| entry == name);
+                if ui
+                    .checkbox(&mut checked, model.t(operation.key()))
+                    .changed()
+                {
+                    state
+                        .draft
+                        .agent
+                        .require_approval
+                        .retain(|entry| entry != name);
+                    if checked {
+                        state.draft.agent.require_approval.push(name.to_string());
+                    }
+                }
+            }
+            ui.separator();
+
+            // ---- permanent pre-approvals ----------------------------------------
+            ui.label(
+                egui::RichText::new(model.t("agent.security.always"))
+                    .strong()
+                    .color(palette.accent),
+            );
+            ui.label(
+                egui::RichText::new(model.t("agent.security.always.help"))
+                    .small()
+                    .color(palette.hidden),
+            );
+            if state.draft.agent.preapproved.is_empty() {
+                ui.label(
+                    egui::RichText::new(model.t("agent.security.always.none"))
+                        .italics()
+                        .color(palette.hidden),
+                );
+            }
+            let mut revoke: Option<String> = None;
+            for entry in &state.draft.agent.preapproved {
+                ui.horizontal(|ui| {
+                    let name = rc_core::policy::parse_operation(&entry.operation)
+                        .map(|operation| model.t(operation.key()))
+                        .unwrap_or_else(|| entry.operation.clone());
+                    ui.label(egui::RichText::new(name).strong());
+                    if !entry.label.is_empty() {
+                        ui.label(
+                            egui::RichText::new(&entry.label)
+                                .small()
+                                .color(palette.hidden),
+                        );
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(
+                                egui::RichText::new(model.t("agent.security.always.revoke"))
+                                    .color(palette.warning),
+                            )
+                            .clicked()
+                        {
+                            revoke = Some(entry.operation.clone());
+                        }
+                        if entry.created > 0 {
+                            ui.label(
+                                egui::RichText::new(date_text(entry.created))
+                                    .small()
+                                    .color(palette.hidden),
+                            );
+                        }
+                    });
+                });
+            }
+            if let Some(operation) = revoke {
+                state
+                    .draft
+                    .agent
+                    .preapproved
+                    .retain(|entry| entry.operation != operation);
+                model.settings.agent.preapproved = state.draft.agent.preapproved.clone();
+                if let Some(parsed) = rc_core::policy::parse_operation(&operation) {
+                    model.revoke_preapproval(parsed);
+                }
+            }
+            ui.separator();
+
+            // ---- the live controls ----------------------------------------------
+            ui.label(
+                egui::RichText::new(model.t("agent.security.session"))
+                    .strong()
+                    .color(palette.accent),
+            );
+            let session: Vec<String> = [
+                rc_core::policy::Operation::Read,
+                rc_core::policy::Operation::Write,
+                rc_core::policy::Operation::Create,
+                rc_core::policy::Operation::Delete,
+                rc_core::policy::Operation::Rename,
+                rc_core::policy::Operation::Execute,
+                rc_core::policy::Operation::Publish,
+                rc_core::policy::Operation::Network,
+                rc_core::policy::Operation::Privileged,
+            ]
+            .into_iter()
+            .filter(|operation| model.policy().is_approved_this_session(*operation))
+            .map(|operation| model.t(operation.key()))
+            .collect();
+            if session.is_empty() {
+                ui.label(
+                    egui::RichText::new(model.t("agent.security.session.none"))
+                        .italics()
+                        .color(palette.hidden),
+                );
+            } else {
+                ui.horizontal_wrapped(|ui| {
+                    for name in &session {
+                        ui.label(egui::RichText::new(name).strong());
+                    }
+                });
+            }
+            ui.horizontal(|ui| {
+                if ui
+                    .button(
+                        egui::RichText::new(model.t("agent.security.session.revoke"))
+                            .color(palette.warning),
+                    )
+                    .clicked()
+                {
+                    let count = model.revoke_agent_grants();
+                    let text = model.tf(
+                        "agent.security.session.revoked",
+                        &[("count", &count.to_string())],
+                    );
+                    model.report(text);
+                }
+                ui.checkbox(
+                    &mut state.draft.agent.audit,
+                    model.t("agent.security.audit"),
+                );
+            });
+            ui.separator();
+
+            // ---- the audit trail -------------------------------------------------
+            ui.label(
+                egui::RichText::new(model.t("agent.security.log"))
+                    .strong()
+                    .color(palette.accent),
+            );
+            let chain = model.audit_state();
+            let events = model.audit().read();
+            ui.label(
+                egui::RichText::new(model.tf(
+                    "agent.security.log.events",
+                    &[("count", &events.len().to_string())],
+                ))
+                .small()
+                .color(palette.hidden),
+            );
+            let (text, colour) = match chain {
+                rc_core::audit::ChainState::Intact { events } => (
+                    model.tf("agent.security.log.ok", &[("count", &events.to_string())]),
+                    palette.foreground,
+                ),
+                rc_core::audit::ChainState::Broken { line } => (
+                    model.tf("agent.security.log.broken", &[("line", &line.to_string())]),
+                    palette.warning,
+                ),
+                rc_core::audit::ChainState::Empty => {
+                    (model.t("agent.security.log.missing"), palette.hidden)
+                }
+            };
+            ui.label(egui::RichText::new(text).color(colour));
+            if let Some(event) = events.last() {
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} · {} · {} · {}",
+                        date_text(event.time),
+                        event.origin,
+                        event.operation,
+                        event.verdict.as_str()
+                    ))
+                    .small()
+                    .monospace()
+                    .color(palette.hidden),
+                );
+            }
+        });
+}
+
+/// A short local date for the audit and pre-approval rows.
+fn date_text(unix_seconds: i64) -> String {
+    match chrono::DateTime::from_timestamp(unix_seconds, 0) {
+        Some(utc) => utc
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d %H:%M")
+            .to_string(),
+        None => String::new(),
+    }
+}
+
 fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> DialogAction {
     ui.horizontal_wrapped(|ui| {
         for tab in OptionsTab::all() {
@@ -1020,6 +1284,9 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
                     .prefix("port "),
             );
         }
+        OptionsTab::Security => {
+            security_page(ui, model, state);
+        }
         OptionsTab::Dangerous => {
             dangerous_page(ui, model, state);
         }
@@ -1053,6 +1320,8 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
             km
         };
         model.dialogs.clear();
+        // A changed profile or pre-approval list has to take effect now, not after a restart.
+        model.refresh_policy();
         return DialogAction::Close;
     }
     DialogAction::None
@@ -2138,7 +2407,7 @@ fn agent_approval(
     state: &mut AgentApprovalState,
 ) -> DialogAction {
     let palette = crate::theme::Palette::for_model(model);
-    let pending = &state.pending;
+    let pending = state.pending.clone();
     ui.label(
         egui::RichText::new(model.tf("agent.approval.origin", &[("origin", &pending.origin)]))
             .strong(),
@@ -2171,40 +2440,127 @@ fn agent_approval(
         ui.label(model.t("agent.approval.why"));
         ui.label(egui::RichText::new(&pending.explanation).italics());
     }
-    if pending.irreversible {
-        ui.separator();
-        ui.label(
-            egui::RichText::new(model.t("agent.approval.irreversible"))
-                .color(palette.warning)
-                .strong(),
-        );
-    } else {
-        ui.label(
-            egui::RichText::new(model.t("agent.approval.reversible"))
-                .color(palette.hidden)
-                .small(),
-        );
+
+    // What saying yes actually permits, in plain words.
+    ui.separator();
+    ui.label(model.t("agent.approval.consequences"));
+    for key in pending.consequence_keys() {
+        let colour = if key == "agent.risk.irreversible" {
+            palette.warning
+        } else {
+            palette.foreground
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.label(egui::RichText::new("•").color(palette.hidden));
+            ui.label(egui::RichText::new(model.t(key)).color(colour));
+        });
     }
-    ui.checkbox(
-        &mut state.remember_for_session,
-        model.t("agent.approval.remember"),
+
+    if state.confirming_always {
+        return always_confirmation(ui, model, state, &palette);
+    }
+
+    if !state.status.is_empty() {
+        ui.label(egui::RichText::new(&state.status).color(palette.warning));
+    }
+    ui.separator();
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        if ui
+            .add(egui::Button::new(model.t("agent.approval.allow_once")).fill(palette.accent))
+            .clicked()
+        {
+            model.approve_pending_with(crate::model::policy::ApprovalDecision::Once, "");
+            action = DialogAction::Close;
+        }
+        if ui.button(model.t("agent.approval.allow_session")).clicked() {
+            model.approve_pending_with(crate::model::policy::ApprovalDecision::Session, "");
+            action = DialogAction::Close;
+        }
+        // The permanent answer is the red one: it is the only click that changes the settings.
+        if ui
+            .add(
+                egui::Button::new(
+                    egui::RichText::new(model.t("agent.approval.allow_always"))
+                        .color(palette.warning),
+                )
+                .fill(palette.status_background),
+            )
+            .clicked()
+        {
+            state.confirming_always = true;
+            state.typed.clear();
+        }
+        if ui.button(model.t("agent.approval.refuse")).clicked() {
+            model.refuse_pending();
+            action = DialogAction::Close;
+        }
+    });
+    action
+}
+
+/// The second window of "allow always": the exact scope, and a word the user has to type.
+fn always_confirmation(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut AgentApprovalState,
+    palette: &crate::theme::Palette,
+) -> DialogAction {
+    let pending = state.pending.clone();
+    ui.separator();
+    ui.label(
+        egui::RichText::new(model.t("agent.always.title"))
+            .strong()
+            .color(palette.warning),
     );
+    for key in [pending.always_scope_key(), "agent.always.persistence"] {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(egui::RichText::new("•").color(palette.hidden));
+            ui.label(model.t(key));
+        });
+    }
+    ui.label(
+        egui::RichText::new(model.t("agent.always.revocable"))
+            .small()
+            .color(palette.hidden),
+    );
+    ui.separator();
+    ui.label(
+        egui::RichText::new(model.tf(
+            "agent.always.type_word",
+            &[("word", crate::model::policy::CONFIRM_WORD)],
+        ))
+        .strong(),
+    );
+    let confirmed = crate::model::policy::confirms_always(&state.typed);
+    let field = ui.add(
+        egui::TextEdit::singleline(&mut state.typed)
+            .desired_width(200.0)
+            .hint_text(crate::model::policy::CONFIRM_WORD),
+    );
+    field.request_focus();
     if !state.status.is_empty() {
         ui.label(egui::RichText::new(&state.status).color(palette.warning));
     }
     let mut action = DialogAction::None;
     ui.horizontal(|ui| {
-        if ui
-            .add(egui::Button::new(model.t("agent.approval.allow")).fill(palette.header_background))
-            .clicked()
+        let send = ui.add_enabled(
+            confirmed,
+            egui::Button::new(
+                egui::RichText::new(model.t("agent.always.send")).color(palette.warning),
+            ),
+        );
+        if send.clicked()
+            || (confirmed && field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
         {
-            let remember = state.remember_for_session;
-            model.approve_pending(remember);
+            model
+                .approve_pending_with(crate::model::policy::ApprovalDecision::Always, &state.typed);
             action = DialogAction::Close;
         }
-        if ui.button(model.t("agent.approval.refuse")).clicked() {
-            model.refuse_pending();
-            action = DialogAction::Close;
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            state.confirming_always = false;
+            state.typed.clear();
+            state.status.clear();
         }
     });
     action

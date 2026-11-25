@@ -20,6 +20,10 @@ const SOURCES: &[&str] = &[
     include_str!("../src/model/commands.rs"),
     include_str!("../src/model/mod.rs"),
     include_str!("../src/model/dialogs.rs"),
+    include_str!("../src/model/policy.rs"),
+    include_str!("../src/model/chat.rs"),
+    include_str!("../src/model/ai.rs"),
+    include_str!("../src/ui/chat_window.rs"),
     include_str!("../src/agent_host.rs"),
 ];
 
@@ -157,5 +161,48 @@ fn no_pack_repeats_a_key() {
             );
         }
         assert!(!seen.is_empty(), "{name}: the pack is empty");
+    }
+}
+
+/// The approval dialog builds its risk statements from a table of keys, so the scanner above
+/// cannot see them: every operation must have both statements in every pack.
+#[test]
+fn every_risk_statement_is_translated() {
+    use rc_core::policy::Operation;
+    let packs = packs();
+    let operations = [
+        Operation::Read,
+        Operation::Write,
+        Operation::Create,
+        Operation::Delete,
+        Operation::Rename,
+        Operation::Execute,
+        Operation::Publish,
+        Operation::Network,
+        Operation::Privileged,
+    ];
+    for operation in operations {
+        let pending = rcommander::model::policy::PendingApproval {
+            operation,
+            target: "/tmp/x".to_string(),
+            destination: String::new(),
+            origin: "agent".to_string(),
+            explanation: String::new(),
+            irreversible: true,
+        };
+        let mut keys: Vec<String> = pending
+            .consequence_keys()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        keys.push(pending.always_scope_key().to_string());
+        for key in keys {
+            for (name, available) in &packs {
+                assert!(
+                    available.contains(&key),
+                    "{key} (for {operation:?}) is missing from {name}"
+                );
+            }
+        }
     }
 }

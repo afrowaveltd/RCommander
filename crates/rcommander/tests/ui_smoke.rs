@@ -51,6 +51,9 @@ fn app(left: &std::path::Path, right: &std::path::Path) -> RCommanderApp {
 fn harness(app: RCommanderApp) -> egui_kittest::Harness<'static, RCommanderApp> {
     let mut harness = egui_kittest::Harness::builder()
         .with_accessibility_check(false)
+        // A dialog that changes its height (a tab row that wraps, a scroll area that
+        // re-lays out) needs a few frames to settle; the default budget is four.
+        .with_max_steps(16)
         .build_ui_state(
             move |ui, app: &mut RCommanderApp| {
                 let mut frame = eframe::Frame::_new_kittest();
@@ -1924,9 +1927,17 @@ fn the_approval_dialog_shows_the_operation_and_can_be_refused() {
     assert!(
         harness
             .root()
-            .query_all_by_label("agent.approval.irreversible")
+            .query_all_by_label("agent.risk.irreversible")
             .count()
             > 0
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("agent.risk.privileged")
+            .count()
+            > 0,
+        "the dialog says what elevated rights mean"
     );
     assert!(
         harness
@@ -2229,4 +2240,136 @@ fn a_streaming_answer_grows_without_losing_its_place() {
         "one line, not three partial ones"
     );
     harness.root().get_by_label("Look at this file.");
+}
+
+#[test]
+fn the_approval_dialog_offers_three_answers_and_the_red_one_asks_for_a_word() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    // A push always needs approval, so it is the honest case for this dialog.
+    let request = rc_core::policy::Request::publish("origin/main", "agent:git");
+    app.model.ask_approval(&request, "publishing the commit");
+    let mut harness = harness(app);
+    // The dialog names the operation, the target and what saying yes means.
+    harness.root().get_by_label("agent.approval.allow_once");
+    harness.root().get_by_label("agent.approval.allow_session");
+    harness.root().get_by_label("agent.approval.allow_always");
+    harness.root().get_by_label("agent.risk.publish");
+
+    // The red choice leads to a second window that wants the word typed.
+    harness
+        .root()
+        .get_by_label("agent.approval.allow_always")
+        .click_accesskit();
+    harness.run();
+    harness.root().get_by_label("agent.always.title");
+    assert!(
+        !harness
+            .state()
+            .model
+            .policy()
+            .is_preapproved(rc_core::policy::Operation::Publish),
+        "nothing is allowed yet"
+    );
+    assert!(
+        !harness
+            .state()
+            .model
+            .policy()
+            .is_approved_this_session(rc_core::policy::Operation::Publish)
+    );
+    // "Confirm" is disabled until the word matches.
+    if let Some(rcommander::model::Dialog::AgentApproval(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.typed = "yes".to_string();
+    }
+    harness.run();
+    harness
+        .root()
+        .get_by_label("agent.always.send")
+        .click_accesskit();
+    harness.run();
+    assert!(
+        harness.state().model.top_dialog().is_none(),
+        "the dialog closed after the confirmation"
+    );
+    assert!(
+        harness
+            .state()
+            .model
+            .policy()
+            .is_preapproved(rc_core::policy::Operation::Publish),
+        "the permanent answer is stored"
+    );
+}
+
+#[test]
+fn the_security_page_shows_the_profile_the_preapprovals_and_the_log() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    // A stored permanent answer from an earlier session, plus a live session approval.
+    app.model.settings.agent.preapproved = vec![rc_core::config::Preapproval {
+        operation: "publish".to_string(),
+        label: "approved in the dialog".to_string(),
+        created: 1_700_000_000,
+    }];
+    app.model.refresh_policy();
+    app.model
+        .policy
+        .approve_for_session(rc_core::policy::Operation::Execute);
+    app.model.execute("cm_Config");
+    assert!(
+        matches!(
+            app.model.top_dialog(),
+            Some(rcommander::model::Dialog::Options(_))
+        ),
+        "the configuration dialog is open"
+    );
+    let mut harness = harness(app);
+    if let Some(rcommander::model::Dialog::Options(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.tab = rcommander::model::dialogs::OptionsTab::Security;
+    }
+    harness.run();
+    // The three parts of the page are on screen.
+    harness.root().get_by_label("agent.security.profile");
+    harness.root().get_by_label("agent.security.always");
+    harness.root().get_by_label("agent.security.log");
+    // The stored pre-approval names its operation (the same name also appears as an approval
+    // checkbox, hence `query_all`) and offers to take it back.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("agent.op.publish")
+            .count()
+            >= 2,
+        "the page lists the pre-approval as well as the checkbox"
+    );
+    harness.root().get_by_label("agent.security.always.revoke");
+    // The live session approval is listed too.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("agent.op.execute")
+            .count()
+            > 0
+    );
+
+    // Taking the permanent answer back clears it from the policy as well.
+    harness
+        .root()
+        .get_by_label("agent.security.always.revoke")
+        .click_accesskit();
+    harness.run();
+    assert!(
+        !harness
+            .state()
+            .model
+            .policy()
+            .is_preapproved(rc_core::policy::Operation::Publish),
+        "the revoke button bites immediately"
+    );
+    assert!(harness.state().model.settings.agent.preapproved.is_empty());
 }

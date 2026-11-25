@@ -812,6 +812,24 @@ pub struct Agent {
     pub provider_url: String,
     /// Model the agent uses; empty means "ask the user to pick one".
     pub model: String,
+    /// Operations the human permanently pre-approved in the approval dialog.
+    ///
+    /// Written only by an explicit, typed confirmation; every use is still audited.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub preapproved: Vec<Preapproval>,
+}
+
+/// One permanently pre-approved operation (the "allow always" answer).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Preapproval {
+    /// Operation name as used by `rc_core::policy` (`publish`, `execute`, …).
+    pub operation: String,
+    /// The note the dialog stored, shown in the security page.
+    #[serde(default)]
+    pub label: String,
+    /// When the human said yes (unix seconds), so the log and the page can date it.
+    #[serde(default)]
+    pub created: i64,
 }
 
 impl Default for Agent {
@@ -837,6 +855,7 @@ impl Default for Agent {
             provider_kind: "ollama".to_string(),
             provider_url: "http://127.0.0.1:11434".to_string(),
             model: String::new(),
+            preapproved: Vec::new(),
         }
     }
 }

@@ -16,7 +16,7 @@
 //! *application* lets the agent do. Real isolation is Phase 20's business.
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 /// How much the agent may do at all.
@@ -207,6 +207,26 @@ impl Request {
         }
     }
 
+    /// Deleting a path.
+    pub fn delete(resource: impl Into<PathBuf>, origin: impl Into<String>) -> Request {
+        Request {
+            operation: Operation::Delete,
+            resource: Some(resource.into()),
+            destination: None,
+            origin: origin.into(),
+        }
+    }
+
+    /// Publishing to somewhere outside this machine (a push, an upload); the resource is a label.
+    pub fn publish(label: impl Into<String>, origin: impl Into<String>) -> Request {
+        Request {
+            operation: Operation::Publish,
+            resource: Some(PathBuf::from(label.into())),
+            destination: None,
+            origin: origin.into(),
+        }
+    }
+
     pub fn execute(command: impl Into<String>, origin: impl Into<String>) -> Request {
         Request {
             operation: Operation::Execute,
@@ -298,6 +318,20 @@ pub struct Policy {
     pub deny_paths: Vec<PathBuf>,
     /// Operations that always need an approval, even when a grant covers them.
     pub require_approval: BTreeSet<Operation>,
+    /// Operations the human **permanently** pre-approved, with the note they gave.
+    ///
+    /// This is the "allow always" answer of the approval dialog: it is deliberately the only
+    /// place where an approval-worthy operation can run without a question, it survives a
+    /// restart, and it is visible and revocable in the security page. The deny list still wins
+    /// over it and the profile still caps it — a `sandbox` policy cannot pre-approve an elevated
+    /// command it would never offer.
+    pub preapproved: BTreeMap<Operation, String>,
+    /// Operations the user approved for the rest of **this run** ("allow for this session").
+    ///
+    /// In memory only: a restart asks again, which is what "this session" means. Revoking the
+    /// session grants clears it, so the stop button also stops these.
+    #[serde(default, skip_serializing)]
+    pub approved_this_session: BTreeSet<Operation>,
 }
 
 impl Policy {
@@ -314,7 +348,48 @@ impl Policy {
             ]
             .into_iter()
             .collect(),
+            preapproved: BTreeMap::new(),
+            approved_this_session: BTreeSet::new(),
         }
+    }
+
+    /// Allow an operation for the rest of this run.
+    pub fn approve_for_session(&mut self, operation: Operation) {
+        self.approved_this_session.insert(operation);
+    }
+
+    /// Forget every session approval (the "stop everything" button).
+    pub fn clear_session_approvals(&mut self) -> usize {
+        let count = self.approved_this_session.len();
+        self.approved_this_session.clear();
+        count
+    }
+
+    /// True when an operation was approved for this run by the user.
+    pub fn is_approved_this_session(&self, operation: Operation) -> bool {
+        self.approved_this_session.contains(&operation)
+    }
+
+    /// Mark an operation as permanently pre-approved by the human.
+    ///
+    /// Returns false when the profile could never offer that operation anyway, which keeps a
+    /// stored pre-approval from quietly widening the profile's ceiling.
+    pub fn preapprove(&mut self, operation: Operation, note: impl Into<String>) -> bool {
+        if operation == Operation::Privileged && self.profile != Profile::Privileged {
+            return false;
+        }
+        self.preapproved.insert(operation, note.into());
+        true
+    }
+
+    /// Drop a stored pre-approval.
+    pub fn unforgive(&mut self, operation: Operation) -> bool {
+        self.preapproved.remove(&operation).is_some()
+    }
+
+    /// True when the human pre-approved this operation permanently.
+    pub fn is_preapproved(&self, operation: Operation) -> bool {
+        self.preapproved.contains_key(&operation)
     }
 
     /// A policy for the `user` profile with the usual deny list.
@@ -419,6 +494,21 @@ impl Policy {
             }
         }
 
+        // 2b. A permanent pre-approval runs the operation without a question. It comes after the
+        //     deny list (which always wins) and before the grants (a pre-approval is explicit
+        //     where a grant is an assumption).
+        if let Some(note) = self.preapproved.get(&request.operation) {
+            return Decision::Allow {
+                grant: format!("preapproved: {note}"),
+            };
+        }
+        // "Allow for this session" is the same idea with a shorter lifetime.
+        if self.approved_this_session.contains(&request.operation) {
+            return Decision::Allow {
+                grant: "approved for this session".to_string(),
+            };
+        }
+
         // 3. Collect the grants that could cover the operation.
         let mut covering: Vec<&Grant> = Vec::new();
         let mut expired: Option<&Grant> = None;
@@ -447,8 +537,24 @@ impl Policy {
                     message: format!("the grant “{}” has expired or was revoked", grant.label),
                 });
             }
-            // A `user` profile may always do read-only work that needs no path; anything
-            // else without a grant is refused — never silently widened.
+            // An operation without a path (`publish`, `execute`, `network`) cannot be covered by
+            // a path grant, so "no grant" here does not mean "refused" — it means nobody has
+            // pre-allowed it, which is exactly what the human should decide. Falling through to
+            // the approval gate is what makes the dialog reachable for a push at all.
+            if !resource_is_path(request.operation) {
+                return Decision::NeedsApproval {
+                    reason: format!(
+                        "{} wants to {} {}",
+                        request.origin,
+                        request.operation.key(),
+                        resource
+                            .as_ref()
+                            .map(|path| path.display().to_string())
+                            .unwrap_or_else(|| "something".to_string())
+                    ),
+                };
+            }
+            // A path operation without a grant is refused — never silently widened.
             return Decision::Deny(Denial {
                 reason: DenialReason::NoGrant,
                 message: format!(
@@ -502,7 +608,14 @@ impl Policy {
                 .iter()
                 .filter_map(|name| parse_operation(name))
                 .collect(),
+            preapproved: BTreeMap::new(),
+            approved_this_session: BTreeSet::new(),
         };
+        for entry in &agent.preapproved {
+            if let Some(operation) = parse_operation(&entry.operation) {
+                policy.preapprove(operation, entry.label.clone());
+            }
+        }
         if policy.require_approval.is_empty() {
             // An empty list must not become "no approvals at all"; the safe default stays.
             policy.require_approval = [
@@ -915,6 +1028,99 @@ mod tests {
                 .check(&Request::read(root.join("inside"), "agent"), now())
                 .is_allowed()
         );
+    }
+
+    #[test]
+    fn a_pre_approval_runs_the_operation_without_a_question() {
+        let (_dir, root) = temp();
+        let mut policy = sandbox(&root);
+        // A push has no path grant and always asks, so it is the honest test case.
+        let push = Request::publish("git://example/repo.git", "agent");
+        assert!(matches!(
+            policy.check(&push, now()),
+            Decision::NeedsApproval { .. }
+        ));
+        assert!(policy.preapprove(Operation::Publish, "I said so"));
+        assert!(policy.check(&push, now()).is_allowed());
+        assert!(policy.is_preapproved(Operation::Publish));
+        // And it can be taken back.
+        assert!(policy.unforgive(Operation::Publish));
+        assert!(!policy.is_preapproved(Operation::Publish));
+        assert!(matches!(
+            policy.check(&push, now()),
+            Decision::NeedsApproval { .. }
+        ));
+    }
+
+    #[test]
+    fn the_deny_list_still_wins_over_a_pre_approval() {
+        let (_dir, root) = temp();
+        let mut policy = sandbox(&root);
+        let secret = root.join("secrets");
+        policy.deny_paths.push(secret.clone());
+        assert!(policy.preapprove(Operation::Delete, "delete whatever"));
+        assert!(
+            policy
+                .check(&Request::delete(secret.join("key"), "agent"), now())
+                .is_denied(),
+            "a pre-approval cannot unlock the deny list"
+        );
+    }
+
+    #[test]
+    fn a_pre_approval_cannot_widen_the_profile_ceiling() {
+        let (_dir, root) = temp();
+        let mut policy = sandbox(&root);
+        assert!(
+            !policy.preapprove(Operation::Privileged, "root everything"),
+            "the sandbox profile never offers elevated work"
+        );
+        assert!(!policy.is_preapproved(Operation::Privileged));
+        // The profile that does offer it can store the decision.
+        let mut privileged = Policy::from_settings(
+            &crate::config::Agent {
+                profile: "privileged".to_string(),
+                ..Default::default()
+            },
+            &[],
+        );
+        assert!(privileged.preapprove(Operation::Privileged, "root"));
+        assert!(privileged.is_preapproved(Operation::Privileged));
+    }
+
+    #[test]
+    fn pre_approvals_come_from_the_settings_and_survive_a_round_trip() {
+        let (_dir, root) = temp();
+        let mut agent = crate::config::Agent {
+            preapproved: vec![crate::config::Preapproval {
+                operation: "publish".to_string(),
+                label: "the user allowed pushes".to_string(),
+                created: 1_700_000_000,
+            }],
+            ..Default::default()
+        };
+        let policy = Policy::from_settings(&agent, std::slice::from_ref(&root));
+        assert!(policy.is_preapproved(Operation::Publish));
+        assert_eq!(
+            policy
+                .preapproved
+                .get(&Operation::Publish)
+                .map(String::as_str),
+            Some("the user allowed pushes")
+        );
+        // The settings keep the entry, so a restart remembers the decision.
+        let text = toml::to_string_pretty(&agent).unwrap();
+        assert!(text.contains("preapproved"), "{text}");
+        let back: crate::config::Agent = toml::from_str(&text).unwrap();
+        assert_eq!(back.preapproved, agent.preapproved);
+        // An unknown operation name is ignored instead of failing the whole settings file.
+        agent.preapproved.push(crate::config::Preapproval {
+            operation: "teleport".to_string(),
+            label: String::new(),
+            created: 0,
+        });
+        let policy = Policy::from_settings(&agent, &[root]);
+        assert_eq!(policy.preapproved.len(), 1, "only known operations count");
     }
 
     #[test]
