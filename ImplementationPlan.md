@@ -361,6 +361,53 @@ tool window; it does **not** redefine MCP as a language-model API. An Ollama
 supply explicit, permission-checked capabilities. A model endpoint alone is not
 an MCP server. RCommander should also remain fully usable without any AI.
 
+### The "process with agent" handoff (16.10a) and the prompt manager (16.16–16.17)
+
+Two features grow out of the same observation: an agent is only useful when the
+user can start it **from the thing they are looking at**, and only trustworthy
+when the start is cheap to grant and cheap to take back.
+
+**Right-click ▸ Process with agent.** On a file, a folder or a selection, this
+opens the agent pane in the *other* panel (or as a tab beside the files) with a
+**workspace**: at the lowest privilege level the agent never sees the originals,
+it gets verified copies in a session workspace plus a manifest with their
+SHA-256 hashes. The chat opens with the input focused on *what do you want?*, and
+the prompt manager offers the prompts that fit the thing that was clicked (file
+work, Git, remote, diagnostics). The originals stay byte-identical until the user
+explicitly sends a reviewed change back, which is the Phase 16.4 pipeline:
+diff, per-file approval, transaction with a verified backup, audit entry. Closing
+the workspace deletes it — an abandoned experiment leaves no traces — unless the
+user asks to keep it.
+
+Why the copies are the *default* and not an inconvenience: a model that can only
+break a copy is a model you can afford to let run. Promotion to the original is a
+second, deliberate act, and the audit log shows both.
+
+**The prompt manager** is a catalogue, not magic. Prompts live in TOML files
+grouped by category — files and folders, Git, remote connections, packages and
+build, system diagnostics, general — and each has an id, a title, a body and typed
+variables (`{{selection}}`, `{{cwd}}`, `{{model}}`, `{{host}}`) that are filled
+from the current state and **shown in a preview before anything is sent**.
+Shipped prompts are read-only; the user can copy one, edit it, add prompts of
+their own, and the built-in text always stays available as the reset target with a
+diff against the current text. The chat input gets a picker with category tabs,
+search, recency and pins.
+
+The security rule that keeps this honest: **a prompt is data**. Inserting a
+prompt grants nothing; permissions live in the policy (16.0), the workspace scope
+decides what the agent can even see, and a prompt that "asks" for more access is
+refused exactly like a prompt that asks for nothing. That is also why custom
+prompts are stored as plain files the user can read, share and version.
+
+Other aids worth having, in the same spirit:
+
+* **Recency and pins** instead of a flat list nobody scrolls.
+* **A "what did you change?" follow-up** that re-runs the diff, not the model.
+* **A size warning** before sending a huge selection, with the exact files listed.
+* **Per-workload defaults** (16.18) so a Git task starts with Git settings.
+* **Prompt history** in the audit log: which prompt produced which change, so a
+  surprising result can be traced back to the text that caused it.
+
 Example user journey:
 
 1. Open **Agent chat** in the left pane; choose a locally running Ollama model
@@ -392,6 +439,7 @@ Example user journey:
 | 16.8 | Opt-in Git working-tree assistant | watch an approved local repository for changes (debounce/coalesce events), inspect `git status` and diffs, optionally run allowlisted checks, summarise problems and **draft** GitHub issues or fixes; coordinate with Phase 15 Git panels | deterministic tests cover duplicate file events, untracked/ignored files, issue deduplication, offline mode and credentials; creating an issue, changing branches, committing or pushing requires separate approval; no automatic force-push |
 | 16.9 | Async work, portability and documentation | bounded queues, cancellable operations, progress/diagnostics, clear provider capability indicators; English/Czech help topic with task examples, trust boundaries and privacy notes | UI/model tests with an in-process mock model and mock MCP server; no dependence on a live Ollama, GitHub or UnderstandMe account; desktop tested first, Android capability limitations documented honestly |
 | 16.10 | Bidirectional pane context and live results | pane-neutral `WorkspaceContext`, opt-in context sharing, agent-to-pane operations, refresh/highlight events, F3 preview and proposal/diff entry points | headless/UI tests: chat left and files right **and vice versa**; selected file shared only after permission; creating files refreshes the other pane; F3 shows the new file; tab switches do not widen scope; stale events and cycles are suppressed |
+| 16.10a | **Process with agent** — the file-to-agent handoff | a context-menu entry on any file, folder or selection that opens the agent pane (or the second panel) with a **workspace**: at the lowest privilege the agent gets verified copies plus a manifest, never the originals; the chat opens pre-filled with the prompt chosen in the prompt manager and the input focused on "what do you want?"; applying changes back to the originals is a separate, approval-gated step through the Phase 16.4 review pipeline; closing the workspace deletes it unless the user keeps it | tests prove the originals are byte-identical after a refused or abandoned session, the agent's policy only reaches the workspace root (traversal out of it is refused), the manifest's hashes match the copies, a reviewed apply writes through the transaction layer with a backup, and the workspace is removed when the session ends; the entry is **absent**, not disabled, while the agent is not configured, so the menu cannot promise what does not exist |
 | 16.11 | Permission profiles and approvals | layered global/provider/workspace/session policies, time-limited grants, operation-scoped approvals, audit trail, emergency stop/revoke | tests: deny wins, expired grants fail closed, changing pane paths never changes granted roots, no silent remote command, Git push or GitHub issue, every external write shows the destination and requires its own appropriate grant |
 | 16.12 | Model/tool/data plugin contracts | versioned adapter manifests and registries; separate model APIs (Ollama and configurable endpoints), MCP tool discovery and capability-based data providers | fake providers and fake MCP servers verify discovery, conflicts, unavailable providers, refusal of unknown privileges, tool-chain cancellation and provenance of every tool call; no untrusted extension runs by default |
 | 16.13 | Project scaffolding and approved commands | bounded project-task runner with working-directory constraints, configured commands such as `dotnet new`, `dotnet test`, `git init` and local commit, streaming logs and live file updates | temp-directory integration test creates a C# solution and test project using fixture/fake command runners; tests prohibit arbitrary commands, unsafe working paths, secrets in command/log output and unapproved external publication |
@@ -436,8 +484,8 @@ install tools or execute imported workflow steps.
 
 | # | Step | Output | DoD |
 | --- | --- | --- | --- |
-| 16.16 | Prompt catalog and composition | bundled default prompt resources, user override/extension layer, deterministic resolver and typed variable expansion | test stable IDs, order, missing variables, unknown references/cycles, escaping, secret exclusion, update preserving overrides and reset |
-| 16.17 | Prompt Manager UI | edit/copy/extend/restore, version comparison, import/export, effective-prompt preview and provider/workload choice | UI tests cover edited defaults surviving app update, user-created templates and previews without network calls |
+| 16.16 | Prompt catalog and composition | bundled default prompt resources **grouped into categories** (files and folders, Git, remote SSH/FTP, packages and build, system diagnostics, general), user override/extension layer with **custom prompts of the user's own**, deterministic resolver and typed variable expansion (`{{selection}}`, `{{cwd}}`, `{{model}}`, `{{host}}`); **system prompts are editable and resettable**, with the shipped text kept as the reset target and a visible diff against it | test stable IDs, order, missing variables, unknown references/cycles, escaping, secret exclusion, update preserving overrides and reset |
+| 16.17 | Prompt Manager UI | edit/copy/extend/restore, version comparison, import/export, effective-prompt preview and provider/workload choice; a **prompt picker in the chat input** with category tabs, search, recency and pins, and a preview of the exact text (variables already substituted) before it is sent | UI tests cover edited defaults surviving app update, user-created templates and previews without network calls |
 | 16.18 | Workload contracts and manager | versioned declarative manifests, workflow steps, model preferences, tool capability requests, validation and user-editable profiles | fake packs cover missing/unsupported capabilities, invalid schemas, conflicting grants, import trust and repeatable results; never elevate from pack data |
 | 16.19 | Reusable agent runtime | headless planning/tool-result loop shared by GUI, future TUI and optional CLI; cancellation, bounded tool calls, checkpoints, pause/resume, tool provenance and workspace state | mock provider/MCP tests cover multi-step tasks, partial failure, cancellation, restart/resume with stale targets and revoked grants; no automatic repeat of non-idempotent actions |
 | 16.20 | Context, cost and session orchestration | local history, context budgeting/compaction with provenance, provider-reported token usage (including cache hits when available), per-task budgets, model routing and optional subagents | fake models verify accounting without invented prices, budget stops, checkpoint recovery and separate child scopes no broader than parent; no data sent to additional models without permission |
