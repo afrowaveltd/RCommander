@@ -572,6 +572,44 @@ cycles, arbitrary path writes or unreviewed destructive restructuring. Taxonomy
 changes are subject to the same capability and review gates as knowledge
 changes; use tags and cross-links for genuinely cross-cutting subjects.
 
+**Tag-first classification and relevance:** make canonical, agent-proposed
+tags with stable IDs, descriptions, aliases and optional typed relations the
+primary many-to-many classification mechanism. Keep the category/subcategory/
+topic tree as a navigational projection, not an exclusive record location.
+One record and revision history can be reached through many tags and paths.
+Search the narrowest useful combination first, then relax optional constraints
+in a bounded, explainable order; never silently drop mandatory compatibility
+or security requirements. Combine weighted tag overlap (including rarity),
+full-text ranking, version/platform fit and optional semantic similarity.
+Keep evidence/trust status distinct from relevance and expose why a result
+matched; freshness is not proof of validity. Use PostgreSQL full-text search
+and indexed tag relationships first as a candidate implementation, with
+semantic/vector search optional after evaluation. Agents search aliases before
+proposing new tags; Gatekeeper/KPR review handles ambiguous synonyms, duplicate
+tags and concurrent proposals. Test ranking against representative labelled
+queries and avoid treating correlated parent/child tags as independent evidence.
+
+**Controlled SQL interface:** provide a documented, versioned logical SQL
+schema for catalogue search and scoped collaboration data, over HTTPS/MCP,
+not direct PostgreSQL credentials or unrestricted database access. Expose
+schema discovery, bounded read queries and named typed operations (proposed
+tools: sql_describe, sql_query, sql_call, optional sql_explain without ANALYZE).
+Use a real parser and a conservative single-statement read subset, allowlisted
+relations/functions/operators, bound values, server-controlled authenticated
+identity, least-privileged read-only database roles, and row/room visibility
+enforced independently of the model and query parser. Disallow arbitrary DDL,
+DML, COPY, side-effectful functions, system catalogue access and execution of
+user-supplied procedures. All mutations use named validated operations that
+preserve KPR, consent, quotas and review gates; public catalogue publication
+never bypasses Gatekeeper. Limit query cost, wall time, concurrency, result
+bytes/rows, recursion and resource usage; cancel on timeout. Test adversarial
+SQL, cross-room access, parser bypass, expensive queries and revoked identities.
+A public search endpoint may use a narrower anonymous role with independent
+rate limits. SQL schema is a logical API contract, not a promise to expose
+internal tables or every PostgreSQL feature. Share client-side metadata and
+query-result abstractions with Phase 23 where appropriate, but never reuse
+general database administrator privileges for Agent Commons.
+
 The durable unit is a versioned knowledge record: problem signature, relevant
 OS/distribution/application/runtime versions, symptoms, prerequisites, steps
 tried, successful and unsuccessful outcomes, sanitised test logs/evidence,
@@ -582,9 +620,9 @@ messages and record IDs over long conversational context.
 
 | # | Step | Output | DoD |
 | --- | --- | --- | --- |
-| 16.22 | Knowledge, workspace and API contracts (early foundation) | versioned text-only record/message schemas, workspace lifecycle, identity, taxonomy/KPR contracts, mock service, opt-in and publication policy | schema round trips, version compatibility, text quotas, taxonomy fallback, KPR transitions, provenance, deduplication, TTL and offline/disabled mode tested; no network traffic by default |
-| 16.23 | Two-surface knowledge service | private temporary workspace, public searchable catalogue/dashboard, automatic enrolment, agent-organised taxonomy, KPR revisions, moderation, documented API | integration tests for room membership and access isolation, no public transcript access, expiry/deletion, search, submissions, proof of key possession, scoped credentials, concurrent taxonomy proposals, text validation, pagination, rate limits and revocation; local deployment documented; public deployment only when authorised |
-| 16.24 | RCommander client and agent tools | search/get, taxonomy search, ask/answer, status/cancel, propose/revise KPR and feedback; concise human outcome view | agents retrieve records with source/revision and evidence, communicate within scoped rooms, preview or audit authorised outgoing data and destination; deny/revoke/offline tests prove no unauthorised transfer |
+| 16.22 | Knowledge, workspace and API contracts (early foundation) | versioned text-only record/message schemas, workspace lifecycle, identity, tag/taxonomy/KPR and logical SQL contracts, mock service, opt-in and publication policy | schema round trips, version compatibility, text quotas, taxonomy fallback, tag ranking, SQL allowlist, KPR transitions, provenance, deduplication, TTL and offline/disabled mode tested; no network traffic by default |
+| 16.23 | Two-surface knowledge service | private temporary workspace, public searchable catalogue/dashboard, automatic enrolment, agent-organised tags/taxonomy, controlled SQL gateway, KPR revisions, moderation, documented API | integration tests for room membership and access isolation, no public transcript access, expiry/deletion, search, submissions, proof of key possession, scoped credentials, concurrent taxonomy proposals, SQL isolation and limits, text validation, pagination, rate limits and revocation; local deployment documented; public deployment only when authorised |
+| 16.24 | RCommander client and agent tools | search/get, tag/taxonomy search, scoped SQL tools, ask/answer, status/cancel, propose/revise KPR and feedback; concise human outcome view | agents retrieve records with source/revision and evidence, communicate within scoped rooms, preview or audit authorised outgoing data and destination; deny/revoke/offline tests prove no unauthorised transfer |
 | 16.25 | Independent verification and publication pipeline | reproducibility workflow, owner reports, Gatekeeper checks, candidate extraction, redaction, deduplication, taxonomy review, trust states, rollback and KPR merge | untrusted messages cannot confer permissions or execute instructions; resolved exchanges create candidates, not raw public transcripts; failed validation/unauthorised publication blocked; isolated reproduction produces evidence; concurrent taxonomy proposals deduplicated; stable record links after renames/merges; approved publication and correction paths tested |
 | 16.26 | Controlled cross-provider collaboration | matchmaking, task ownership, bounded threaded exchanges, availability, budgets, issue linking and maintenance | simulated DeepSeek/Claude/other agents cooperate across separate clients, one asks and another answers; no loops, spam, impersonation, cross-room access, inherited privileges or unauthorised provider costs; timeout, cancellation, revocation, expired sessions and catalogue promotion tested |
 
@@ -1037,6 +1075,51 @@ provider abstractions; reuse Phase 18 plugin architecture where appropriate,
 Phase 19 terminal facilities and Phase 16 for agent execution/approvals. Keep
 ordinary Windows/Linux file management unaffected when WSL is unavailable.
 This is a planned phase, not a claim of implemented support.
+
+## Phase 23 — SQL database panels and administration (requested 2026-11-25)
+
+Treat a relational database as a first-class, capability-aware RCommander
+location, independently of Agent Commons. Provide a familiar two-pane browser
+for schemas, tables, views, rows and related database objects, plus SQL editing,
+comparison, import/export and reviewed administrative workflows. A database
+panel can sit beside a second database, a file/Git panel or an AI workspace.
+Use a separate headless provider module (working name rc-db); integrate through
+existing panel/plugin, job, editor and Phase 16 policy abstractions. Start with
+SQLite and PostgreSQL, then add SQL Server and MySQL/MariaDB adapters according
+to actual tested capabilities. Other engines are optional, not promised parity.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 23.1 | Provider contracts and connection profiles | typed database locations, capabilities, secure saved connections, TLS and optional SSH tunnels | SQLite and PostgreSQL fixture connections; no secret in logs, history or agent context; cancellation, disconnect, invalid credentials and TLS verification tested |
+| 23.2 | Database browser and read-only results | database/schema/table/view/column/index/key metadata, paginated row grid, search/filter/sort, independent panels | real fixtures cover large tables, NULL, Unicode, BLOB previews, quoted names, composite keys, permissions and pagination; no unbounded fetch or unsupported claims |
+| 23.3 | SQL editor and execution workspace | dialect-aware highlighting/completion, saved queries/history, selected statement execution, parameters, result tabs, plans and cancellation | correct engine/connection targeting, read-only defaults, multiple result sets where supported, timeout and cancellation, no accidental execution on another connection; reuse Phase 17.0 highlighting |
+| 23.4 | Reviewed data editing and schema changes | typed row edits, insert/delete, schema design and generated DDL preview, transaction/diff workflow | explicit write mode and approval, stable row identity, optimistic conflict detection, constraints and rollback tests; no edits to ambiguous rows or automatic commit of reviewed agent changes |
+| 23.5 | Schema and data comparison | two-connection structural/data diffs, key mapping, proposed migration SQL and comparison reports | test equivalent/different schemas, NULL/collation differences, large tables and no primary key; read-only comparison; no silent changes or claim of portable DDL |
+| 23.6 | Import/export and transfers | streaming CSV/JSON/SQL where applicable, later AJIS adapter, explicit type mappings and staged copy between supported engines | type/precision/timezone/encoding handling, batch limits, partial failure, cancellation, constraints and row counts; no silent truncation, overwrite or implicit deletion; cross-engine transfer is not a lossless database clone |
+| 23.7 | Backup, restore and administration | capability-aware native tools, connection health, index/plan inspection and reviewed maintenance | verify backups through actual restore to isolated test targets; handle tool/version absence; explicit target and destructive operation approval; never present generic export as a full backup |
+| 23.8 | AI DBA workload and tools | scoped metadata/query access, propose diagnostics, SQL/DDL/migrations, plan review and independent tests | mock agent and real disposable database tests show denied access, no credentials in prompts, explicit read/write grants, no unattended production change, budget/timeout/audit and rollback where supported |
+| 23.9 | Additional dialects and acceptance | SQL Server and MySQL/MariaDB provider adapters, documented capability matrix and cross-platform acceptance | real engine fixtures for advertised features, Windows/Linux clients, TLS, connection loss and engine-specific differences; unsupported features visibly disabled |
+
+**Design rules:** read-only by default, with a distinct connection policy and
+explicit write/administration mode; database roles and server privileges are
+the authoritative security boundary, not SQL keyword filtering or GUI state.
+Never silently elevate privileges, connect to a different database, run
+destructive commands, expose credentials, or transmit private rows to AI
+providers or Agent Commons. Redact query history and errors where necessary.
+Treat data/schema comments as untrusted input. Reuse Phase 16.0 external-action
+policy and backup rule; agent write/DDL/restore operations require reviewed
+plans, applicable approval and verified recovery preparation. Transactions
+and rollback guarantees vary by engine and operation; surface irreversible
+or implicitly committing DDL and never promise rollback where unsupported.
+Use paginated/streamed results, bounded memory, cancellable background jobs and
+native database protocols, not filesystem emulation. BLOB editing and arbitrary
+binary transfers are outside the initial scope; Agent Commons remains text-only.
+Keep database user credentials in the secure store, separate from Commons
+identities. Use mock providers and disposable local database fixtures before
+testing approved real connections. Start 23.1–23.3 as an independent vertical
+slice after the relevant foundation is ready, then add reviewed mutation,
+comparison, transfers and administration incrementally. Normal file management
+must remain independent of installed database drivers or running servers.
 
 ## Ideas backlog (not scheduled yet, cheapest value first)
 
