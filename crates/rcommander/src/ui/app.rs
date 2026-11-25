@@ -761,7 +761,7 @@ impl RCommanderApp {
         let available = ui.available_size();
         let left_width = (available.x * split).max(120.0);
         let right_width = (available.x - left_width - 4.0).max(120.0);
-        let mut actions: Vec<PanelAction> = Vec::new();
+        let mut actions: Vec<(Side, PanelAction)> = Vec::new();
         if self.model.quick_view {
             let mut command: Option<String> = None;
             ui.horizontal(|ui| {
@@ -777,24 +777,29 @@ impl RCommanderApp {
                     egui::vec2(left_width, available.y),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
-                        actions.extend(panel_view::show(
+                        for action in panel_view::show(
                             ui,
                             &mut self.model,
                             target_side.other(),
                             &palette,
                             &mut self.thumbnails,
-                        ));
+                        ) {
+                            actions.push((target_side.other(), action));
+                        }
                     },
                 );
             });
             if let Some(command) = command.take() {
                 self.pending_command = Some(command);
             }
-            for action in actions {
+            for (side, action) in actions {
                 match action {
                     PanelAction::Command(command) => self.pending_command = Some(command),
                     PanelAction::OpenFile(path) => self.open_viewer(path),
                     PanelAction::Enter => self.enter_pressed(),
+                    PanelAction::Volume(root) => {
+                        self.model.open_volume(side, &root);
+                    }
                     PanelAction::ContextMenu => {}
                 }
             }
@@ -824,16 +829,21 @@ impl RCommanderApp {
                             &mut self.thumbnails,
                         );
                         self.panel_rects[*side as usize] = Some(ui.min_rect());
-                        actions.extend(response);
+                        for action in response {
+                            actions.push((*side, action));
+                        }
                     },
                 );
             }
         });
-        for action in actions {
+        for (side, action) in actions {
             match action {
                 PanelAction::Command(command) => self.pending_command = Some(command),
                 PanelAction::OpenFile(path) => self.open_viewer(path),
                 PanelAction::Enter => self.enter_pressed(),
+                PanelAction::Volume(root) => {
+                    self.model.open_volume(side, &root);
+                }
                 PanelAction::ContextMenu => {}
             }
         }

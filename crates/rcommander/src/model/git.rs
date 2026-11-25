@@ -680,12 +680,12 @@ impl Model {
         if names.is_empty() {
             return CommandOutcome::None;
         }
-        let staging_root = std::env::temp_dir().join(format!(
-            "rcommander-git-{}-{}",
-            std::process::id(),
-            self.next_job_id
-        ));
-        self.next_job_id = self.next_job_id.wrapping_add(1);
+        // The staging directory must be unique per call: two panels can copy out of a
+        // repository at the same time, and two models (as in the tests) share a process.
+        static GIT_STAGING: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let sequence = GIT_STAGING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let staging_root =
+            std::env::temp_dir().join(format!("rcommander-git-{}-{sequence}", std::process::id()));
         if let Err(error) = std::fs::create_dir_all(&staging_root) {
             let message = format!("cannot create {}: {error}", staging_root.display());
             self.report_error(&message);

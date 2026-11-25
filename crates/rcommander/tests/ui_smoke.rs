@@ -1823,3 +1823,36 @@ fn switching_the_theme_repaints_buttons_and_title_bars() {
         "a dark theme must not paint white buttons"
     );
 }
+
+#[test]
+fn the_panel_offers_a_volume_selector() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    // The selector exists when the machine has a volume the picker shows.
+    let pickable = harness.state().model.selectable_volumes();
+    if pickable.is_empty() {
+        return;
+    }
+    // The list hides the system volume, snap images and pseudo file systems.
+    for volume in &pickable {
+        let root = volume.root.to_string_lossy().to_string();
+        assert!(
+            !root.starts_with("/snap/") && root != "/" && !root.starts_with("/boot/"),
+            "the selector shows {root:?}"
+        );
+    }
+    // The panel knows which volume it is on.
+    let current = harness.state().model.current_volume(rcommander::Side::Left);
+    assert!(current.is_some(), "the panel reports its volume");
+    // And the model can move a panel there without a dialog.
+    let root = pickable[0].root.clone();
+    harness
+        .state_mut()
+        .model
+        .open_volume(rcommander::Side::Left, &root);
+    harness.run();
+    assert_eq!(
+        harness.state().model.left.location().as_path(),
+        Some(root.as_path())
+    );
+}

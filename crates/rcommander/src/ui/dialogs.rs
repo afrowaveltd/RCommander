@@ -2510,10 +2510,8 @@ mod delete_confirmation_tests {
             "Smazat žluťoučký.txt?"
         );
 
-        let multiple = DeleteState::new(
-            vec!["/tmp/první.txt".into(), "/tmp/druhý.txt".into()],
-            true,
-        );
+        let multiple =
+            DeleteState::new(vec!["/tmp/první.txt".into(), "/tmp/druhý.txt".into()], true);
         assert_eq!(
             delete_confirmation_text(&model, &multiple),
             "Smazat 2 vybraných položek?"

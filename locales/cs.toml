@@ -396,3 +396,4 @@ authors = ["RCommander contributors"]
 "git.clone.running" = "Klonuji…"
 "git.cloned" = "Naklonováno do {branch}"
 "cmd.gitclone" = "Klonovat repozitář…"
+"panel.volume" = "Disk"

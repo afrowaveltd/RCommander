@@ -17,6 +17,8 @@ pub enum PanelAction {
     Enter,
     /// Show a context menu for the cursor row.
     ContextMenu,
+    /// Open a volume root chosen in the selector.
+    Volume(std::path::PathBuf),
 }
 
 /// Background of one file row.
@@ -222,6 +224,33 @@ fn path_row(
     let path = model.panel(side).location().display();
     let editing = model.panel(side).path_edit.is_some();
     let mut submitted = false;
+    // Volume selector: `C: System` on Windows, `DATA (/mnt/data)` elsewhere.
+    if !editing {
+        let volumes = model.selectable_volumes();
+        if !volumes.is_empty() {
+            let current = model.current_volume(side);
+            let current_label = current
+                .as_ref()
+                .map(rc_core::drive::selector_label)
+                .unwrap_or_else(|| model.t("panel.volume"));
+            let mut chosen: Option<std::path::PathBuf> = None;
+            egui::ComboBox::from_id_salt(("panel_volume", side))
+                .selected_text(current_label)
+                .width(140.0)
+                .show_ui(ui, |ui| {
+                    for volume in &volumes {
+                        let label = rc_core::drive::selector_label(volume);
+                        let selected = current.as_ref().is_some_and(|c| c.root == volume.root);
+                        if ui.selectable_label(selected, label).clicked() {
+                            chosen = Some(volume.root.clone());
+                        }
+                    }
+                });
+            if let Some(root) = chosen {
+                actions.push(PanelAction::Volume(root));
+            }
+        }
+    }
     ui.horizontal(|ui| {
         // A volume selector belongs to each panel, not to the window globally.
         // Enumerate drives only while the popup is open: probing disconnected
@@ -250,7 +279,10 @@ fn path_row(
                         .location()
                         .as_path()
                         .is_some_and(|p| p.starts_with(&volume.root));
-                    if ui.selectable_label(current, volume.display_name()).clicked() {
+                    if ui
+                        .selectable_label(current, volume.display_name())
+                        .clicked()
+                    {
                         let settings = model.settings.clone();
                         let location = rc_core::location::Location::local(&volume.root);
                         match model.panel_mut(side).open(location, &settings) {

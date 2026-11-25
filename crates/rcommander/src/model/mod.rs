@@ -717,6 +717,29 @@ impl Model {
     }
 
     /// Re-read the active panel.
+    /// Volumes the panel selector offers (system and virtual ones excluded).
+    pub fn selectable_volumes(&self) -> Vec<rc_core::drive::Volume> {
+        rc_core::drive::pickable_volumes()
+    }
+
+    /// The volume the panel's directory sits on, for the selector's current value.
+    pub fn current_volume(&self, side: Side) -> Option<rc_core::drive::Volume> {
+        let path = self.panel(side).location().as_path()?;
+        rc_core::drive::volume_of(path)
+    }
+
+    /// Move a panel to a volume root.
+    pub fn open_volume(&mut self, side: Side, root: &std::path::Path) -> CommandOutcome {
+        match self.open_in(side, Location::local(root)) {
+            Ok(()) => CommandOutcome::Ok,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                CommandOutcome::Failed(message)
+            }
+        }
+    }
+
     pub fn refresh_active(&mut self) {
         let settings = self.settings.clone();
         let side = self.focus;

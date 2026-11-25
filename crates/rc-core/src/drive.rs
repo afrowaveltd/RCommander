@@ -135,7 +135,9 @@ pub fn volumes() -> Vec<Volume> {
                 6 => VolumeKind::Virtual,
                 _ => VolumeKind::Unknown,
             };
-            out.push(Volume::new(PathBuf::from(&root), root, kind));
+            let name = win_volume_label(Path::new(&root));
+            let label = if name.is_empty() { root.clone() } else { name };
+            out.push(Volume::new(PathBuf::from(&root), label, kind));
         }
         return out;
     }
@@ -179,6 +181,8 @@ pub fn volumes() -> Vec<Volume> {
                         VolumeKind::Network
                     }
                     "iso9660" | "udf" => VolumeKind::Optical,
+                    "squashfs" | "overlay" | "tmpfs" | "devtmpfs" | "ramfs" | "autofs" | "proc"
+                    | "sysfs" | "efivarfs" => VolumeKind::Virtual,
                     t if t.starts_with("fuse") => VolumeKind::Virtual,
                     _ => {
                         if mount.starts_with("/media/")
@@ -197,7 +201,12 @@ pub fn volumes() -> Vec<Volume> {
                 let label = if kind == VolumeKind::Fixed && mount == "/" {
                     "/".to_string()
                 } else {
-                    mount.trim_end_matches('/').to_string()
+                    let label = volume_label(dev, Path::new(mount));
+                    if label.is_empty() {
+                        mount.trim_end_matches('/').to_string()
+                    } else {
+                        label
+                    }
                 };
                 push(PathBuf::from(mount), label, kind, &mut seen, &mut out);
             }
@@ -244,6 +253,179 @@ fn win_get_drive_type(letter: u8) -> u32 {
     path.push(0);
     // SAFETY: NUL-terminated wide string, valid for the duration of the call.
     unsafe { GetDriveTypeW(path.as_ptr()) }
+}
+
+/// The human label of the volume that contains `mount`.
+///
+/// Linux keeps labels in `/dev/disk/by-label`, Windows answers through
+/// `GetVolumeInformationW`; when neither knows the volume the mount path is returned, so
+/// the selector always has something to show.
+pub fn volume_label(device_or_mount: &str, mount: &Path) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (device_or_mount, mount);
+        win_volume_label(mount)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Some(label) = linux_label(device_or_mount) {
+            return label;
+        }
+        let _ = mount;
+        String::new()
+    }
+}
+
+/// Look a device up in `/dev/disk/by-label` (a directory of symlinks).
+#[cfg(not(target_os = "windows"))]
+fn linux_label(device: &str) -> Option<String> {
+    if !device.starts_with('/') {
+        return None;
+    }
+    let target = std::fs::canonicalize(device).ok()?;
+    let entries = std::fs::read_dir("/dev/disk/by-label").ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if std::fs::canonicalize(&path).ok()? != target {
+            continue;
+        }
+        let name = path.file_name()?.to_string_lossy().to_string();
+        // `by-label` escapes spaces and other characters with `\x20`.
+        return Some(unescape_label(&name));
+    }
+    None
+}
+
+/// Decode the `\xNN` escapes `udev` uses in `by-label` names.
+#[cfg(not(target_os = "windows"))]
+fn unescape_label(name: &str) -> String {
+    let bytes = name.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'\\' && index + 3 < bytes.len() && bytes[index + 1] == b'x' {
+            let hex = std::str::from_utf8(&bytes[index + 2..index + 4]).ok();
+            if let Some(value) = hex.and_then(|hex| u8::from_str_radix(hex, 16).ok()) {
+                out.push(value);
+                index += 4;
+                continue;
+            }
+        }
+        out.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&out).to_string()
+}
+
+#[cfg(target_os = "windows")]
+fn win_volume_label(root: &Path) -> String {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetVolumeInformationW(
+            lp_root_path_name: *const u16,
+            lp_volume_name_buffer: *mut u16,
+            n_volume_name_size: u32,
+            lp_volume_serial_number: *mut u32,
+            lp_maximum_component_length: *mut u32,
+            lp_file_system_flags: *mut u32,
+            lp_file_system_name_buffer: *mut u16,
+            n_file_system_name_size: u32,
+        ) -> i32;
+    }
+    let mut root: Vec<u16> = root.as_os_str().to_string_lossy().encode_utf16().collect();
+    if !root.last().is_some_and(|ch| *ch == '\\' as u16) {
+        root.push('\\' as u16);
+    }
+    root.push(0);
+    let mut name = [0u16; 256];
+    // SAFETY: both buffers are valid for their lengths and the root path is NUL-terminated.
+    let ok = unsafe {
+        GetVolumeInformationW(
+            root.as_ptr(),
+            name.as_mut_ptr(),
+            name.len() as u32,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if ok == 0 {
+        return String::new();
+    }
+    let len = name.iter().position(|ch| *ch == 0).unwrap_or(name.len());
+    String::from_utf16_lossy(&name[..len]).trim().to_string()
+}
+
+/// The list shown in the panel's volume selector.
+///
+/// On Windows that is every drive letter; on Linux the *system* root and the virtual
+/// file systems (`tmpfs`, `overlay`, `snap` images and friends) are left out, because a
+/// selector full of `/snap/core22/1234` entries is useless. The root is still reachable
+/// by typing `/`, and `volumes()` (used by the drive bar) keeps everything.
+pub fn pickable_volumes() -> Vec<Volume> {
+    volumes()
+        .into_iter()
+        .filter(|volume| {
+            if volume.kind == VolumeKind::Virtual {
+                return false;
+            }
+            // The Linux root is the system volume; it stays in `volumes()` for the drive
+            // bar, but the selector is for the disks the user actually plugged in.
+            #[cfg(not(target_os = "windows"))]
+            {
+                // The system volume and the places the distribution mounts its own
+                // machinery stay out of the selector: `/`, snap images, the ESP and the
+                // kernel pseudo file systems.
+                let root = volume.root.as_os_str().to_string_lossy();
+                if volume.kind == VolumeKind::Fixed && volume.root == Path::new("/") {
+                    return false;
+                }
+                for prefix in ["/snap/", "/var/snap/", "/boot/", "/proc", "/sys", "/dev"] {
+                    if root.starts_with(prefix) {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
+        .collect()
+}
+
+/// The volume a path belongs to, for the selector's current value.
+pub fn volume_of(path: &Path) -> Option<Volume> {
+    let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    volumes()
+        .into_iter()
+        .filter(|volume| {
+            let root = std::fs::canonicalize(&volume.root).unwrap_or_else(|_| volume.root.clone());
+            canonical.starts_with(&root)
+        })
+        // The longest matching root wins (`/mnt/data` over `/`).
+        .max_by_key(|volume| volume.root.as_os_str().len())
+}
+
+/// Text for the volume selector: `C: System` on Windows, `DATA (on /mnt/data)` elsewhere.
+pub fn selector_label(volume: &Volume) -> String {
+    let name = volume.label.trim();
+    #[cfg(target_os = "windows")]
+    {
+        let letter = volume.root.to_string_lossy().chars().next().unwrap_or('?');
+        if name.is_empty() || name.eq_ignore_ascii_case(&volume.root.to_string_lossy()) {
+            format!("{letter}:")
+        } else {
+            format!("{letter}: {name}")
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        if name.is_empty() || name == volume.root.to_string_lossy() {
+            volume.root.display().to_string()
+        } else {
+            format!("{name} ({})", volume.root.display())
+        }
+    }
 }
 
 /// Free space of the file system containing `path`.
@@ -395,6 +577,72 @@ mod tests {
     fn home_directory_exists_when_reported() {
         if let Some(home) = home_dir() {
             assert!(home.is_dir(), "home dir should exist: {}", home.display());
+        }
+    }
+}
+
+#[cfg(test)]
+mod selector_tests {
+    use super::*;
+
+    #[test]
+    fn the_selector_hides_virtual_and_system_volumes() {
+        let pickable = pickable_volumes();
+        assert!(
+            pickable.iter().all(|v| v.kind != VolumeKind::Virtual),
+            "virtual volumes are not selectable: {pickable:?}"
+        );
+        #[cfg(not(target_os = "windows"))]
+        assert!(
+            pickable.iter().all(|v| v.root != Path::new("/")),
+            "the Linux root is the system volume"
+        );
+        // Everything the picker hides is still available to the drive bar.
+        assert!(volumes().len() >= pickable.len());
+    }
+
+    #[test]
+    fn a_volume_label_is_descriptive_and_never_empty_in_the_selector() {
+        for volume in pickable_volumes() {
+            let text = selector_label(&volume);
+            assert!(!text.is_empty(), "a volume always shows something");
+        }
+        // A hand-made volume with a real label reads the way the panel owner asked for.
+        let labelled = Volume::new(
+            if cfg!(windows) { "C:\\" } else { "/mnt/data" },
+            "DATA",
+            VolumeKind::Fixed,
+        );
+        let text = selector_label(&labelled);
+        assert!(text.contains("DATA"), "{text}");
+        #[cfg(windows)]
+        assert!(text.starts_with("C:"), "letter first on Windows: {text}");
+        #[cfg(not(windows))]
+        assert!(text.contains("/mnt/data"), "mount shown on Linux: {text}");
+    }
+
+    #[test]
+    fn the_volume_of_a_path_is_the_longest_matching_root() {
+        let volumes = volumes();
+        if volumes.is_empty() {
+            return;
+        }
+        // A path inside the volume root maps back to that volume.
+        let volume = &volumes[0];
+        let inside = volume.root.join("some-file.txt");
+        let found = volume_of(&inside);
+        assert!(found.is_some(), "every path belongs to a volume");
+        // And an absurd path simply has none rather than panicking.
+        let _ = volume_of(Path::new("/definitely/not/here/at/all"));
+    }
+
+    #[test]
+    fn label_escapes_are_decoded() {
+        #[cfg(not(target_os = "windows"))]
+        {
+            assert_eq!(unescape_label("My\\x20Disk"), "My Disk");
+            assert_eq!(unescape_label("plain"), "plain");
+            assert_eq!(unescape_label(""), "");
         }
     }
 }

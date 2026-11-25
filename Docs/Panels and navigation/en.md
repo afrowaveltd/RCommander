@@ -50,3 +50,15 @@ get the file list back.
 
 `Ctrl+Shift+F8` shows a directory tree instead of the quick view, which makes
 jumping around a deep folder hierarchy much faster.
+
+## Choosing a disk
+
+A **volume selector** sits at the left of each panel's path bar. On Windows it lists every
+drive as `C: System`, `D: Data` or just `C:` when the drive has no label. On Linux it lists
+the file systems the user can actually use — removable disks, network shares, optical media —
+and leaves out the system root, the `snap` images and the kernel pseudo file systems, because
+a selector full of `/snap/core22/3129` entries helps nobody. The root stays reachable by typing
+`/` into the path bar.
+
+Labels come from the volume itself (`/dev/disk/by-label` on Linux, the volume information on
+Windows) and fall back to the mount path.

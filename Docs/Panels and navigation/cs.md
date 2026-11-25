@@ -50,3 +50,14 @@ seznam souborů.
 
 `Ctrl+Shift+F8` zobrazí místo rychlého náhledu strom adresářů, což výrazně
 zrychlí pohyb v hluboké hierarchii složek.
+
+## Výběr disku
+
+Na začátku cesty každého panelu je **výběr svazku**. Ve Windows vypíše všechny disky jako
+`C: Systém`, `D: Data`, nebo jen `C:`, když disk nemá jméno. V Linuxu vypíše jen souborové
+systémy, které uživatel opravdu použije — odpojitelná média, síťové share, optické disky — a
+vynechá systémový kořen, obrazy `snap` a pseudosystémové systémy, protože seznam plný
+`/snap/core22/3129` nikomu nepomůže. Kořen zůstává dostupný napsáním `/` do cesty.
+
+Jména pocházejí ze samotného svazku (`/dev/disk/by-label` v Linuxu, informace o svazku ve
+Windows), jinak se zobrazí přípojný bod.
