@@ -207,6 +207,36 @@ position, because positions shift when the transcript is cleared. And because th
 fails (partial markup degrades to text), a half-received answer renders as it arrives: an unfinished
 code fence keeps its code lines visible, which the tests check.
 
+## Phase 16.0e — the window answers the agent's question (done)
+
+`cargo test -p rc-agent --lib bridge` → **6 tests**, `cargo test -p rcommander --test
+agent_approval` → **6 tests** (two of them drive the whole round trip).
+
+Everything in 16.0d was reachable only for an agent running *inside* the application. A real MCP
+client starts `rcommander mcp` as a subprocess, so the dialog could never appear in the window the
+human is looking at — the terminal confirmer was the only path, and a client started from an IDE
+had none at all.
+
+`rc_agent::bridge` closes that gap with a **loopback TCP socket**: the window publishes a port and a
+per-run token in an owner-only (`0600`) file in the runtime directory, a client connects, sends
+`{token, tool, args}`, and waits. The window turns the request into the *same* approval dialog an
+in-process agent gets — with a line saying that an agent is waiting, because a blocked client is
+easy to overlook — and the human's answer travels back as `once` / `session` / `always` / `deny`.
+The server never decides anything; it forwards, with a five-minute deadline that becomes a denial.
+
+The transport choice is deliberate: loopback TCP works on every platform we build for without a new
+dependency and without an async runtime. The token file is owner-only, so only the same user's
+processes can read it; a same-user process could ask for a dialog it cannot see, which the human
+still answers — the worst case is a nuisance prompt, never a silent approval. A wrong token gets
+silence, not even a hint about what the port is.
+
+`rcommander mcp` now prefers the window, falls back to the terminal, and refuses when it has
+neither; the fallback is announced on stderr so nobody wonders which one is in charge. Two
+integration tests run the whole round trip — the client blocks on the socket while the window
+pumps its loop, opens the real dialog, answers it, and the client obeys — and both finish in a
+fraction of a second because the bug they were written to catch (answering *after* the dialog had
+closed, so the id was gone) failed loudly instead of hanging.
+
 ## Phase 16.0d — three answers, permanent pre-approvals and a security page (done)
 
 `cargo test -p rcommander --lib policy` → **13 tests**, `cargo test -p rc-core --lib policy` →

@@ -422,6 +422,8 @@ authors = ["RCommander contributors"]
 
 "agent.approval.title" = "Schválit akci agenta"
 "agent.approval.origin" = "{origin} chce provést:"
+"agent.bridge.queued" = "Čeká další žádost agenta; tato je zařazená za ní."
+"agent.bridge.waiting" = "Tato otázka přichází z běžícího MCP agenta a ten čeká na vaši odpověď; dokud nerozhodnete, nemůže pokračovat."
 "agent.approval.operation" = "Operace"
 "agent.approval.target" = "Cíl"
 "agent.approval.destination" = "Kam"

@@ -240,6 +240,8 @@ pub struct AgentApprovalState {
     pub typed: String,
     /// Result of the last action.
     pub status: String,
+    /// Set when the question came from a running `rcommander mcp` client instead of this process.
+    pub bridge_id: Option<u64>,
 }
 
 /// The clone dialog.

@@ -99,6 +99,10 @@ pub struct RCommanderApp {
     applied_theme: String,
     /// Persists the settings file whenever something changes.
     pub settings_writer: SettingsWriter,
+    /// Requests from `rcommander mcp` waiting for the human (Phase 16.0e).
+    bridge_queue: Option<std::sync::mpsc::Receiver<rc_agent::bridge::IncomingRequest>>,
+    /// Kept alive so the endpoint stays published while the window runs.
+    approval_server: Option<rc_agent::ApprovalServer>,
 }
 
 /// Button text with an icon in the accent colour in front of the caption.
@@ -160,9 +164,45 @@ impl RCommanderApp {
             panel_rects: [None, None],
             applied_theme: String::new(),
             settings_writer,
+            bridge_queue: None,
+            approval_server: None,
         };
         app.help_ui.reload(&paths::docs_dir());
         app
+    }
+
+    /// Publish an approval endpoint so `rcommander mcp` can ask *this* window.
+    ///
+    /// Called by the binary at start-up, not by `new`, because a test harness has no business
+    /// accepting socket connections. Returns false when no loopback socket could be opened; the
+    /// terminal confirmer still works, so this is a degraded mode and not a failure.
+    pub fn start_approval_bridge(&mut self) -> bool {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        match rc_agent::ApprovalServer::start(sender) {
+            Some(server) => {
+                self.approval_server = Some(server);
+                self.bridge_queue = Some(receiver);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Take the waiting agent approvals and open the dialog for the first one.
+    fn poll_approval_bridge(&mut self) {
+        let Some(queue) = self.bridge_queue.as_ref() else {
+            return;
+        };
+        // Drain everything that arrived; the dialog shows the oldest first, the rest wait.
+        let mut incoming: Vec<rc_agent::bridge::IncomingRequest> = Vec::new();
+        while let Ok(request) = queue.try_recv() {
+            incoming.push(request);
+        }
+        for request in incoming {
+            let tool = request.tool.clone();
+            let args = request.args.clone();
+            self.model.ask_bridge_approval(tool, args, request);
+        }
     }
 
     /// Build a model from disk: settings, translator, help and two panels.
@@ -1097,6 +1137,7 @@ impl eframe::App for RCommanderApp {
         if self.model.poll_search() {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
+        self.poll_approval_bridge();
         self.handle_shortcuts(ctx);
 
         egui::Panel::top("menu").show(root_ui, |ui| self.menu_bar(ui));

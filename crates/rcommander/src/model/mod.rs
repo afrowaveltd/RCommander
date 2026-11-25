@@ -478,6 +478,17 @@ pub struct Model {
     pub themes_dir_override: Option<std::path::PathBuf>,
     /// The agent chat (Phase 16.1).
     pub chat_session: chat::ChatSession,
+    /// Requests from a running `rcommander mcp` client waiting for this window's answer.
+    pub bridge_requests: std::collections::HashMap<u64, rc_agent::bridge::IncomingRequest>,
+    /// Requests that arrived while another dialog was open.
+    pub bridge_backlog: std::collections::VecDeque<(
+        policy::PendingApproval,
+        rc_core::policy::Request,
+        String,
+        u64,
+    )>,
+    /// Id for the next bridge request.
+    pub next_bridge_id: u64,
 }
 
 /// An open F3 viewer.
@@ -582,6 +593,9 @@ impl Model {
             theme_set: rc_core::theme::ThemeSet::with_builtins(),
             themes_dir_override: None,
             chat_session: chat::ChatSession::default(),
+            bridge_requests: std::collections::HashMap::new(),
+            bridge_backlog: std::collections::VecDeque::new(),
+            next_bridge_id: 1,
             keymap,
             settings,
             strings,

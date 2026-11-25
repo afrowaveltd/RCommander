@@ -62,12 +62,14 @@
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
 
+pub mod bridge;
 pub mod client;
 pub mod confirm;
 pub mod host;
 pub mod jsonrpc;
 pub mod server;
 
+pub use bridge::{ApprovalServer, BridgeConfirmer, BridgeDecision, Endpoint};
 pub use client::{McpClient, McpClientConfig, McpError, ServerInfo, ToolResult, Transport};
 pub use confirm::{AllowAllConfirmer, Answer, TerminalConfirmer};
 pub use host::{

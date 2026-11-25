@@ -426,6 +426,8 @@ authors = ["RCommander contributors"]
 
 "agent.approval.title" = "Approve an agent action"
 "agent.approval.origin" = "{origin} wants to do this:"
+"agent.bridge.queued" = "Another agent request is waiting; this one is queued behind it."
+"agent.bridge.waiting" = "This question comes from a running MCP agent and it is waiting for your answer; until you decide, it cannot continue."
 "agent.approval.operation" = "Operation"
 "agent.approval.target" = "Target"
 "agent.approval.destination" = "Destination"

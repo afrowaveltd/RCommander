@@ -23,11 +23,19 @@ command line:
 
 | Command | What happens |
 | --- | --- |
-| `rcommander mcp` | asks **on your terminal** before such a tool runs; without a terminal (a build agent, a container) every destructive tool is refused |
+| `rcommander mcp` | asks the **running RCommander window** (a dialog with the three answers), or **on your terminal** when no window is running; without either, every destructive tool is refused |
 | `rcommander mcp --yes` | no question; the tool runs. The capability policy and the audit log still apply |
 | `rcommander mcp --no-ask` | never asks and never allows — a read-only agent |
 
-Two details make the answer trustworthy. First, the question goes to the
+When the window is running, the dialog is the same one an in-process agent gets,
+with **allow now**, **allow for this session** and the red **allow always** — and
+it says that an agent is waiting, because a blocked client is easy to overlook.
+The answer travels back over a loopback socket whose address and per-run token
+live in an owner-only file in your runtime directory, so only your own processes
+can ask. Nothing is decided by the socket: the human answers, the window forwards
+the answer.
+
+Two details make the terminal answer trustworthy. First, the question goes to the
 **terminal**, not to standard output: that stream carries the JSON-RPC protocol,
 so a question written there would corrupt it — and reading the answer from
 standard input would swallow a message. Second, anything that is not an explicit

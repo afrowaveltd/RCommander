@@ -114,6 +114,15 @@ impl Model {
         Some(self.config_file("settings.toml"))
     }
 
+    /// The decision that the dialog's buttons map to, for a bridge request.
+    fn bridge_decision(&self, decision: ApprovalDecision) -> rc_agent::bridge::BridgeDecision {
+        match decision {
+            ApprovalDecision::Once => rc_agent::bridge::BridgeDecision::Once,
+            ApprovalDecision::Session => rc_agent::bridge::BridgeDecision::Session,
+            ApprovalDecision::Always => rc_agent::bridge::BridgeDecision::Always,
+        }
+    }
+
     /// The policy currently in force.
     pub fn policy(&self) -> &Policy {
         &self.policy
@@ -190,6 +199,77 @@ impl Model {
         }
     }
 
+    /// Ask the human about a request that came from a running `rcommander mcp` client.
+    ///
+    /// The dialog is the same one an in-process agent gets, because the question is the same. The
+    /// answer travels back to the waiting client, which is what makes the decision take effect
+    /// there; storing a permanent answer also works across processes, because the client reads the
+    /// same `settings.toml` on its next start.
+    pub fn ask_bridge_approval(
+        &mut self,
+        tool: String,
+        args: serde_json::Value,
+        request: rc_agent::bridge::IncomingRequest,
+    ) -> CommandOutcome {
+        let operation = rc_agent::bridge::tool_operation(&tool);
+        let target = rc_agent::bridge::notable_argument(&args);
+        let id = self.next_bridge_id;
+        self.next_bridge_id += 1;
+        self.bridge_requests.insert(id, request);
+        let pending = PendingApproval {
+            operation,
+            target,
+            destination: String::new(),
+            origin: format!("agent (mcp): {tool}"),
+            explanation: format!("the agent called `{tool}`"),
+            irreversible: matches!(
+                operation,
+                Operation::Execute | Operation::Publish | Operation::Privileged
+            ),
+        };
+        let synthetic = Request {
+            operation,
+            resource: Some(std::path::PathBuf::from(pending.target.clone())),
+            destination: None,
+            origin: pending.origin.clone(),
+        };
+        // Queue it behind whatever is already open, so nothing is silently dropped.
+        if self.top_dialog().is_some() {
+            self.bridge_backlog
+                .push_back((pending.clone(), synthetic.clone(), tool.clone(), id));
+            self.report(self.t("agent.bridge.queued"));
+            return CommandOutcome::Ok;
+        }
+        self.open_bridge_dialog(pending, synthetic, id);
+        CommandOutcome::Ok
+    }
+
+    /// Open the approval dialog for a bridge request.
+    fn open_bridge_dialog(&mut self, pending: PendingApproval, request: Request, id: u64) {
+        self.open_dialog(super::Dialog::AgentApproval(
+            super::dialogs::AgentApprovalState {
+                pending,
+                request,
+                remember_for_session: false,
+                confirming_always: false,
+                typed: String::new(),
+                status: String::new(),
+                bridge_id: Some(id),
+            },
+        ));
+    }
+
+    /// Send the answer to the waiting client and open the next queued request.
+    fn answer_bridge(&mut self, id: Option<u64>, decision: rc_agent::bridge::BridgeDecision) {
+        if let Some(request) = id.and_then(|id| self.bridge_requests.remove(&id)) {
+            request.answer(decision);
+        }
+        // The next queued question is the human's business now.
+        if let Some((pending, request, _tool, next_id)) = self.bridge_backlog.pop_front() {
+            self.open_bridge_dialog(pending, request, next_id);
+        }
+    }
+
     /// The request the approval dialog is currently asking about, cloned for the view.
     pub fn pending_approval(&self) -> Option<&PendingApproval> {
         match self.top_dialog() {
@@ -232,6 +312,7 @@ impl Model {
                         confirming_always: false,
                         typed: String::new(),
                         status: String::new(),
+                        bridge_id: None,
                     },
                 ));
                 CommandOutcome::Ok
@@ -269,11 +350,18 @@ impl Model {
             }
             return CommandOutcome::Failed(message);
         }
-        match decision {
+        // The dialog is about to close, so remember who is waiting *before* that.
+        let bridge_id = self.approval_state().and_then(|state| state.bridge_id);
+        let outcome = match decision {
             ApprovalDecision::Once => self.approve_pending(false),
             ApprovalDecision::Session => self.approve_pending(true),
             ApprovalDecision::Always => self.approve_pending_always(),
+        };
+        // A request from a running mcp client is waiting for exactly this answer.
+        if matches!(outcome, CommandOutcome::Ok) {
+            self.answer_bridge(bridge_id, self.bridge_decision(decision));
         }
+        outcome
     }
 
     /// Store a permanent pre-approval for the pending operation and close the dialog.
@@ -432,6 +520,7 @@ impl Model {
             return CommandOutcome::None;
         };
         let request = state.request.clone();
+        let bridge_id = state.bridge_id;
         self.audit.record(
             &request.origin,
             operation_name(request.operation),
@@ -447,6 +536,7 @@ impl Model {
         );
         self.close_dialogs();
         self.report(self.t("agent.refused"));
+        self.answer_bridge(bridge_id, rc_agent::bridge::BridgeDecision::Deny);
         CommandOutcome::Ok
     }
 

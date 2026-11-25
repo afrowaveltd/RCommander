@@ -2412,6 +2412,14 @@ fn agent_approval(
         egui::RichText::new(model.tf("agent.approval.origin", &[("origin", &pending.origin)]))
             .strong(),
     );
+    if state.bridge_id.is_some() {
+        // A blocked agent is worth saying out loud: the user may not know anything is waiting.
+        ui.label(
+            egui::RichText::new(model.t("agent.bridge.waiting"))
+                .small()
+                .color(palette.accent),
+        );
+    }
     egui::Grid::new("agent_approval_grid")
         .num_columns(2)
         .show(ui, |ui| {

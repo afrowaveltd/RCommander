@@ -22,11 +22,18 @@ Způsob schvalování se volí na příkazové řádce:
 
 | Příkaz | Co se stane |
 | --- | --- |
-| `rcommander mcp` | před spuštěním takového nástroje se **zeptá na terminálu**; bez terminálu (build agent, kontejner) je každý rizikový nástroj odmítnut |
+| `rcommander mcp` | před spuštěním takového nástroje se **zeptá běžícího okna RCommanderu** (dialog se třemi odpověďmi), a když žádné okno neběží, **zeptá se na terminálu**; bez obojího je každý rizikový nástroj odmítnut |
 | `rcommander mcp --yes` | na nic se neptá a nástroj spustí. Oprávnění (policy) i audit se přesto uplatní |
 | `rcommander mcp --no-ask` | nikdy se neptá a nikdy nepovolí — agent jen pro čtení |
 
-Spolehlivost odpovědi stojí na dvou detailech. Za prvé jde otázka na
+Když okno běží, je to stejný dialog jako u agenta uvnitř aplikace: **povolit
+nyní**, **povolit v této relaci** a červené **povolit vždy** — a dialog řekne, že
+agent čeká, protože zablokovaný klient se snadno přehlédne. Odpověď letí zpět po
+smyčkovém socketu, jehož adresa i token pro tento běh jsou v souboru přístupném
+jen vlastníkovi v runtime adresáři, takže se ptát mohou jen vaše vlastní procesy.
+Socket sám nic nerozhoduje: rozhoduje člověk a okno odpověď předá dál.
+
+Spolehlivost odpovědi na terminálu stojí na dvou detailech. Za prvé jde otázka na
 **terminál**, ne na standardní výstup: ten nese protokol JSON-RPC, takže otázka
 zapsaná tam by ho rozbila — a čtení odpovědi ze standardního vstupu by spolklo
 zprávu. Za druhé je čímkoli jiným než výslovným `y`/`yes`/`ano` **ne**, takže

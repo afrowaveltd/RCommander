@@ -6,6 +6,7 @@
 //! tests drive the server over in-memory streams, so the whole path runs — JSON-RPC parsing, the
 //! host bridge, the capability policy and the confirmer — without a terminal or a real process.
 
+use rc_agent::Confirmer;
 use rc_core::config::Settings;
 use rc_core::location::Location;
 use rcommander::model::Model;
@@ -159,4 +160,107 @@ fn a_read_only_tool_never_asks() {
         output.contains("doomed.txt"),
         "the listing came back: {output}"
     );
+}
+
+// ---- the bridge: a running window answers a client ---------------------------------
+
+/// A window's half of the bridge, driven by hand instead of by a real GUI loop.
+struct BridgedWindow {
+    queue: std::sync::mpsc::Receiver<rc_agent::bridge::IncomingRequest>,
+    server: rc_agent::ApprovalServer,
+    model: Model,
+    path: std::path::PathBuf,
+}
+
+impl BridgedWindow {
+    fn start(dir: &std::path::Path) -> Option<BridgedWindow> {
+        let path = dir.join("approval-endpoint.json");
+        let (sender, queue) = std::sync::mpsc::channel();
+        let server = rc_agent::ApprovalServer::start_at(path.clone(), sender)?;
+        Some(BridgedWindow {
+            queue,
+            server,
+            model: headless_model(dir),
+            path,
+        })
+    }
+
+    /// One frame of the GUI loop: take whatever arrived and open the dialog.
+    fn pump(&mut self) {
+        while let Ok(request) = self.queue.try_recv() {
+            let tool = request.tool.clone();
+            let args = request.args.clone();
+            self.model.ask_bridge_approval(tool, args, request);
+        }
+    }
+}
+
+#[test]
+fn a_running_window_answers_a_client_and_the_client_obeys() {
+    let dir = fixture();
+    let Some(mut window) = BridgedWindow::start(dir.path()) else {
+        return; // no loopback socket in this sandbox
+    };
+    let endpoint = window.server.endpoint().clone();
+    let path = window.path.clone();
+
+    // The window has to answer while the client waits, so the answer comes from another thread.
+    let window_thread = std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while std::time::Instant::now() < deadline {
+            window.pump();
+            if window.model.top_dialog().is_some() {
+                window
+                    .model
+                    .approve_pending_with(rcommander::model::policy::ApprovalDecision::Once, "");
+                // Keep the window alive until the client has its answer.
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                return window;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        window
+    });
+
+    let confirmer = rc_agent::BridgeConfirmer::for_endpoint(endpoint)
+        .with_timeout(std::time::Duration::from_secs(10));
+    assert!(
+        confirmer.confirm("git_push", &serde_json::json!({ "branch": "main" })),
+        "the client asked the window and got a yes"
+    );
+    let window = window_thread.join().expect("the window thread finishes");
+    // The dialog names the tool and what it will change.
+    let dialog = window.model.top_dialog();
+    assert!(dialog.is_none(), "the dialog closed after the answer");
+    drop(window);
+    assert!(!path.exists(), "closing the window withdraws the endpoint");
+}
+
+#[test]
+fn a_refusal_in_the_window_is_a_refusal_for_the_client() {
+    let dir = fixture();
+    let Some(mut window) = BridgedWindow::start(dir.path()) else {
+        return;
+    };
+    let endpoint = window.server.endpoint().clone();
+    let window_thread = std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while std::time::Instant::now() < deadline {
+            window.pump();
+            if window.model.top_dialog().is_some() {
+                window.model.refuse_pending();
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                return window;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        window
+    });
+    let confirmer = rc_agent::BridgeConfirmer::for_endpoint(endpoint)
+        .with_timeout(std::time::Duration::from_secs(10));
+    assert!(
+        !confirmer.confirm("delete", &serde_json::json!({ "paths": ["/tmp/x"] })),
+        "a refused request keeps the client from acting"
+    );
+    window_thread.join().expect("the window thread finishes");
 }

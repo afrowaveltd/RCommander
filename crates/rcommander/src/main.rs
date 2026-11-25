@@ -72,7 +72,13 @@ fn main() {
 }
 
 fn run_gui(left: Option<Location>, right: Option<Location>) -> Result<(), String> {
-    let app = RCommanderApp::boot(left, right);
+    let mut app = RCommanderApp::boot(left, right);
+    // Publish the approval endpoint so a `rcommander mcp` client can ask this window instead of
+    // guessing at a terminal. Without it the terminal confirmer still works, so a failure here is
+    // a degraded mode, not an error.
+    if !app.start_approval_bridge() {
+        eprintln!("rcommander: no loopback socket; agent approvals will be asked in the terminal");
+    }
     let settings: &Settings = &app.model.settings;
     let title = app.title();
     let options = eframe::NativeOptions {
@@ -94,7 +100,7 @@ fn run_gui(left: Option<Location>, right: Option<Location>) -> Result<(), String
 /// Which approval source the `mcp` subcommand uses for destructive tools.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ApprovalMode {
-    /// Ask on the terminal; without a terminal, refuse (the historical default).
+    /// Ask the running window, then this terminal; without either, refuse.
     Ask,
     /// The human already decided with `--yes`.
     Always,
@@ -137,26 +143,17 @@ fn run_mcp(args: &[String]) {
             std::process::exit(2);
         }
     };
-    let confirmer: Option<std::sync::Arc<dyn rc_agent::Confirmer>> = match mode {
+    let confirmer = match mode {
         ApprovalMode::Always => {
             eprintln!(
                 "rcommander mcp: --yes given, destructive tools will run without asking \
                  (the capability policy and the audit log still apply)."
             );
-            Some(std::sync::Arc::new(rc_agent::AllowAllConfirmer))
+            Some(std::sync::Arc::new(rc_agent::AllowAllConfirmer)
+                as std::sync::Arc<dyn rc_agent::Confirmer>)
         }
         ApprovalMode::Never => None,
-        ApprovalMode::Ask => match rc_agent::TerminalConfirmer::from_terminal() {
-            Some(confirmer) => Some(std::sync::Arc::new(confirmer)),
-            None => {
-                // A closed stdin/stdout would otherwise look like an approval loop.
-                eprintln!(
-                    "rcommander mcp: no terminal to ask on; destructive tools will be refused. \
-                     Start it from a terminal, or pass --yes if you have already decided."
-                );
-                None
-            }
-        },
+        ApprovalMode::Ask => ask_someone(),
     };
     let model = build_headless_model();
     match rcommander::agent_host::serve_stdio_with(model, confirmer) {
@@ -164,6 +161,32 @@ fn run_mcp(args: &[String]) {
         Err(e) => {
             eprintln!("rcommander mcp: {e}");
             std::process::exit(1);
+        }
+    }
+}
+
+/// Prefer the running window, fall back to this terminal, and refuse when there is neither.
+///
+/// The window is the better place to ask: the dialog has the same three answers as an in-process
+/// approval, and its answer is remembered in the same settings file.
+fn ask_someone() -> Option<std::sync::Arc<dyn rc_agent::Confirmer>> {
+    if let Some(bridge) = rc_agent::BridgeConfirmer::discover() {
+        eprintln!("rcommander mcp: asking the running RCommander window for approvals");
+        return Some(std::sync::Arc::new(bridge));
+    }
+    match rc_agent::TerminalConfirmer::from_terminal() {
+        Some(confirmer) => {
+            eprintln!("rcommander mcp: no RCommander window is running; asking on this terminal");
+            Some(std::sync::Arc::new(confirmer))
+        }
+        None => {
+            // A closed stdin/stdout would otherwise look like an approval loop.
+            eprintln!(
+                "rcommander mcp: no RCommander window and no terminal to ask on; destructive \
+                 tools will be refused. Start the window, run this from a terminal, or pass \
+                 --yes if you have already decided."
+            );
+            None
         }
     }
 }
