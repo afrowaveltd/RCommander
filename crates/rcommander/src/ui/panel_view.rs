@@ -223,6 +223,47 @@ fn path_row(
     let editing = model.panel(side).path_edit.is_some();
     let mut submitted = false;
     ui.horizontal(|ui| {
+        // A volume selector belongs to each panel, not to the window globally.
+        // Enumerate drives only while the popup is open: probing disconnected
+        // mapped drives on Windows can otherwise slow every rendered frame.
+        if model.settings.layout.show_drive_bar {
+            let root = model
+                .panel(side)
+                .location()
+                .as_path()
+                .and_then(|p| p.ancestors().last())
+                .map(|p| p.display().to_string())
+                .unwrap_or_default();
+            let drive_caption = if root.is_empty() {
+                model.t("panel.drives")
+            } else {
+                format!("{} {root}", model.t("panel.drives"))
+            };
+            ui.menu_button(drive_caption, |ui| {
+                let volumes = rc_core::drive::volumes();
+                if volumes.is_empty() {
+                    ui.label(model.t("panel.no_drives"));
+                }
+                for volume in volumes {
+                    let current = model
+                        .panel(side)
+                        .location()
+                        .as_path()
+                        .is_some_and(|p| p.starts_with(&volume.root));
+                    if ui.selectable_label(current, volume.display_name()).clicked() {
+                        let settings = model.settings.clone();
+                        let location = rc_core::location::Location::local(&volume.root);
+                        match model.panel_mut(side).open(location, &settings) {
+                            Ok(()) => {
+                                model.focus = side;
+                                ui.close();
+                            }
+                            Err(e) => model.report_error(e.to_string()),
+                        }
+                    }
+                }
+            });
+        }
         if editing {
             let mut text = model.panel(side).path_edit.clone().unwrap_or_default();
             let response = ui.add(
@@ -829,6 +870,14 @@ fn elide(text: &str, width: f32, font_size: f32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn drive_selector_is_enabled_in_default_layout() {
+        assert!(
+            rc_core::config::Settings::default().layout.show_drive_bar,
+            "each panel should offer volume selection by default"
+        );
+    }
 
     #[test]
     fn elide_keeps_short_names() {
