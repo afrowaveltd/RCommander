@@ -262,6 +262,35 @@ pub fn visuals(palette: &Palette, dark: bool) -> egui::Visuals {
     v
 }
 
+/// Roomier menus: padding, spacing and corner radius for every popup and dialog.
+///
+/// egui's defaults are tight (menus touch their frame and need scrolling sooner than
+/// they have to), and a commander user opens menus all day. The values here follow the
+/// look of modern IDEs: a comfortable margin inside the frame, a little air between the
+/// entries, and a soft corner.
+pub fn menu_style() -> impl Fn(&mut egui::Style) {
+    |style: &mut egui::Style| {
+        style.spacing.menu_margin = egui::Margin::symmetric(10, 8);
+        style.spacing.button_padding = egui::vec2(10.0, 5.0);
+        style.spacing.item_spacing = egui::vec2(8.0, 6.0);
+        style.spacing.interact_size.y = style.spacing.interact_size.y.max(18.0);
+        style.visuals.menu_corner_radius = egui::CornerRadius::same(6);
+        style.visuals.window_corner_radius = egui::CornerRadius::same(6);
+        style.visuals.popup_shadow = egui::epaint::Shadow {
+            offset: [0, 4],
+            blur: 12,
+            spread: 0,
+            color: egui::Color32::from_black_alpha(60),
+        };
+    }
+}
+
+/// Apply the menu spacing after the visuals were installed.
+pub fn install_menu_style(ctx: &egui::Context) {
+    let menu = std::sync::Arc::new(menu_style());
+    ctx.all_styles_mut(|style| menu(style));
+}
+
 /// Blend two colours: `t == 0` is `a`, `t == 1` is `b`.
 fn mix(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
     let t = t.clamp(0.0, 1.0);

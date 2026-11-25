@@ -1,5 +1,6 @@
 //! Rendering and mouse handling of one file panel.
 
+use crate::icons::Icon;
 use crate::model::{Model, Side, ViewMode};
 use crate::theme::{Palette, RowStyle};
 use crate::ui::thumbs::ThumbnailCache;
@@ -566,10 +567,14 @@ fn file_list(
             // Explorer-style menu on the row, with our own commands on top of the usual
             // file operations.
             response.context_menu(|ui| {
-                ui.set_min_width(200.0);
-                for (label, command) in row_menu_items(model) {
-                    if ui.button(label).clicked() {
-                        menu_command = Some(command);
+                ui.set_min_width(230.0);
+                for item in row_menu_items(model) {
+                    if item.separator {
+                        ui.separator();
+                        continue;
+                    }
+                    if menu_entry(ui, item.icon, &item.label) {
+                        menu_command = Some(item.command);
                         ui.close();
                     }
                 }
@@ -622,9 +627,75 @@ fn file_list(
 ///
 /// Shortcuts are shown because a user who knows the key does not need the menu, and a
 /// user who does not learns it here.
-fn row_menu_items(model: &Model) -> Vec<(String, String)> {
-    let entry = model.active().cursor_entry();
-    let is_dir = entry.map(|e| e.is_dir()).unwrap_or(false);
+/// Draw one menu entry with its icon and shortcut, and return true when it was clicked.
+fn menu_entry(ui: &mut egui::Ui, icon: Option<Icon>, label: &str) -> bool {
+    let (text, shortcut) = match label.split_once('\t') {
+        Some((text, shortcut)) => (text, Some(shortcut)),
+        None => (label, None),
+    };
+    let Some(icon) = icon else {
+        return ui
+            .add(egui::Button::new(label).min_size(egui::vec2(230.0, 0.0)))
+            .clicked();
+    };
+    let size = ui.style().text_styles[&egui::TextStyle::Button].size;
+    let colour = ui.visuals().widgets.inactive.fg_stroke.color;
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
+        &icon.glyph().to_string(),
+        0.0,
+        egui::TextFormat {
+            font_id: egui::FontId::proportional(size + 2.0),
+            color: colour,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    job.append(
+        text,
+        size * 0.7,
+        egui::TextFormat {
+            font_id: egui::FontId::proportional(size),
+            color: colour,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    if let Some(shortcut) = shortcut {
+        job.append(
+            shortcut,
+            size * 1.8,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(size - 1.0),
+                color: ui.visuals().weak_text_color(),
+                valign: egui::Align::Center,
+                ..Default::default()
+            },
+        );
+    }
+    let response = ui.add(egui::Button::new(job).min_size(egui::vec2(230.0, 0.0)));
+    // The accessible name stays the caption: no glyph, no shortcut.
+    let caption = text.to_string();
+    response
+        .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &caption));
+    response.clicked()
+}
+
+/// One entry of a context menu.
+struct MenuItem {
+    label: String,
+    command: String,
+    icon: Option<Icon>,
+    /// Draw a divider above this entry.
+    separator: bool,
+}
+
+fn row_menu_items(model: &Model) -> Vec<MenuItem> {
+    let is_dir = model
+        .active()
+        .cursor_entry()
+        .map(|entry| entry.is_dir())
+        .unwrap_or(false);
     let shortcut = |command: &str| {
         model
             .keymap
@@ -632,40 +703,80 @@ fn row_menu_items(model: &Model) -> Vec<(String, String)> {
             .map(crate::keys::display_shortcut)
             .unwrap_or_default()
     };
-    let mut items: Vec<(String, String)> = Vec::new();
+    let labelled = |label: String, command: &str| {
+        let keys = shortcut(command);
+        if keys.is_empty() {
+            label
+        } else {
+            format!("{label}\t{keys}")
+        }
+    };
+    let mut items: Vec<MenuItem> = Vec::new();
+    let mut push = |label: String, command: &str, icon: Option<Icon>, separator: bool| {
+        items.push(MenuItem {
+            label,
+            command: command.to_string(),
+            icon,
+            separator,
+        })
+    };
     if is_dir {
-        items.push((model.t("cmd.open"), "cm_Return".to_string()));
+        push(
+            model.t("cmd.open"),
+            "cm_Return",
+            Some(Icon::FolderOpen),
+            false,
+        );
     } else {
-        items.push((
-            format!("{}  {}", model.t("cmd.view"), shortcut("cm_List")),
-            "cm_List".to_string(),
-        ));
-        items.push((
-            format!("{}  {}", model.t("cmd.edit"), shortcut("cm_Edit")),
-            "cm_Edit".to_string(),
-        ));
+        push(
+            labelled(model.t("cmd.view"), "cm_List"),
+            "cm_List",
+            Some(Icon::Eye),
+            false,
+        );
+        push(
+            labelled(model.t("cmd.edit"), "cm_Edit"),
+            "cm_Edit",
+            Some(Icon::Edit),
+            false,
+        );
     }
-    items.push((
-        format!("{}  {}", model.t("cmd.copy"), shortcut("cm_Copy")),
-        "cm_Copy".to_string(),
-    ));
-    items.push((
-        format!("{}  {}", model.t("cmd.move"), shortcut("cm_RenMov")),
-        "cm_RenMov".to_string(),
-    ));
-    items.push((model.t("cmd.mkdir").to_string(), "cm_MkDir".to_string()));
-    items.push((
-        format!("{}  {}", model.t("cmd.rename"), shortcut("cm_Rename")),
-        "cm_Rename".to_string(),
-    ));
-    items.push((
-        format!("{}  {}", model.t("cmd.delete"), shortcut("cm_Delete")),
-        "cm_Delete".to_string(),
-    ));
-    items.push((
-        model.t("cmd.attributes").to_string(),
-        "cm_SetAttrib".to_string(),
-    ));
+    push(
+        labelled(model.t("cmd.copy"), "cm_Copy"),
+        "cm_Copy",
+        Some(Icon::Copy),
+        true,
+    );
+    push(
+        labelled(model.t("cmd.move"), "cm_RenMov"),
+        "cm_RenMov",
+        Some(Icon::Download),
+        false,
+    );
+    push(
+        labelled(model.t("cmd.rename"), "cm_Rename"),
+        "cm_Rename",
+        Some(Icon::Tags),
+        false,
+    );
+    push(
+        model.t("cmd.mkdir"),
+        "cm_MkDir",
+        Some(Icon::FolderPlus),
+        false,
+    );
+    push(
+        labelled(model.t("cmd.delete"), "cm_Delete"),
+        "cm_Delete",
+        Some(Icon::Delete),
+        true,
+    );
+    push(
+        model.t("cmd.attributes"),
+        "cm_SetAttrib",
+        Some(Icon::Settings),
+        false,
+    );
     items
 }
 
@@ -1059,7 +1170,7 @@ mod menu_tests {
             rc_core::location::Location::local("/tmp"),
         );
         let items = row_menu_items(&model);
-        let commands: Vec<&str> = items.iter().map(|(_, command)| command.as_str()).collect();
+        let commands: Vec<&str> = items.iter().map(|item| item.command.as_str()).collect();
         for expected in [
             "cm_Copy",
             "cm_RenMov",
@@ -1071,10 +1182,13 @@ mod menu_tests {
             assert!(commands.contains(&expected), "{expected} in {commands:?}");
         }
         // Every entry has a label and a command, and no label is empty.
-        for (label, command) in &items {
-            assert!(!label.trim().is_empty());
-            assert!(!command.trim().is_empty());
+        for item in &items {
+            assert!(!item.label.trim().is_empty());
+            assert!(!item.command.trim().is_empty());
+            assert!(item.icon.is_some(), "every entry has an icon");
         }
+        // Dividers group "look", "move" and "destroy".
+        assert!(items.iter().filter(|item| item.separator).count() >= 2);
         // With no entry under the cursor the menu still works (it acts on the panel).
         assert!(!items.is_empty());
     }

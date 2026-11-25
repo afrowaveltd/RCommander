@@ -195,6 +195,7 @@ impl RCommanderApp {
         theme::install_icon_font(ctx);
         theme::install_text_styles(ctx, font_size);
         ctx.set_visuals(theme::visuals(&self.palette, theme_name == "dark"));
+        theme::install_menu_style(ctx);
         self.applied_theme = theme_name;
         self.fonts_installed = true;
     }
