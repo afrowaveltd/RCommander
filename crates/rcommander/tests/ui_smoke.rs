@@ -2665,3 +2665,56 @@ fn the_agent_submenu_offers_the_way_back_only_while_a_pane_shows_the_chat() {
         "the menu offers to close the pane it opened"
     );
 }
+
+#[test]
+fn the_prompt_picker_offers_the_catalogue_and_inserts_the_filled_text() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.show_chat_panel = true;
+    let mut harness = harness(app);
+    // Opening the picker shows the categories and the prompts.
+    harness.root().get_by_label("prompt.pick").click_accesskit();
+    harness.run();
+    harness.root().get_by_label("prompt.category.git");
+    harness.root().get_by_label("prompt.all");
+    // Filtering to Git leaves the file prompt out of the list.
+    harness
+        .root()
+        .get_by_label("prompt.category.git")
+        .click_accesskit();
+    harness.run();
+    assert!(
+        harness.root().query_all_by_label_contains("Files").count() <= 1,
+        "only the Git prompts are listed"
+    );
+    // "Use this prompt" fills the input with the rendered text.
+    harness.root().get_by_label("prompt.use").click_accesskit();
+    harness.run();
+    let input = harness.state().model.chat_session.input.clone();
+    assert!(!input.is_empty(), "the input has the prompt");
+    assert!(!input.contains("{{"), "the variables are filled: {input}");
+    assert!(
+        !harness.state().model.prompt_picker.open,
+        "the picker closed"
+    );
+}
+
+#[test]
+fn a_prompt_with_a_variable_the_program_cannot_fill_says_so_in_the_preview() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.show_chat_panel = true;
+    let mut harness = harness(app);
+    harness.state_mut().model.prompt_picker.open = true;
+    harness.state_mut().model.prompt_picker.category = Some(rc_core::prompt::Category::Remote);
+    harness.run();
+    // A local panel cannot fill `{{host}}`, so the preview warns instead of pretending.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("prompt.missing")
+            .count()
+            > 0,
+        "the missing variable is announced"
+    );
+}

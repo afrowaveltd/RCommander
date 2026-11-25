@@ -182,6 +182,39 @@ asks egui whether each character can be drawn with the bundled faces. A future t
 emoji or an exotic arrow fails here instead of shipping a box — help topics are user-editable files,
 so this is the editor's guard as much as ours.
 
+## Phase 16.16/16.17a — the prompt catalogue and its picker (done)
+
+`cargo test -p rc-core --lib prompt` → **11 tests**, `cargo test -p rcommander --lib prompts` →
+**7 tests**, plus **2 UI tests**.
+
+There was no prompt catalogue at all: every session started from an empty input. `rc_core::prompt`
+is a TOML catalogue grouped by category — files, Git, remote, build, diagnostics, general — with
+**26 built-in prompts** shipped as data files (`prompts/*.toml`), a user layer in
+`<config>/prompts/`, typed variables and a renderer.
+
+The design rule that keeps the feature honest is in the module docs and in the help topic: **a
+prompt is data**. Inserting one fills the input and grants nothing; permissions stay in the policy,
+and there is deliberately no `{{file_content}}` variable that could quietly send a file somewhere.
+The variables are the five things the application actually knows: `cwd`, `selection`,
+`selection_count`, `model`, `host`.
+
+Three decisions came out of writing the tests:
+
+* **An unfillable variable stays visible.** `{{host}}` in a local session is printed as `{{host}}`
+  and the preview says which names were not filled. A blank would be a silent bug; a visible marker
+  is an honest one, and the input still shows what will be sent.
+* **A broken file costs only that file.** A TOML typo, a prompt without an id or without text is
+  reported in `problems()` and skipped, so one mistake cannot empty the catalogue. Built-in prompts
+  are read-only by construction — an upgrade must never overwrite the user's words, so changing one
+  means copying it.
+* **Saving one prompt keeps its neighbours.** Saving rewrites the category's file after merging what
+  is already there, which a test checks by saving two prompts and reloading from disk.
+
+The picker sits in the chat input: category tabs, a search field, the list with a hover text on
+built-in prompts and a **preview of the finished text** before the insertion. `Configuration →
+Prompts` (the editor) and the reset-and-diff for an edited system prompt are the next slice; until
+then the TOML file is the editor, which is versionable and portable, as the help topic says plainly.
+
 ## Phase 17.0b — C#, SQL, HTML, CSS and three shell families (done)
 
 `cargo test -p rc-core --lib syntax` → **21 tests** (8 more than before).
@@ -1021,7 +1054,7 @@ command either by its own name or through a family rule:
 | Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
 | No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions; establish editable prompt and declarative workload contracts early (16.16–16.21) |
 | No "process with agent" handoff from the file list | Phase 16.10a (planned, designed in the plan): right-click on a file or selection opens the agent pane with a **workspace of verified copies** plus a manifest, never the originals; the chat opens with *what do you want?* and the matching prompts; applying changes back goes through the 16.4 review pipeline with a backup. Tests must prove the originals stay byte-identical after a refused or abandoned session |
-| No prompt manager, so every start is a blank input | Phase 16.16–16.17 (planned): a TOML catalogue grouped by category (files, Git, remote, packages, diagnostics, general), typed variables filled from the current selection and shown in a preview, shipped prompts read-only with a resettable built-in text and a diff against it, custom prompts of the user's own, and a picker with search, recency and pins. A prompt stays **data**: it can never grant a permission |
+| Prompt catalogue and picker are done (26 built-in prompts, six categories, typed variables with a preview); the **editor** and the reset-and-diff for an edited system prompt are still open | Phase 16.17b: Configuration → Prompts, with copy/reset/diff and pins |
 | No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, tag-first classification, controlled SQL gateway, reviewed Knowledge Pull Requests, provenance and safe reuse |
 | No first-class database panels or administration | Phase 23; independent database providers, read-only browser and SQL editor first, reviewed mutations and administration later, native MongoDB document support (23.10) |
 | Editor **annotations** (Phase 17.2) and the remaining previewer work are still open; the shared Markdown parser and the syntax highlighter are done | Phase 17.1–17.2 next |

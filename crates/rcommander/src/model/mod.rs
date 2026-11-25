@@ -13,6 +13,7 @@ pub mod dialogs;
 pub mod fonts;
 pub mod git;
 pub mod policy;
+pub mod prompts;
 pub mod remote;
 pub mod reset;
 pub mod search;
@@ -503,6 +504,12 @@ pub struct Model {
     pub fonts_scanned: bool,
     /// Font choices that could not be loaded, so the options page can say which one failed.
     pub font_problems: Vec<String>,
+    /// The prompt catalogue: built-in prompts plus the user's own (Phase 16.16).
+    pub prompts: rc_core::prompt::Catalogue,
+    /// Whether the catalogue has been read yet.
+    pub prompts_loaded: bool,
+    /// State of the prompt picker in the chat.
+    pub prompt_picker: prompts::PromptPicker,
 }
 
 /// An open F3 viewer.
@@ -613,6 +620,9 @@ impl Model {
             fonts: Vec::new(),
             fonts_scanned: false,
             font_problems: Vec::new(),
+            prompts: rc_core::prompt::Catalogue::default(),
+            prompts_loaded: false,
+            prompt_picker: prompts::PromptPicker::default(),
             keymap,
             settings,
             strings,

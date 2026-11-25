@@ -1,0 +1,31 @@
+# Built-in prompts: everything that does not fit a category above.
+#
+# Read-only; copy into your own prompt file to change the wording.
+
+[meta]
+name = "General"
+category = "general"
+
+[[prompt]]
+id = "general.what-can-you-see"
+title = "What can you see?"
+about = "The honest scope of the conversation"
+text = "Tell me exactly which files and folders you can currently reach, and what you cannot. Be precise: I need to know the boundary before I ask for work."
+
+[[prompt]]
+id = "general.plan-first"
+title = "Plan before doing"
+about = "Steps, risks, and how to undo"
+text = "Do not change anything yet. Give me a plan for what I asked: the steps in order, what each one risks, and how I would undo it. I will approve it before you start."
+
+[[prompt]]
+id = "general.review-this"
+title = "Review this critically"
+about = "Disagreement is allowed"
+text = "Review what follows critically. If it is wrong, say so plainly and explain why; do not agree just to be agreeable. Then say what you would do instead."
+
+[[prompt]]
+id = "general.teach-me"
+title = "Teach me this"
+about = "From what I know to what I need"
+text = "Teach me the thing I ask about, starting from what I already know and stopping when I can do it myself. One short example beats three paragraphs."

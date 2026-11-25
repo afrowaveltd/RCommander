@@ -1,0 +1,44 @@
+# Built-in prompts: files and folders.
+#
+# Read-only. Copy one into your own prompt file (Configuration directory / prompts/) to change its
+# wording; an upgrade replaces this file, never yours.
+
+[meta]
+name = "Files and folders"
+category = "files"
+
+[[prompt]]
+id = "files.explain"
+title = "Explain what this is"
+about = "What a file or folder is for, in plain language"
+text = "Explain what {{selection}} is for. Assume I am new to this project: say what it does, what reads it and what would break if it were wrong."
+
+[[prompt]]
+id = "files.summarise"
+title = "Summarise the folder"
+about = "What lives here, in a few lines"
+text = "Summarise what is in {{cwd}}. Group the files by purpose, mention anything that looks temporary or out of place, and keep it to a few lines."
+
+[[prompt]]
+id = "files.find-dangerous"
+title = "Find what could hurt me"
+about = "Risky files before a copy or a delete"
+text = "Look at the file listing of {{cwd}} and point out anything that needs care before copying or deleting: secrets, keys, build output that can be regenerated, and anything that looks like a backup."
+
+[[prompt]]
+id = "files.compare"
+title = "Compare these files"
+about = "Differences in behaviour, not just in text"
+text = "Compare {{selection}} with the file I paste next. Tell me what behaves differently, not merely which lines differ."
+
+[[prompt]]
+id = "files.safe-edit"
+title = "Suggest a safe edit"
+about = "A change with its risks named"
+text = "Suggest the smallest change to {{selection}} that fixes the problem I describe next. Name what could break, and do not touch anything else."
+
+[[prompt]]
+id = "files.translate"
+title = "Translate this document"
+about = "Keeps the structure and the placeholders"
+text = "Translate {{selection}} into Czech. Keep the Markdown structure, the code blocks, the placeholders and the tone; translate the words, not the identifiers."

@@ -1,0 +1,37 @@
+# Built-in prompts: Git.
+#
+# Read-only; copy into your own prompt file to change the wording.
+
+[meta]
+name = "Git"
+category = "git"
+
+[[prompt]]
+id = "git.commit-message"
+title = "Write a commit message"
+about = "Subject line and why, not a list of files"
+text = "Write a commit message for the staged changes in {{cwd}}. The subject names what changed and why it mattered; the body explains anything a reader would otherwise have to ask about. No chatter about which files were touched."
+
+[[prompt]]
+id = "git.review-diff"
+title = "Review the diff"
+about = "Risky parts first"
+text = "Review the working-tree diff in {{cwd}}. Start with the parts that could break something: wrong assumptions, missing error handling, changes to data or configuration. Be concrete, and say what you would test."
+
+[[prompt]]
+id = "git.why-broken"
+title = "Why did this stop working?"
+about = "From the last good commit"
+text = "Something in {{cwd}} used to work. Look at the recent commits and the current diff, and suggest the change most likely responsible, with the evidence you used."
+
+[[prompt]]
+id = "git.explain-branch"
+title = "Explain this branch"
+about = "What it changes, in one paragraph"
+text = "Explain what the current branch of {{cwd}} changes compared with its base, in one paragraph a reviewer can read before opening the diff."
+
+[[prompt]]
+id = "git.hygiene"
+title = "What should not be committed?"
+about = "Secrets, build output, local files"
+text = "Look at what is about to be committed in {{cwd}} and tell me what does not belong there: secrets, keys, build output, editor or machine-specific files. Say what to add to .gitignore instead."

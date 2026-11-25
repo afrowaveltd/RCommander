@@ -134,6 +134,7 @@ fn body(
     let label_send = model.t("ai.chat.send");
     let label_empty = model.t("ai.chat.empty");
     let label_placeholder = model.t("ai.chat.placeholder");
+    let label_prompts = model.t("prompt.pick");
     let send_hint = if running {
         model.t("ai.chat.running")
     } else {
@@ -193,6 +194,12 @@ fn body(
         });
     ui.separator();
 
+    // The prompt picker, when it is open, sits above the input so the choice is visible while
+    // the text lands in the box below it.
+    if model.prompt_picker.open {
+        prompt_picker(ui, model, palette);
+    }
+
     // The input row. Enter sends, Shift+Enter inserts a newline.
     ui.horizontal(|ui| {
         let width = (ui.available_width() - 90.0).max(80.0);
@@ -216,6 +223,14 @@ fn body(
             if button.clicked() {
                 send = true;
             }
+            // The prompt catalogue: the chat is more useful when a good question is one click
+            // away, and a prompt is only text — it cannot grant anything.
+            if ui
+                .add_enabled(!running, egui::Button::new(&label_prompts))
+                .clicked()
+            {
+                model.prompt_picker.open = !model.prompt_picker.open;
+            }
             ui.label(RichText::new(send_hint).small().color(palette.hidden));
         });
     });
@@ -232,6 +247,117 @@ fn body(
         ui_state.follow = true;
     }
     actions
+}
+
+/// The prompt catalogue: category tabs, a search field, the list and a preview.
+///
+/// The preview shows the text that will be inserted with the variables already filled in, which is
+/// the only honest way to offer a prompt with `{{selection}}` in it: the user sees the question
+/// before it is asked.
+fn prompt_picker(ui: &mut egui::Ui, model: &mut Model, palette: &Palette) {
+    use rc_core::prompt::Category;
+    egui::Frame::new()
+        .fill(palette.header_background)
+        .inner_margin(egui::Margin::same(6))
+        .show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                let all_label = model.t("prompt.all");
+                let none = model.prompt_picker.category.is_none();
+                if ui.selectable_label(none, all_label).clicked() {
+                    model.prompt_picker.category = None;
+                    model.prompt_picker.selected = 0;
+                }
+                for category in Category::ALL {
+                    let label = model.t(category.label_key());
+                    let chosen = model.prompt_picker.category == Some(category);
+                    if ui.selectable_label(chosen, label).clicked() {
+                        model.prompt_picker.category = Some(category);
+                        model.prompt_picker.selected = 0;
+                    }
+                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(model.t("dialog.config.cancel")).clicked() {
+                        model.prompt_picker.open = false;
+                    }
+                });
+            });
+            let search_hint = model.t("prompt.search");
+            ui.horizontal(|ui| {
+                let search = ui.add(
+                    egui::TextEdit::singleline(&mut model.prompt_picker.search)
+                        .desired_width(220.0)
+                        .hint_text(&search_hint),
+                );
+                if search.changed() {
+                    model.prompt_picker.selected = 0;
+                }
+                let visible = model.visible_prompts();
+                ui.label(
+                    RichText::new(
+                        model.tf("prompt.count", &[("count", &visible.len().to_string())]),
+                    )
+                    .small()
+                    .color(palette.hidden),
+                );
+            });
+            let entries = model.visible_prompts();
+            let mut chosen: Option<String> = None;
+            egui::ScrollArea::vertical()
+                .max_height(140.0)
+                .auto_shrink([false, true])
+                .id_salt("prompt_list")
+                .show(ui, |ui| {
+                    for (index, entry) in entries.iter().enumerate() {
+                        let selected = index == model.prompt_picker.selected;
+                        let label = if entry.prompt.about.trim().is_empty() {
+                            entry.prompt.title.clone()
+                        } else {
+                            format!("{} — {}", entry.prompt.title, entry.prompt.about)
+                        };
+                        let response = ui.selectable_label(selected, label);
+                        if response.clicked() {
+                            model.prompt_picker.selected = index;
+                            chosen = Some(entry.prompt.id.clone());
+                        }
+                        // A built-in prompt says where it comes from, so nobody looks for a way
+                        // to edit it in place.
+                        if entry.builtin {
+                            response.on_hover_text(model.t("prompt.builtin.hint"));
+                        }
+                    }
+                });
+            if let Some(id) = chosen {
+                model.insert_prompt(&id);
+            } else if let Some(entry) = entries.get(model.prompt_picker.selected) {
+                // Preview the selected prompt so the variables are visible before the click.
+                let id = entry.prompt.id.clone();
+                if model.prompt_picker.preview.is_empty() {
+                    model.preview_prompt(&id);
+                }
+                let preview = model.prompt_picker.preview.clone();
+                let missing = model.prompt_picker.missing.clone();
+                if !preview.is_empty() {
+                    ui.separator();
+                    ui.label(
+                        RichText::new(model.t("prompt.preview"))
+                            .small()
+                            .color(palette.hidden),
+                    );
+                    ui.add(egui::Label::new(RichText::new(&preview).small().italics()).wrap());
+                    if !missing.is_empty() {
+                        let names = missing.join(", ");
+                        ui.label(
+                            RichText::new(model.tf("prompt.missing", &[("names", &names)]))
+                                .small()
+                                .color(palette.warning),
+                        );
+                    }
+                }
+                if ui.button(model.t("prompt.use")).clicked() {
+                    model.insert_prompt(&id);
+                }
+            }
+        });
 }
 
 /// One transcript entry: speaker name, then the text with an "in progress" marker.

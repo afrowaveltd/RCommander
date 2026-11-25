@@ -1,0 +1,31 @@
+# Built-in prompts: packages, builds and toolchains.
+#
+# Read-only; copy into your own prompt file to change the wording.
+
+[meta]
+name = "Packages and builds"
+category = "build"
+
+[[prompt]]
+id = "build.why-failing"
+title = "Why does the build fail?"
+about = "From the compiler output"
+text = "The build in {{cwd}} fails. Here is the output: <paste it>. Explain the first real error (not the ones it causes), and give the smallest fix."
+
+[[prompt]]
+id = "build.explain-manifest"
+title = "Explain this manifest"
+about = "What each part of the build file does"
+text = "Explain {{selection}} as a build manifest: what each section controls, which parts are defaults nobody needs to touch, and which parts a newcomer is likely to break."
+
+[[prompt]]
+id = "build.dependency-review"
+title = "Review a dependency"
+about = "Before adding a library"
+text = "I am considering the dependency named next for a project in {{cwd}}. Tell me what it is for, what it costs (size, licence, maintenance), and what I would have to write myself without it."
+
+[[prompt]]
+id = "build.upgrade-plan"
+title = "Plan an upgrade"
+about = "In an order that can be tested"
+text = "Plan an upgrade of the dependencies in {{cwd}} in an order that can be tested step by step. Say what is likely to break at each step and how to verify it."

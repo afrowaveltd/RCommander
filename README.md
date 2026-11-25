@@ -266,9 +266,15 @@ follow-up questions work. Ollama is the built-in provider
 (`[agent] provider_url`, default `http://127.0.0.1:11434`), so nothing leaves the
 machine; see `Docs/Agent chat/`.
 
-*Configuration ▸ Chat in the other panel* (`cm_ChatPane`) puts the chat **in a
-panel** with the file list still on screen; the listing is never thrown away, so
-switching back restores the same directory, cursor and selection.
+*Configuration ▸ Agent ▸ Chat in the other panel* (`cm_ChatPane`) puts the chat
+**in a panel** with the file list still on screen; the listing is never thrown
+away, so switching back restores the same directory, cursor and selection.
+
+**Prompts…** in the chat input opens a catalogue of saved questions grouped by
+category (files, Git, remote, build, diagnostics, general), with typed variables
+filled from the current selection and a preview before anything is sent. Shipped
+prompts are read-only data files; your own live in `<config>/prompts/`. A prompt is
+**data** — it can never grant a permission. See `Docs/Prompts/`.
 
 The chat **cannot touch files**. Everything with a side effect still goes through
 the capability policy, which asks for approval and writes an audit entry — a
@@ -281,8 +287,9 @@ code blocks are syntax highlighted for Rust, C#, C/C++, Go, JavaScript/TypeScrip
 Python, SQL, TOML, JSON, HTML/XML, CSS, Markdown, POSIX shells, PowerShell and
 Windows batch.
 
-**Planned, not implemented:** tool calling from the chat, the prompt manager,
-reviewed file changes and agent-coordinated tool calls (Phase 16 of
+**Planned, not implemented:** tool calling from the chat, the prompt *editor*
+(Configuration → Prompts), "process with agent", reviewed file changes and
+agent-coordinated tool calls (Phase 16 of
 `ImplementationPlan.md`).
 
 ---
@@ -300,6 +307,7 @@ crates/
   rc-remote/    FTP/SFTP client and connection manager
   rc-agent/     MCP server and client (JSON-RPC, stdio + HTTP)
   rc-llm/       language-model providers (Ollama first), streaming answers
+prompts/        built-in prompt catalogue, one TOML file per category
   rc-git/       Git repository access through libgit2
   rc-help/      Docs/ discovery and Markdown model for the help window
   rcommander/   the application: headless model + egui view

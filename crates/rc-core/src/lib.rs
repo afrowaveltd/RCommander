@@ -32,6 +32,7 @@ pub mod location;
 pub mod mask;
 pub mod ops;
 pub mod policy;
+pub mod prompt;
 pub mod quicksearch;
 pub mod secrets;
 pub mod selection;

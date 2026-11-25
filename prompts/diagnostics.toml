@@ -1,0 +1,37 @@
+# Built-in prompts: logs, services and "why did this break".
+#
+# Read-only; copy into your own prompt file to change the wording.
+
+[meta]
+name = "Diagnostics"
+category = "diagnostics"
+
+[[prompt]]
+id = "diagnostics.read-log"
+title = "Read this log"
+about = "The first real error, not the last line"
+text = "Here is a log: <paste it>. Tell me the first real error and what caused it; ignore the cascade that followed. If nothing in it is an error, say what the log does show."
+
+[[prompt]]
+id = "diagnostics.service-down"
+title = "A service will not start"
+about = "From the symptom to the first thing to check"
+text = "My service will not start. The symptom is: <describe it>. Give me the checks to run in order, each with what a good and a bad result looks like, before asking me for more information."
+
+[[prompt]]
+id = "diagnostics.disk-full"
+title = "Something filled the disk"
+about = "Where to look, in order"
+text = "A disk filled up on {{host}}. List the places to look in order of likelihood for this kind of system, with the command for each and how to read its output."
+
+[[prompt]]
+id = "diagnostics.slow"
+title = "Something became slow"
+about = "Narrow the cause before changing anything"
+text = "{{host}} became slow recently. Help me narrow it down: what to measure first, what each measurement would rule out, and only then what to change."
+
+[[prompt]]
+id = "diagnostics.compare-configs"
+title = "Compare two configurations"
+about = "What actually differs in behaviour"
+text = "Compare these two configurations: <paste both>. Tell me which differences change behaviour and which are only style, and which of them is the most likely cause of my problem."

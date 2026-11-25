@@ -75,6 +75,11 @@ pub fn themes_dir() -> PathBuf {
     find_data_dir("themes").unwrap_or_else(|| PathBuf::from("themes"))
 }
 
+/// Directory holding the built-in prompt catalogue (Phase 16.16).
+pub fn prompts_dir() -> PathBuf {
+    find_data_dir("prompts").unwrap_or_else(|| PathBuf::from("prompts"))
+}
+
 /// Directory holding the in-app help.
 pub fn docs_dir() -> PathBuf {
     find_data_dir("Docs").unwrap_or_else(|| PathBuf::from("Docs"))

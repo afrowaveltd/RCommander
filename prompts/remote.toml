@@ -1,0 +1,37 @@
+# Built-in prompts: remote connections (SFTP, FTP, SSH).
+#
+# Read-only; copy into your own prompt file to change the wording.
+
+[meta]
+name = "Remote connections"
+category = "remote"
+
+[[prompt]]
+id = "remote.compare"
+title = "Compare local and remote"
+about = "Differences between two directories"
+text = "Compare the local folder I name next with {{host}}. List what exists only on one side and what differs in size or time, and say which direction looks like the newer state."
+
+[[prompt]]
+id = "remote.deploy-plan"
+title = "Plan a safe upload"
+about = "In which order, and what to back up"
+text = "I want to upload {{selection}} to {{host}}. Give me an order of operations that keeps the site working: what to back up first, what can be replaced in place, and what has to be restarted afterwards."
+
+[[prompt]]
+id = "remote.permissions"
+title = "Check permissions"
+about = "Ownership and modes that will bite later"
+text = "Given the file listing of {{host}}, point out permissions and ownership that will cause trouble later: files the web server cannot read, anything world-writable, and scripts missing their execute bit."
+
+[[prompt]]
+id = "remote.diagnose"
+title = "Diagnose a failed transfer"
+about = "From the error, not from guesses"
+text = "A transfer to {{host}} failed. Here is the error: <paste it>. Tell me the three most likely causes for this exact message, and which one to check first."
+
+[[prompt]]
+id = "remote.compare-config"
+title = "Compare server config"
+about = "A remote config against the local one"
+text = "Compare the remote {{selection}} on {{host}} with the local copy. Show the differences that matter for behaviour, not comments or whitespace."
