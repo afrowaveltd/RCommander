@@ -78,6 +78,32 @@ fn the_main_window_renders_both_panels() {
 }
 
 #[test]
+fn drive_selector_is_shown_in_each_panel_and_respects_layout_setting() {
+    let (left, right) = fixture();
+    let enabled = harness(app(left.path(), right.path()));
+    assert!(
+        enabled
+            .root()
+            .query_all_by_label_contains("panel.drives")
+            .count()
+            >= 2,
+        "both panels must expose a drive picker"
+    );
+
+    let mut without_drive_bar = app(left.path(), right.path());
+    without_drive_bar.model.settings.layout.show_drive_bar = false;
+    let disabled = harness(without_drive_bar);
+    assert_eq!(
+        disabled
+            .root()
+            .query_all_by_label_contains("panel.drives")
+            .count(),
+        0,
+        "the layout setting must actually hide drive selectors"
+    );
+}
+
+#[test]
 fn tool_bar_and_function_keys_are_rendered() {
     let (left, right) = fixture();
     let harness = harness(app(left.path(), right.path()));
