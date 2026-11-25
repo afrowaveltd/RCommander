@@ -218,6 +218,49 @@ them, and every window uses the same semantic roles.
 | 14.4 | One palette everywhere | every window (panels, dialogs, viewer text/hex/image chrome, editor, help, transfer manager, agent panel) reads the active theme instead of `Palette::by_name` | UI tests for at least two windows asserting the applied colour, and no remaining hardcoded `Color32` literals outside the theme module — **partial**: `Palette::for_model` is the single source (window chrome, panels, dialogs, options), `apply_theme` re-applies on change and a UI test asserts the applied background; a few dialog badges still use literal colours |
 | 14.5 | Documentation | a "Themes" help topic describing the file format, the roles, how to add a theme and how per-file-type colours are evaluated | topic present in English and Czech — **done**: `Docs/Themes/{en,cs}.md` |
 
+## Phase 14.8 — Appearance and effects (planned)
+
+The same binary should be able to look like a plain Norton Commander on a ten-year-old
+laptop and like a modern, decorated application on a strong machine. **The choice belongs
+to the user, and the default stays exactly what it is today**: flat theme colours, no
+images, no motion. An upgrade must never make a working installation slower, prettier
+against its owner's will, or harder to read.
+
+Everything below is opt-in, every effect has an "off" that restores today's look exactly,
+and the readability rules are not negotiable: text, selections, icons and dialogs stay
+legible over whatever a theme paints behind them.
+
+What the environment already gives us (checked, not assumed):
+
+* `ViewportBuilder::with_transparent` — a real transparent window background, which on
+  Linux needs a running compositor and on Windows goes through DWM. Nothing breaks where
+  it is unsupported: the window simply paints its own background.
+* `Ui::set_opacity` — per-widget-tree opacity, so panels, dialogs and menus can fade
+  independently without a second renderer.
+* `CornerRadius` and shadows per frame — the panel chrome, not only the colours.
+* The `image` crate is already a dependency (`rc-viewer`), so decoding a background image
+  and blurring it **once at load time** is a CPU job we can do, not a shader we need.
+* eframe runs **no UI pass at all** while a window is minimized or occluded
+  (`ViewportInfo::visible`), and `ViewportInfo` reports `minimized`, `focused` and
+  `occluded` — so an animation physically cannot burn a CPU in the background unless we
+  deliberately ask for it.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 14.8.1 | Background images | theme keys for one image per application and, optionally, one per panel: path, placement (fill, fit, centre, tile, stretch), scale, opacity, and a one-off CPU blur at load; images live beside the theme file | tests: a missing or unreadable image falls back to the flat colour and says why; a blurred copy is produced once and cached; **contrast is measured against the sampled pixels where text will sit**, not the average, and a theme that would make text unreadable is refused with the measured ratio |
+| 14.8.2 | Chrome styling as theme roles | new roles for frame colour and width, corner radius, separator and shadow, so the panel frame is themeable data like the colours are | round-trip tests (a theme file with no chrome roles inherits the base), and a guard that the shipped themes still render legibly |
+| 14.8.3 | Independent opacities | opacity per element: panels, dialogs, menus, title bars, status line, with a floor that refuses values where the text stops being readable | model tests for the floor and the round trip; a UI test that a faded panel keeps its text and a refused value is reported instead of applied |
+| 14.8.4 | Real window transparency (Aero-like) | optional window-level transparency, plus behind-window blur where the platform offers it (Windows DWM/Mica on a `#[cfg(windows)]` path; compositor blur hints on Linux where they exist; native on macOS) — announced as available or unavailable in the UI, never promised | the fallback is tested: with transparency off or unsupported the application renders exactly as today; a platform probe reports honestly, and no platform-specific call is made without its `cfg` |
+| 14.8.5 | Gradients, textures, shadows | two-colour gradients with an angle, procedural textures (vignette, scanline, noise) computed once into a texture, and a drop shadow for panels and dialogs | a texture is built once and reused (test asserts one build per theme), and the contrast guard from 14.8.1 applies to the composite result |
+| 14.8.6 | Procedural background animation | slowly drifting gradient, bubbles, particles: geometric, cheap, off by default, frame-rate capped (default 30, floor 10) and paused when the window is not visible | tests: the clock advances with wall time, a paused surface requests no repaint, the frame budget is one texture update per frame, and an "off" switch restores a static background; the OS "reduce motion" preference is honoured where it can be read |
+| 14.8.7 | The theme workshop | a page that edits all of the above with a live preview, saves variants, and exports/imports a **bundle** — the TOML plus its images — so a theme can be shared | import refuses paths that point outside the bundle (the same path-safety rule the archive code uses), a bundle round-trips, and a shared theme that needs an image fails with "missing image", not with a blank window |
+| 14.8.8 | Honest performance | the effects cost what they cost, measured: a headless benchmark of a frame with effects on and off, and a documented budget | the test records the numbers in the status file; no effect runs by default, and every one of them can be switched off from the same page that switches it on |
+
+A worked example of the target, from the panel owner: the **Amber** theme with a barely
+visible Chinese dragon behind the panels — the kind of thing that needs only 14.8.1, 14.8.3
+and a theme file to share. Which is the point: the shiny parts are data, so the wild ideas
+do not need code.
+
 ## Phase 15 — Git repositories as panels
 
 A repository is a natural fit for a commander: the working tree is already an
