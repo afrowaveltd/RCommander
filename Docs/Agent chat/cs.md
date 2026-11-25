@@ -63,8 +63,9 @@ jen zbytek textu, nikdy data.
   tomto okně zatím zapojené není.
 - Odpovědi se vykreslují jako Markdown — nadpisy, seznamy, tabulky, citace,
   řádkový kód i bloky kódu, a bloky kódu mají **zvýrazněnou syntaxi** pro Rust,
-  TOML, JSON, shell, Python, JavaScript/TypeScript, C/C++, Go a Markdown. Odkazy
-  v odpovědi se kreslí jako text, nikoli otevírají.
+  C#, C/C++, Go, JavaScript/TypeScript, Python, SQL, TOML, JSON, Markdown,
+  HTML/XML, CSS, PowerShell a Windows batch i POSIX shelly. Odkazy v odpovědi se
+  kreslí jako text, nikoli otevírají.
 - Transkript je jen v paměti. Zavřením RCommanderu rozhovor skončí; místní
   úložiště je v plánu.
 - Nedokončená odpověď se vykresluje průběžně, takže Markdown tabulka nebo blok

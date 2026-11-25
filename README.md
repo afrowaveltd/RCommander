@@ -277,8 +277,9 @@ sentence in the transcript can suggest an action but never perform one.
 ---
 
 Answers are rendered as Markdown (headings, lists, tables, quotes, code blocks) and
-code blocks are syntax highlighted for Rust, TOML, JSON, shell, Python, Go, C/C++,
-JavaScript and Markdown.
+code blocks are syntax highlighted for Rust, C#, C/C++, Go, JavaScript/TypeScript,
+Python, SQL, TOML, JSON, HTML/XML, CSS, Markdown, POSIX shells, PowerShell and
+Windows batch.
 
 **Planned, not implemented:** tool calling from the chat, the prompt manager,
 reviewed file changes and agent-coordinated tool calls (Phase 16 of

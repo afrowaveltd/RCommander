@@ -65,7 +65,8 @@ only loses the rest of the text, never data.
   it and is not wired into this window yet.
 - Answers are rendered as Markdown — headings, lists, tables, quotes, inline code
   and fenced code blocks, with **syntax highlighting** in the blocks for Rust,
-  TOML, JSON, shell, Python, JavaScript/TypeScript, C/C++, Go and Markdown. Links
+  C#, C/C++, Go, JavaScript/TypeScript, Python, SQL, TOML, JSON, Markdown,
+  HTML/XML, CSS, PowerShell and Windows batch as well as the POSIX shells. Links
   in an answer are drawn as text rather than opened.
 - The transcript is kept in memory only. Closing RCommander ends the
   conversation; a local store is planned.

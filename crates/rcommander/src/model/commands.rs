@@ -515,13 +515,13 @@ impl Model {
                 self.open_dialog(Dialog::ButtonBar(ButtonBarState::new()));
                 CommandOutcome::Ok
             }
-            "cm_config" => {
-                self.open_dialog(Dialog::Options(OptionsState::new(
-                    &self.settings,
-                    OptionsTab::Display,
-                )));
-                CommandOutcome::Ok
-            }
+            "cm_config" => self.open_options_on(OptionsTab::Display),
+            // The options pages that grew into features of their own deserve a way in that does
+            // not make the user find the page first.
+            "cm_fonts" | "cm_fontoptions" => self.open_options_on(OptionsTab::Fonts),
+            "cm_security" | "cm_securityoptions" => self.open_options_on(OptionsTab::Security),
+            "cm_colors" | "cm_coloroptions" => self.open_options_on(OptionsTab::Colors),
+            "cm_dangerous" | "cm_resets" => self.open_options_on(OptionsTab::Dangerous),
             "cm_about" => {
                 self.open_dialog(Dialog::About);
                 CommandOutcome::Ok

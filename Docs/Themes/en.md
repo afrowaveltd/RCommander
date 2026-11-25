@@ -75,7 +75,15 @@ the three states stay distinguishable in every theme — including the monochrom
 
 The six `code_*` roles are what make a code block in a model answer, a help topic
 or the F3 viewer readable without a grammar: a small highlighter labels keywords,
-strings, comments, numbers, types and calls, and the theme decides the colours. A
+strings, comments, numbers, types and calls, and the theme decides the colours.
+
+The highlighter knows **Rust, C#, C/C++, Go, JavaScript/TypeScript, Python, SQL,
+TOML, JSON, Markdown, HTML/XML, CSS** and three shell families — POSIX shells
+(`sh`, `bash`, `zsh`, `fish`), **PowerShell** (`$variables`, `Verb-Noun` cmdlets,
+`-Parameters`) and **Windows batch** (`REM`/`::` comments, `:labels`, `%VAR%`,
+`%1`). HTML colours tags and attributes but leaves the prose alone; CSS tells a
+selector from a property and a property from a value; SQL matches its keywords in
+either case, because real queries are written both ways. A
 theme that lists none of them inherits the base theme's choice, so an old theme
 file keeps working and simply gains colour.
 

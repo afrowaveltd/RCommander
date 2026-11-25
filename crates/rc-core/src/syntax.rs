@@ -79,6 +79,10 @@ impl fmt::Display for Span {
 pub struct State {
     /// Inside a `/* … */` block comment.
     block_comment: bool,
+    /// Inside an HTML comment `<!-- … -->`.
+    html_comment: bool,
+    /// How deep inside `{ … }` a CSS line is: 0 means "still in the selector".
+    css_depth: usize,
     /// Inside a Python-style `"""` string.
     triple_double: bool,
     /// Inside a Python-style `'''` string.
@@ -92,10 +96,19 @@ pub enum Language {
     Toml,
     Json,
     Shell,
+    /// PowerShell: `#` and `<# … #>` comments, `$variables`, `Verb-Noun` cmdlets.
+    PowerShell,
+    /// Windows batch: `REM`/`::` comments, `%VAR%`, labels.
+    Batch,
     Python,
     JavaScript,
     C,
+    /// C# and the .NET family.
+    CSharp,
     Go,
+    Sql,
+    Html,
+    Css,
     Markdown,
     /// No highlighting, but the text is still split into one span.
     Plain,
@@ -120,11 +133,21 @@ impl Language {
             "rust" | "rs" => Language::Rust,
             "toml" | "ini" | "conf" | "cfg" => Language::Toml,
             "json" | "jsonc" => Language::Json,
-            "sh" | "bash" | "shell" | "zsh" | "fish" | "console" => Language::Shell,
-            "py" | "python" => Language::Python,
-            "js" | "javascript" | "ts" | "typescript" | "jsx" | "tsx" => Language::JavaScript,
-            "c" | "h" | "cpp" | "c++" | "cc" | "hpp" | "rs.h" => Language::C,
+            // The POSIX-family shells share one table; PowerShell and batch have their own.
+            "sh" | "bash" | "shell" | "zsh" | "fish" | "ksh" | "dash" | "console"
+            | "shell-session" => Language::Shell,
+            "ps1" | "ps" | "powershell" | "pwsh" => Language::PowerShell,
+            "bat" | "batch" | "cmd" | "cmdline" => Language::Batch,
+            "py" | "python" | "py3" => Language::Python,
+            "js" | "javascript" | "ts" | "typescript" | "jsx" | "tsx" | "mjs" | "cjs" => {
+                Language::JavaScript
+            }
+            "c" | "h" | "cpp" | "c++" | "cc" | "hpp" => Language::C,
+            "cs" | "csharp" | "c#" | "csx" => Language::CSharp,
             "go" | "golang" => Language::Go,
+            "sql" | "sqlite" | "mysql" | "pgsql" | "plsql" | "tsql" => Language::Sql,
+            "html" | "htm" | "xhtml" | "xml" | "xaml" | "svg" | "vue" => Language::Html,
+            "css" | "scss" | "sass" | "less" => Language::Css,
             "md" | "markdown" => Language::Markdown,
             _ => Language::Plain,
         }
@@ -268,13 +291,262 @@ impl Language {
                 "type",
                 "var",
             ],
-            Language::Markdown | Language::Plain => &[],
+            Language::CSharp => &[
+                "abstract",
+                "as",
+                "async",
+                "await",
+                "base",
+                "bool",
+                "break",
+                "byte",
+                "case",
+                "catch",
+                "char",
+                "checked",
+                "class",
+                "const",
+                "continue",
+                "decimal",
+                "default",
+                "delegate",
+                "do",
+                "double",
+                "dynamic",
+                "else",
+                "enum",
+                "event",
+                "explicit",
+                "extern",
+                "false",
+                "finally",
+                "fixed",
+                "float",
+                "for",
+                "foreach",
+                "get",
+                "goto",
+                "if",
+                "implicit",
+                "in",
+                "init",
+                "int",
+                "interface",
+                "internal",
+                "is",
+                "lock",
+                "long",
+                "namespace",
+                "new",
+                "null",
+                "object",
+                "operator",
+                "out",
+                "override",
+                "params",
+                "private",
+                "protected",
+                "public",
+                "readonly",
+                "record",
+                "ref",
+                "return",
+                "sbyte",
+                "sealed",
+                "set",
+                "short",
+                "sizeof",
+                "stackalloc",
+                "static",
+                "string",
+                "struct",
+                "switch",
+                "this",
+                "throw",
+                "true",
+                "try",
+                "typeof",
+                "uint",
+                "ulong",
+                "unchecked",
+                "unsafe",
+                "ushort",
+                "using",
+                "var",
+                "virtual",
+                "void",
+                "volatile",
+                "when",
+                "where",
+                "while",
+                "with",
+                "yield",
+            ],
+            // SQL is written in upper case by convention; matching ignores case (see
+            // `is_keyword`), so both spellings colour.
+            Language::Sql => &[
+                "add",
+                "all",
+                "alter",
+                "and",
+                "any",
+                "as",
+                "asc",
+                "begin",
+                "between",
+                "by",
+                "case",
+                "cast",
+                "check",
+                "column",
+                "commit",
+                "constraint",
+                "create",
+                "cross",
+                "database",
+                "default",
+                "delete",
+                "desc",
+                "distinct",
+                "drop",
+                "else",
+                "end",
+                "except",
+                "exists",
+                "false",
+                "foreign",
+                "from",
+                "full",
+                "group",
+                "having",
+                "if",
+                "in",
+                "index",
+                "inner",
+                "insert",
+                "intersect",
+                "into",
+                "is",
+                "join",
+                "key",
+                "left",
+                "like",
+                "limit",
+                "not",
+                "null",
+                "offset",
+                "on",
+                "or",
+                "order",
+                "outer",
+                "primary",
+                "references",
+                "returning",
+                "right",
+                "rollback",
+                "select",
+                "set",
+                "table",
+                "then",
+                "top",
+                "transaction",
+                "true",
+                "truncate",
+                "union",
+                "unique",
+                "update",
+                "values",
+                "view",
+                "when",
+                "where",
+                "with",
+            ],
+            Language::PowerShell => &[
+                "begin",
+                "break",
+                "catch",
+                "class",
+                "continue",
+                "data",
+                "do",
+                "dynamicparam",
+                "else",
+                "elseif",
+                "end",
+                "enum",
+                "exit",
+                "filter",
+                "finally",
+                "for",
+                "foreach",
+                "from",
+                "function",
+                "hidden",
+                "if",
+                "in",
+                "param",
+                "process",
+                "return",
+                "static",
+                "switch",
+                "throw",
+                "trap",
+                "try",
+                "until",
+                "using",
+                "var",
+                "while",
+                "workflow",
+            ],
+            Language::Batch => &[
+                "call",
+                "cd",
+                "cls",
+                "copy",
+                "del",
+                "dir",
+                "do",
+                "echo",
+                "else",
+                "endlocal",
+                "exist",
+                "errorlevel",
+                "exit",
+                "for",
+                "goto",
+                "if",
+                "in",
+                "mkdir",
+                "move",
+                "not",
+                "pause",
+                "popd",
+                "pushd",
+                "rd",
+                "rem",
+                "ren",
+                "rmdir",
+                "set",
+                "setlocal",
+                "shift",
+                "start",
+                "title",
+                "type",
+                "defined",
+            ],
+            // HTML and CSS have no keywords in the usual sense: their line highlighters know the
+            // shape of a tag and of a declaration instead.
+            Language::Html | Language::Css | Language::Markdown | Language::Plain => &[],
         }
     }
 
     /// Built-in primitive type names, which are lower case and would otherwise read as plain.
     fn primitive_types(self) -> &'static [&'static str] {
         match self {
+            Language::CSharp => &[
+                "bool", "byte", "char", "decimal", "double", "float", "int", "long", "nint",
+                "nuint", "object", "sbyte", "short", "string", "uint", "ulong", "ushort", "void",
+            ],
             Language::Rust => &[
                 "bool", "char", "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "str",
                 "u8", "u16", "u32", "u64", "u128", "usize",
@@ -310,14 +582,23 @@ impl Language {
         match self {
             Language::Rust
             | Language::C
+            | Language::CSharp
             | Language::Go
             | Language::JavaScript
             | Language::Toml
             | Language::Python => &["//", "#"],
-            Language::Shell => &["#"],
+            Language::Shell | Language::PowerShell => &["#"],
+            // SQL uses `--`, which the generic scanner would read as two minus signs.
+            Language::Sql => &["--"],
+            Language::Batch => &[],
             // JSON has no comments. Treating `//` as one would colour half a URL wrong, so nothing
             // is claimed here; `jsonc` is folded into `Json` and simply loses its comments.
-            Language::Json | Language::Markdown | Language::Plain => &[],
+            // HTML and CSS have their own line highlighters, which know their comment syntax.
+            Language::Json
+            | Language::Html
+            | Language::Css
+            | Language::Markdown
+            | Language::Plain => &[],
         }
     }
 
@@ -325,8 +606,29 @@ impl Language {
     fn has_block_comments(self) -> bool {
         matches!(
             self,
-            Language::Rust | Language::C | Language::Go | Language::JavaScript
+            Language::Rust
+                | Language::C
+                | Language::CSharp
+                | Language::Go
+                | Language::JavaScript
+                | Language::Sql
+                | Language::Css
         )
+    }
+
+    /// True when keywords are matched without regard to case.
+    fn keywords_are_case_insensitive(self) -> bool {
+        matches!(self, Language::Sql | Language::PowerShell | Language::Batch)
+    }
+
+    /// True when `word` is a keyword of this language.
+    fn is_keyword(self, word: &str) -> bool {
+        if self.keywords_are_case_insensitive() {
+            let lowered = word.to_ascii_lowercase();
+            self.keywords().contains(&lowered.as_str())
+        } else {
+            self.keywords().contains(&word)
+        }
     }
 
     /// True when this language has Python's triple-quoted strings.
@@ -361,11 +663,16 @@ impl Highlighter {
     /// The concatenation of the returned spans is exactly `line`, which is the property that keeps
     /// a half-received answer readable: nothing is dropped, only coloured.
     pub fn line(&mut self, line: &str) -> Vec<Span> {
-        if self.language == Language::Markdown {
-            return highlight_markdown(line);
-        }
-        if self.language == Language::Plain {
-            return vec![Span::new(Kind::Plain, line)];
+        match self.language {
+            Language::Markdown => return highlight_markdown(line),
+            Language::Plain => return vec![Span::new(Kind::Plain, line)],
+            // These four are not "keywords and punctuation" languages: a tag, a declaration, a
+            // variable sigil and a `%VAR%` need their own rules, so they get their own scanners.
+            Language::Html => return highlight_html(line, &mut self.state),
+            Language::Css => return highlight_css(line, &mut self.state),
+            Language::PowerShell => return highlight_powershell(line),
+            Language::Batch => return highlight_batch(line),
+            _ => {}
         }
         let chars: Vec<char> = line.chars().collect();
         let mut spans: Vec<Span> = Vec::new();
@@ -530,7 +837,7 @@ impl Highlighter {
 
 /// Classify one identifier.
 fn classify_identifier(language: &Language, word: &str, chars: &[char], next_index: usize) -> Kind {
-    if language.keywords().contains(&word) {
+    if language.is_keyword(word) {
         return Kind::Keyword;
     }
     if language.primitive_types().contains(&word) {
@@ -555,6 +862,456 @@ fn classify_identifier(language: &Language, word: &str, chars: &[char], next_ind
         return Kind::Type;
     }
     Kind::Plain
+}
+
+// ---- HTML -------------------------------------------------------------------------
+
+/// Highlight one line of HTML/XML: comments, tags, attribute names and quoted values.
+///
+/// Text between tags stays plain, which is what makes the structure readable: the eye finds the
+/// elements instead of a paragraph of `class="…"`.
+fn highlight_html(line: &str, state: &mut State) -> Vec<Span> {
+    let chars: Vec<char> = line.chars().collect();
+    let mut spans: Vec<Span> = Vec::new();
+    let mut index = 0;
+    if state.html_comment {
+        let (text, next) = take_until(&chars, 0, "-->");
+        spans.push(Span::new(Kind::Comment, text));
+        if next.is_none() {
+            return spans;
+        }
+        state.html_comment = false;
+        index = next.unwrap_or(chars.len());
+    }
+    let mut buffer = String::new();
+    while index < chars.len() {
+        if starts_with(&chars, index, "<!--") {
+            flush(&mut buffer, &mut spans);
+            let (rest, next) = take_until(&chars, index + 4, "-->");
+            spans.push(Span::new(Kind::Comment, format!("<!--{rest}")));
+            if next.is_none() {
+                state.html_comment = true;
+                return spans;
+            }
+            index = next.unwrap_or(chars.len());
+            continue;
+        }
+        if chars[index] == '<' {
+            flush(&mut buffer, &mut spans);
+            // The whole tag is walked here: `</div>`, `<p class="x">`, `<?xml … ?>`.
+            let start = index;
+            let mut position = index + 1;
+            let mut name = String::from("<");
+            if chars.get(position) == Some(&'/') {
+                name.push('/');
+                position += 1;
+            } else if chars.get(position) == Some(&'!') || chars.get(position) == Some(&'?') {
+                name.push(chars[position]);
+                position += 1;
+            }
+            spans.push(Span::new(Kind::Plain, name));
+            let name_start = position;
+            while position < chars.len()
+                && (chars[position].is_alphanumeric()
+                    || chars[position] == '-'
+                    || chars[position] == ':')
+            {
+                position += 1;
+            }
+            if position > name_start {
+                spans.push(Span::new(
+                    Kind::Keyword,
+                    chars[name_start..position].iter().collect::<String>(),
+                ));
+            }
+            // Attributes until the closing `>`.
+            while position < chars.len() && chars[position] != '>' {
+                let c = chars[position];
+                if c == '"' || c == '\'' {
+                    let (text, next) = take_string(&chars, position, c);
+                    spans.push(Span::new(Kind::String, text));
+                    position = next;
+                    continue;
+                }
+                if c.is_alphabetic() || c == '-' || c == '_' || c == ':' {
+                    let attr_start = position;
+                    while position < chars.len()
+                        && (chars[position].is_alphanumeric()
+                            || chars[position] == '-'
+                            || chars[position] == '_'
+                            || chars[position] == ':')
+                    {
+                        position += 1;
+                    }
+                    spans.push(Span::new(
+                        Kind::Type,
+                        chars[attr_start..position].iter().collect::<String>(),
+                    ));
+                    continue;
+                }
+                spans.push(Span::new(Kind::Plain, c.to_string()));
+                position += 1;
+            }
+            if position < chars.len() {
+                spans.push(Span::new(Kind::Plain, ">"));
+                position += 1;
+            }
+            index = position.max(start + 1);
+            continue;
+        }
+        buffer.push(chars[index]);
+        index += 1;
+    }
+    flush(&mut buffer, &mut spans);
+    if spans.is_empty() {
+        spans.push(Span::new(Kind::Plain, line));
+    }
+    spans
+}
+
+// ---- CSS ---------------------------------------------------------------------------
+
+/// Highlight one line of CSS: a selector outside the braces, declarations inside them.
+fn highlight_css(line: &str, state: &mut State) -> Vec<Span> {
+    let chars: Vec<char> = line.chars().collect();
+    let mut spans: Vec<Span> = Vec::new();
+    let mut index = 0;
+    // Inside a declaration the property name comes before the colon and the value after it; the
+    // switch is per line, because a declaration that spans lines is rare and a value is never a
+    // property name.
+    let mut after_colon = false;
+    if state.block_comment {
+        let (text, next) = take_until(&chars, 0, "*/");
+        spans.push(Span::new(Kind::Comment, text));
+        if next.is_none() {
+            return spans;
+        }
+        state.block_comment = false;
+        index = next.unwrap_or(chars.len());
+    }
+    let mut buffer = String::new();
+    while index < chars.len() {
+        let c = chars[index];
+        if starts_with(&chars, index, "/*") {
+            flush(&mut buffer, &mut spans);
+            let (rest, next) = take_until(&chars, index + 2, "*/");
+            spans.push(Span::new(Kind::Comment, format!("/*{rest}")));
+            if next.is_none() {
+                state.block_comment = true;
+                return spans;
+            }
+            index = next.unwrap_or(chars.len());
+            continue;
+        }
+        if c == '"' || c == '\'' {
+            flush(&mut buffer, &mut spans);
+            let (text, next) = take_string(&chars, index, c);
+            spans.push(Span::new(Kind::String, text));
+            index = next;
+            continue;
+        }
+        if c == ':' {
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(Kind::Plain, ":"));
+            after_colon = true;
+            index += 1;
+            continue;
+        }
+        if c == ';' {
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(Kind::Plain, ";"));
+            after_colon = false;
+            index += 1;
+            continue;
+        }
+        if c == '{' {
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(Kind::Plain, "{"));
+            state.css_depth += 1;
+            after_colon = false;
+            index += 1;
+            continue;
+        }
+        if c == '}' {
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(Kind::Plain, "}"));
+            state.css_depth = state.css_depth.saturating_sub(1);
+            index += 1;
+            continue;
+        }
+        // A number comes before an identifier: `0` and `2rem` must not read as property names.
+        if c.is_ascii_digit() {
+            let start = index;
+            while index < chars.len()
+                && (chars[index].is_ascii_alphanumeric()
+                    || chars[index] == '.'
+                    || chars[index] == '%')
+            {
+                index += 1;
+            }
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(
+                Kind::Number,
+                chars[start..index].iter().collect::<String>(),
+            ));
+            continue;
+        }
+        // A selector outside the braces, a property name inside them. The `.`/`#` of a class or
+        // id selector belongs to the selector, so `.panel` is one span and not "." plus "panel".
+        let is_word =
+            c.is_alphanumeric() || c == '-' || c == '_' || c == '#' || c == '.' || c == '*';
+        if is_word {
+            let start = index;
+            while index < chars.len() {
+                let next = chars[index];
+                if next.is_alphanumeric()
+                    || next == '-'
+                    || next == '_'
+                    || next == '#'
+                    || next == '.'
+                    || next == '*'
+                {
+                    index += 1;
+                } else {
+                    break;
+                }
+            }
+            let word: String = chars[start..index].iter().collect();
+            // `@media`/`@import` are at-rules, and `.class` selectors are structure either way.
+            let kind = if word.starts_with('#') && word.chars().any(|ch| ch.is_ascii_hexdigit()) {
+                // A hex colour: `#fff`, `#ff0000`, and a `#id` selector outside the braces is
+                // caught by the depth check below.
+                if state.css_depth == 0 {
+                    Kind::Keyword
+                } else {
+                    Kind::Number
+                }
+            } else if state.css_depth == 0 {
+                // Outside the braces everything is a selector.
+                Kind::Keyword
+            } else if after_colon {
+                // Inside a value: colour is carried by numbers and strings, words stay readable.
+                Kind::Plain
+            } else {
+                // A property name.
+                Kind::Function
+            };
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(kind, word));
+            continue;
+        }
+        buffer.push(c);
+        index += 1;
+    }
+    flush(&mut buffer, &mut spans);
+    if spans.is_empty() {
+        spans.push(Span::new(Kind::Plain, line));
+    }
+    spans
+}
+
+// ---- PowerShell --------------------------------------------------------------------
+
+/// Highlight one line of PowerShell: variables, cmdlets and the usual keywords.
+fn highlight_powershell(line: &str) -> Vec<Span> {
+    let chars: Vec<char> = line.chars().collect();
+    let mut spans: Vec<Span> = Vec::new();
+    let mut buffer = String::new();
+    let mut index = 0;
+    while index < chars.len() {
+        let c = chars[index];
+        if c == '#' {
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(
+                Kind::Comment,
+                chars[index..].iter().collect::<String>(),
+            ));
+            break;
+        }
+        if c == '"' || c == '\'' {
+            flush(&mut buffer, &mut spans);
+            let (text, next) = take_string(&chars, index, c);
+            spans.push(Span::new(Kind::String, text));
+            index = next;
+            continue;
+        }
+        // A variable: `$name`, `$env:PATH`, `$script:var`.
+        if c == '$' {
+            let start = index;
+            index += 1;
+            while index < chars.len()
+                && (chars[index].is_alphanumeric()
+                    || chars[index] == '_'
+                    || chars[index] == ':'
+                    || chars[index] == '{'
+                    || chars[index] == '}')
+            {
+                index += 1;
+            }
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(
+                Kind::Type,
+                chars[start..index].iter().collect::<String>(),
+            ));
+            continue;
+        }
+        // A parameter or an operator such as `-Path` or `-eq`.
+        if c == '-'
+            && chars
+                .get(index + 1)
+                .is_some_and(|next| next.is_alphabetic())
+        {
+            let start = index;
+            index += 1;
+            while index < chars.len() && (chars[index].is_alphanumeric() || chars[index] == '_') {
+                index += 1;
+            }
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(
+                Kind::Keyword,
+                chars[start..index].iter().collect::<String>(),
+            ));
+            continue;
+        }
+        if c.is_alphabetic() || c == '_' {
+            let start = index;
+            while index < chars.len() && (chars[index].is_alphanumeric() || chars[index] == '_') {
+                index += 1;
+            }
+            let word: String = chars[start..index].iter().collect();
+            let kind = if Language::PowerShell.is_keyword(&word) {
+                Kind::Keyword
+            } else if word.contains('-') || is_ps_cmdlet(&word) {
+                Kind::Function
+            } else {
+                Kind::Plain
+            };
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(kind, word));
+            continue;
+        }
+        // `Verb-Noun`: the hyphen is part of the cmdlet name.
+        if c == '-' && buffer.chars().next().is_some_and(|ch| ch.is_alphabetic()) {
+            buffer.push(c);
+            index += 1;
+            continue;
+        }
+        if c.is_ascii_digit() {
+            let start = index;
+            while index < chars.len()
+                && (chars[index].is_ascii_alphanumeric() || chars[index] == '.')
+            {
+                index += 1;
+            }
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(
+                Kind::Number,
+                chars[start..index].iter().collect::<String>(),
+            ));
+            continue;
+        }
+        buffer.push(c);
+        index += 1;
+    }
+    flush(&mut buffer, &mut spans);
+    if spans.is_empty() {
+        spans.push(Span::new(Kind::Plain, line));
+    }
+    // A cmdlet written as `Verb-Noun` arrives here as two plain words; joining them is not worth
+    // a second pass, so the hyphen stays plain and the words keep their colour.
+    let _ = is_ps_cmdlet;
+    spans
+}
+
+/// The approved verbs of PowerShell, which is what makes `Get-ChildItem` look like a command.
+fn is_ps_cmdlet(word: &str) -> bool {
+    matches!(
+        word,
+        "Get" | "Set" | "New" | "Remove" | "Add" | "Clear" | "Copy" | "Move" | "Test" | "Start"
+    )
+}
+
+// ---- Windows batch -----------------------------------------------------------------
+
+/// Highlight one line of a `.bat`/`.cmd` file: `REM`/`::` comments, `%VAR%`, labels, commands.
+fn highlight_batch(line: &str) -> Vec<Span> {
+    let chars: Vec<char> = line.chars().collect();
+    let trimmed = line.trim_start();
+    let lower = trimmed.to_ascii_lowercase();
+    // `REM` and `::` are the two ways to write a comment in batch; both take the whole line.
+    if lower.starts_with("rem ") || lower == "rem" || trimmed.starts_with("::") {
+        return vec![Span::new(Kind::Comment, line)];
+    }
+    // A label (`:start`) is a jump target, not a command.
+    if trimmed.starts_with(':') {
+        return vec![Span::new(Kind::Keyword, line)];
+    }
+    let mut spans: Vec<Span> = Vec::new();
+    let mut buffer = String::new();
+    let mut index = 0;
+    while index < chars.len() {
+        let c = chars[index];
+        if c == '"' {
+            flush(&mut buffer, &mut spans);
+            let (text, next) = take_string(&chars, index, c);
+            spans.push(Span::new(Kind::String, text));
+            index = next;
+            continue;
+        }
+        // `%1` and `%*` are the positional arguments; they have no closing `%`.
+        if c == '%'
+            && chars
+                .get(index + 1)
+                .is_some_and(|next| next.is_ascii_digit() || *next == '*')
+        {
+            let text: String = chars[index..index + 2].iter().collect();
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(Kind::Type, text));
+            index += 2;
+            continue;
+        }
+        // `%VAR%` and `!VAR!` are the two variable forms.
+        if (c == '%' || c == '!')
+            && chars[index + 1..].contains(&(if c == '%' { '%' } else { '!' }))
+        {
+            let start = index;
+            index += 1;
+            while index < chars.len() && chars[index] != (if c == '%' { '%' } else { '!' }) {
+                index += 1;
+            }
+            if index < chars.len() {
+                index += 1;
+            }
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(
+                Kind::Type,
+                chars[start..index].iter().collect::<String>(),
+            ));
+            continue;
+        }
+        if c.is_alphabetic() || c == '_' {
+            let start = index;
+            while index < chars.len() && (chars[index].is_alphanumeric() || chars[index] == '_') {
+                index += 1;
+            }
+            let word: String = chars[start..index].iter().collect();
+            let kind = if Language::Batch.is_keyword(&word) {
+                Kind::Keyword
+            } else {
+                Kind::Plain
+            };
+            flush(&mut buffer, &mut spans);
+            spans.push(Span::new(kind, word));
+            continue;
+        }
+        buffer.push(c);
+        index += 1;
+    }
+    flush(&mut buffer, &mut spans);
+    if spans.is_empty() {
+        spans.push(Span::new(Kind::Plain, line));
+    }
+    spans
 }
 
 /// Markdown is highlighted by line shape: a heading, a fence marker, a quote, a list bullet.
@@ -794,6 +1551,189 @@ mod tests {
         assert_eq!(spans[0].kind, Kind::Keyword);
         let spans = highlighter.line("plain text");
         assert_eq!(spans[0].kind, Kind::Plain);
+    }
+
+    #[test]
+    fn the_new_languages_are_recognised_from_fence_words_and_files() {
+        for (input, expected) in [
+            ("cs", Language::CSharp),
+            ("csharp", Language::CSharp),
+            ("c#", Language::CSharp),
+            ("Main.cs", Language::CSharp),
+            ("sql", Language::Sql),
+            ("query.sql", Language::Sql),
+            ("html", Language::Html),
+            ("page.html", Language::Html),
+            ("xml", Language::Html),
+            ("css", Language::Css),
+            ("site.css", Language::Css),
+            ("scss", Language::Css),
+            ("ps1", Language::PowerShell),
+            ("powershell", Language::PowerShell),
+            ("pwsh", Language::PowerShell),
+            ("bat", Language::Batch),
+            ("run.cmd", Language::Batch),
+            ("zsh", Language::Shell),
+            ("fish", Language::Shell),
+        ] {
+            assert_eq!(Language::parse(input), expected, "{input}");
+        }
+    }
+
+    #[test]
+    fn csharp_reads_like_csharp() {
+        let mut highlighter = Highlighter::new("csharp");
+        let spans =
+            highlighter.line("public class Panel { private string name = \"x\"; // a comment");
+        assert_eq!(kinds(&spans, "public"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "class"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "Panel"), Some(Kind::Type));
+        // `string` is a keyword in C# (an alias of `String`), so it reads as one.
+        assert_eq!(kinds(&spans, "string"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "\"x\""), Some(Kind::String));
+        assert_eq!(
+            spans.last().map(|span| span.kind),
+            Some(Kind::Comment),
+            "{spans:?}"
+        );
+        // An attribute is a call, not a comment.
+        let spans = highlighter.line("[Obsolete(\"use the new one\")]");
+        assert_eq!(kinds(&spans, "[Obsolete(\"use the new one\")]"), None);
+        assert_eq!(kinds(&spans, "Obsolete"), Some(Kind::Function));
+    }
+
+    #[test]
+    fn sql_keywords_are_found_in_either_case() {
+        let mut highlighter = Highlighter::new("sql");
+        let spans = highlighter.line("SELECT id, name FROM users WHERE id = 3 -- the third one");
+        assert_eq!(kinds(&spans, "SELECT"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "FROM"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "WHERE"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "3"), Some(Kind::Number));
+        assert_eq!(
+            spans.last().map(|span| span.kind),
+            Some(Kind::Comment),
+            "a `--` comment takes the rest: {spans:?}"
+        );
+        // Lower case is just as common in real queries.
+        let spans = highlighter.line("select count(*) from t");
+        assert_eq!(kinds(&spans, "select"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "from"), Some(Kind::Keyword));
+        // A block comment carries over, like in C.
+        let spans = highlighter.line("/* one");
+        assert_eq!(spans.last().unwrap().kind, Kind::Comment);
+        let spans = highlighter.line("two */ SELECT 1");
+        assert_eq!(spans[0].kind, Kind::Comment);
+        assert_eq!(kinds(&spans, "SELECT"), Some(Kind::Keyword));
+    }
+
+    #[test]
+    fn html_colours_tags_attributes_and_comments_not_the_prose() {
+        let mut highlighter = Highlighter::new("html");
+        let spans = highlighter.line("<div class=\"panel\" id='main'>text</div>");
+        assert_eq!(kinds(&spans, "div"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "class"), Some(Kind::Type));
+        assert_eq!(kinds(&spans, "\"panel\""), Some(Kind::String));
+        assert_eq!(kinds(&spans, "'main'"), Some(Kind::String));
+        // The text between the tags stays plain: that is what makes the structure visible.
+        assert_eq!(kinds(&spans, "text"), Some(Kind::Plain));
+        // A comment, including a multi-line one.
+        let spans = highlighter.line("<!-- start");
+        assert_eq!(spans.last().unwrap().kind, Kind::Comment);
+        let spans = highlighter.line("end --> <b>bold</b>");
+        assert_eq!(spans[0].kind, Kind::Comment);
+        assert_eq!(kinds(&spans, "b"), Some(Kind::Keyword));
+    }
+
+    #[test]
+    fn css_tells_a_selector_from_a_declaration() {
+        let mut highlighter = Highlighter::new("css");
+        let spans = highlighter.line(".panel {");
+        assert_eq!(
+            kinds(&spans, ".panel"),
+            Some(Kind::Keyword),
+            "the whole selector"
+        );
+        // Inside the braces, a rule that spans lines keeps its depth.
+        let spans = highlighter.line("  background: #ff0000;");
+        assert_eq!(kinds(&spans, "background"), Some(Kind::Function));
+        assert_eq!(kinds(&spans, "#ff0000"), Some(Kind::Number));
+        let spans = highlighter.line("}");
+        assert_eq!(spans[0].kind, Kind::Plain);
+        // Back outside, the next line is a selector again.
+        let spans = highlighter.line("h1 { margin: 0 }");
+        assert_eq!(kinds(&spans, "h1"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "margin"), Some(Kind::Function));
+        assert_eq!(kinds(&spans, "0"), Some(Kind::Number));
+        // Comments work as in C.
+        let spans = highlighter.line("/* note */");
+        assert_eq!(kinds(&spans, "/* note */"), Some(Kind::Comment));
+    }
+
+    #[test]
+    fn powershell_colours_variables_cmdlets_and_parameters() {
+        let mut highlighter = Highlighter::new("powershell");
+        let spans = highlighter.line("if ($count -gt 3) { Get-ChildItem -Path \"C:\\temp\" }");
+        assert_eq!(kinds(&spans, "if"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "$count"), Some(Kind::Type));
+        assert_eq!(kinds(&spans, "-gt"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "3"), Some(Kind::Number));
+        assert_eq!(kinds(&spans, "Get"), Some(Kind::Function));
+        assert_eq!(kinds(&spans, "-Path"), Some(Kind::Keyword));
+        assert_eq!(kinds(&spans, "\"C:\\temp\""), Some(Kind::String));
+        // A `#` comment takes the rest of the line.
+        let spans = highlighter.line("$x = 1 # set it");
+        assert_eq!(kinds(&spans, "# set it"), Some(Kind::Comment));
+    }
+
+    #[test]
+    fn batch_colours_comments_labels_and_variables() {
+        let mut highlighter = Highlighter::new("bat");
+        let spans = highlighter.line("@echo off");
+        assert_eq!(kinds(&spans, "echo"), Some(Kind::Keyword));
+        let spans = highlighter.line("REM build the thing");
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].kind, Kind::Comment);
+        let spans = highlighter.line(":: another comment");
+        assert_eq!(spans[0].kind, Kind::Comment);
+        // A label is a jump target.
+        let spans = highlighter.line(":again");
+        assert_eq!(spans[0].kind, Kind::Keyword);
+        let spans = highlighter.line("if \"%1\"==\"\" goto usage");
+        assert_eq!(kinds(&spans, "if"), Some(Kind::Keyword));
+        // Inside quotes it is a string, which is why the quoted form stays uncoloured.
+        assert_eq!(kinds(&spans, "\"%1\""), Some(Kind::String));
+        assert_eq!(kinds(&spans, "goto"), Some(Kind::Keyword));
+        // Unquoted, `%1` is the first argument and `%TARGET%` a variable.
+        let spans = highlighter.line("echo %1 %TARGET% %*");
+        assert_eq!(kinds(&spans, "%1"), Some(Kind::Type));
+        assert_eq!(kinds(&spans, "%TARGET%"), Some(Kind::Type));
+        assert_eq!(kinds(&spans, "%*"), Some(Kind::Type));
+    }
+
+    #[test]
+    fn the_new_languages_never_lose_text_either() {
+        for language in ["csharp", "sql", "html", "css", "powershell", "bat"] {
+            assert_lossless(
+                language,
+                &[
+                    "",
+                    "<div class=\"x\">",
+                    "</div>",
+                    "<!-- open",
+                    "-->",
+                    "SELECT * FROM t WHERE a = 'x' -- c",
+                    "/* unclosed",
+                    ".a { color: #fff; }",
+                    "}",
+                    "$env:PATH -split ';'",
+                    "REM comment",
+                    "if \"%A%\"==\"1\" (",
+                    "ünïcödé čeština ěščřžýáíé",
+                    "\t\r",
+                ],
+            );
+        }
     }
 
     #[test]

@@ -383,6 +383,18 @@ impl OptionsTab {
     }
 }
 
+impl super::Model {
+    /// Open the options dialog on a named page.
+    ///
+    /// The menu offers the pages that became features (fonts, security, colours) directly, so a
+    /// user who wants to change a font does not have to remember which page it lives on.
+    pub fn open_options_on(&mut self, tab: super::dialogs::OptionsTab) -> super::CommandOutcome {
+        let state = super::dialogs::OptionsState::new(&self.settings, tab);
+        self.open_dialog(super::Dialog::Options(state));
+        super::CommandOutcome::Ok
+    }
+}
+
 /// Copy/move dialog.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TransferDialogState {

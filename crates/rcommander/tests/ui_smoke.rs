@@ -2598,3 +2598,70 @@ fn every_help_character_can_be_drawn_with_the_bundled_fonts() {
         "these characters would be drawn as empty boxes: {missing:?}"
     );
 }
+
+#[test]
+fn the_menu_leads_to_the_pages_that_became_features() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    // Each of these commands opens the options dialog on its own page, which is what the
+    // Configuration menu offers directly.
+    for (command, tab) in [
+        ("cm_Fonts", rcommander::model::dialogs::OptionsTab::Fonts),
+        (
+            "cm_Security",
+            rcommander::model::dialogs::OptionsTab::Security,
+        ),
+        ("cm_Colors", rcommander::model::dialogs::OptionsTab::Colors),
+        (
+            "cm_Dangerous",
+            rcommander::model::dialogs::OptionsTab::Dangerous,
+        ),
+    ] {
+        harness.state_mut().model.dialogs.clear();
+        harness.state_mut().execute(command);
+        match harness.state().model.top_dialog() {
+            Some(rcommander::model::Dialog::Options(state)) => {
+                assert_eq!(state.tab, tab, "{command} opens the wrong page")
+            }
+            other => panic!("{command} did not open the options dialog: {other:?}"),
+        }
+    }
+    harness.state_mut().model.dialogs.clear();
+    harness.run();
+}
+
+#[test]
+fn the_agent_submenu_offers_the_way_back_only_while_a_pane_shows_the_chat() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    // Open the Configuration menu: the agent submenu is there, the way back is not.
+    harness
+        .root()
+        .get_by_label("menu.configuration")
+        .click_accesskit();
+    harness.run();
+    harness.root().get_by_label("menu.agent").click_accesskit();
+    harness.run();
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("agent.pane.files")
+            .count()
+            == 0,
+        "no chat pane, so no way back from one"
+    );
+    // With the chat in a panel, the entry appears.
+    harness
+        .state_mut()
+        .model
+        .set_panel_chat(rcommander::model::Side::Right, true);
+    harness.run();
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("agent.pane.files")
+            .count()
+            > 0,
+        "the menu offers to close the pane it opened"
+    );
+}

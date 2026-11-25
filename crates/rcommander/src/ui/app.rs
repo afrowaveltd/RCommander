@@ -721,47 +721,85 @@ impl RCommanderApp {
                 if ui.button(self.model.t("cmd.refresh")).clicked() {
                     command = Some("cm_RereadSource".into());
                 }
+                ui.separator();
+                // The pages that grew into features of their own, one click each.
+                if ui.button(self.model.t("dialog.config.colors")).clicked() {
+                    command = Some("cm_Colors".into());
+                }
+                if ui.button(self.model.t("dialog.config.fonts")).clicked() {
+                    command = Some("cm_Fonts".into());
+                }
+                if ui.button(self.model.t("dialog.config.security")).clicked() {
+                    command = Some("cm_Security".into());
+                }
+                if ui.button(self.model.t("dialog.config.dangerous")).clicked() {
+                    command = Some("cm_Dangerous".into());
+                }
+                ui.separator();
                 if ui.button(self.model.t("cmd.secrets")).clicked() {
                     self.model.open_dialog(Dialog::UnlockSecrets(
                         crate::model::dialogs::UnlockSecretsState::new(self.model.secrets_exist()),
                     ));
                 }
-                if ui.button(self.model.t("cmd.gitconfig")).clicked() {
-                    command = Some("cm_GitConfig".into());
-                }
-                if ui.button(self.model.t("cmd.gitpanel")).clicked() {
-                    command = Some("cm_GitPanel".into());
-                }
-                if ui.button(self.model.t("cmd.gitbranches")).clicked() {
-                    command = Some("cm_GitBranches".into());
-                }
-                if ui.button(self.model.t("cmd.gitremote")).clicked() {
-                    command = Some("cm_GitRemote".into());
-                }
-                if ui.button(self.model.t("cmd.gitcopyout")).clicked() {
-                    command = Some("cm_GitCopyOut".into());
-                }
-                if ui.button(self.model.t("cmd.gitstage")).clicked() {
-                    command = Some("cm_GitStage".into());
-                }
-                if ui.button(self.model.t("cmd.gitcommit")).clicked() {
-                    command = Some("cm_GitCommit".into());
-                }
-                if ui.button(self.model.t("cmd.gitclone")).clicked() {
-                    command = Some("cm_GitClone".into());
-                }
-                if ui.button(self.model.t("cmd.aimodel")).clicked() {
-                    command = Some("cm_AiModel".into());
-                }
-                if ui.button(self.model.t("ai.chat.title")).clicked() {
-                    command = Some("cm_AiChat".into());
-                }
-                if ui.button(self.model.t("agent.pane.menu")).clicked() {
-                    command = Some("cm_ChatPane".into());
-                }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
                 }
+                if ui.button(self.model.t("cmd.themenext")).clicked() {
+                    command = Some("cm_ThemeNext".into());
+                }
+                ui.separator();
+                // Git and the agent each own enough entries to deserve a submenu; a flat list of
+                // eighteen buttons is not a menu, it is a wall.
+                ui.menu_button(self.model.t("menu.git"), |ui| {
+                    if ui.button(self.model.t("cmd.gitconfig")).clicked() {
+                        command = Some("cm_GitConfig".into());
+                    }
+                    if ui.button(self.model.t("cmd.gitpanel")).clicked() {
+                        command = Some("cm_GitPanel".into());
+                    }
+                    if ui.button(self.model.t("cmd.gitbranches")).clicked() {
+                        command = Some("cm_GitBranches".into());
+                    }
+                    if ui.button(self.model.t("cmd.gitremote")).clicked() {
+                        command = Some("cm_GitRemote".into());
+                    }
+                    ui.separator();
+                    if ui.button(self.model.t("cmd.gitcopyout")).clicked() {
+                        command = Some("cm_GitCopyOut".into());
+                    }
+                    if ui.button(self.model.t("cmd.gitstage")).clicked() {
+                        command = Some("cm_GitStage".into());
+                    }
+                    if ui.button(self.model.t("cmd.gitcommit")).clicked() {
+                        command = Some("cm_GitCommit".into());
+                    }
+                    if ui.button(self.model.t("cmd.gitclone")).clicked() {
+                        command = Some("cm_GitClone".into());
+                    }
+                });
+                ui.menu_button(self.model.t("menu.agent"), |ui| {
+                    if ui.button(self.model.t("cmd.aimodel")).clicked() {
+                        command = Some("cm_AiModel".into());
+                    }
+                    ui.separator();
+                    if ui.button(self.model.t("ai.chat.title")).clicked() {
+                        command = Some("cm_AiChat".into());
+                    }
+                    if ui.button(self.model.t("agent.pane.menu")).clicked() {
+                        command = Some("cm_ChatPane".into());
+                    }
+                    // Only offered when a pane is actually showing the chat: a menu entry that
+                    // does nothing is worse than no entry.
+                    if self.model.any_panel_shows_chat()
+                        && ui.button(self.model.t("agent.pane.files")).clicked()
+                    {
+                        command = Some("cm_ChatFiles".into());
+                    }
+                    ui.separator();
+                    if ui.button(self.model.t("agent.panel")).clicked() {
+                        self.model.show_agent_panel = true;
+                    }
+                });
             });
             ui.menu_button(self.model.t("menu.net"), |ui| {
                 if ui.button(self.model.t("ftp.connect")).clicked() {

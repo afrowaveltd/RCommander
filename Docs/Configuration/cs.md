@@ -16,6 +16,23 @@
 | Zabezpečení | oprávnění agenta, které operace se vždy ptají, trvale povolené operace, tlačítko Zastavit všechno a auditní log |
 | Zkratky | celá klávesová mapa, upravitelná řádek po řádku |
 
+## Co nabízí nabídka Konfigurace
+
+Nabídka vypisuje stránky, které se staly samostatnými funkcemi, takže si nikdo
+nemusí pamatovat, na které stránce je které nastavení:
+
+| Položka | Otevře |
+| --- | --- |
+| *Možnosti* | dialog na první stránce |
+| *Barvy*, *Písma*, *Zabezpečení*, *Tovární nastavení…* | dialog na dané stránce |
+| *Uložené přístupy* | dotaz na hlavní heslo k `secrets.enc` |
+| *Tmavé ↔ normální*, *Další téma* | přepne barevné téma |
+| **Git →** | konfiguraci, Git panel, větve, remote, kopírování ven, stage, commit, klonování |
+| **Agent →** | výběr modelu, okno chatu, *Chat v druhém panelu*, *Zobrazit soubory* (jen když panel chat zobrazuje) a panel MCP klienta |
+
+Zbytek je tam, kde se pracuje: souborové operace v *Soubory*, označování v
+*Označit* a nástroje nad celým adresářem v *Příkazy*.
+
 ## Konfigurační soubor
 
 `settings.toml` je určen i k ruční úpravě. Neznámé klíče se zachovají, takže se

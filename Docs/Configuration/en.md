@@ -16,6 +16,23 @@ written to `settings.toml` when you accept them.
 | Security | the agent's privilege profile, which operations always ask, stored pre-approvals, the live session stop button and the audit log |
 | Shortcuts | the whole keyboard map, editable row by row |
 
+## What the Configuration menu offers
+
+The menu lists the pages that became features of their own, so nobody has to
+remember which page holds which setting:
+
+| Entry | Opens |
+| --- | --- |
+| *Options* | the dialog on its first page |
+| *Colors*, *Fonts*, *Security*, *Factory resets…* | the dialog on that page |
+| *Saved credentials* | the passphrase prompt for `secrets.enc` |
+| *Dark ↔ normal*, *Next theme* | switches the colour theme |
+| **Git →** | configuration, the Git panel, branches, remote, copy out, stage, commit, clone |
+| **Agent →** | the model picker, the chat window, *Chat in the other panel*, *Show files* (only while a panel is showing the chat) and the MCP client panel |
+
+Everything else lives where the work happens: file operations in *Files*, marking
+in *Mark*, and the tools that act on a whole directory in *Commands*.
+
 ## The settings file
 
 `settings.toml` is meant to be edited by hand as well. Unknown keys are kept, so a

@@ -74,7 +74,15 @@ stavy zůstanou rozlišitelné v každém tématu — i v těch monochromatický
 
 Šest rolí `code_*` dělá blok kódu v odpovědi modelu, v tématu nápovědy nebo v F3
 prohlížeči čitelným i bez gramatiky: malý zvýrazňovač označí klíčová slova,
-řetězce, komentáře, čísla, typy a volání a o barvách rozhoduje téma. Téma, které
+řetězce, komentáře, čísla, typy a volání a o barvách rozhoduje téma.
+
+Zvýrazňovač zná **Rust, C#, C/C++, Go, JavaScript/TypeScript, Python, SQL, TOML,
+JSON, Markdown, HTML/XML, CSS** a tři rodiny shellů — POSIX shelly (`sh`, `bash`,
+`zsh`, `fish`), **PowerShell** (`$proměnné`, cmdlety `Verb-Noun`, přepínače
+`-Parametr`) a **Windows batch** (komentáře `REM`/`::`, návěští `:label`, `%PROM%`,
+`%1`). HTML obarví značky a atributy, ale text nechá být; CSS rozliší selektor od
+vlastnosti a vlastnost od hodnoty; SQL najde klíčová slova v obou velikostech
+písmen, protože skutečné dotazy se píšou obojím způsobem. Téma, které
 žádnou z nich neuvádí, zdědí volbu základního tématu — starý soubor tématu tedy
 funguje dál a jen získá barvy.
 

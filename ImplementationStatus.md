@@ -182,6 +182,37 @@ asks egui whether each character can be drawn with the bundled faces. A future t
 emoji or an exotic arrow fails here instead of shipping a box — help topics are user-editable files,
 so this is the editor's guard as much as ours.
 
+## Phase 17.0b — C#, SQL, HTML, CSS and three shell families (done)
+
+`cargo test -p rc-core --lib syntax` → **21 tests** (8 more than before).
+
+The highlighter covered nine languages; it now covers the ones the panel owner actually meets:
+**C#**, **SQL**, **HTML/XML** and **CSS**, plus **PowerShell** and **Windows batch** beside the POSIX
+shells. Fence words and file names both work (`cs`, `csharp`, `c#`, `Main.cs`; `ps1`, `pwsh`;
+`run.cmd`; `page.html`, `xml`; `site.css`, `scss`).
+
+Four of them needed rules rather than keyword tables, and that is where the honest work was:
+
+* **HTML** colours the tag name, the attribute names and the quoted values, and leaves the prose
+  between them alone — that is what makes the structure readable instead of a coloured paragraph.
+  An HTML comment carries over to the next line like any other block comment.
+* **CSS** knows the difference between a selector, a property and a value: it tracks `{ … }` depth
+  across lines, keeps the `.`/`#` of a selector attached to its word, colours a hex value as a
+  number, and does not mistake `0` for a property name.
+* **PowerShell** colours `$variables` (including `$env:PATH`), `-Parameters`, `Verb-Noun` cmdlets
+  and its own keyword list, all matched without regard to case.
+* **Batch** colours `REM`/`::` comments, `:labels`, `%VAR%`, `!VAR!` and the positional arguments
+  `%1`/`%*` — the last of which have no closing `%`, which a naive scanner gets wrong.
+
+SQL matches keywords in either case (`SELECT` and `select` are both real style), and its `--`
+comments are claimed explicitly, because the generic scanner would read them as two minus signs.
+
+**The Configuration menu was reorganised** at the same time, since a flat list of eighteen buttons
+is a wall, not a menu: *Colors*, *Fonts*, *Security* and *Factory resets…* open the options dialog
+on their own page (`cm_Colors`, `cm_Fonts`, `cm_Security`, `cm_Dangerous`), and **Git ▸** and
+**Agent ▸** are submenus. *Show files* appears in the agent submenu only while a panel is actually
+showing the chat, because a menu entry that does nothing is worse than no entry.
+
 ## Phase 16.1c — the chat lives in a panel (done)
 
 `cargo test -p rcommander --lib chatpane` → **4 tests**, plus **2 UI tests**.
