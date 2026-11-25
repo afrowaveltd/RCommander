@@ -1076,9 +1076,9 @@ Phase 19 terminal facilities and Phase 16 for agent execution/approvals. Keep
 ordinary Windows/Linux file management unaffected when WSL is unavailable.
 This is a planned phase, not a claim of implemented support.
 
-## Phase 23 — SQL database panels and administration (requested 2026-11-25)
+## Phase 23 — Database panels and administration (SQL and document stores) (requested 2026-11-25)
 
-Treat a relational database as a first-class, capability-aware RCommander
+Treat a relational or document database as a first-class, capability-aware RCommander
 location, independently of Agent Commons. Provide a familiar two-pane browser
 for schemas, tables, views, rows and related database objects, plus SQL editing,
 comparison, import/export and reviewed administrative workflows. A database
@@ -1086,7 +1086,9 @@ panel can sit beside a second database, a file/Git panel or an AI workspace.
 Use a separate headless provider module (working name rc-db); integrate through
 existing panel/plugin, job, editor and Phase 16 policy abstractions. Start with
 SQLite and PostgreSQL, then add SQL Server and MySQL/MariaDB adapters according
-to actual tested capabilities. Other engines are optional, not promised parity.
+to actual tested capabilities. Add MongoDB as a native document-store provider, not a SQL dialect; preserve
+engine-specific capabilities and do not force a relational abstraction onto
+BSON documents. Other engines are optional, not promised parity.
 
 | # | Step | Output | DoD |
 | --- | --- | --- | --- |
@@ -1099,6 +1101,23 @@ to actual tested capabilities. Other engines are optional, not promised parity.
 | 23.7 | Backup, restore and administration | capability-aware native tools, connection health, index/plan inspection and reviewed maintenance | verify backups through actual restore to isolated test targets; handle tool/version absence; explicit target and destructive operation approval; never present generic export as a full backup |
 | 23.8 | AI DBA workload and tools | scoped metadata/query access, propose diagnostics, SQL/DDL/migrations, plan review and independent tests | mock agent and real disposable database tests show denied access, no credentials in prompts, explicit read/write grants, no unattended production change, budget/timeout/audit and rollback where supported |
 | 23.9 | Additional dialects and acceptance | SQL Server and MySQL/MariaDB provider adapters, documented capability matrix and cross-platform acceptance | real engine fixtures for advertised features, Windows/Linux clients, TLS, connection loss and engine-specific differences; unsupported features visibly disabled |
+
+| 23.10 | MongoDB document database provider | native database/collection browser, BSON-aware document tree and Extended JSON editor, bounded find and aggregation, index/validation metadata, reviewed CRUD and backup/restore workflows | real MongoDB fixtures cover ObjectId, dates, Decimal128, nested arrays/documents, null vs missing, heterogeneous shapes, pagination, TLS/auth, cancellation, index/aggregation inspection, denied writes and approved changes; test backup/restore with native tools; transaction support detected by deployment topology; no unsupported SQL emulation or automatic execution of arbitrary JavaScript |
+
+**MongoDB design:** reuse connection, panel, result, comparison, import/export,
+job and AI policy abstractions but expose native MongoDB query filters and
+aggregation pipelines via typed, structured requests. Preview document diffs
+and update operators before approved mutations; distinguish missing fields from
+null and preserve BSON types through Extended JSON where supported. Do not
+infer a mandatory schema from sample documents. Treat collection validators,
+indexes and sampled field shapes as distinct metadata. Read-only execution must
+reject write-capable aggregation stages (including $out and $merge), server-side
+JavaScript and arbitrary commands; rely on least-privileged database roles as
+well as client policy. Cross-engine relational/document transfers require
+explicit mapping and validation, not automatic lossless conversion. Large
+binary data/GridFS editing is outside the initial scope. Keep MongoDB-specific
+capabilities optional and verify them with real standalone and, where needed,
+replica-set fixtures before advertising support.
 
 **Design rules:** read-only by default, with a distinct connection policy and
 explicit write/administration mode; database roles and server privileges are
