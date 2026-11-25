@@ -167,6 +167,37 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 16.0 — policy and safe-change foundation (engine done)
+
+`cargo test -p rc-core --lib policy` → **12 tests**, `cargo test -p rc-core --lib transaction`
+→ **7 tests**.
+
+`rc_core::policy` is the capability decision shared by everything that can have side effects. A
+request names an operation, a canonical resource, an optional destination and its origin; the
+policy answers **allowed**, **denied with a reason** or **"ask the user"**.
+
+* **Profiles** — `sandbox` (only granted roots), `user` (read anywhere the user can read, writes
+  need grants) and `privileged` (everything, every privileged operation approval-gated).
+* **Grants** bind operations to canonical roots with an optional expiry and a revocable id, so a
+  grant can be named in the audit log and killed instantly.
+* **Deny wins**, expired or revoked grants fail closed, symlinks and `..` are resolved before the
+  comparison (a link out of the sandbox is refused), and the profile caps what an approval could
+  unlock — a `sandbox` policy never offers to elevate.
+* **Approval-worthy operations** (`execute`, `publish`, `privileged`) return `NeedsApproval`,
+  never a silent allow, whatever the grants say.
+
+`rc_core::transaction` implements the panel owner's hard rule: **no verified backup, no change.**
+Prepare hashes the original, copies it into the transaction directory and **verifies the copy**
+(length and SHA-256) before anything else happens; the caller's validator runs before any write;
+apply writes a temporary file and renames it into place (atomic), then re-hashes the result; a
+failure at any step restores every file already written and removes the ones the transaction
+created. The manifest (original hash, new hash, backup path, created flag) is written as TOML, so
+"restore from backup" is a real feature and a tampered backup is reported instead of pretending a
+restore happened.
+
+Not wired to a UI yet: the approval dialog, the audit log file and the settings section belong to
+16.0b/16.0d and come with the agent panel.
+
 ## Phase 14.6 — the window chrome follows the theme (done)
 
 `cargo test -p rcommander --lib theme` → **12 tests**, plus a UI test.

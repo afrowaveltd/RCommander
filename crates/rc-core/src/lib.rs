@@ -29,6 +29,7 @@ pub mod listing;
 pub mod location;
 pub mod mask;
 pub mod ops;
+pub mod policy;
 pub mod quicksearch;
 pub mod secrets;
 pub mod selection;
@@ -37,6 +38,7 @@ pub mod sorting;
 pub mod split;
 pub mod tabs;
 pub mod theme;
+pub mod transaction;
 
 pub use entry::{Attrs, Entry, EntryKind};
 pub use error::{CoreError, CoreResult};
