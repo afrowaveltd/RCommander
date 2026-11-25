@@ -61,3 +61,13 @@ vynechá systémový kořen, obrazy `snap` a pseudosystémové systémy, protož
 
 Jména pocházejí ze samotného svazku (`/dev/disk/by-label` v Linuxu, informace o svazku ve
 Windows), jinak se zobrazí přípojný bod.
+
+## Nabídka pravého tlačítka
+
+Pravý klik na řádek ho označí (jako v Průzkumníku) a otevře nabídku operací, které tam dávají
+smysl: u adresáře *Otevřít*, u souboru *Zobrazit* a *Upravit*, dále *Kopírovat*, *Přesunout*,
+*Nový adresář*, *Přejmenovat*, *Smazat* a *Atributy*. U každé položky je klávesová zkratka, takže
+kdo ji nezná, naučí se ji používáním nabídky.
+
+Až bude vrstva agenta, patří sem i věci typu „zkontrolovat agentem" nebo „publikovat na server" —
+nabídka je pro ně přirozené místo.

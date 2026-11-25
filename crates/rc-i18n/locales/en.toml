@@ -401,3 +401,4 @@ authors = ["RCommander contributors"]
 "git.cloned" = "Cloned into {branch}"
 "cmd.gitclone" = "Clone repository…"
 "panel.volume" = "Volume"
+"cmd.open" = "Open"

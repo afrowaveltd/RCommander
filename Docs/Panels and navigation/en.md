@@ -62,3 +62,13 @@ a selector full of `/snap/core22/3129` entries helps nobody. The root stays reac
 
 Labels come from the volume itself (`/dev/disk/by-label` on Linux, the volume information on
 Windows) and fall back to the mount path.
+
+## Right-click menu
+
+Right-clicking a row selects it (as Explorer does) and opens a menu of the operations that
+matter there: *Open* for a directory, *View* and *Edit* for a file, then *Copy*, *Move*, *New
+folder*, *Rename*, *Delete* and *Attributes*, each with its keyboard shortcut next to the name —
+so someone who does not know the keys learns them by using the menu.
+
+Commands that would grow past this (compile this project, check with the agent, publish to the
+server) belong here too once the agent layer exists; the menu is the natural place for them.

@@ -503,6 +503,7 @@ fn file_list(
     let display = model.settings.display.clone();
     let font_id = font(model);
     let mut clicked: Option<(usize, ClickKind)> = None;
+    let mut menu_command: Option<String> = None;
 
     let scroll = egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -562,6 +563,17 @@ fn file_list(
             if response.secondary_clicked() {
                 clicked = Some((index, ClickKind::ContextMenu));
             }
+            // Explorer-style menu on the row, with our own commands on top of the usual
+            // file operations.
+            response.context_menu(|ui| {
+                ui.set_min_width(200.0);
+                for (label, command) in row_menu_items(model) {
+                    if ui.button(label).clicked() {
+                        menu_command = Some(command);
+                        ui.close();
+                    }
+                }
+            });
         }
     });
     if let Some((index, kind)) = clicked {
@@ -590,13 +602,71 @@ fn file_list(
                 }
                 let _ = name;
             }
-            ClickKind::ContextMenu => actions.push(PanelAction::ContextMenu),
+            ClickKind::ContextMenu => {
+                // Explorer selects the row you right-click; the menu then acts on it.
+                model.panel_mut(side).set_cursor(index);
+                actions.push(PanelAction::ContextMenu);
+            }
         }
+    }
+    if let Some(command) = menu_command {
+        actions.push(PanelAction::Command(command));
     }
     if let Some(error) = error {
         ui.separator();
         ui.colored_label(palette.readonly, error);
     }
+}
+
+/// The entries of the row context menu: `(label, internal command)`.
+///
+/// Shortcuts are shown because a user who knows the key does not need the menu, and a
+/// user who does not learns it here.
+fn row_menu_items(model: &Model) -> Vec<(String, String)> {
+    let entry = model.active().cursor_entry();
+    let is_dir = entry.map(|e| e.is_dir()).unwrap_or(false);
+    let shortcut = |command: &str| {
+        model
+            .keymap
+            .shortcut_for(command)
+            .map(crate::keys::display_shortcut)
+            .unwrap_or_default()
+    };
+    let mut items: Vec<(String, String)> = Vec::new();
+    if is_dir {
+        items.push((model.t("cmd.open"), "cm_Return".to_string()));
+    } else {
+        items.push((
+            format!("{}  {}", model.t("cmd.view"), shortcut("cm_List")),
+            "cm_List".to_string(),
+        ));
+        items.push((
+            format!("{}  {}", model.t("cmd.edit"), shortcut("cm_Edit")),
+            "cm_Edit".to_string(),
+        ));
+    }
+    items.push((
+        format!("{}  {}", model.t("cmd.copy"), shortcut("cm_Copy")),
+        "cm_Copy".to_string(),
+    ));
+    items.push((
+        format!("{}  {}", model.t("cmd.move"), shortcut("cm_RenMov")),
+        "cm_RenMov".to_string(),
+    ));
+    items.push((model.t("cmd.mkdir").to_string(), "cm_MkDir".to_string()));
+    items.push((
+        format!("{}  {}", model.t("cmd.rename"), shortcut("cm_Rename")),
+        "cm_Rename".to_string(),
+    ));
+    items.push((
+        format!("{}  {}", model.t("cmd.delete"), shortcut("cm_Delete")),
+        "cm_Delete".to_string(),
+    ));
+    items.push((
+        model.t("cmd.attributes").to_string(),
+        "cm_SetAttrib".to_string(),
+    ));
+    items
 }
 
 /// Thumbnail grid used by the `Ctrl+Shift+F1` view mode.
@@ -973,5 +1043,39 @@ mod tests {
         assert_eq!(flip_align(Align2::LEFT_CENTER), Align2::RIGHT_CENTER);
         assert_eq!(flip_align(Align2::RIGHT_CENTER), Align2::LEFT_CENTER);
         assert_eq!(flip_align(Align2::CENTER_CENTER), Align2::CENTER_CENTER);
+    }
+}
+
+#[cfg(test)]
+mod menu_tests {
+    use super::*;
+
+    #[test]
+    fn the_row_menu_maps_entries_to_real_commands() {
+        let settings = rc_core::config::Settings::default();
+        let model = Model::for_test(
+            settings,
+            rc_core::location::Location::local("/tmp"),
+            rc_core::location::Location::local("/tmp"),
+        );
+        let items = row_menu_items(&model);
+        let commands: Vec<&str> = items.iter().map(|(_, command)| command.as_str()).collect();
+        for expected in [
+            "cm_Copy",
+            "cm_RenMov",
+            "cm_MkDir",
+            "cm_Rename",
+            "cm_Delete",
+            "cm_SetAttrib",
+        ] {
+            assert!(commands.contains(&expected), "{expected} in {commands:?}");
+        }
+        // Every entry has a label and a command, and no label is empty.
+        for (label, command) in &items {
+            assert!(!label.trim().is_empty());
+            assert!(!command.trim().is_empty());
+        }
+        // With no entry under the cursor the menu still works (it acts on the panel).
+        assert!(!items.is_empty());
     }
 }

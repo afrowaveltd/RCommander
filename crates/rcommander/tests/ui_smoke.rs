@@ -1856,3 +1856,34 @@ fn the_panel_offers_a_volume_selector() {
         Some(root.as_path())
     );
 }
+
+#[test]
+fn right_clicking_a_row_opens_the_context_menu() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    // Right-click selects the row and opens the menu of file operations.
+    harness.root().get_by_label("beta.log").click_secondary();
+    harness.run();
+    harness.run();
+    assert_eq!(
+        harness
+            .state()
+            .model
+            .left
+            .cursor_entry()
+            .map(|e| e.name.clone())
+            .as_deref(),
+        Some("beta.log"),
+        "the right-clicked row becomes the cursor row"
+    );
+    // The menu offers view/edit/copy/move/rename/delete (KeyEchoStrings shows the keys).
+    for key in ["cmd.view", "cmd.edit", "cmd.copy", "cmd.delete"] {
+        assert!(
+            harness.root().query_all_by_label_contains(key).count() > 0,
+            "the context menu offers {key}"
+        );
+    }
+    // The menu closes again when the command runs; the mapping from a menu entry to an
+    // internal command is covered by a unit test in `panel_view`, because a headless
+    // harness cannot reliably click inside an egui popup.
+}
