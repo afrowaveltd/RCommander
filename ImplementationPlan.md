@@ -531,7 +531,7 @@ install tools or execute imported workflow steps.
 | 16.17 | Prompt Manager UI | edit/copy/extend/restore, version comparison, import/export, effective-prompt preview and provider/workload choice; a **prompt picker in the chat input** with category tabs, search, recency and pins, and a preview of the exact text (variables already substituted) before it is sent | UI tests cover edited defaults surviving app update, user-created templates and previews without network calls |
 | 16.18 | Workload contracts and manager | versioned declarative manifests, workflow steps, model preferences, tool capability requests, validation and user-editable profiles | fake packs cover missing/unsupported capabilities, invalid schemas, conflicting grants, import trust and repeatable results; never elevate from pack data |
 | 16.19 | Reusable agent runtime | headless planning/tool-result loop shared by GUI, future TUI and optional CLI; cancellation, bounded tool calls, checkpoints, pause/resume, tool provenance and workspace state | mock provider/MCP tests cover multi-step tasks, partial failure, cancellation, restart/resume with stale targets and revoked grants; no automatic repeat of non-idempotent actions |
-| 16.20 | Context, cost and session orchestration | local history, context budgeting/compaction with provenance, provider-reported token usage (including cache hits when available), per-task budgets, model routing and optional subagents | fake models verify accounting without invented prices, budget stops, checkpoint recovery and separate child scopes no broader than parent; no data sent to additional models without permission |
+| 16.20 | Context, cost and session orchestration | local history, context budgeting/compaction with provenance, provider-reported token usage (including cache hits when available), per-task budgets, model routing and optional subagents (expanded in 16.27–16.30) | fake models verify accounting without invented prices, budget stops, checkpoint recovery and separate child scopes no broader than parent; no data sent to additional models without permission |
 | 16.21 | Reference developer workload | inspect a chosen repo, create a C# project, edit files, run approved build/tests, review F3/diff, stage/commit and optionally push/create issues with separate external-action grants | temp repo and mock remote prove plan→changes→tests→review, no publish on denied approval, resume without duplicate actions; the same runtime works without GUI |
 
 Reference workload families: General Assistant, Software Developer, Documentation
@@ -746,6 +746,68 @@ interoperability results. ARI may later use the same protocol and a separate
 knowledge namespace; neither ARI nor the public service is a prerequisite for
 RCommander. Server technology, retention duration and budget defaults are not
 fixed yet.
+
+### Phase 16.27–16.30 — Multi-model teams and configurable agent roles
+
+Extend 16.18–16.20 with a first-class, optional **team of models** rather than
+requiring one model to do everything. A user may register multiple local and
+remote providers/models and assign them to named roles, independently of vendor.
+A workload can request a role without hard-coding a provider or model name.
+The normal single-model chat remains the simplest default and works unchanged.
+
+Illustrative team (not a required model choice or a quality ranking):
+
+- Architect / Manager: a more capable reasoning model for design, task breakdown,
+  difficult decisions, escalation and synthesising results.
+- Engineer: a cost-effective model (e.g. a suitable DeepSeek model) for implementation,
+  debugging, tests and refactoring.
+- Reviewer: independently inspect changes and evidence, find defects and challenge
+  conclusions; may use a different provider/model when configured and authorised.
+- Assistant / Researcher / Translator: small local Ollama models or other inexpensive
+  models for bounded extraction, classification, summarisation, research and
+  translation as appropriate. Use ordinary deterministic code instead of an LLM
+  whenever it can perform the operation reliably.
+
+Support multiple instances of a role, custom roles, a primary coordinator and
+explicit fallback/escalation rules. A model can fill more than one role; a user
+can override the assignment per workload/session/task. Each role can select a
+model, provider, prompt or prompt fragments, available tools, context budget,
+cost budget, concurrency limit and escalation policy. Roles describe work, not
+authority: the runtime independently intersects requested capabilities with
+actual grants; delegation never widens file, host, tool or network access.
+
+The coordinator may break a task into bounded subtasks with acceptance criteria
+and delegate them, passing only the necessary approved context. Workers return
+structured results, evidence, proposed changes and uncertainty; the coordinator
+can request clarification, a targeted retry or independent review. Avoid multiple
+agents editing the same files simultaneously without an explicit coordination
+mechanism (separate working copies/change sets, conflict detection and review).
+Use the existing change/approval pipeline rather than letting a manager or worker
+approve its own mutations or external actions.
+
+Prefer a suitable lower-cost model for routine work; escalate according to
+task requirements, failed validation, repeated failure, unavailable capability
+or an explicit request, not unverified self-confidence alone. Record actual
+provider-reported usage and cached tokens when available, estimate costs only
+from known tariffs, and enforce both task/team and per-role budgets. No hidden
+cloud fallback, unbounded retry loops or silent cross-provider disclosure.
+A model/provider change is a distinct data destination under the outbound policy.
+Local-only and offline work must remain supported; unavailable optional roles
+degrade gracefully or pause with a clear explanation.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 16.27 | Role registry and team profiles | configurable role-to-model/provider assignments, custom role prompts, capability requests, workload defaults and single-model fallback | mocked providers demonstrate multiple models, same model in several roles, overrides, missing capabilities and disabled/offline operation; no vendor-specific dependency |
+| 16.28 | Delegation and coordination | reusable headless coordinator, structured task/result contracts, bounded handoffs and shared checkpoint/provenance records | simulated architect→engineer→reviewer workflow, cancellation, failed validation, conflict/stale-result detection and independent review; no privilege inheritance or duplicate side effects |
+| 16.29 | Budget-aware routing and escalation | role/team budgets, usage and cost accounting, deterministic routing when sufficient, bounded fallback policies and destination-specific consent | tests cover local-first routing, budget exhaustion, denied remote transfer, unavailable model, escalation and retry/delegation depth limits; no surprise provider calls |
+| 16.30 | Team configuration and visibility | model/role assignment UI, workload-specific overrides, per-role status, task handoffs, evidence and token/cost breakdown; optional CLI equivalents via the same runtime | UI/headless tests show who did what, why a model was selected or escalated, actual reported versus estimated cost, stop/revoke and safe return to one model |
+
+**Order:** define role identifiers and provider assignments alongside the
+workload and prompt contracts (16.16–16.18) so single-model work need not be
+rewritten later. Add orchestration after 16.19 and reuse 16.20's accounting
+and policy controls. This is local application orchestration; participation
+in the optional cross-client Agent Commons (16.22–16.26) is a separate
+explicitly authorised capability, not a prerequisite for multi-model teams.
 
 ### Shared, bidirectional pane workspace
 
