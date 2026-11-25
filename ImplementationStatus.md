@@ -167,6 +167,28 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 16.2a — model providers and in-app model choice (done)
+
+`cargo test -p rc-llm` → **8 tests**, `cargo test -p rcommander --lib ai::` → **5 tests**, plus a
+UI test.
+
+New crate `rc-llm`: a small HTTP/1.1 client (plain sockets — no TLS stack, no async runtime, so
+Android still builds), an `AgentProvider`-style `Provider` trait, and the **Ollama** adapter:
+`/api/tags` for the model list (id, size, parameter count, capabilities) and `/api/chat` for one
+question. Bodies are parsed by separate functions, so the protocol is tested without a server;
+the transport is tested against an in-process fake HTTP server, and a live probe runs only when a
+real Ollama answers (it never fails the suite).
+
+Measured against the panel owner's machine: **52 models**, including `flint` (39.8B),
+`ripple-preview` (64.8B, 2M context), `ornith-1.5:35b` and `nemotron-3.5-lightning:32.9B` — all
+with `tools`, which is what the agent panel will need.
+
+In the application, *Configuration ▸ AI model…* (`cm_AiModel`) lists what the provider offers with
+capabilities next to each name, marks the chosen one, and lets the user **use** a model or **test**
+it. Testing asks the model a trivial question on a worker thread, so a 60 GB model loading does
+not freeze the window, and the answer is shown in the dialog and the status line. A fresh
+installation with no model chosen takes the first tool-capable one.
+
 ## Phase 16.0 / MCP — Git tools for the agent (done)
 
 `cargo test -p rc-agent --test server_protocol` → **44 tests**, `cargo test -p rcommander --lib

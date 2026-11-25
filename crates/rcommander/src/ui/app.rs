@@ -686,6 +686,9 @@ impl RCommanderApp {
                 if ui.button(self.model.t("cmd.gitclone")).clicked() {
                     command = Some("cm_GitClone".into());
                 }
+                if ui.button(self.model.t("cmd.aimodel")).clicked() {
+                    command = Some("cm_AiModel".into());
+                }
                 if ui.button("dark <-> normal").clicked() {
                     command = Some("cm_ThemeToggle".into());
                 }
@@ -1069,6 +1072,9 @@ impl eframe::App for RCommanderApp {
             ctx.copy_text(parts.join("\n"));
         }
         self.handle_dropped_files(ctx);
+        if self.model.poll_ai_test() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(150));
+        }
         if self.model.poll_git_push() {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));
         }

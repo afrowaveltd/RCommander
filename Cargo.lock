@@ -3301,6 +3301,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rc-llm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "rc-remote"
 version = "0.1.0"
 dependencies = [
@@ -3341,6 +3350,7 @@ dependencies = [
  "rc-git",
  "rc-help",
  "rc-i18n",
+ "rc-llm",
  "rc-remote",
  "rc-viewer",
  "read-fonts",

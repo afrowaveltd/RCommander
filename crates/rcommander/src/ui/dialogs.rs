@@ -64,6 +64,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::GitRemote(state) => git_remote(ui, model, state),
                 Dialog::GitClone(state) => git_clone(ui, model, state),
                 Dialog::AgentApproval(state) => agent_approval(ui, model, state),
+                Dialog::AiModel(state) => ai_model(ui, model, state),
                 Dialog::Encode(state) => encode_dialog(ui, model, state),
                 Dialog::Decode(state) => decode_dialog(ui, model, state),
                 Dialog::SaveSelection(state) => save_selection(ui, model, state),
@@ -141,6 +142,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::GitRemote(_) => "git.remote.title",
         Dialog::GitClone(_) => "git.clone.title",
         Dialog::AgentApproval(_) => "agent.approval.title",
+        Dialog::AiModel(_) => "ai.model.title",
         Dialog::Encode(_) => "cmd.encode",
         Dialog::Decode(_) => "cmd.decode",
         Dialog::SaveSelection(_) => "cmd.save_selection",
@@ -2037,6 +2039,96 @@ fn unlock_secrets(
         }
     }
     DialogAction::None
+}
+
+/// Pick the model the agent talks to.
+fn ai_model(ui: &mut egui::Ui, model: &mut Model, state: &mut AiModelState) -> DialogAction {
+    let palette = crate::theme::Palette::for_model(model);
+    let url = model.settings.agent.provider_url.clone();
+    ui.horizontal(|ui| {
+        ui.label(model.t("ai.provider"));
+        ui.label(
+            egui::RichText::new(format!("{} · {url}", model.settings.agent.provider_kind))
+                .small()
+                .color(palette.hidden),
+        );
+        if ui.button(model.t("ai.refresh")).clicked() {
+            model.refresh_ai_models();
+        }
+    });
+
+    let models = model.ai_models().to_vec();
+    let current = model.ai_model().map(|name| name.to_string());
+    if let Some(error) = model.ai_models.error.clone() {
+        ui.label(egui::RichText::new(error).color(palette.warning));
+    }
+    egui::ScrollArea::vertical()
+        .max_height(220.0)
+        .id_salt("ai_models")
+        .show(ui, |ui| {
+            if models.is_empty() {
+                ui.label(model.t("ai.models.none"));
+            }
+            for (index, entry) in models.iter().enumerate() {
+                let chosen = current.as_deref() == Some(entry.id.as_str());
+                let marker = if chosen { "✓ " } else { "" };
+                let label = format!("{marker}{}", entry.describe());
+                if ui
+                    .selectable_label(state.selected == Some(index), label)
+                    .clicked()
+                {
+                    state.selected = Some(index);
+                }
+            }
+        });
+    if let Some(reply) = model.last_ai_reply.clone() {
+        ui.separator();
+        ui.label(
+            egui::RichText::new(model.tf("ai.last_reply", &[("model", &reply.model)]))
+                .small()
+                .color(palette.hidden),
+        );
+        ui.label(
+            egui::RichText::new(reply.content.trim())
+                .italics()
+                .color(palette.foreground),
+        );
+    }
+    if !state.status.is_empty() {
+        ui.label(egui::RichText::new(&state.status).color(palette.warning));
+    }
+    let mut action = DialogAction::None;
+    ui.horizontal(|ui| {
+        let picked = state
+            .selected
+            .and_then(|index| models.get(index))
+            .map(|entry| entry.id.clone());
+        if ui
+            .add_enabled(picked.is_some(), egui::Button::new(model.t("ai.use")))
+            .clicked()
+            && let Some(name) = picked
+        {
+            if model.select_ai_model(&name) {
+                state.status = model.tf("ai.selected", &[("model", &name)]);
+            } else {
+                state.status = model.tf("ai.model.unknown", &[("model", &name)]);
+            }
+        }
+        if ui
+            .add_enabled(
+                model.ai_model().is_some() && !model.is_testing_model(),
+                egui::Button::new(model.t("ai.test")),
+            )
+            .clicked()
+        {
+            model.test_ai_model();
+            state.status = model.t("ai.testing_started");
+        }
+        if ui.button(model.t("dialog.config.ok")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    action
 }
 
 /// Ask the user to allow one side-effecting operation.

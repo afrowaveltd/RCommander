@@ -1,0 +1,13 @@
+[package]
+name = "rc-llm"
+version = "0.1.0"
+edition = "2024"
+description = "Language-model providers for RCommander (Ollama first, OpenAI-compatible later)"
+license = "MIT"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

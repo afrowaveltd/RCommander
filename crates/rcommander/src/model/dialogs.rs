@@ -79,6 +79,8 @@ pub enum Dialog {
     GitClone(GitCloneState),
     /// Ask the user to allow one side-effecting operation.
     AgentApproval(AgentApprovalState),
+    /// Pick the language model the agent talks to.
+    AiModel(AiModelState),
     /// Encode a file as text (MIME/UUE/XXE).
     Encode(EncodeState),
     /// Decode a text file back to binary.
@@ -212,6 +214,15 @@ impl GitCommitState {
             count => format!("{count} files"),
         }
     }
+}
+
+/// The model picker: which server, which model, and a way to try it.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct AiModelState {
+    /// Model selected in the list (a click does not commit until the button is pressed).
+    pub selected: Option<usize>,
+    /// Result of the last action.
+    pub status: String,
 }
 
 /// The approval dialog for one side-effecting operation.

@@ -20,6 +20,7 @@ rc-i18n = { path = "../rc-i18n" }
 rc-viewer = { path = "../rc-viewer" }
 rc-archive = { path = "../rc-archive" }
 rc-help = { path = "../rc-help" }
+rc-llm = { path = "../rc-llm" }
 rc-agent = { path = "../rc-agent" }
 rc-git = { path = "../rc-git" }
 rc-remote = { path = "../rc-remote", features = ["sftp"] }

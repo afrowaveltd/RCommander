@@ -562,6 +562,13 @@ impl Model {
             "cm_gitunstage" => self.git_unstage_selection(),
             "cm_gitcommit" => self.open_git_commit(),
             "cm_gitclone" => self.open_git_clone(),
+            "cm_aimodel" | "cm_aimodels" | "cm_model" => {
+                let _ = self.refresh_ai_models();
+                self.open_dialog(Dialog::AiModel(
+                    crate::model::dialogs::AiModelState::default(),
+                ));
+                CommandOutcome::Ok
+            }
             "cm_themetoggle" => self.toggle_theme(),
             "cm_themenext" => self.cycle_theme(1),
             "cm_themeprevious" => self.cycle_theme(-1),

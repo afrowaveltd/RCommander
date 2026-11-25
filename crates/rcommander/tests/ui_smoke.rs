@@ -1951,3 +1951,86 @@ fn the_approval_dialog_shows_the_operation_and_can_be_refused() {
     );
     assert!(harness.state().model.audit_state().is_intact());
 }
+
+/// A provider that answers from a fixed list, so the dialog can be tested offline.
+#[derive(Debug)]
+struct StubProvider;
+
+impl rc_llm::Provider for StubProvider {
+    fn kind(&self) -> &'static str {
+        "ollama"
+    }
+    fn base_url(&self) -> &str {
+        "http://stub"
+    }
+    fn list_models(&self) -> Result<Vec<rc_llm::Model>, rc_llm::LlmError> {
+        Ok(vec![
+            rc_llm::Model {
+                id: "coder:7b".into(),
+                size: Some(4_700_000_000),
+                parameters: Some("7.6B".into()),
+                capabilities: vec!["completion".into(), "tools".into()],
+            },
+            rc_llm::Model {
+                id: "chat:3b".into(),
+                size: None,
+                parameters: None,
+                capabilities: vec!["completion".into()],
+            },
+        ])
+    }
+    fn chat(&self, request: &rc_llm::ChatRequest) -> Result<rc_llm::ChatReply, rc_llm::LlmError> {
+        Ok(rc_llm::ChatReply {
+            content: format!("OK from {}", request.model),
+            model: request.model.clone(),
+            done_reason: Some("stop".into()),
+            prompt_tokens: Some(3),
+            answer_tokens: Some(2),
+        })
+    }
+}
+
+#[test]
+fn the_model_picker_lists_models_and_selects_one() {
+    let (_left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(config.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
+    app.model
+        .set_ai_provider(Some(std::sync::Arc::new(StubProvider)));
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_AiModel");
+    harness.run();
+
+    // Both models are listed with their capabilities.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("coder:7b")
+            .count()
+            > 0,
+        "the tool-capable model is offered"
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("chat:3b")
+            .count()
+            > 0
+    );
+    // Picking the second model and pressing "use" stores it.
+    if let Some(rcommander::model::Dialog::AiModel(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    {
+        state.selected = Some(1);
+    }
+    harness.run();
+    harness.root().get_by_label("ai.use").click_accesskit();
+    harness.run();
+    assert_eq!(harness.state().model.ai_model(), Some("chat:3b"));
+    assert_eq!(
+        harness.state().model.settings.agent.model,
+        "chat:3b",
+        "the choice is persisted in the settings"
+    );
+}

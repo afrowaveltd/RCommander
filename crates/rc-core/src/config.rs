@@ -806,6 +806,12 @@ pub struct Agent {
     pub allow_exec: Vec<String>,
     /// Write an audit log next to the other per-user files.
     pub audit: bool,
+    /// Model provider kind: `ollama` (the only one built in so far).
+    pub provider_kind: String,
+    /// Base URL of that provider.
+    pub provider_url: String,
+    /// Model the agent uses; empty means "ask the user to pick one".
+    pub model: String,
 }
 
 impl Default for Agent {
@@ -828,6 +834,9 @@ impl Default for Agent {
             ],
             allow_exec: Vec::new(),
             audit: true,
+            provider_kind: "ollama".to_string(),
+            provider_url: "http://127.0.0.1:11434".to_string(),
+            model: String::new(),
         }
     }
 }

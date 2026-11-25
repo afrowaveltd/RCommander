@@ -5,6 +5,7 @@
 //! a pure view over this state, which is what makes the behaviour testable
 //! without a display.
 
+pub mod ai;
 pub mod commands;
 pub mod dialogs;
 pub mod git;
@@ -454,6 +455,14 @@ pub struct Model {
     pub connect_job: Option<sessions::ConnectJob>,
     /// The user's Git configuration, loaded only after approval.
     pub git_config: Option<rc_git::GitConfig>,
+    /// Cached model list of the configured provider, for the model picker.
+    pub ai_models: ai::AiModelCache,
+    /// Provider override (tests, future provider selection).
+    pub ai_provider: Option<std::sync::Arc<dyn rc_llm::Provider>>,
+    /// The last answer of a model test, so the dialog can show it.
+    pub last_ai_reply: Option<ai::AiTestResult>,
+    /// A model test running on a worker thread.
+    pub ai_test_job: Option<ai::AiTestJob>,
     /// Capability policy for everything with side effects (Phase 16.0).
     pub policy: rc_core::policy::Policy,
     /// Append-only trail of what was allowed, refused and approved.
@@ -557,6 +566,10 @@ impl Model {
             sessions_dirty: false,
             connect_job: None,
             git_config: None,
+            ai_models: ai::AiModelCache::default(),
+            ai_provider: None,
+            last_ai_reply: None,
+            ai_test_job: None,
             policy: rc_core::policy::Policy::restrictive(),
             audit: rc_core::audit::AuditLog::new(crate::paths::audit_path(), false),
             git_push_job: None,
