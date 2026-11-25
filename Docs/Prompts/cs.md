@@ -32,6 +32,16 @@ Zabudované prompty jsou **jen pro čtení**: upgrade ten soubor nahradí, takž
 nikdy nesmí být vaše úpravy. Chcete-li ho změnit, zkopírujte si ho — kopie je vaše a
 upgrady na ni nesahají.
 
+## Připíchnutí a naposledy použité
+
+Picker je řazený podle užitečnosti, ne abecedně: **nejdřív připíchnuté** (označené
+`*`), pak ty, které jste v této relaci použili, nejnovější první, a teprve pak
+všechno ostatní. *Připíchnout* / *Odepnout* je na každém řádku.
+
+Připíchnutí je nastavení, takže přežije restart; pořadí „naposledy použité" se na
+disk nezapisuje — soubor, který by si pamatoval, kdy jste se co ptali, by jen
+rostl.
+
 ## Proměnné
 
 Tělo promptu může používat `{{name}}`. Tyto se plní automaticky:

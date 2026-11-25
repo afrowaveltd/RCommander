@@ -2776,3 +2776,46 @@ fn the_prompt_page_edits_a_copy_and_resets_it_to_the_shipped_text() {
     assert!(restored.builtin);
     assert_ne!(restored.prompt.text, "Explain {{selection}} my way.");
 }
+
+#[test]
+fn the_picker_pins_a_prompt_and_remembers_what_was_used() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.show_chat_panel = true;
+    let mut harness = harness(app);
+    harness.root().get_by_label("prompt.pick").click_accesskit();
+    harness.run();
+    // Every row offers a pin button; pinning moves the prompt to the top.
+    let before = harness.state_mut().model.visible_prompts();
+    let second_id = before
+        .get(1)
+        .map(|entry| entry.prompt.id.clone())
+        .expect("the catalogue has at least two prompts");
+    assert!(harness.state_mut().model.toggle_prompt_pin(&second_id));
+    harness.run();
+    let after = harness.state_mut().model.visible_prompts();
+    assert_eq!(
+        after.first().map(|entry| entry.prompt.id.clone()),
+        Some(second_id),
+        "the pinned prompt is first"
+    );
+    // The list shows the pin marker and offers to unpin.
+    assert!(
+        harness.root().query_all_by_label("prompt.unpin").count() > 0,
+        "the pinned row offers to unpin"
+    );
+    // Using a prompt records it as recent.
+    let used = after.get(1).map(|entry| entry.prompt.id.clone()).unwrap();
+    harness.state_mut().model.insert_prompt(&used);
+    harness.run();
+    assert_eq!(
+        harness
+            .state()
+            .model
+            .prompt_picker
+            .recent
+            .first()
+            .map(String::as_str),
+        Some(used.as_str())
+    );
+}

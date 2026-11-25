@@ -35,6 +35,16 @@ Shipped prompts are **read-only**: an upgrade replaces that file, so it must nev
 hold your edits. Copy one to change it — the copy is yours and upgrades leave it
 alone.
 
+## Pins and recency
+
+The picker is ordered by usefulness, not alphabetically: **pinned prompts first**
+(a `*` marks them), then the ones you used in this session, most recent first, then
+everything else. *Pin* / *Unpin* sits on every row.
+
+Pins are a setting, so they survive a restart; the "recently used" order is not
+written to disk — a file that remembers which question you asked when would only
+grow.
+
 ## Variables
 
 A prompt body may use `{{name}}`. These are filled in automatically:

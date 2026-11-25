@@ -39,6 +39,19 @@ pub struct Settings {
     pub history_length: usize,
     /// Restore the last used directories and tabs on start-up.
     pub save_position: bool,
+    /// The prompt catalogue's own preferences (Phase 16.17c).
+    pub prompts: PromptSettings,
+}
+
+/// Preferences for the prompt picker.
+///
+/// Only the *pins* are stored: which prompt was used when is a session convenience, and writing it
+/// to disk would turn a helpful ordering into a file that grows forever.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PromptSettings {
+    /// Prompt ids the user pinned to the top of the picker, in the order they were pinned.
+    pub pinned: Vec<String>,
 }
 
 impl Default for Settings {
@@ -63,6 +76,7 @@ impl Default for Settings {
             shortcuts: BTreeMap::new(),
             history_length: 30,
             save_position: true,
+            prompts: PromptSettings::default(),
         }
     }
 }
@@ -1030,6 +1044,19 @@ pub fn default_config_path() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_pins_survive_a_round_trip_and_an_old_file_still_loads() {
+        let mut settings = Settings::default();
+        settings.prompts.pinned = vec!["git.review-diff".to_string(), "files.explain".to_string()];
+        let text = toml::to_string_pretty(&settings).unwrap();
+        assert!(text.contains("pinned"), "{text}");
+        let back: Settings = toml::from_str(&text).unwrap();
+        assert_eq!(back.prompts.pinned, settings.prompts.pinned);
+        // A file written before this section existed has no `[prompts]` table at all.
+        let old = toml::from_str::<Settings>("language = \"cs\"\n").unwrap();
+        assert!(old.prompts.pinned.is_empty());
+    }
 
     #[test]
     fn a_new_connection_has_a_usable_host_and_port() {

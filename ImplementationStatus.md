@@ -182,6 +182,23 @@ asks egui whether each character can be drawn with the bundled faces. A future t
 emoji or an exotic arrow fails here instead of shipping a box — help topics are user-editable files,
 so this is the editor's guard as much as ours.
 
+## Phase 16.17c — pins and recency (done)
+
+`cargo test -p rcommander --lib pin_tests` → **4 tests**, one config round-trip test, one UI test.
+
+The picker listed the catalogue alphabetically, which is a list nobody scrolls. It is now ordered by
+usefulness: **pinned** prompts first (marked with `*`, a *Pin*/*Unpin* button on every row), then
+what was used in this session, then the rest.
+
+The split between the two is deliberate. Pins are a **setting** (`[prompts] pinned` in
+`settings.toml`), so they survive a restart — a test writes and reads the file back, and one checks
+that a settings file from before this section still loads. Recency is **memory only**: a file that
+remembers which question you asked when would only grow, and its value expires within the hour.
+The recent list has a budget of eight entries, which a test pins down.
+
+The category filter and the search still win: a pinned Files prompt does not appear in the Git tab,
+because an ordering that overrides an explicit filter is not an ordering, it is a bug.
+
 ## Phase 16.17b — the prompt editor (done)
 
 `cargo test -p rc-core --lib prompt` → **13 tests**, `cargo test -p rcommander --lib editor_tests` →
@@ -1077,7 +1094,7 @@ command either by its own name or through a family rule:
 | Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
 | No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions; establish editable prompt and declarative workload contracts early (16.16–16.21) |
 | No "process with agent" handoff from the file list | Phase 16.10a (planned, designed in the plan): right-click on a file or selection opens the agent pane with a **workspace of verified copies** plus a manifest, never the originals; the chat opens with *what do you want?* and the matching prompts; applying changes back goes through the 16.4 review pipeline with a backup. Tests must prove the originals stay byte-identical after a refused or abandoned session |
-| Prompt catalogue, picker and editor are done (26 built-in prompts, copy/edit/reset, variables previewed); **pins, recency and multi-line diff of an edit** are still open | Phase 16.17c: pins and recency in the picker, a side-by-side diff on the editor page |
+| Prompt catalogue, picker, editor, pins and recency are done (26 built-in prompts, copy/edit/reset, variables previewed); a **side-by-side diff of an edit** against the shipped text is still open | Phase 16.17d: the diff on the editor page, then 16.10a (process with agent) |
 | No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, tag-first classification, controlled SQL gateway, reviewed Knowledge Pull Requests, provenance and safe reuse |
 | No configurable multi-model team orchestration | Phase 16.27–16.30; define role assignments early with workload contracts, then bounded delegation, independent review, budgets, escalation and visible per-role activity; single-model mode stays available |
 | No first-class database panels or administration | Phase 23; independent database providers, read-only browser and SQL editor first, reviewed mutations and administration later, native MongoDB document support (23.10) |

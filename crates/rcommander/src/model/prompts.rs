@@ -14,6 +14,9 @@ use rc_core::prompt::{Catalogue, Category, Entry, Prompt, PromptFile, render, us
 #[derive(Clone, Debug, Default)]
 pub struct PromptPicker {
     pub open: bool,
+    /// Ids used in this session, most recent first: a question you asked ten minutes ago is the
+    /// one you are most likely to ask again.
+    pub recent: Vec<String>,
     /// The category tab; `None` shows everything.
     pub category: Option<Category>,
     pub search: String,
@@ -71,9 +74,15 @@ impl Model {
     }
 
     /// The prompts the picker should show: the category filter and the search, applied.
+    ///
+    /// The order is the useful part: pinned prompts first, then what was used in this session, then
+    /// everything else in catalogue order. A flat alphabetical list nobody scrolls is what this
+    /// ordering exists to avoid.
     pub fn visible_prompts(&mut self) -> Vec<Entry> {
         let category = self.prompt_picker.category;
         let search = self.prompt_picker.search.clone();
+        let pinned = self.settings.prompts.pinned.clone();
+        let recent = self.prompt_picker.recent.clone();
         let catalogue = self.prompts();
         let mut entries: Vec<Entry> = catalogue
             .search(&search)
@@ -85,7 +94,49 @@ impl Model {
             // Fall back to the whole catalogue so a typo does not look like an empty catalogue.
             entries = catalogue.entries().to_vec();
         }
+        entries.sort_by_key(|entry| {
+            let id = entry.prompt.id.as_str();
+            let pin = pinned.iter().position(|pinned| pinned == id);
+            let recent = recent.iter().position(|used| used == id);
+            match (pin, recent) {
+                (Some(index), _) => (0, index),
+                (None, Some(index)) => (1, index),
+                (None, None) => (2, 0),
+            }
+        });
         entries
+    }
+
+    /// True when the prompt is pinned to the top of the picker.
+    pub fn prompt_is_pinned(&self, id: &str) -> bool {
+        self.settings
+            .prompts
+            .pinned
+            .iter()
+            .any(|pinned| pinned == id)
+    }
+
+    /// Pin or unpin a prompt; pins survive a restart, so they live in the settings.
+    pub fn toggle_prompt_pin(&mut self, id: &str) -> bool {
+        let pinned = self.prompt_is_pinned(id);
+        if pinned {
+            self.settings
+                .prompts
+                .pinned
+                .retain(|existing| existing != id);
+        } else {
+            self.settings.prompts.pinned.push(id.to_string());
+        }
+        self.settings_dirty = true;
+        !pinned
+    }
+
+    /// Remember that a prompt was used, so it moves up in the picker.
+    pub fn note_prompt_used(&mut self, id: &str) {
+        const KEEP: usize = 8;
+        self.prompt_picker.recent.retain(|used| used != id);
+        self.prompt_picker.recent.insert(0, id.to_string());
+        self.prompt_picker.recent.truncate(KEEP);
     }
 
     /// Fill a prompt's variables from the current state and remember the preview.
@@ -137,6 +188,7 @@ impl Model {
         let text = self.prompt_picker.preview.clone();
         self.chat_session.input = text;
         self.prompt_picker.open = false;
+        self.note_prompt_used(id);
         // A prompt with unfilled variables is still inserted: the markers are visible in the input,
         // which is the honest way to say "I could not fill this in".
         if !self.prompt_picker.missing.is_empty() {
@@ -682,5 +734,129 @@ mod editor_tests {
 
     fn model2(dir: &Path, cwd: &Path) -> Model {
         model(dir, cwd)
+    }
+}
+
+#[cfg(test)]
+mod pin_tests {
+    use crate::model::Model;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+    use std::path::Path;
+
+    fn model(dir: &Path, cwd: &Path) -> Model {
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local(cwd),
+            Location::local(cwd),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model.load_prompts();
+        model.prompts_loaded = true;
+        model
+    }
+
+    #[test]
+    fn a_pinned_prompt_moves_to_the_top_of_the_picker() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        let mut model = model(dir.path(), cwd.path());
+        assert!(!model.prompt_is_pinned("git.review-diff"));
+        let before = model.visible_prompts();
+        assert_ne!(
+            before.first().map(|entry| entry.prompt.id.as_str()),
+            Some("git.review-diff"),
+            "not pinned yet, so not first"
+        );
+        assert!(
+            model.toggle_prompt_pin("git.review-diff"),
+            "pinning returns on"
+        );
+        let after = model.visible_prompts();
+        assert_eq!(
+            after.first().map(|entry| entry.prompt.id.as_str()),
+            Some("git.review-diff")
+        );
+        // Pinning twice takes it back.
+        assert!(!model.toggle_prompt_pin("git.review-diff"));
+        assert!(!model.prompt_is_pinned("git.review-diff"));
+        // And the pin is a setting, so it survives a restart.
+        model.toggle_prompt_pin("git.review-diff");
+        assert!(model.settings_dirty, "a pin is worth saving");
+        let reloaded = model.settings.prompts.pinned.clone();
+        assert_eq!(reloaded, vec!["git.review-diff".to_string()]);
+    }
+
+    #[test]
+    fn recently_used_prompts_come_before_the_rest() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        let mut model = model(dir.path(), cwd.path());
+        model.note_prompt_used("diagnostics.read-log");
+        let visible = model.visible_prompts();
+        assert_eq!(
+            visible.first().map(|entry| entry.prompt.id.as_str()),
+            Some("diagnostics.read-log"),
+            "the last one used is the first one offered"
+        );
+        // A second use moves to the front and the list does not grow past its budget.
+        model.note_prompt_used("git.review-diff");
+        let recent = model.prompt_picker.recent.clone();
+        assert_eq!(recent.first().map(String::as_str), Some("git.review-diff"));
+        assert_eq!(
+            recent.iter().filter(|id| *id == "git.review-diff").count(),
+            1
+        );
+        for index in 0..20 {
+            model.note_prompt_used(&format!("filler.{index}"));
+        }
+        assert!(
+            model.prompt_picker.recent.len() <= 8,
+            "the recent list has a budget: {}",
+            model.prompt_picker.recent.len()
+        );
+    }
+
+    #[test]
+    fn using_a_prompt_records_it_and_a_pin_beats_recency() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        let mut model = model(dir.path(), cwd.path());
+        assert_eq!(
+            model.insert_prompt("files.summarise"),
+            crate::model::CommandOutcome::Ok
+        );
+        assert_eq!(
+            model.prompt_picker.recent.first().map(String::as_str),
+            Some("files.summarise")
+        );
+        // Pin something else and it wins over the recently used one.
+        model.toggle_prompt_pin("general.plan-first");
+        let visible = model.visible_prompts();
+        assert_eq!(
+            visible.first().map(|entry| entry.prompt.id.as_str()),
+            Some("general.plan-first")
+        );
+        assert_eq!(
+            visible.get(1).map(|entry| entry.prompt.id.as_str()),
+            Some("files.summarise")
+        );
+    }
+
+    #[test]
+    fn the_category_filter_still_wins_over_the_ordering() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        let mut model = model(dir.path(), cwd.path());
+        model.toggle_prompt_pin("files.explain");
+        model.prompt_picker.category = Some(rc_core::prompt::Category::Git);
+        let visible = model.visible_prompts();
+        assert!(!visible.is_empty());
+        assert!(
+            visible
+                .iter()
+                .all(|entry| entry.category == rc_core::prompt::Category::Git),
+            "the pin does not pull a Files prompt into the Git tab"
+        );
     }
 }

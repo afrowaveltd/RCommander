@@ -314,15 +314,46 @@ fn prompt_picker(ui: &mut egui::Ui, model: &mut Model, palette: &Palette) {
                         } else {
                             format!("{} — {}", entry.prompt.title, entry.prompt.about)
                         };
-                        let response = ui.selectable_label(selected, label);
-                        if response.clicked() {
-                            model.prompt_picker.selected = index;
-                            chosen = Some(entry.prompt.id.clone());
-                        }
-                        // A built-in prompt says where it comes from, so nobody looks for a way
-                        // to edit it in place.
-                        if entry.builtin {
-                            response.on_hover_text(model.t("prompt.builtin.hint"));
+                        let id = entry.prompt.id.clone();
+                        let mut unpin = false;
+                        let mut pin = false;
+                        ui.horizontal(|ui| {
+                            let pinned = model.prompt_is_pinned(&id);
+                            let prefix = if pinned {
+                                format!("* {}", label)
+                            } else {
+                                label
+                            };
+                            let response = ui.selectable_label(selected, prefix);
+                            if response.clicked() {
+                                model.prompt_picker.selected = index;
+                                chosen = Some(id.clone());
+                            }
+                            // A built-in prompt says where it comes from, so nobody looks for a
+                            // way to edit it in place.
+                            if entry.builtin {
+                                response.on_hover_text(model.t("prompt.builtin.hint"));
+                            }
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    let label = if pinned {
+                                        model.t("prompt.unpin")
+                                    } else {
+                                        model.t("prompt.pin")
+                                    };
+                                    if ui.small_button(label).clicked() {
+                                        if pinned {
+                                            unpin = true;
+                                        } else {
+                                            pin = true;
+                                        }
+                                    }
+                                },
+                            );
+                        });
+                        if unpin || pin {
+                            model.toggle_prompt_pin(&id);
                         }
                     }
                 });
