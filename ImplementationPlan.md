@@ -452,6 +452,63 @@ CLI may offer a workflow comparable in scope to coding agents such as Claude Cod
 (e.g. `rcommander agent --workload developer --provider deepseek`); this is an
 interface proposal, not a claim of current functionality or complete parity.
 
+### Phase 16.22–16.26 — Afrowave Agent Commons (requested 2026-11-25)
+
+Provide a voluntary, explicitly authorised machine-to-machine knowledge exchange
+for RCommander agents and human contributors. Proposed public dashboard:
+`https://agents.afrowave.ltd/rc/dashboard/`; proposed versioned API:
+`https://agents.afrowave.ltd/rc/api/v1/`. These URLs are design targets, not an
+assertion that a service has been deployed. Agents may search for previous
+solutions, discuss reproducible faults, submit sanitised findings, and contribute
+independent verification. Keep normal local/offline RCommander workflows fully
+functional without this service or an account.
+
+The primary unit is a versioned knowledge record: problem signature, relevant
+OS/distribution/application/runtime versions, symptoms, prerequisites, steps
+tried, successful and unsuccessful outcomes, test evidence, limitations,
+rollback instructions where relevant, provenance, licence and review status.
+Support structured JSON first with an optional AJIS interchange adapter once
+its contract is stable. Separate advice, unverified reports and independently
+reproduced solutions; retain revision history, corrections and supersession.
+Provide documented API access for agents of any provider, not browser scraping
+or impersonation, with public read access where appropriate, authenticated
+scoped contributions, published terms, rate limits and abuse reporting.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 16.22 | Knowledge and API contracts (early foundation) | versioned record schemas, search and contribution interfaces, mock service, opt-in and review policy | schema round trips, version compatibility, provenance, deduplication and offline/disabled mode tested; no network traffic by default |
+| 16.23 | Knowledge service and human dashboard | searchable reports, revisions, compatibility matrix, discussions, moderation, documented API | integration tests for search, submissions, scoped credentials, validation, moderation, pagination, rate limits and revocation; documented local deployment; public deployment only when explicitly authorised |
+| 16.24 | RCommander knowledge client and agent tools | search/get, propose report, submit approved contribution and feedback tools; human-readable panel | agents retrieve relevant records with source/revision and evidence; preview exact outgoing content and destination; deny/revoke/offline tests prove no unauthorised transfer |
+| 16.25 | Independent verification and safe reuse | reproducibility workflow, verification reports, trust states, rollback and review UI | untrusted text cannot grant permissions or become executable instructions; suspicious and conflicting reports handled; approved test in isolated fixture produces evidence; no automatic install/repair merely from shared advice |
+| 16.26 | Agent discussion and community maintenance | bounded threaded exchanges, issue linking, duplicate consolidation, corrections and feedback | multiple simulated agents can cooperate across providers without loops, spam, impersonation or inherited privileges; audit, moderation, deletion/correction and cost/rate limits tested |
+
+**Privacy, consent and security:** read access and contribution are separate
+user-controlled capabilities; default local-only with explicit opt-in for
+external searches and sharing. A user can grant a narrowly defined recurring
+contribution policy for sanitised records, with preview/review where needed,
+revocation and a local audit trail. Never upload raw chats, repositories,
+private files, credentials, keys, tokens, machine identifiers, serial numbers,
+personal information or proprietary code as a side effect of diagnostics.
+Minimise query data as well as report data; redact and validate before sending,
+and require a separate explicit decision for any sensitive or private material
+rather than assuming redaction is sufficient. Do not store secrets in logs.
+Treat every received record, prompt, script and attachment as untrusted data;
+the Phase 16.0 capability engine remains authoritative. Verify origin and
+integrity, use independent sandboxed tests when possible, and obtain existing
+execution/change approvals before applying a recipe. A signature proves origin,
+not correctness. Publish only material the contributor is authorised to share;
+provide licence, provenance, moderation, takedown and correction mechanisms.
+No mandatory telemetry, automatic uploads, cross-agent unrestricted tool calls,
+or automatic deployment of unreviewed fixes.
+
+**Order:** start 16.22 alongside 16.16–16.18 rather than waiting for later
+platform phases. Use a mock/local service first, then add the server and client
+after the relevant Phase 16.0 external-action policy and agent runtime contracts
+are available. Reuse Phase 21 diagnostic evidence and future Phase 22
+interoperability results. ARI may later use the same protocol and a separate
+knowledge namespace; neither ARI nor the public service is a prerequisite for
+RCommander. The server technology is intentionally not fixed yet.
+
 ### Shared, bidirectional pane workspace
 
 The **two panes are peers**. The chat pane is not a separate, blind command
