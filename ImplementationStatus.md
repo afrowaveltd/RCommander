@@ -182,6 +182,29 @@ asks egui whether each character can be drawn with the bundled faces. A future t
 emoji or an exotic arrow fails here instead of shipping a box — help topics are user-editable files,
 so this is the editor's guard as much as ours.
 
+## Phase 16.17b — the prompt editor (done)
+
+`cargo test -p rc-core --lib prompt` → **13 tests**, `cargo test -p rcommander --lib editor_tests` →
+**4**, plus a UI test that edits a shipped prompt and resets it.
+
+*Configuration → Agent → Prompts…* (`cm_Prompts`) closes the gap the previous commit left open:
+prompts can now be created, changed and reset without opening a text file. The page shows the
+catalogue by category with a badge (*mine*, *edited*) and the form beside it: title, one-line
+description, category for a new prompt, the body, and — the useful part — **what each variable in
+the text will be replaced with right now**, which is the fastest way to notice that `{{host}}` is
+empty because the panel is local.
+
+The mechanism is one rule instead of three: **editing a built-in is a copy with the same id.** The
+shipped file is never written to (an upgrade replaces it), the catalogue merges by id so the picker
+shows one prompt and not two, and *Reset* means exactly "stop overriding, use the shipped text".
+While the user edits, the page shows the shipped wording underneath, so resetting is not a leap of
+faith. `rc_core::prompt` keeps the originals in a separate table (`originals`), which is also what
+lets `is_overridden` answer the badge question honestly.
+
+A new prompt gets an id derived from its title (`diagnostics.proc_to_spadlo`), because an id is what
+a settings file or an audit entry would refer to and nobody should have to invent one. Non-ASCII
+characters become underscores: the id has to survive a file name and a TOML key on every platform.
+
 ## Phase 16.16/16.17a — the prompt catalogue and its picker (done)
 
 `cargo test -p rc-core --lib prompt` → **11 tests**, `cargo test -p rcommander --lib prompts` →
@@ -1054,7 +1077,7 @@ command either by its own name or through a family rule:
 | Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
 | No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions; establish editable prompt and declarative workload contracts early (16.16–16.21) |
 | No "process with agent" handoff from the file list | Phase 16.10a (planned, designed in the plan): right-click on a file or selection opens the agent pane with a **workspace of verified copies** plus a manifest, never the originals; the chat opens with *what do you want?* and the matching prompts; applying changes back goes through the 16.4 review pipeline with a backup. Tests must prove the originals stay byte-identical after a refused or abandoned session |
-| Prompt catalogue and picker are done (26 built-in prompts, six categories, typed variables with a preview); the **editor** and the reset-and-diff for an edited system prompt are still open | Phase 16.17b: Configuration → Prompts, with copy/reset/diff and pins |
+| Prompt catalogue, picker and editor are done (26 built-in prompts, copy/edit/reset, variables previewed); **pins, recency and multi-line diff of an edit** are still open | Phase 16.17c: pins and recency in the picker, a side-by-side diff on the editor page |
 | No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, tag-first classification, controlled SQL gateway, reviewed Knowledge Pull Requests, provenance and safe reuse |
 | No configurable multi-model team orchestration | Phase 16.27–16.30; define role assignments early with workload contracts, then bounded delegation, independent review, budgets, escalation and visible per-role activity; single-model mode stays available |
 | No first-class database panels or administration | Phase 23; independent database providers, read-only browser and SQL editor first, reviewed mutations and administration later, native MongoDB document support (23.10) |

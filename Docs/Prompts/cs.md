@@ -72,9 +72,25 @@ Soubor uložte a picker znovu otevřete; nic se nerestartuje. Položka bez názv
 použije své id, prompt bez id se ohlásí a soubor s překlepem vás stojí jen ten jeden
 soubor — zbytek katalogu se načte.
 
-## Co tu ještě není
+## Úpravy, kopie a obnovení
 
-Katalog se čte a prohledává; editor, který by umožnil přidat prompt bez sahání do
-textového souboru, je další krok (*Konfigurace → Prompty*), spolu s resetem a diffem
-pro upravený systémový prompt. Do té doby **je** editor ten soubor TOML, což není
-špatné místo: dá se verzovat, porovnávat a přenášet.
+*Konfigurace → Agent → Prompty…* (`cm_Prompts`) je editor. Ukazuje katalog po
+kategoriích se štítkem — *moje* u vašich promptů, *upravený* u zabudovaného, který
+jste změnili — a vedle toho formulář.
+
+| Tlačítko | Co udělá |
+| --- | --- |
+| **Zkopírovat k sobě** | udělá vaši kopii zabudovaného promptu a ponechá jeho id |
+| **Obnovit** | zahodí vaši kopii, takže platí znovu text z instalace |
+| **Smazat** | smaže jeden z vašich promptů |
+| **Uložit** | zapíše prompt do `<config>/prompts/<kategorie>.toml` |
+
+**Úprava zabudovaného promptu je kopie se stejným id.** Ten jeden mechanismus
+umí všechno: instalační soubor se nikdy nemění (upgrade ho nahradí), picker
+neukazuje dva prompty místo jednoho a *Obnovit* má zřejmý význam — přestaň
+přepisovat, použij text z instalace. Během úprav stránka ukazuje původní znění,
+takže „obnovit" není skok víry.
+
+Formulář také vypisuje proměnné, které text používá, a čím se právě teď nahradí —
+to je nejrychlejší cesta, jak si všimnout, že `{{host}}` bude prázdné, protože panel
+je lokální.

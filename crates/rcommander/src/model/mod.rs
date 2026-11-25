@@ -510,6 +510,8 @@ pub struct Model {
     pub prompts_loaded: bool,
     /// State of the prompt picker in the chat.
     pub prompt_picker: prompts::PromptPicker,
+    /// The prompt editor on the Prompts page (Phase 16.17b).
+    pub prompt_editor: prompts::PromptEditor,
 }
 
 /// An open F3 viewer.
@@ -623,6 +625,7 @@ impl Model {
             prompts: rc_core::prompt::Catalogue::default(),
             prompts_loaded: false,
             prompt_picker: prompts::PromptPicker::default(),
+            prompt_editor: prompts::PromptEditor::default(),
             keymap,
             settings,
             strings,

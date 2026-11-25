@@ -522,6 +522,7 @@ impl Model {
             "cm_security" | "cm_securityoptions" => self.open_options_on(OptionsTab::Security),
             "cm_colors" | "cm_coloroptions" => self.open_options_on(OptionsTab::Colors),
             "cm_dangerous" | "cm_resets" => self.open_options_on(OptionsTab::Dangerous),
+            "cm_prompts" | "cm_promptmanager" => self.open_options_on(OptionsTab::Prompts),
             "cm_about" => {
                 self.open_dialog(Dialog::About);
                 CommandOutcome::Ok

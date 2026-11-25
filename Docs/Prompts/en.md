@@ -76,10 +76,25 @@ Save the file and reopen the picker; nothing needs restarting. An entry without 
 title falls back to its id, a prompt without an id is reported, and a file with a
 typo costs you only that file — the rest of the catalogue still loads.
 
-## What is not here yet
+## Editing, copying and resetting
 
-The catalogue is read and searched; the editor that would let you add a prompt
-without touching a text file is the next step (*Configuration → Prompts*), together
-with the reset-and-diff for a system prompt you have edited. Until then the TOML
-file *is* the editor, which is not a bad place to be: it is versionable, diffable
-and portable.
+*Configuration → Agent → Prompts…* (`cm_Prompts`) is the editor. It shows the
+catalogue by category with a badge — *mine* for your own prompts, *edited* for a
+built-in you have changed — and the form beside it.
+
+| Button | What it does |
+| --- | --- |
+| **Copy to mine** | makes your own copy of a shipped prompt, keeping its id |
+| **Reset** | drops your copy, so the shipped text applies again |
+| **Delete** | removes one of your own prompts |
+| **Save** | writes the prompt into `<config>/prompts/<category>.toml` |
+
+**Editing a built-in is a copy with the same id.** That one mechanism does
+everything: the shipped file is never touched (an upgrade replaces it), the picker
+still shows a single prompt rather than two, and *Reset* has an obvious meaning —
+stop overriding, use the shipped text. While you edit, the page shows the shipped
+wording underneath, so "reset" is not a leap of faith.
+
+The form also lists the variables the text uses and what each of them will be
+replaced with right now, which is the fastest way to notice that `{{host}}` will be
+empty because the panel is local.

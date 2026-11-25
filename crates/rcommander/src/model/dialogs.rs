@@ -344,13 +344,15 @@ pub enum OptionsTab {
     Agent,
     /// Capability policy, stored pre-approvals and the audit trail (Phase 16.0d).
     Security,
+    /// The prompt catalogue and its editor (Phase 16.17b).
+    Prompts,
     Shortcuts,
     /// Factory resets; the page warns loudly because nothing here can be undone.
     Dangerous,
 }
 
 impl OptionsTab {
-    pub fn all() -> [OptionsTab; 11] {
+    pub fn all() -> [OptionsTab; 12] {
         [
             OptionsTab::Display,
             OptionsTab::Language,
@@ -361,6 +363,7 @@ impl OptionsTab {
             OptionsTab::Ftp,
             OptionsTab::Agent,
             OptionsTab::Security,
+            OptionsTab::Prompts,
             OptionsTab::Shortcuts,
             OptionsTab::Dangerous,
         ]
@@ -377,6 +380,7 @@ impl OptionsTab {
             OptionsTab::Ftp => "dialog.config.ftp",
             OptionsTab::Agent => "dialog.config.agent",
             OptionsTab::Security => "dialog.config.security",
+            OptionsTab::Prompts => "dialog.config.prompts",
             OptionsTab::Shortcuts => "dialog.config.shortcuts",
             OptionsTab::Dangerous => "dialog.config.dangerous",
         }
@@ -1960,7 +1964,7 @@ mod tests {
             o.draft.shortcuts.get("f9").map(|s| s.as_str()),
             Some("cm_Test")
         );
-        assert_eq!(OptionsTab::all().len(), 11, "a new page must be counted");
+        assert_eq!(OptionsTab::all().len(), 12, "a new page must be counted");
         assert!(
             OptionsTab::all().contains(&OptionsTab::Security),
             "the security page is reachable"

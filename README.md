@@ -274,7 +274,9 @@ away, so switching back restores the same directory, cursor and selection.
 category (files, Git, remote, build, diagnostics, general), with typed variables
 filled from the current selection and a preview before anything is sent. Shipped
 prompts are read-only data files; your own live in `<config>/prompts/`. A prompt is
-**data** — it can never grant a permission. See `Docs/Prompts/`.
+**data** — it can never grant a permission. *Configuration → Agent → Prompts…* edits
+them: a built-in is changed by copying it (same id, so it overrides), and *Reset*
+brings the shipped wording back. See `Docs/Prompts/`.
 
 The chat **cannot touch files**. Everything with a side effect still goes through
 the capability policy, which asks for approval and writes an audit entry — a
@@ -287,8 +289,8 @@ code blocks are syntax highlighted for Rust, C#, C/C++, Go, JavaScript/TypeScrip
 Python, SQL, TOML, JSON, HTML/XML, CSS, Markdown, POSIX shells, PowerShell and
 Windows batch.
 
-**Planned, not implemented:** tool calling from the chat, the prompt *editor*
-(Configuration → Prompts), "process with agent", reviewed file changes and
+**Planned, not implemented:** tool calling from the chat, "process with agent",
+background images and window effects (Phase 14.8), reviewed file changes and
 agent-coordinated tool calls (Phase 16 of
 `ImplementationPlan.md`).
 

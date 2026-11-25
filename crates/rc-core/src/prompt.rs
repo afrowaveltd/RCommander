@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 /// The groups the picker shows as tabs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Category {
     /// Files, folders and their contents.
     Files,
@@ -35,6 +35,7 @@ pub enum Category {
     /// Logs, services, "why did this break".
     Diagnostics,
     /// Everything that does not fit above.
+    #[default]
     General,
 }
 
@@ -122,6 +123,8 @@ impl Entry {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Catalogue {
     entries: Vec<Entry>,
+    /// The built-in prompts by id, kept even when the user overrides one, so "reset" has a target.
+    originals: BTreeMap<String, Entry>,
     /// Files that could not be read, so the options page can say which one and why.
     problems: Vec<String>,
 }
@@ -184,12 +187,46 @@ impl Catalogue {
         let mut catalogue = Catalogue::default();
         for (path, builtin) in files {
             match load_file(path, *builtin) {
-                Ok(mut entries) => catalogue.entries.append(&mut entries),
+                Ok(entries) => {
+                    for entry in entries {
+                        if entry.builtin {
+                            catalogue
+                                .originals
+                                .insert(entry.prompt.id.clone(), entry.clone());
+                        }
+                        // A later source wins: the user's own file is read after the shipped ones,
+                        // so an override with the same id replaces the built-in instead of sitting
+                        // beside it. That is what makes "edit a system prompt" possible without
+                        // ever writing to the shipped file.
+                        catalogue
+                            .entries
+                            .retain(|existing| existing.prompt.id != entry.prompt.id);
+                        catalogue.entries.push(entry);
+                    }
+                }
                 Err(problem) => catalogue.problems.push(problem),
             }
         }
         catalogue.sort();
         catalogue
+    }
+
+    /// The shipped prompt behind `id`, even when the user has overridden it.
+    pub fn original(&self, id: &str) -> Option<&Entry> {
+        self.originals.get(id)
+    }
+
+    /// True when the effective prompt with this id is the user's own version of a built-in.
+    pub fn is_overridden(&self, id: &str) -> bool {
+        let Some(entry) = self.get(id) else {
+            return false;
+        };
+        !entry.builtin && self.originals.contains_key(id)
+    }
+
+    /// The effective prompt and, when it overrides a built-in, the shipped text it came from.
+    pub fn origin_pair(&self, id: &str) -> (Option<&Entry>, Option<&Entry>) {
+        (self.get(id), self.original(id))
     }
 
     /// Add one prompt in memory (used by the editor before saving).
@@ -528,6 +565,50 @@ text = "Review this diff and point out the risky parts."
     fn the_user_directory_sits_under_the_configuration() {
         let dir = Path::new("/home/user/.config/rcommander");
         assert_eq!(user_dir(dir), dir.join("prompts"));
+    }
+
+    #[test]
+    fn a_user_prompt_with_the_same_id_replaces_the_built_in_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let builtin = dir.path().join("files.toml");
+        std::fs::write(
+            &builtin,
+            "[meta]\ncategory = 'files'\n[[prompt]]\nid = 'files.explain'\ntitle = 'Explain'\ntext = 'shipped text'\n",
+        )
+        .unwrap();
+        let mine = dir.path().join("mine.toml");
+        std::fs::write(
+            &mine,
+            "[meta]\ncategory = 'files'\n[[prompt]]\nid = 'files.explain'\ntitle = 'My explain'\ntext = 'my text'\n",
+        )
+        .unwrap();
+        let catalogue = Catalogue::load(&[(builtin, true), (mine, false)]);
+        // One entry, and it is the user's.
+        assert_eq!(catalogue.entries().len(), 1);
+        let entry = catalogue.get("files.explain").unwrap();
+        assert_eq!(entry.prompt.text, "my text");
+        assert!(!entry.builtin);
+        // The shipped text survives as the reset target.
+        assert!(catalogue.is_overridden("files.explain"));
+        let (effective, original) = catalogue.origin_pair("files.explain");
+        assert_eq!(effective.unwrap().prompt.text, "my text");
+        assert_eq!(original.unwrap().prompt.text, "shipped text");
+        // A built-in that nobody overrode is not "overridden".
+        assert!(!catalogue.is_overridden("nothing.here"));
+    }
+
+    #[test]
+    fn an_ordinary_user_prompt_is_not_an_override() {
+        let dir = tempfile::tempdir().unwrap();
+        let mine = dir.path().join("mine.toml");
+        std::fs::write(
+            &mine,
+            "[meta]\ncategory = 'general'\n[[prompt]]\nid = 'mine.one'\ntitle = 'Mine'\ntext = 'text'\n",
+        )
+        .unwrap();
+        let catalogue = Catalogue::load(&[(mine, false)]);
+        assert!(!catalogue.is_overridden("mine.one"));
+        assert!(catalogue.original("mine.one").is_none());
     }
 
     #[test]

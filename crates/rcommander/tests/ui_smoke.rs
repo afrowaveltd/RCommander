@@ -2718,3 +2718,61 @@ fn a_prompt_with_a_variable_the_program_cannot_fill_says_so_in_the_preview() {
         "the missing variable is announced"
     );
 }
+
+#[test]
+fn the_prompt_page_edits_a_copy_and_resets_it_to_the_shipped_text() {
+    let (left, right) = fixture();
+    let app = app(left.path(), right.path());
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_Prompts");
+    harness.run();
+    // The page is open with the catalogue and the editor hint.
+    harness.root().get_by_label("prompt.page.help");
+    harness.root().get_by_label("prompt.editor.none");
+    // Editing a built-in starts from a copy, and the copy is what the user's file will hold.
+    assert!(
+        harness
+            .state_mut()
+            .model
+            .copy_prompt_to_mine("files.explain")
+            .is_ok()
+    );
+    harness.run();
+    harness.root().get_by_label("prompt.editor.title");
+    harness.state_mut().model.prompt_editor.text = "Explain {{selection}} my way.".to_string();
+    harness.run();
+    harness.root().get_by_label("prompt.save").click_accesskit();
+    harness.run();
+    let edited = harness
+        .state_mut()
+        .model
+        .prompts()
+        .get("files.explain")
+        .cloned()
+        .expect("the prompt exists");
+    assert_eq!(edited.prompt.text, "Explain {{selection}} my way.");
+    assert!(
+        !edited.builtin,
+        "the user's version replaced the shipped one"
+    );
+    // The page shows the shipped text as the reset target...
+    harness.root().get_by_label("prompt.editor.original");
+    // ...and resetting brings it back.
+    assert!(
+        harness
+            .state_mut()
+            .model
+            .reset_prompt("files.explain")
+            .unwrap()
+    );
+    harness.run();
+    let restored = harness
+        .state_mut()
+        .model
+        .prompts()
+        .get("files.explain")
+        .cloned()
+        .expect("the prompt exists");
+    assert!(restored.builtin);
+    assert_ne!(restored.prompt.text, "Explain {{selection}} my way.");
+}

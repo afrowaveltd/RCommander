@@ -424,3 +424,263 @@ mod tests {
         model
     }
 }
+
+/// The editor's state on the Prompts page.
+#[derive(Clone, Debug, Default)]
+pub struct PromptEditor {
+    /// The prompt being edited, if any.
+    pub id: Option<String>,
+    pub title: String,
+    pub about: String,
+    pub text: String,
+    /// Category for a prompt that is being created (an existing one keeps its own).
+    pub category: rc_core::prompt::Category,
+    /// True when the edited prompt does not exist yet.
+    pub creating: bool,
+    /// The last thing that happened, shown under the form.
+    pub status: String,
+}
+
+impl Model {
+    /// Start editing a prompt: a copy of it, so cancelling changes nothing.
+    pub fn edit_prompt(&mut self, id: &str) -> bool {
+        let Some(entry) = self.prompts().get(id).cloned() else {
+            return false;
+        };
+        self.prompt_editor = PromptEditor {
+            id: Some(id.to_string()),
+            title: entry.prompt.title.clone(),
+            about: entry.prompt.about.clone(),
+            text: entry.prompt.text.clone(),
+            category: entry.category,
+            creating: false,
+            status: String::new(),
+        };
+        true
+    }
+
+    /// Start a new prompt of the given category.
+    pub fn new_prompt(&mut self, category: rc_core::prompt::Category) {
+        self.prompt_editor = PromptEditor {
+            id: Some(String::new()),
+            title: String::new(),
+            about: String::new(),
+            text: String::new(),
+            category,
+            creating: true,
+            status: String::new(),
+        };
+    }
+
+    /// Take a copy of a built-in prompt as the starting point for the user's own version.
+    ///
+    /// The id is kept, which is what makes the copy an *override*: the picker then shows one
+    /// prompt, with the user's text, and *Reset* brings the shipped one back.
+    pub fn copy_prompt_to_mine(&mut self, id: &str) -> Result<(), String> {
+        let Some(entry) = self.prompts().get(id).cloned() else {
+            return Err(self.t("prompt.not_found").to_string());
+        };
+        if !entry.builtin {
+            return Ok(());
+        }
+        self.save_prompt(entry.prompt.clone(), entry.category)?;
+        self.edit_prompt(id);
+        Ok(())
+    }
+
+    /// Drop the user's version of a built-in prompt, so the shipped text applies again.
+    pub fn reset_prompt(&mut self, id: &str) -> Result<bool, String> {
+        if !self.prompts().is_overridden(id) {
+            return Ok(false);
+        }
+        let removed = self.delete_prompt(id)?;
+        if removed {
+            self.clear_prompt_editor();
+            let text = self.t("prompt.reset.done").to_string();
+            self.report(text);
+        }
+        Ok(removed)
+    }
+
+    /// Save what the editor holds. A new prompt gets an id derived from its title.
+    pub fn save_edited_prompt(&mut self) -> Result<String, String> {
+        let editor = self.prompt_editor.clone();
+        let id = match editor.id.as_deref() {
+            Some(existing) if !existing.trim().is_empty() => existing.trim().to_string(),
+            _ => slug(&editor.title, editor.category),
+        };
+        if editor.title.trim().is_empty() {
+            return Err(self.t("prompt.error.title").to_string());
+        }
+        if editor.text.trim().is_empty() {
+            return Err(self.t("prompt.error.text").to_string());
+        }
+        let prompt = rc_core::prompt::Prompt {
+            id: id.clone(),
+            title: editor.title.trim().to_string(),
+            about: editor.about.trim().to_string(),
+            text: editor.text.clone(),
+        };
+        // An existing prompt keeps its category; a new one takes the editor's choice.
+        let category = if editor.creating {
+            editor.category
+        } else {
+            self.prompts()
+                .get(&id)
+                .map(|entry| entry.category)
+                .unwrap_or(editor.category)
+        };
+        self.save_prompt(prompt, category)?;
+        self.edit_prompt(&id);
+        self.prompt_editor.status = self.t("prompt.saved").to_string();
+        Ok(id)
+    }
+
+    /// Leave the editor without saving.
+    pub fn clear_prompt_editor(&mut self) {
+        self.prompt_editor = PromptEditor::default();
+    }
+
+    /// The shipped text of the prompt being edited, when it overrides a built-in.
+    pub fn prompt_reset_target(&mut self) -> Option<rc_core::prompt::Prompt> {
+        let id = self.prompt_editor.id.clone()?;
+        self.prompts()
+            .original(&id)
+            .map(|entry| entry.prompt.clone())
+    }
+}
+
+/// A stable id from a title: lowercase words joined by dots, so a screenshot of the page reads
+/// back as something a settings file could refer to.
+fn slug(title: &str, category: rc_core::prompt::Category) -> String {
+    let words: Vec<String> = title
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(|word| word.to_lowercase())
+        .collect();
+    if words.is_empty() {
+        return format!("{}.custom", category.name());
+    }
+    // Accents and non-ASCII letters survive a `to_lowercase` but not a filesystem round trip in
+    // some editors, so anything outside a conservative set becomes an underscore.
+    let body: Vec<String> = words
+        .iter()
+        .map(|word| {
+            word.chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+                .collect::<String>()
+        })
+        .filter(|word| !word.is_empty())
+        .collect();
+    format!("{}.{}", category.name(), body.join("."))
+}
+
+#[cfg(test)]
+mod editor_tests {
+    use crate::model::Model;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+    use std::path::Path;
+
+    fn model(dir: &Path, cwd: &Path) -> Model {
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local(cwd),
+            Location::local(cwd),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model.load_prompts();
+        model.prompts_loaded = true;
+        model
+    }
+
+    #[test]
+    fn editing_a_prompt_starts_from_a_copy_and_changes_nothing_until_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        let mut model = model(dir.path(), cwd.path());
+        assert!(model.edit_prompt("files.explain"));
+        let original = model.prompts().get("files.explain").cloned().unwrap();
+        model.prompt_editor.text = "my own wording".to_string();
+        // The catalogue still has the shipped text.
+        assert_eq!(
+            model.prompts().get("files.explain").unwrap().prompt.text,
+            original.prompt.text
+        );
+        // Cancelling throws the edit away.
+        model.clear_prompt_editor();
+        assert!(model.prompt_editor.id.is_none());
+        assert_eq!(
+            model.prompts().get("files.explain").unwrap().prompt.text,
+            original.prompt.text
+        );
+    }
+
+    #[test]
+    fn saving_an_edited_built_in_creates_an_override_with_a_reset_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        let mut model = model(dir.path(), cwd.path());
+        let shipped = model
+            .prompts()
+            .get("files.explain")
+            .unwrap()
+            .prompt
+            .text
+            .clone();
+        assert!(model.copy_prompt_to_mine("files.explain").is_ok());
+        model.prompt_editor.text = "Explain {{selection}} in my own words.".to_string();
+        let id = model.save_edited_prompt().expect("saving works");
+        assert_eq!(id, "files.explain", "the id is kept, so it overrides");
+        let entry = model.prompts().get("files.explain").cloned().unwrap();
+        assert_eq!(entry.prompt.text, "Explain {{selection}} in my own words.");
+        assert!(!entry.builtin);
+        assert!(model.prompts().is_overridden("files.explain"));
+        // The reset target is the shipped text.
+        let target = model.prompt_reset_target().expect("a reset target");
+        assert_eq!(target.text, shipped);
+        // Resetting brings it back and deletes the override.
+        assert!(model.reset_prompt("files.explain").unwrap());
+        let entry = model.prompts().get("files.explain").cloned().unwrap();
+        assert_eq!(entry.prompt.text, shipped);
+        assert!(entry.builtin);
+        assert!(!model.prompts().is_overridden("files.explain"));
+    }
+
+    #[test]
+    fn a_new_prompt_gets_an_id_from_its_title() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        let mut model = model(dir.path(), cwd.path());
+        model.new_prompt(rc_core::prompt::Category::Diagnostics);
+        model.prompt_editor.title = "Proč to spadlo?".to_string();
+        model.prompt_editor.text = "Look at {{cwd}} and tell me.".to_string();
+        let id = model.save_edited_prompt().expect("saving works");
+        // Non-ASCII becomes underscores, so the id stays usable in a file name and a setting.
+        assert!(id.starts_with("diagnostics."), "{id}");
+        assert!(model.prompts().get(&id).is_some());
+        let entry = model.prompts().get(&id).cloned().unwrap();
+        assert_eq!(entry.category, rc_core::prompt::Category::Diagnostics);
+        assert!(!entry.builtin);
+        // And it survives a reload from disk.
+        let mut again = model2(dir.path(), cwd.path());
+        assert!(again.prompts().get(&id).is_some());
+    }
+
+    #[test]
+    fn an_empty_title_or_text_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        let mut model = model(dir.path(), cwd.path());
+        model.new_prompt(rc_core::prompt::Category::General);
+        model.prompt_editor.text = "text".to_string();
+        assert!(model.save_edited_prompt().is_err(), "a title is needed");
+        model.prompt_editor.title = "Title".to_string();
+        model.prompt_editor.text = "   ".to_string();
+        assert!(model.save_edited_prompt().is_err(), "text is needed");
+    }
+
+    fn model2(dir: &Path, cwd: &Path) -> Model {
+        model(dir, cwd)
+    }
+}

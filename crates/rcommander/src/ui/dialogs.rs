@@ -1063,6 +1063,231 @@ fn set_family(fonts: &mut rc_core::config::Fonts, role: &str, family: String) {
     }
 }
 
+/// The prompt page: the catalogue on the left, the editor on the right.
+///
+/// A built-in prompt cannot be edited in place — an upgrade would overwrite it — so editing one
+/// starts by copying it into the user's own file under the same id, which makes the copy an
+/// *override*. *Reset* deletes that override and the shipped text applies again. That is the whole
+/// trick: one mechanism for "change a system prompt" and for "change it back".
+fn prompts_page(ui: &mut egui::Ui, model: &mut Model) {
+    use rc_core::prompt::Category;
+    let palette = crate::theme::Palette::for_model(model);
+    // The catalogue is read on first use, so a startup that never opens this page pays nothing.
+    let _ = model.prompts();
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .id_salt("prompts_scroll")
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new(model.t("prompt.page.help"))
+                    .small()
+                    .color(palette.hidden),
+            );
+            let problems: Vec<String> = model.prompts().problems().to_vec();
+            for problem in problems {
+                ui.label(egui::RichText::new(problem).color(palette.warning).small());
+            }
+            ui.separator();
+
+            // ---- category tabs and the list -------------------------------------
+            ui.horizontal_wrapped(|ui| {
+                for category in Category::ALL {
+                    let label = model.t(category.label_key());
+                    let chosen = model.prompt_picker.category == Some(category);
+                    if ui.selectable_label(chosen, label).clicked() {
+                        model.prompt_picker.category = Some(category);
+                    }
+                }
+                if ui
+                    .selectable_label(
+                        model.prompt_picker.category.is_none(),
+                        model.t("prompt.all"),
+                    )
+                    .clicked()
+                {
+                    model.prompt_picker.category = None;
+                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(model.t("prompt.new")).clicked() {
+                        let category = model.prompt_picker.category.unwrap_or(Category::General);
+                        model.new_prompt(category);
+                    }
+                });
+            });
+
+            let entries = model.visible_prompts();
+            let mut selected: Option<String> = None;
+            let mut copy: Option<String> = None;
+            let mut reset: Option<String> = None;
+            let mut delete: Option<String> = None;
+            let current = model.prompt_editor.id.clone();
+            egui::ScrollArea::vertical()
+                .max_height(150.0)
+                .auto_shrink([false, true])
+                .id_salt("prompt_editor_list")
+                .show(ui, |ui| {
+                    for entry in &entries {
+                        let id = entry.prompt.id.clone();
+                        let overridden = model.prompts().is_overridden(&id);
+                        let mut label = entry.prompt.title.clone();
+                        if !entry.builtin {
+                            label.push_str(&format!("  ({})", model.t("prompt.badge.mine")));
+                        } else if overridden {
+                            label.push_str(&format!("  ({})", model.t("prompt.badge.edited")));
+                        }
+                        if ui
+                            .selectable_label(current.as_deref() == Some(id.as_str()), label)
+                            .clicked()
+                        {
+                            selected = Some(id.clone());
+                        }
+                        ui.horizontal(|ui| {
+                            if entry.builtin {
+                                if ui.small_button(model.t("prompt.copy")).clicked() {
+                                    copy = Some(id.clone());
+                                }
+                            } else {
+                                if ui.small_button(model.t("prompt.reset")).clicked() {
+                                    reset = Some(id.clone());
+                                }
+                                if ui.small_button(model.t("prompt.delete")).clicked() {
+                                    delete = Some(id.clone());
+                                }
+                            }
+                        });
+                    }
+                });
+            if let Some(id) = selected {
+                model.edit_prompt(&id);
+            }
+            if let Some(id) = copy
+                && let Err(error) = model.copy_prompt_to_mine(&id)
+            {
+                model.report_error(error);
+            }
+            if let Some(id) = reset
+                && let Err(error) = model.reset_prompt(&id)
+            {
+                model.report_error(error);
+            }
+            if let Some(id) = delete
+                && let Err(error) = model.delete_prompt(&id)
+            {
+                model.report_error(error);
+            }
+
+            ui.separator();
+            // ---- the editor ------------------------------------------------------
+            if model.prompt_editor.id.is_none() {
+                ui.label(
+                    egui::RichText::new(model.t("prompt.editor.none"))
+                        .italics()
+                        .color(palette.hidden),
+                );
+                return;
+            }
+            ui.label(
+                egui::RichText::new(model.t("prompt.editor.title"))
+                    .strong()
+                    .color(palette.accent),
+            );
+            egui::Grid::new("prompt_editor_grid")
+                .num_columns(2)
+                .show(ui, |ui| {
+                    ui.label(model.t("prompt.field.title"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut model.prompt_editor.title)
+                            .desired_width(340.0),
+                    );
+                    ui.end_row();
+                    ui.label(model.t("prompt.field.about"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut model.prompt_editor.about)
+                            .desired_width(340.0),
+                    );
+                    ui.end_row();
+                    if model.prompt_editor.creating {
+                        ui.label(model.t("prompt.field.category"));
+                        egui::ComboBox::from_id_salt("prompt_editor_category")
+                            .selected_text(model.t(model.prompt_editor.category.label_key()))
+                            .show_ui(ui, |ui| {
+                                for category in Category::ALL {
+                                    let label = model.t(category.label_key());
+                                    ui.selectable_value(
+                                        &mut model.prompt_editor.category,
+                                        category,
+                                        label,
+                                    );
+                                }
+                            });
+                        ui.end_row();
+                    }
+                });
+            ui.label(model.t("prompt.field.text"));
+            ui.add(
+                egui::TextEdit::multiline(&mut model.prompt_editor.text)
+                    .desired_rows(5)
+                    .desired_width(f32::INFINITY),
+            );
+            // What the variables will be replaced with, so nobody has to guess.
+            ui.label(
+                egui::RichText::new(model.t("prompt.field.variables"))
+                    .small()
+                    .color(palette.hidden),
+            );
+            let variables = rc_core::prompt::variables(&model.prompt_editor.text);
+            if variables.is_empty() {
+                ui.label(egui::RichText::new(model.t("prompt.field.variables.none")).small());
+            } else {
+                let values = model.prompt_values();
+                for name in variables {
+                    let value = values
+                        .get(&name)
+                        .cloned()
+                        .unwrap_or_else(|| model.t("prompt.field.variables.missing").to_string());
+                    ui.label(
+                        egui::RichText::new(format!("{{{{{name}}}}} → {value}"))
+                            .small()
+                            .monospace(),
+                    );
+                }
+            }
+            if let Some(target) = model.prompt_reset_target() {
+                ui.separator();
+                ui.label(
+                    egui::RichText::new(model.t("prompt.editor.original"))
+                        .small()
+                        .color(palette.hidden),
+                );
+                ui.label(egui::RichText::new(&target.text).small().italics());
+            }
+            if !model.prompt_editor.status.is_empty() {
+                ui.label(
+                    egui::RichText::new(&model.prompt_editor.status)
+                        .small()
+                        .color(palette.accent),
+                );
+            }
+            ui.horizontal(|ui| {
+                if ui.button(model.t("prompt.save")).clicked() {
+                    match model.save_edited_prompt() {
+                        Ok(_) => {}
+                        Err(error) => model.report_error(error),
+                    }
+                }
+                if ui.button(model.t("dialog.config.cancel")).clicked() {
+                    model.clear_prompt_editor();
+                }
+            });
+            ui.label(
+                egui::RichText::new(model.t("prompt.page.where"))
+                    .small()
+                    .italics()
+                    .color(palette.hidden),
+            );
+        });
+}
+
 /// The security page: who may do what, what is pre-approved, and what the log says.
 ///
 /// Everything on the page is a *policy* control, so it applies to the agent — not to the human
@@ -1441,6 +1666,9 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
         }
         OptionsTab::Security => {
             security_page(ui, model, state);
+        }
+        OptionsTab::Prompts => {
+            prompts_page(ui, model);
         }
         OptionsTab::Dangerous => {
             dangerous_page(ui, model, state);

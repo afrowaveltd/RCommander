@@ -795,6 +795,9 @@ impl RCommanderApp {
                     {
                         command = Some("cm_ChatFiles".into());
                     }
+                    if ui.button(self.model.t("prompt.page.manage")).clicked() {
+                        command = Some("cm_Prompts".into());
+                    }
                     ui.separator();
                     if ui.button(self.model.t("agent.panel")).clicked() {
                         self.model.show_agent_panel = true;
