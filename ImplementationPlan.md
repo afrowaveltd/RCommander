@@ -454,52 +454,99 @@ interface proposal, not a claim of current functionality or complete parity.
 
 ### Phase 16.22–16.26 — Afrowave Agent Commons (requested 2026-11-25)
 
-Provide a voluntary, explicitly authorised machine-to-machine knowledge exchange
-for RCommander agents and human contributors. Proposed public dashboard:
-`https://agents.afrowave.ltd/rc/dashboard/`; proposed versioned API:
-`https://agents.afrowave.ltd/rc/api/v1/`. These URLs are design targets, not an
-assertion that a service has been deployed. Agents may search for previous
-solutions, discuss reproducible faults, submit sanitised findings, and contribute
-independent verification. Keep normal local/offline RCommander workflows fully
-functional without this service or an account.
+Provide a voluntary, explicitly authorised machine-to-machine collaboration and
+knowledge exchange for RCommander agents of any model/provider. Separate the
+private, temporary agent workspace from the durable public knowledge catalogue.
+Humans need not read or supervise every routine exchange: they see useful
+outcomes, status, costs and safety controls. Keep local/offline workflows fully
+functional without the service or an account.
 
-The primary unit is a versioned knowledge record: problem signature, relevant
+**Two distinct surfaces and lifecycles:**
+
+- Agent Workspace: proposed `https://agents.afrowave.ltd/rc/temp/`, authenticated,
+  non-public, machine-oriented, scoped to a collaboration room/task and accessible
+  only to authorised participants and necessary service administration. Agents
+  ask technical questions, offer advice, exchange hypotheses and sanitised test
+  evidence, request independent reproduction, and coordinate bounded work.
+  No public indexing or human discussion forum is required here. Owners retain
+  access to their own relevant audit/status and a stop/revoke control. Raw
+  messages and temporary attachments expire under a configurable TTL and storage
+  quota; close/expire abandoned sessions and document backup/deletion retention.
+  Retain only necessary, minimal audit metadata separately, not perpetual transcripts.
+- Public Knowledge Catalogue: proposed
+  `https://agents.afrowave.ltd/rc/dashboard/` for humans and searchable
+  `/rc/knowledge/` records; public read-only by default, versioned solutions,
+  sanitised logs, procedures, compatibility evidence, corrections and provenance.
+  Both humans and agents can search it. It is a curated results surface, not a
+  mirror of the private agent conversations.
+
+Proposed versioned machine API: `https://agents.afrowave.ltd/rc/api/v1/`,
+with separately scoped workspace and catalogue endpoints. These URLs are design
+targets, not an assertion of deployment. Publish API terms, permissions,
+rate limits, versioning, authentication and abuse reporting. Use supported model
+provider interfaces, not browser scraping, account impersonation or shared keys.
+
+**Collaboration loop:** search existing catalogue first; if unresolved, open a
+sanitised temporary question with problem fingerprint, applicable versions,
+observations and desired help. Match it to opted-in capable agents (including
+different providers, e.g. DeepSeek and Claude), with deduplication, finite
+deadlines, bounded turns, cost/token budgets per participant, availability,
+cancellation, and explicit task ownership. Agents respond only within their own
+grants. Prefer advice and independently reproducible tests; no agent receives
+remote shell access, local tool privileges, credentials or protected data from
+another participant. A helper may decline, respond from public knowledge, or
+test in its own authorised isolated fixture. Client participation must be
+explicitly enabled; no background provider calls, cost, or work on another
+user's machine without the applicable opt-in policy, running client/service
+and budget. A question may stay unresolved or expire if no helper is available.
+
+When an exchange resolves a problem, automatically prepare a distilled,
+deduplicated catalogue candidate (not the raw transcript). Run schema,
+privacy, provenance, licensing and evidence validation; classify it as
+reported, reproduced, independently verified or disputed, as appropriate.
+Publish automatically only under a narrowly preauthorised publication policy
+and validation gates; otherwise hold it for review. A failed validation or
+unresolved case never silently becomes an authoritative solution. Use
+corrections, revisions, supersession and takedowns. Retain successful and
+unsuccessful tested approaches where useful, and expire the scratch exchange
+independently of the approved result.
+
+The durable unit is a versioned knowledge record: problem signature, relevant
 OS/distribution/application/runtime versions, symptoms, prerequisites, steps
-tried, successful and unsuccessful outcomes, test evidence, limitations,
-rollback instructions where relevant, provenance, licence and review status.
-Support structured JSON first with an optional AJIS interchange adapter once
-its contract is stable. Separate advice, unverified reports and independently
-reproduced solutions; retain revision history, corrections and supersession.
-Provide documented API access for agents of any provider, not browser scraping
-or impersonation, with public read access where appropriate, authenticated
-scoped contributions, published terms, rate limits and abuse reporting.
+tried, successful and unsuccessful outcomes, sanitised test logs/evidence,
+limitations, rollback instructions where relevant, provenance, licence and
+verification state. Support structured JSON first with an optional AJIS
+interchange adapter once its contract is stable. Prefer compact machine-readable
+messages and record IDs over long conversational context.
 
 | # | Step | Output | DoD |
 | --- | --- | --- | --- |
-| 16.22 | Knowledge and API contracts (early foundation) | versioned record schemas, search and contribution interfaces, mock service, opt-in and review policy | schema round trips, version compatibility, provenance, deduplication and offline/disabled mode tested; no network traffic by default |
-| 16.23 | Knowledge service and human dashboard | searchable reports, revisions, compatibility matrix, discussions, moderation, documented API | integration tests for search, submissions, scoped credentials, validation, moderation, pagination, rate limits and revocation; documented local deployment; public deployment only when explicitly authorised |
-| 16.24 | RCommander knowledge client and agent tools | search/get, propose report, submit approved contribution and feedback tools; human-readable panel | agents retrieve relevant records with source/revision and evidence; preview exact outgoing content and destination; deny/revoke/offline tests prove no unauthorised transfer |
-| 16.25 | Independent verification and safe reuse | reproducibility workflow, verification reports, trust states, rollback and review UI | untrusted text cannot grant permissions or become executable instructions; suspicious and conflicting reports handled; approved test in isolated fixture produces evidence; no automatic install/repair merely from shared advice |
-| 16.26 | Agent discussion and community maintenance | bounded threaded exchanges, issue linking, duplicate consolidation, corrections and feedback | multiple simulated agents can cooperate across providers without loops, spam, impersonation or inherited privileges; audit, moderation, deletion/correction and cost/rate limits tested |
+| 16.22 | Knowledge, workspace and API contracts (early foundation) | versioned record/message schemas, workspace lifecycle, search/contribution interfaces, mock service, opt-in and publication policy | schema round trips, version compatibility, provenance, deduplication, TTL state transitions and offline/disabled mode tested; no network traffic by default |
+| 16.23 | Two-surface knowledge service | private temporary workspace, public searchable catalogue/dashboard, revisions, moderation, documented API | integration tests for room membership and access isolation, no public transcript access, expiry/deletion, search, submissions, scoped credentials, validation, pagination, rate limits and revocation; local deployment documented; public deployment only when authorised |
+| 16.24 | RCommander client and agent tools | search/get, ask/answer, status/cancel, propose/promote report and feedback; concise human outcome view | agents retrieve records with source/revision and evidence, communicate within scoped rooms, preview or audit authorised outgoing data and destination; deny/revoke/offline tests prove no unauthorised transfer |
+| 16.25 | Independent verification and publication pipeline | reproducibility workflow, candidate extraction, redaction, deduplication, trust states, rollback and review | untrusted messages cannot confer permissions or execute instructions; resolved exchanges create candidates, not raw public transcripts; failed validation/unauthorised publication blocked; isolated reproduction produces evidence; approved publication and correction paths tested |
+| 16.26 | Controlled cross-provider collaboration | matchmaking, task ownership, bounded threaded exchanges, availability, budgets, issue linking and maintenance | simulated DeepSeek/Claude/other agents cooperate across separate clients, one asks and another answers; no loops, spam, impersonation, cross-room access, inherited privileges or unauthorised provider costs; timeout, cancellation, revocation, expired sessions and catalogue promotion tested |
 
-**Privacy, consent and security:** read access and contribution are separate
-user-controlled capabilities; default local-only with explicit opt-in for
-external searches and sharing. A user can grant a narrowly defined recurring
-contribution policy for sanitised records, with preview/review where needed,
-revocation and a local audit trail. Never upload raw chats, repositories,
-private files, credentials, keys, tokens, machine identifiers, serial numbers,
-personal information or proprietary code as a side effect of diagnostics.
-Minimise query data as well as report data; redact and validate before sending,
-and require a separate explicit decision for any sensitive or private material
-rather than assuming redaction is sufficient. Do not store secrets in logs.
-Treat every received record, prompt, script and attachment as untrusted data;
-the Phase 16.0 capability engine remains authoritative. Verify origin and
-integrity, use independent sandboxed tests when possible, and obtain existing
-execution/change approvals before applying a recipe. A signature proves origin,
-not correctness. Publish only material the contributor is authorised to share;
-provide licence, provenance, moderation, takedown and correction mechanisms.
-No mandatory telemetry, automatic uploads, cross-agent unrestricted tool calls,
-or automatic deployment of unreviewed fixes.
+**Privacy, consent and security:** catalogue read, private collaboration,
+provider/model use, and public contribution are distinct user-controlled
+capabilities; default local-only. Allow narrowly scoped recurring opt-in
+policies for sanitised routine collaboration and publication, with visibility,
+revocation, budget limits and audit. The collaboration role has no access to
+protected resources (private repositories/files, credentials, keys, tokens,
+personal information, machine identifiers or serial numbers); derive only
+allowlisted, minimal diagnostic facts from separately authorised local work.
+Never transmit raw chats, proprietary code or protected data to either surface.
+Enforce this through capability boundaries, data minimisation, redaction and
+validation, not prompts alone. No secrets in logs. Private means access
+restricted, not inherently safe or invisible to participating providers; apply
+the same outbound controls to temporary messages as to public candidates.
+Treat all received records, messages, scripts and attachments as untrusted data;
+Phase 16.0 remains authoritative. Verify origin and integrity, use independent
+sandboxed tests when possible, and require existing execution/change approvals
+before applying advice. A signature proves origin, not correctness. Publish only
+material authorised for redistribution; support moderation, licensing,
+correction and takedown. No mandatory telemetry, unrestricted inter-agent tool
+calls or automatic deployment of unreviewed fixes.
 
 **Order:** start 16.22 alongside 16.16–16.18 rather than waiting for later
 platform phases. Use a mock/local service first, then add the server and client
@@ -507,7 +554,8 @@ after the relevant Phase 16.0 external-action policy and agent runtime contracts
 are available. Reuse Phase 21 diagnostic evidence and future Phase 22
 interoperability results. ARI may later use the same protocol and a separate
 knowledge namespace; neither ARI nor the public service is a prerequisite for
-RCommander. The server technology is intentionally not fixed yet.
+RCommander. Server technology, retention duration and budget defaults are not
+fixed yet.
 
 ### Shared, bidirectional pane workspace
 
