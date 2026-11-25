@@ -288,11 +288,25 @@ fn rename(ui: &mut egui::Ui, model: &mut Model, state: &mut RenameState) -> Dial
     DialogAction::None
 }
 
+/// Localised confirmation: one target names the file, multiple targets show a count.
+/// The former passed `count` to a `{name}` template, leaking the placeholder.
+fn delete_confirmation_text(model: &Model, state: &DeleteState) -> String {
+    if state.paths.len() == 1 {
+        let name = std::path::Path::new(&state.paths[0])
+            .file_name()
+            .map(|part| part.to_string_lossy().into_owned())
+            .unwrap_or_else(|| state.paths[0].clone());
+        model.tf("dialog.delete.confirm", &[("name", &name)])
+    } else {
+        model.tf(
+            "dialog.delete.confirm_many",
+            &[("count", &state.count().to_string())],
+        )
+    }
+}
+
 fn delete(ui: &mut egui::Ui, model: &mut Model, state: &mut DeleteState) -> DialogAction {
-    ui.label(model.tf(
-        "dialog.delete.confirm",
-        &[("count", &state.count().to_string())],
-    ));
+    ui.label(delete_confirmation_text(model, state));
     ui.checkbox(&mut state.permanent, model.t("dialog.delete.permanent"));
     let (ok, cancel) = buttons(ui, model);
     if cancel {
@@ -2470,4 +2484,39 @@ fn progress(ui: &mut egui::Ui, model: &mut Model, state: &mut ProgressState) -> 
 /// Bold heading used by several dialogs.
 pub fn heading(ui: &mut egui::Ui, text: &str) {
     ui.label(RichText::new(text).strong());
+}
+
+// Regression: a real Czech language pack must not show literal {name}/{count}.
+#[cfg(test)]
+mod delete_confirmation_tests {
+    use super::*;
+    use crate::i18n::TranslatorStrings;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    #[test]
+    fn delete_question_uses_filename_or_selected_count() {
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../locales");
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local("/"),
+            Location::local("/"),
+        );
+        model.strings = Box::new(TranslatorStrings::discover(&locales, "cs"));
+
+        let single = DeleteState::new(vec!["/tmp/žluťoučký.txt".into()], false);
+        assert_eq!(
+            delete_confirmation_text(&model, &single),
+            "Smazat žluťoučký.txt?"
+        );
+
+        let multiple = DeleteState::new(
+            vec!["/tmp/první.txt".into(), "/tmp/druhý.txt".into()],
+            true,
+        );
+        assert_eq!(
+            delete_confirmation_text(&model, &multiple),
+            "Smazat 2 vybraných položek?"
+        );
+    }
 }
