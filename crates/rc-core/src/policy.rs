@@ -561,11 +561,18 @@ impl Policy {
                     );
                 }
                 if profile == Profile::Privileged {
+                    // The privileged profile *offers* elevation and publication; both stay in
+                    // the approval list, so the grant only decides that the user is asked
+                    // rather than refused outright.
                     policy.grant(
                         Grant::new(
                             "elevated",
                             "administration",
-                            &[Operation::Privileged, Operation::Execute],
+                            &[
+                                Operation::Privileged,
+                                Operation::Execute,
+                                Operation::Publish,
+                            ],
                         )
                         .any_root(),
                     );

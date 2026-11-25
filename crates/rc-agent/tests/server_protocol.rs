@@ -1199,3 +1199,154 @@ fn serve_stdio_returns_cleanly_at_end_of_input() {
     assert!(output.is_empty());
     assert!(!server.is_shutdown());
 }
+
+/// A fake Git capability, so the tools can be exercised without a repository.
+struct FakeGit;
+
+impl rc_agent::GitHost for FakeGit {
+    fn git_status(&self, path: &str) -> Result<Vec<rc_agent::HostGitFile>, String> {
+        assert!(path.contains("repo"), "the tool passes the repo through");
+        Ok(vec![rc_agent::HostGitFile {
+            path: "src/main.rs".into(),
+            codes: " M".into(),
+            state: "Modified".into(),
+        }])
+    }
+    fn git_log(&self, _path: &str, limit: usize) -> Result<Vec<(String, String, String)>, String> {
+        Ok(vec![(
+            "abc12345".to_string(),
+            "first".to_string(),
+            "Test".to_string(),
+        )]
+        .into_iter()
+        .take(limit)
+        .collect())
+    }
+    fn git_branches(&self, _path: &str) -> Result<(Vec<String>, String), String> {
+        Ok((
+            vec!["main".to_string(), "dev".to_string()],
+            "main".to_string(),
+        ))
+    }
+    fn git_stage(&self, _path: &str, files: &[String]) -> Result<usize, String> {
+        Ok(files.len())
+    }
+    fn git_commit(&self, _path: &str, _message: &str, files: &[String]) -> Result<String, String> {
+        Ok(format!("commit-{}", files.len()))
+    }
+    fn git_checkout(&self, _path: &str, branch: &str) -> Result<(), String> {
+        if branch == "missing" {
+            return Err("there is no branch “missing”".to_string());
+        }
+        Ok(())
+    }
+    fn git_pull(&self, _path: &str) -> Result<usize, String> {
+        Ok(2)
+    }
+    fn git_push(&self, _path: &str) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+fn call(server: &TestServer, name: &str, arguments: Value) -> String {
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": { "name": name, "arguments": arguments },
+    });
+    server
+        .handle_json(&request.to_string())
+        .unwrap_or_else(|| panic!("no response for {name}"))
+}
+
+#[test]
+fn a_destructive_git_tool_without_an_approval_handler_changes_nothing() {
+    let server = McpServer::new(Arc::new(FakeHost::new()), ServerConfig::default())
+        .with_git_host(Arc::new(FakeGit));
+    let result = call(
+        &server,
+        "git_commit",
+        json!({ "repo": "/tmp/repo", "message": "x" }),
+    );
+    assert!(result.contains("confirmation required"), "{result}");
+}
+
+#[test]
+fn git_tools_are_published_only_with_a_git_host() {
+    let (_host, server) = setup();
+    let names: Vec<String> = server.tools().into_iter().map(|tool| tool.name).collect();
+    assert!(!names.iter().any(|name| name.starts_with("git_")));
+
+    let git = McpServer::new(Arc::new(FakeHost::new()), ServerConfig::default())
+        .with_git_host(Arc::new(FakeGit));
+    assert!(git.supports_git());
+    let tools = git.tools();
+    let names: Vec<String> = tools.iter().map(|tool| tool.name.clone()).collect();
+    for expected in [
+        "git_status",
+        "git_log",
+        "git_branches",
+        "git_stage",
+        "git_commit",
+        "git_checkout",
+        "git_pull",
+        "git_push",
+    ] {
+        assert!(
+            names.contains(&expected.to_string()),
+            "{expected} in {names:?}"
+        );
+    }
+    // The mutating ones are destructive and require confirmation; reading is not.
+    for name in [
+        "git_stage",
+        "git_commit",
+        "git_checkout",
+        "git_pull",
+        "git_push",
+    ] {
+        let tool = tools.iter().find(|tool| tool.name == name).unwrap();
+        assert!(tool.destructive, "{name} is destructive");
+        assert!(tool.requires_confirmation, "{name} requires confirmation");
+    }
+    assert!(
+        !tools
+            .iter()
+            .find(|t| t.name == "git_status")
+            .unwrap()
+            .destructive
+    );
+}
+
+#[test]
+fn the_git_read_tools_report_what_the_repository_holds() {
+    let server = McpServer::new(Arc::new(FakeHost::new()), ServerConfig::default())
+        .with_git_host(Arc::new(FakeGit));
+    let status = call(&server, "git_status", json!({ "repo": "/tmp/repo" }));
+    assert!(status.contains("src/main.rs"), "{status}");
+    let branches = call(&server, "git_branches", json!({ "repo": "/tmp/repo" }));
+    assert!(branches.contains("main"), "{branches}");
+    assert!(branches.contains("dev"), "{branches}");
+    let log = call(
+        &server,
+        "git_log",
+        json!({ "repo": "/tmp/repo", "limit": 5 }),
+    );
+    assert!(log.contains("abc12345"), "{log}");
+}
+
+#[test]
+fn a_git_tool_failure_is_reported_to_the_caller() {
+    let server = McpServer::new(Arc::new(FakeHost::new()), ServerConfig::default())
+        .with_git_host(Arc::new(FakeGit))
+        // A destructive tool needs an approval handler; the fake one approves everything so
+        // the call reaches the host and its own error can be checked.
+        .with_confirmer(Arc::new(TestConfirmer::allowing()));
+    let result = call(
+        &server,
+        "git_checkout",
+        json!({ "repo": "/tmp/repo", "branch": "missing" }),
+    );
+    assert!(result.contains("no branch"), "{result}");
+}

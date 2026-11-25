@@ -69,8 +69,8 @@ pub mod server;
 
 pub use client::{McpClient, McpClientConfig, McpError, ServerInfo, ToolResult, Transport};
 pub use host::{
-    Confirmer, FileManagerHost, HostOpResult, HostPanel, LanguageHost, PanelSide, SearchRequest,
-    SelectMode,
+    Confirmer, FileManagerHost, GitHost, HostGitFile, HostOpResult, HostPanel, LanguageHost,
+    PanelSide, SearchRequest, SelectMode,
 };
 pub use jsonrpc::{RpcError, RpcMessage, RpcResponse};
 pub use server::{McpServer, ServerConfig, ToolDescriptor};

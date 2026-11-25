@@ -16,7 +16,8 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde_json::{Map, Value, json};
 
 use crate::host::{
-    Confirmer, FileManagerHost, HostPanel, LanguageHost, PanelSide, SearchRequest, SelectMode,
+    Confirmer, FileManagerHost, GitHost, HostPanel, LanguageHost, PanelSide, SearchRequest,
+    SelectMode,
 };
 use crate::jsonrpc::{self, RpcError, RpcMessage};
 use crate::{DEFAULT_MAX_READ_BYTES, DEFAULT_SERVER_NAME, HELP_URI_PREFIX, PROTOCOL_VERSION};
@@ -206,6 +207,7 @@ struct ServerState {
     shutdown: bool,
     confirmer: Option<Arc<dyn Confirmer>>,
     language_host: Option<Arc<dyn LanguageHost>>,
+    git_host: Option<Arc<dyn GitHost>>,
 }
 
 impl std::fmt::Debug for ServerState {
@@ -249,6 +251,7 @@ impl<H: FileManagerHost> McpServer<H> {
                 shutdown: false,
                 confirmer: None,
                 language_host: None,
+                git_host: None,
             }),
         }
     }
@@ -266,6 +269,17 @@ impl<H: FileManagerHost> McpServer<H> {
     }
 
     /// Register the language-switching capability (builder style); this is what
+    /// Register the Git capability; this publishes the `git_*` tools.
+    pub fn with_git_host(self, git_host: Arc<dyn GitHost>) -> Self {
+        self.state_write().git_host = Some(git_host);
+        self
+    }
+
+    /// Whether the `git_*` tools are published.
+    pub fn supports_git(&self) -> bool {
+        self.state_read().git_host.is_some()
+    }
+
     /// makes the server publish the `set_language` tool.
     #[must_use]
     pub fn with_language_host(self, language_host: Arc<dyn LanguageHost>) -> Self {
@@ -924,6 +938,82 @@ impl<H: FileManagerHost> McpServer<H> {
                     ))),
                 }
             }
+            "git_status" | "git_log" | "git_branches" | "git_stage" | "git_commit"
+            | "git_checkout" | "git_pull" | "git_push" => {
+                let git_host = self.state_read().git_host.clone();
+                let Some(git_host) = git_host else {
+                    return Ok(error_result(
+                        "this RCommander instance has no Git engine registered",
+                    ));
+                };
+                let repo = args.req_str("repo")?;
+                match name {
+                    "git_status" => {
+                        let files = host_call!(name, git_host.git_status(&repo));
+                        if files.is_empty() {
+                            return Ok(text_result(format!("`{repo}` has no changes.")));
+                        }
+                        let mut text = format!("{} changed file(s) in `{repo}`:\n", files.len());
+                        for file in files {
+                            text.push_str(&format!(
+                                "  {} {}  {}\n",
+                                file.codes, file.state, file.path
+                            ));
+                        }
+                        Ok(text_result(text))
+                    }
+                    "git_log" => {
+                        let limit = args.opt_u64("limit")?.unwrap_or(20).clamp(1, 200) as usize;
+                        let commits = host_call!(name, git_host.git_log(&repo, limit));
+                        let mut text = format!("Last {} commit(s) of `{repo}`:\n", commits.len());
+                        for (id, summary, author) in commits {
+                            text.push_str(&format!("  {id}  {summary}  ({author})\n"));
+                        }
+                        Ok(text_result(text))
+                    }
+                    "git_branches" => {
+                        let (branches, current) = host_call!(name, git_host.git_branches(&repo));
+                        let mut text = format!("Branches of `{repo}` (current: `{current}`):\n");
+                        for branch in branches {
+                            let marker = if branch == current { "*" } else { " " };
+                            text.push_str(&format!("  {marker} {branch}\n"));
+                        }
+                        Ok(text_result(text))
+                    }
+                    "git_stage" => {
+                        let files = args.req_str_list("files")?;
+                        let staged = host_call!(name, git_host.git_stage(&repo, &files));
+                        Ok(text_result(format!("Staged {staged} path(s) in `{repo}`.")))
+                    }
+                    "git_commit" => {
+                        let message = args.req_str("message")?;
+                        let files = if args.get("files").is_some() {
+                            args.req_str_list("files")?
+                        } else {
+                            Vec::new()
+                        };
+                        let id = host_call!(name, git_host.git_commit(&repo, &message, &files));
+                        Ok(text_result(format!("Committed as `{id}`: {message}")))
+                    }
+                    "git_checkout" => {
+                        let branch = args.req_str("branch")?;
+                        host_call!(name, git_host.git_checkout(&repo, &branch));
+                        Ok(text_result(format!("Checked out `{branch}` in `{repo}`.")))
+                    }
+                    "git_pull" => {
+                        let moved = host_call!(name, git_host.git_pull(&repo));
+                        Ok(text_result(format!(
+                            "Pulled {moved} commit(s) into `{repo}` (fast-forward only)."
+                        )))
+                    }
+                    _ => {
+                        host_call!(name, git_host.git_push(&repo));
+                        Ok(text_result(format!(
+                            "Pushed the current branch of `{repo}`."
+                        )))
+                    }
+                }
+            }
             "get_view_mode" => {
                 let panel = args.opt_panel()?;
                 let side = self.resolved_side(panel);
@@ -1479,6 +1569,104 @@ impl<H: FileManagerHost> McpServer<H> {
                 destructive: false,
                 requires_confirmation: false,
             });
+        }
+
+        if self.supports_git() {
+            let repo = json!({
+                "type": "string",
+                "description": "Path inside the repository (any directory of the working tree).",
+            });
+            let files = json!({
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Paths relative to the repository root. Omit to use everything \
+                                already staged.",
+            });
+            for (name, title, description, schema, destructive) in [
+                (
+                    "git_status",
+                    "Git status",
+                    "List the changed files of a repository: two-letter status codes, state and \
+                     path. This is a read-only look at the working tree.",
+                    json!({ "type": "object", "properties": { "repo": repo }, "required": ["repo"] }),
+                    false,
+                ),
+                (
+                    "git_log",
+                    "Git log",
+                    "Show the most recent commits (short id, summary, author).",
+                    json!({ "type": "object", "properties": {
+                        "repo": repo,
+                        "limit": { "type": "integer", "minimum": 1, "maximum": 200 },
+                    }, "required": ["repo"] }),
+                    false,
+                ),
+                (
+                    "git_branches",
+                    "Git branches",
+                    "List the local branches and report which one is checked out.",
+                    json!({ "type": "object", "properties": { "repo": repo }, "required": ["repo"] }),
+                    false,
+                ),
+                (
+                    "git_stage",
+                    "Stage files",
+                    "Put files into the Git index (they become part of the next commit). Requires \
+                     the user's permission; a refusal is reported, never worked around.",
+                    json!({ "type": "object", "properties": {
+                        "repo": repo,
+                        "files": { "type": "array", "items": { "type": "string" } },
+                    }, "required": ["repo", "files"] }),
+                    true,
+                ),
+                (
+                    "git_commit",
+                    "Commit",
+                    "Stage the given files (when any are given) and create a commit with the \
+                     message. This changes the repository history and needs the user's approval.",
+                    json!({ "type": "object", "properties": {
+                        "repo": repo,
+                        "message": { "type": "string", "description": "Commit message." },
+                        "files": files,
+                    }, "required": ["repo", "message"] }),
+                    true,
+                ),
+                (
+                    "git_checkout",
+                    "Switch branch",
+                    "Check out another local branch of the repository.",
+                    json!({ "type": "object", "properties": {
+                        "repo": repo,
+                        "branch": { "type": "string" },
+                    }, "required": ["repo", "branch"] }),
+                    true,
+                ),
+                (
+                    "git_pull",
+                    "Pull",
+                    "Fetch the remote and fast-forward the current branch. Divergence and a dirty \
+                     working tree are reported instead of merged.",
+                    json!({ "type": "object", "properties": { "repo": repo }, "required": ["repo"] }),
+                    true,
+                ),
+                (
+                    "git_push",
+                    "Push",
+                    "Push the current branch to its upstream. This publishes to another machine \
+                     and needs an explicit approval.",
+                    json!({ "type": "object", "properties": { "repo": repo }, "required": ["repo"] }),
+                    true,
+                ),
+            ] {
+                tools.push(ToolDescriptor {
+                    name: name.to_string(),
+                    title: title.to_string(),
+                    description: description.to_string(),
+                    input_schema: schema,
+                    destructive,
+                    requires_confirmation: destructive,
+                });
+            }
         }
 
         tools.push(ToolDescriptor {

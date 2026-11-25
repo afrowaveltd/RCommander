@@ -167,6 +167,30 @@ The model keeps the loaded configuration in `git_config`, offering `git_identity
 `git_credential_for(protocol, host)`, `git_rewrite_url(url)` and `git_config_summary()`
 to the parts that will use them (remote authentication in 15.4b, clone in 15.5).
 
+## Phase 16.0 / MCP — Git tools for the agent (done)
+
+`cargo test -p rc-agent --test server_protocol` → **44 tests**, `cargo test -p rcommander --lib
+git_host_tests` → **4 tests**, and the release binary was driven over stdio to confirm it.
+
+`rc-agent` grew a `GitHost` capability (like the existing `LanguageHost`): eight tools —
+`git_status`, `git_log`, `git_branches` (read-only) and `git_stage`, `git_commit`,
+`git_checkout`, `git_pull`, `git_push` (destructive, confirmation required) — published only when
+a front-end registers the capability. `rcommander` implements it on the shared model, and **every
+mutating call goes through `Model::evaluate`**, so the agent gets the same three answers a human
+would: allowed, refused with a reason, or "the user must approve this first".
+
+Measured behaviour of the release binary (`rcommander mcp`) against a real temporary repository:
+
+* `git_status` → `1 changed file(s) … M Modified a.txt`
+* `git_branches` → `(current: master)`
+* `git_log` → `ad8390a6  first  (Test)`
+* `git_commit` → **refused**: "confirmation required: the destructive tool `git_commit` needs
+  approval, but no approval handler is registered with this MCP server, so nothing was changed"
+
+That last line is the point: the headless `mcp` subcommand has no approval handler, so destructive
+tools fail closed instead of running unattended. A front-end that wants them (or a future
+`--allow` mode) has to install a confirmer explicitly.
+
 ## Phase 16.0 — policy and safe-change foundation (engine done)
 
 `cargo test -p rc-core --lib policy` → **12 tests**, `cargo test -p rc-core --lib transaction`

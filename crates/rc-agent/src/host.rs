@@ -288,6 +288,49 @@ pub trait Confirmer: Send + Sync {
     fn confirm(&self, tool: &str, args: &serde_json::Value) -> bool;
 }
 
+/// One changed file as the Git tools report it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HostGitFile {
+    /// Path relative to the repository root.
+    pub path: String,
+    /// Two-letter status in the style of `git status --short` (`M `, ` M`, `??`, `!!`).
+    pub codes: String,
+    /// Human readable state (`modified`, `staged addition`, `ignored`, …).
+    pub state: String,
+}
+
+/// Optional capability: read and change a Git repository.
+///
+/// Kept out of [`FileManagerHost`] on purpose: a front-end without a Git engine simply does
+/// not register one, and the server then publishes none of the Git tools. Every mutating
+/// method goes through the application's policy engine, so a tool call that the user has not
+/// granted fails with an explanation instead of quietly doing the work.
+pub trait GitHost: Send + Sync {
+    /// Changed files of the repository containing `path` (`"M "`, `"??"`, …).
+    fn git_status(&self, path: &str) -> Result<Vec<HostGitFile>, String>;
+
+    /// The last `limit` commits as `(short id, summary, author)`.
+    fn git_log(&self, path: &str, limit: usize) -> Result<Vec<(String, String, String)>, String>;
+
+    /// Local branches and the current one.
+    fn git_branches(&self, path: &str) -> Result<(Vec<String>, String), String>;
+
+    /// Put `files` into the index; returns how many were staged.
+    fn git_stage(&self, path: &str, files: &[String]) -> Result<usize, String>;
+
+    /// Stage `files` (when given) and commit them; returns the short commit id.
+    fn git_commit(&self, path: &str, message: &str, files: &[String]) -> Result<String, String>;
+
+    /// Check out `branch`.
+    fn git_checkout(&self, path: &str, branch: &str) -> Result<(), String>;
+
+    /// Fetch and fast-forward the current branch; returns how many commits arrived.
+    fn git_pull(&self, path: &str) -> Result<usize, String>;
+
+    /// Push the current branch.
+    fn git_push(&self, path: &str) -> Result<(), String>;
+}
+
 /// Optional capability: changing the UI language.
 ///
 /// It is deliberately not part of [`FileManagerHost`]: a front-end that cannot

@@ -19,7 +19,10 @@ pub fn serve_stdio(model: Model) -> Result<(), String> {
     };
     // The bridge also switches the UI language, which publishes `set_language`.
     let language_host: Arc<dyn rc_agent::LanguageHost> = host.clone();
-    let server = rc_agent::McpServer::new(host, config).with_language_host(language_host);
+    let git_host: Arc<dyn rc_agent::GitHost> = host.clone();
+    let server = rc_agent::McpServer::new(host, config)
+        .with_language_host(language_host)
+        .with_git_host(git_host);
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     server
@@ -473,5 +476,288 @@ mod language_tests {
             "tools: {names_with:?}"
         );
         assert_eq!(names_with.len(), names_without.len() + 1);
+    }
+}
+
+/// The Git capability as the MCP server sees it.
+///
+/// Every mutating call goes through [`Model::evaluate`], so the agent gets the same three
+/// answers a human would: allowed, refused with a reason, or "the user must approve this
+/// first". Nothing here widens the policy to make a tool convenient.
+impl rc_agent::GitHost for HostBridge {
+    fn git_status(&self, path: &str) -> Result<Vec<rc_agent::HostGitFile>, String> {
+        let repo = open_repo(path)?;
+        let status = repo.status().map_err(|error| error.to_string())?;
+        let mut files: Vec<rc_agent::HostGitFile> = status
+            .entries
+            .iter()
+            .map(|(path, entry)| rc_agent::HostGitFile {
+                path: path.clone(),
+                codes: entry.codes(),
+                state: describe_status(*entry),
+            })
+            .collect();
+        files.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(files)
+    }
+
+    fn git_log(&self, path: &str, limit: usize) -> Result<Vec<(String, String, String)>, String> {
+        let repo = open_repo(path)?;
+        Ok(repo
+            .commits(limit.clamp(1, 200))
+            .into_iter()
+            .map(|commit| (commit.short, commit.summary, commit.author))
+            .collect())
+    }
+
+    fn git_branches(&self, path: &str) -> Result<(Vec<String>, String), String> {
+        let repo = open_repo(path)?;
+        let branches: Vec<String> = repo.branches().into_iter().map(|b| b.name).collect();
+        Ok((branches, repo.head_branch().unwrap_or_default()))
+    }
+
+    fn git_stage(&self, path: &str, files: &[String]) -> Result<usize, String> {
+        let repo = open_repo(path)?;
+        let root = repo.root().to_path_buf();
+        let mut model = lock(&self.model);
+        for file in files {
+            model.evaluate(&rc_core::policy::Request {
+                operation: rc_core::policy::Operation::Write,
+                resource: Some(root.join(file)),
+                destination: Some(rc_core::policy::Destination::Local(root.join(file))),
+                origin: "agent".to_string(),
+            })?;
+        }
+        repo.stage_paths(files).map_err(|error| error.to_string())
+    }
+
+    fn git_commit(&self, path: &str, message: &str, files: &[String]) -> Result<String, String> {
+        let repo = open_repo(path)?;
+        let root = repo.root().to_path_buf();
+        let mut model = lock(&self.model);
+        // Committing is a change to the repository, so it asks like any other write.
+        model.evaluate(&rc_core::policy::Request {
+            operation: rc_core::policy::Operation::Write,
+            resource: Some(root.clone()),
+            destination: Some(rc_core::policy::Destination::Local(root.clone())),
+            origin: "agent".to_string(),
+        })?;
+        let paths: Vec<String> = if files.is_empty() {
+            repo.status()
+                .map_err(|error| error.to_string())?
+                .entries
+                .into_iter()
+                .map(|(path, _)| path)
+                .collect()
+        } else {
+            files.to_vec()
+        };
+        if !paths.is_empty() {
+            repo.stage_paths(&paths)
+                .map_err(|error| error.to_string())?;
+        }
+        let identity = model
+            .git_identity()
+            .map(|id| (id.name.clone(), id.email.clone()));
+        let commit = repo
+            .commit_staged(
+                message,
+                identity
+                    .as_ref()
+                    .map(|(name, email)| (name.as_str(), email.as_str())),
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(commit.short)
+    }
+
+    fn git_checkout(&self, path: &str, branch: &str) -> Result<(), String> {
+        let repo = open_repo(path)?;
+        let root = repo.root().to_path_buf();
+        let mut model = lock(&self.model);
+        model.evaluate(&rc_core::policy::Request {
+            operation: rc_core::policy::Operation::Write,
+            resource: Some(root),
+            destination: None,
+            origin: "agent".to_string(),
+        })?;
+        repo.checkout_branch(branch, false)
+            .map_err(|error| error.to_string())
+    }
+
+    fn git_pull(&self, path: &str) -> Result<usize, String> {
+        let repo = open_repo(path)?;
+        let root = repo.root().to_path_buf();
+        let mut model = lock(&self.model);
+        model.evaluate(&rc_core::policy::Request {
+            operation: rc_core::policy::Operation::Network,
+            resource: Some(root),
+            destination: None,
+            origin: "agent".to_string(),
+        })?;
+        let remote = repo
+            .remotes()
+            .into_iter()
+            .next()
+            .ok_or_else(|| "this repository has no remote".to_string())?;
+        repo.fetch(&remote, None)
+            .map_err(|error| error.to_string())?;
+        repo.pull_fast_forward().map_err(|error| error.to_string())
+    }
+
+    fn git_push(&self, path: &str) -> Result<(), String> {
+        let repo = open_repo(path)?;
+        let root = repo.root().to_path_buf();
+        let mut model = lock(&self.model);
+        // Publishing is the one operation that always needs its own approval.
+        model.evaluate(&rc_core::policy::Request {
+            operation: rc_core::policy::Operation::Publish,
+            resource: Some(root),
+            destination: None,
+            origin: "agent".to_string(),
+        })?;
+        let request = repo.push_request().map_err(|error| error.to_string())?;
+        repo.push(&request, None).map_err(|error| error.to_string())
+    }
+}
+
+/// Open the repository containing `path`.
+fn open_repo(path: &str) -> Result<rc_git::GitRepo, String> {
+    rc_git::GitRepo::open(path).map_err(|error| error.to_string())
+}
+
+/// A short human-readable state for a status entry.
+fn describe_status(entry: rc_git::StatusEntry) -> String {
+    match (entry.staged, entry.unstaged) {
+        (Some(staged), Some(unstaged)) => format!("{staged:?} (staged) + {unstaged:?}"),
+        (Some(staged), None) => format!("{staged:?} (staged)"),
+        (None, Some(unstaged)) => format!("{unstaged:?}"),
+        (None, None) => "clean".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod git_host_tests {
+    use super::*;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    /// A bridge over a model whose policy grants the temporary directory.
+    fn bridge(dir: &std::path::Path, profile: &str) -> (HostBridge, std::path::PathBuf) {
+        let root = dir.join("repo");
+        std::fs::create_dir_all(&root).unwrap();
+        let mut options = git2::RepositoryInitOptions::new();
+        options.initial_head("main");
+        let repo = git2::Repository::init_opts(&root, &options).unwrap();
+        {
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Test").unwrap();
+            config.set_str("user.email", "t@example.com").unwrap();
+        }
+        std::fs::write(root.join("code.rs"), "fn main() {}\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let signature = git2::Signature::now("Test", "t@example.com").unwrap();
+        repo.commit(Some("HEAD"), &signature, &signature, "first", &tree, &[])
+            .unwrap();
+
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local(&root),
+            Location::local(&root),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model.audit = rc_core::audit::AuditLog::new(dir.join("audit.log"), true);
+        model.settings.agent.profile = profile.to_string();
+        model.settings.agent.sandbox_roots = vec![root.to_string_lossy().to_string()];
+        model.refresh_policy();
+        let bridge = HostBridge {
+            model: Arc::new(Mutex::new(model)),
+        };
+        (bridge, root)
+    }
+
+    #[test]
+    fn the_read_tools_work_without_any_grant() {
+        let dir = tempfile::tempdir().unwrap();
+        let (bridge, root) = bridge(dir.path(), "sandbox");
+        let path = root.to_string_lossy().to_string();
+        let branches = rc_agent::GitHost::git_branches(&bridge, &path).unwrap();
+        assert_eq!(branches.1, "main");
+        let log = rc_agent::GitHost::git_log(&bridge, &path, 5).unwrap();
+        assert_eq!(log[0].1, "first");
+        // A clean tree reports no changes.
+        assert!(
+            rc_agent::GitHost::git_status(&bridge, &path)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_commit_inside_the_sandbox_goes_through_the_policy_and_the_audit() {
+        let dir = tempfile::tempdir().unwrap();
+        let (bridge, root) = bridge(dir.path(), "sandbox");
+        let path = root.to_string_lossy().to_string();
+        std::fs::write(root.join("code.rs"), "fn main() { changed }\n").unwrap();
+        let id =
+            rc_agent::GitHost::git_commit(&bridge, &path, "agent edit", &["code.rs".to_string()])
+                .expect("the sandbox grant covers the write");
+        assert_eq!(id.len(), 8);
+        let model = lock(&bridge.model);
+        let events = model.audit().read();
+        assert!(
+            events
+                .iter()
+                .any(|event| event.verdict == rc_core::audit::Verdict::Allowed)
+        );
+        assert!(model.audit_state().is_intact());
+    }
+
+    #[test]
+    fn a_commit_outside_the_granted_folder_is_refused_with_a_reason() {
+        let dir = tempfile::tempdir().unwrap();
+        let (bridge, root) = bridge(dir.path(), "sandbox");
+        // Narrow the sandbox to something else, so the repository is not covered.
+        {
+            let mut model = lock(&bridge.model);
+            model.settings.agent.sandbox_roots =
+                vec![dir.path().join("elsewhere").to_string_lossy().to_string()];
+            model.refresh_policy();
+        }
+        std::fs::write(root.join("code.rs"), "fn main() { changed }\n").unwrap();
+        let error = rc_agent::GitHost::git_commit(
+            &bridge,
+            &root.to_string_lossy(),
+            "should not happen",
+            &["code.rs".to_string()],
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("grant") || error.contains("covers"),
+            "the refusal explains itself: {error}"
+        );
+    }
+
+    #[test]
+    fn pushing_always_asks_for_an_approval_and_never_runs_silently() {
+        let dir = tempfile::tempdir().unwrap();
+        let (bridge, root) = bridge(dir.path(), "privileged");
+        let error = rc_agent::GitHost::git_push(&bridge, &root.to_string_lossy()).unwrap_err();
+        assert!(error.contains("approval"), "{error}");
+        // And the attempt is in the audit trail.
+        let model = lock(&bridge.model);
+        assert!(
+            model
+                .audit()
+                .read()
+                .iter()
+                .any(|event| event.operation == "publish"),
+            "the publish attempt was recorded"
+        );
     }
 }
