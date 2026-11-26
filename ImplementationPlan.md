@@ -1392,6 +1392,37 @@ user data on somebody else's machine:
   application runs, instead of losing the transcript quietly. The same rule as a plugin source: an
   empty list is never a stand-in for a failure.
 
+**Which store to use is a policy question, not a preference (decided 2026-11).** The owner's point is
+the one that ties this to everything else in Phase 16: a database on the same machine, over a local
+socket, is a very different proposition from one across a WireGuard link or the open internet. So the
+store choice goes through the *same* layered policy as the agent's other powers, with the same
+vocabulary, and the zone decides what is even offered:
+
+| Where the store is | The policy says |
+| --- | --- |
+| a file in the configuration directory | always allowed; no network, no credentials, nothing to leak |
+| a local server over a socket (`localhost`) | allowed by default for the owner's own machine, credentials still from the encrypted store |
+| a server on a trusted network (a home link, an office LAN) | asks once per zone, and the audit records the zone like any other operation |
+| a server on the open internet | asks every time unless the human made it explicit; a transcript is what was asked and what was answered |
+
+**SQLite is not a "small" choice, it is a *local* one — and local is what needs lifecycle attention.**
+A daily administrative user is right to worry: a transcript table grows without ever being read again.
+So the store gets its own housekeeping regardless of engine, and it is part of the first increment
+rather than a later polish:
+
+- **retention**: `chat.keep` says how long (`off`, `30 days`, `1 year`, `forever`), and pruning is one
+  operation with a count in the status line ("removed 412 messages older than 30 days");
+- **size ceiling**: a stated maximum with a warning *before* it is hit, because a full disk discovered
+  by a failed save is the worst possible way to learn about it;
+- **vacuum and checkpoint**: after pruning, so the file actually shrinks instead of holding the holes;
+- **WAL mode and a busy timeout**: two settings that turn "the database is locked" from a bug report
+  into something the engine handles;
+- **export before delete**: pruning writes the Markdown export of what it is about to drop, so
+  retention is never data loss.
+
+SQLite handles far more than a year of conversations comfortably — the number that matters is not
+rows but *unread* rows, and the answer to those is retention, not a bigger server.
+
 The schema is ours and dialect-free where it can be: one table of sessions, one of messages, both with
 an explicit schema version, and migrations written in code so a store created by one version opens in
 the next. Remote backends use the same schema, which is what makes "my history is on my server" a
