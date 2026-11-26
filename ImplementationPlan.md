@@ -1247,8 +1247,15 @@ Three rules that come from the existing design rather than from plugins:
 - **The manifest is data the user installed, not data the network sent.** A remote party can influence
   which *rows* appear; it can never influence which *argv* runs.
 
-Deliberately later: the `mcp` backend (the same manifest, with `list` naming a tool and
-`columns[].field` naming the JSON key), declared row verbs, sorting inside a source, and writes.
+The `mcp` backend is the same manifest with `backend = "mcp"`, `server` naming an entry from the MCP
+agent panel, `list`/`open` naming tools, and `list_arguments`/`open_arguments` carrying the arguments
+(`{path}` is the only substitution, and it lands inside a JSON value rather than inside a string that
+would need escaping). It shares every line of the column mapping and the capability gate with the
+command backend — which is the test of the abstraction: adding it changed no column, no panel and no
+key. It connects per call rather than holding a child process open for an unattended panel, and it
+refuses to declare an operation it cannot perform.
+
+Deliberately later: declared row verbs, sorting inside a source, and writes through either backend.
 Nothing above changes when they arrive.
 
 ### Universal panels: "the Commander can command anything"

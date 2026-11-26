@@ -75,20 +75,153 @@ impl CommandRunner for ProcessRunner {
     }
 }
 
+/// Somebody who can call one tool on an MCP server.
+///
+/// Returns the tool's payload as JSON: the `structuredContent` object when the server sends one,
+/// otherwise its text blocks parsed as JSON. Flattening that difference here is what lets the rest
+/// of the source stay identical for both backends.
+pub trait McpCaller: Send + Sync {
+    /// Call `tool` with `arguments`.
+    fn call(&self, tool: &str, arguments: serde_json::Value) -> CoreResult<serde_json::Value>;
+}
+
+/// A caller that connects to one configured MCP server for the duration of one call.
+///
+/// A connection per call is deliberate: the source is used when a panel refreshes, and holding a
+/// child process open for a panel nobody is looking at would leak processes. The cost is one
+/// handshake per refresh, which the status line reports as a wait.
+pub struct ServerCaller {
+    config: rc_agent::McpClientConfig,
+}
+
+impl ServerCaller {
+    /// Build a caller for one configured server.
+    pub fn new(config: rc_agent::McpClientConfig) -> ServerCaller {
+        ServerCaller { config }
+    }
+
+    /// The server this caller reaches, for messages.
+    pub fn name(&self) -> &str {
+        &self.config.name
+    }
+}
+
+impl McpCaller for ServerCaller {
+    fn call(&self, tool: &str, arguments: serde_json::Value) -> CoreResult<serde_json::Value> {
+        let mut client = rc_agent::McpClient::connect(&self.config).map_err(|error| {
+            CoreError::Invalid(format!(
+                "cannot reach the MCP server “{}”: {error}",
+                self.config.name
+            ))
+        })?;
+        let result = client.call_tool(tool, arguments).map_err(|error| {
+            CoreError::Invalid(format!(
+                "“{}” on “{}” failed: {error}",
+                tool, self.config.name
+            ))
+        })?;
+        let _ = client.close();
+        if result.is_error {
+            return Err(CoreError::Invalid(format!(
+                "“{}” on “{}” reported: {}",
+                tool,
+                self.config.name,
+                result.text.trim()
+            )));
+        }
+        // A server may answer with structured content (the clean case) or with text that happens to
+        // be JSON (the common case in the wild). Both are accepted; anything else is an error that
+        // names what arrived rather than an empty panel.
+        if let Some(structured) = result.raw.get("structuredContent")
+            && !structured.is_null()
+        {
+            return Ok(structured.clone());
+        }
+        let text = result.text.trim();
+        if text.is_empty() {
+            return Ok(serde_json::Value::Array(Vec::new()));
+        }
+        serde_json::from_str(text).map_err(|error| {
+            CoreError::Invalid(format!(
+                "“{}” on “{}” did not return JSON ({error}); expected an array of objects",
+                tool, self.config.name
+            ))
+        })
+    }
+}
+
+/// Which backend answers for a source.
+enum Fetch {
+    /// A program that prints rows.
+    Program(Box<dyn CommandRunner>),
+    /// A tool on an MCP server.
+    Tools(Box<dyn McpCaller>),
+}
+
 /// A live source backed by one manifest.
 pub struct ManifestSource {
     manifest: PluginManifest,
-    runner: Box<dyn CommandRunner>,
+    fetch: Fetch,
     /// Cached rows, keyed by the row's handle, for the panel's per-cell questions.
     rows: Mutex<HashMap<String, serde_json::Map<String, serde_json::Value>>>,
 }
 
 impl ManifestSource {
-    /// Build the source for a validated manifest.
+    /// Build a `command` source for a validated manifest.
     pub fn new(manifest: PluginManifest, runner: Box<dyn CommandRunner>) -> ManifestSource {
         ManifestSource {
             manifest,
-            runner,
+            fetch: Fetch::Program(runner),
+            rows: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Build the source a manifest asks for, using the configured MCP servers.
+    ///
+    /// A manifest that names a server nobody configured is not a source: it would be a panel that
+    /// fails on every refresh. The error says which server and where to add it, and the caller
+    /// reports it once at load instead of once per keystroke.
+    pub fn from_manifest(
+        manifest: PluginManifest,
+        settings: &rc_core::config::Settings,
+    ) -> Result<ManifestSource, rc_core::plugin::ManifestError> {
+        match manifest.source.backend {
+            rc_core::plugin::Backend::Command => {
+                Ok(ManifestSource::new(manifest, Box::new(ProcessRunner)))
+            }
+            rc_core::plugin::Backend::Mcp => {
+                let wanted = manifest.source.server.as_str();
+                let config = settings
+                    .agent
+                    .clients
+                    .iter()
+                    .find(|entry| {
+                        let name = if entry.name.trim().is_empty() {
+                            entry.command.trim()
+                        } else {
+                            entry.name.trim()
+                        };
+                        name.eq_ignore_ascii_case(wanted)
+                    })
+                    .and_then(crate::ui::agent_panel::config_from_entry);
+                let Some(config) = config else {
+                    return Err(rc_core::plugin::ManifestError::NeedsServer(
+                        wanted.to_string(),
+                    ));
+                };
+                Ok(ManifestSource::with_tools(
+                    manifest,
+                    Box::new(ServerCaller::new(config)),
+                ))
+            }
+        }
+    }
+
+    /// Build an `mcp` source for a validated manifest.
+    pub fn with_tools(manifest: PluginManifest, caller: Box<dyn McpCaller>) -> ManifestSource {
+        ManifestSource {
+            manifest,
+            fetch: Fetch::Tools(caller),
             rows: Mutex::new(HashMap::new()),
         }
     }
@@ -158,7 +291,7 @@ impl ManifestSource {
 
     /// Run the listing command and turn stdout into rows plus a cache.
     fn list_rows(&self) -> CoreResult<Vec<Entry>> {
-        let stdout = self.runner.run(&self.spec().list, self.working_dir())?;
+        let stdout = self.fetch_rows()?;
         let value: serde_json::Value = serde_json::from_str(stdout.trim()).map_err(|error| {
             CoreError::Invalid(format!(
                 "“{}” did not print JSON ({}); expected an array of objects",
@@ -237,14 +370,22 @@ impl Model {
         let mut problems = Vec::new();
         let mut loaded: std::collections::BTreeMap<String, String> =
             std::collections::BTreeMap::new();
+        let settings = self.settings.clone();
         for root in roots {
             let discovery = rc_core::plugin::discover_in(&root);
             for manifest in discovery.plugins {
-                loaded.insert(manifest.plugin.id.clone(), manifest.source.name.clone());
-                self.sources.register(Box::new(ManifestSource::new(
-                    manifest,
-                    Box::new(ProcessRunner),
-                )));
+                // Kept before the manifest is moved into the source, for the problem's path.
+                let manifest_path = manifest.directory.join("plugin.toml");
+                match ManifestSource::from_manifest(manifest, &settings) {
+                    Ok(source) => {
+                        loaded.insert(source.id().to_string(), source.title().to_string());
+                        self.sources.register(Box::new(source));
+                    }
+                    Err(reason) => problems.push(rc_core::plugin::PluginProblem {
+                        path: manifest_path,
+                        reason,
+                    }),
+                }
             }
             problems.extend(discovery.problems);
         }
@@ -267,6 +408,46 @@ impl Model {
     pub fn plugin_sources(&self) -> &[(String, String)] {
         &self.plugins_loaded
     }
+}
+
+impl ManifestSource {
+    /// The rows, as JSON text, from whichever backend this source has.
+    fn fetch_rows(&self) -> CoreResult<String> {
+        let spec = self.spec();
+        match &self.fetch {
+            Fetch::Program(runner) => runner.run(&spec.list, self.working_dir()),
+            Fetch::Tools(caller) => {
+                let tool = spec
+                    .list
+                    .first()
+                    .map(|name| name.as_str())
+                    .unwrap_or_default();
+                let arguments = json_arguments(&spec.list_arguments, None);
+                let value = caller.call(tool, arguments)?;
+                Ok(value.to_string())
+            }
+        }
+    }
+}
+
+/// Arguments for one MCP call, with `{path}` replaced by the row's handle.
+///
+/// The substitution happens inside a value, so a handle containing quotes or braces stays a value
+/// in a JSON object: there is no string to escape into, because this object is serialised by
+/// `serde_json` rather than pasted together by hand.
+fn json_arguments(
+    declared: &std::collections::BTreeMap<String, String>,
+    handle: Option<&str>,
+) -> serde_json::Value {
+    let mut object = serde_json::Map::new();
+    for (name, value) in declared {
+        let value = match handle {
+            Some(handle) => value.replace("{path}", handle),
+            None => value.clone(),
+        };
+        object.insert(name.clone(), serde_json::Value::String(value));
+    }
+    serde_json::Value::Object(object)
 }
 
 /// How to describe an unexpected JSON value in an error message.
@@ -312,9 +493,23 @@ impl PanelSource for ManifestSource {
             )));
         }
         let handle = entry.path.to_string_lossy().to_string();
-        let argv = self.argv_for(&self.spec().open, &handle);
-        self.runner.run(&argv, self.working_dir())?;
-        // The program did whatever it does — opened a window, printed to its own stdout. There is
+        match &self.fetch {
+            Fetch::Program(runner) => {
+                let argv = self.argv_for(&self.spec().open, &handle);
+                runner.run(&argv, self.working_dir())?;
+            }
+            Fetch::Tools(caller) => {
+                let tool = self
+                    .spec()
+                    .open
+                    .first()
+                    .map(|name| name.as_str())
+                    .unwrap_or_default();
+                let arguments = json_arguments(&self.spec().open_arguments, Some(&handle));
+                caller.call(tool, arguments)?;
+            }
+        }
+        // The other side did whatever it does — opened a window, filed the message. There is
         // nothing left for the panel to show.
         Ok(SourceAction::Done)
     }
@@ -761,6 +956,191 @@ label = "Title"
             .unwrap_err()
             .to_string();
         assert!(error.contains("rc-no-such-program-anywhere"), "{error}");
+    }
+
+    const MCP_MANIFEST: &str = r#"
+[plugin]
+id = "mail"
+name = "MailCraft"
+
+[source]
+name = "Mail"
+backend = "mcp"
+server = "mailcraft"
+list = ["list_messages"]
+open = ["read_message"]
+key = "id"
+
+[source.list_arguments]
+folder = "inbox"
+
+[source.open_arguments]
+id = "{path}"
+
+[[source.columns]]
+id = "subject"
+label = "Subject"
+field = "subject"
+width = 300
+
+[[source.columns]]
+id = "from"
+label = "From"
+field = "from"
+width = 160
+
+[source.capabilities]
+allow = ["view"]
+"#;
+
+    /// An MCP caller that answers from a script and records what it was asked.
+    struct ScriptedMcp {
+        answers: Mutex<Vec<CoreResult<serde_json::Value>>>,
+        calls: Mutex<Vec<(String, serde_json::Value)>>,
+    }
+
+    impl ScriptedMcp {
+        fn new(answers: Vec<CoreResult<serde_json::Value>>) -> ScriptedMcp {
+            ScriptedMcp {
+                answers: Mutex::new(answers),
+                calls: Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl McpCaller for ScriptedMcp {
+        fn call(&self, tool: &str, arguments: serde_json::Value) -> CoreResult<serde_json::Value> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push((tool.to_string(), arguments));
+            let mut answers = self.answers.lock().unwrap();
+            if answers.is_empty() {
+                return Err(CoreError::Invalid("nothing left to answer".to_string()));
+            }
+            answers.remove(0)
+        }
+    }
+
+    struct SharedMcp(std::sync::Arc<ScriptedMcp>);
+
+    impl McpCaller for SharedMcp {
+        fn call(&self, tool: &str, arguments: serde_json::Value) -> CoreResult<serde_json::Value> {
+            self.0.call(tool, arguments)
+        }
+    }
+
+    fn mcp_source(
+        answers: Vec<CoreResult<serde_json::Value>>,
+    ) -> (ManifestSource, std::sync::Arc<ScriptedMcp>) {
+        let manifest = parse(MCP_MANIFEST, "mail").expect("the mcp manifest parses");
+        let caller = std::sync::Arc::new(ScriptedMcp::new(answers));
+        let source = ManifestSource::with_tools(manifest, Box::new(SharedMcp(caller.clone())));
+        (source, caller)
+    }
+
+    #[test]
+    fn an_mcp_source_lists_the_rows_a_tool_returns() {
+        let rows = serde_json::json!([
+            {"id": "m1", "subject": "Invoice", "from": "billing"},
+            {"id": "m2", "subject": "Lunch?", "from": "tomas"}
+        ]);
+        let (source, caller) = mcp_source(vec![Ok(rows)]);
+        let entries = source.list("").expect("lists through the tool");
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].name, "Invoice");
+        assert_eq!(entries[0].path, PathBuf::from("m1"));
+        assert_eq!(source.cell(&entries[1], "from"), "tomas");
+        // The declared fixed arguments travelled with the call, and the tool name did too.
+        let calls = caller.calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, "list_messages");
+        assert_eq!(calls[0].1["folder"], "inbox");
+        // One call for the listing, none for the cells.
+        assert_eq!(calls.len(), 1);
+    }
+
+    #[test]
+    fn an_mcp_source_opens_a_row_through_the_named_tool_with_the_handle() {
+        let rows = serde_json::json!([{"id": "m1", "subject": "Invoice", "from": "billing"}]);
+        let (source, caller) = mcp_source(vec![Ok(rows), Ok(serde_json::json!({}))]);
+        let entries = source.list("").expect("lists");
+        match source.open(&entries[0]).expect("opens") {
+            SourceAction::Done => {}
+            other => panic!("expected the tool to have handled it, got {other:?}"),
+        }
+        let calls = caller.calls.lock().unwrap();
+        assert_eq!(calls[1].0, "read_message");
+        assert_eq!(calls[1].1["id"], "m1");
+    }
+
+    #[test]
+    fn an_mcp_tool_that_reports_an_error_leaves_it_in_the_panel() {
+        // The caller turns `isError` into an error; the source must not swallow it.
+        let (source, _) = mcp_source(vec![Err(CoreError::Invalid(
+            "“list_messages” on “mailcraft” reported: mailbox locked".to_string(),
+        ))]);
+        let error = source.list("").unwrap_err().to_string();
+        assert!(error.contains("mailbox locked"), "{error}");
+    }
+
+    #[test]
+    fn an_mcp_payload_that_is_not_a_row_list_is_an_error() {
+        let (source, _) = mcp_source(vec![Ok(serde_json::json!({"messages": []}))]);
+        let error = source.list("").unwrap_err().to_string();
+        assert!(error.contains("array of objects"), "{error}");
+    }
+
+    #[test]
+    fn a_handle_with_quotes_or_braces_stays_a_json_value() {
+        let rows = serde_json::json!([{"id": "a\"b{path}", "subject": "tricky", "from": "x"}]);
+        let (source, caller) = mcp_source(vec![Ok(rows), Ok(serde_json::json!({}))]);
+        let entries = source.list("").expect("lists");
+        source.open(&entries[0]).expect("opens");
+        let calls = caller.calls.lock().unwrap();
+        assert_eq!(calls[1].1["id"], "a\"b{path}");
+    }
+
+    #[test]
+    fn an_mcp_manifest_naming_an_unconfigured_server_is_reported_at_load() {
+        let config = tempfile::tempdir().unwrap();
+        let dir = config.path().join("plugins").join("mail");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("plugin.toml"), MCP_MANIFEST).unwrap();
+        let mut model = model_with_config(config.path());
+        // No MCP server is configured, so this manifest cannot become a source.
+        assert_eq!(model.load_plugins(), "1 plugin(s) could not be loaded");
+        assert!(model.plugin_sources().is_empty());
+        assert_eq!(model.plugin_problems.len(), 1);
+        let message = model.plugin_problems[0].to_string();
+        assert!(message.contains("mailcraft"), "{message}");
+        assert!(message.contains("not configured"), "{message}");
+    }
+
+    #[test]
+    fn an_mcp_manifest_is_live_once_its_server_is_configured() {
+        let config = tempfile::tempdir().unwrap();
+        let dir = config.path().join("plugins").join("mail");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("plugin.toml"), MCP_MANIFEST).unwrap();
+        let mut model = model_with_config(config.path());
+        // A server configuration with a name is all the manifest needs to become a source.
+        model.settings.agent.clients = vec![rc_core::config::McpServerConfig {
+            name: "mailcraft".to_string(),
+            transport: "stdio".to_string(),
+            command: "mailcraft-mcp".to_string(),
+            ..Default::default()
+        }];
+        assert_eq!(model.load_plugins(), "1 plugin(s)");
+        assert_eq!(
+            model.plugin_sources(),
+            &[("mail".to_string(), "Mail".to_string())]
+        );
+        let location = Location::plugin("mail", "");
+        assert!(model.sources.source_of(&location).is_some());
+        assert_eq!(model.sources.columns(&location).len(), 2);
+        // The place is read-only: the mcp backend cannot delete, and the gate agrees.
+        assert!(!model.sources.capabilities(&location).delete);
     }
 
     #[test]

@@ -100,11 +100,59 @@ schvalovat.
 Ani deklarovaná schopnost není oprávnění. Pluginový zdroj je *místo*, a i tam, kde mazání
 deklaruje, rozhoduje politika, schvalovací dialog a audit stejně jako u místního souboru.
 
+## Druhá backendová vrstva: nástroj místo programu
+
+Všechno výš popisuje program, který vypíše řádky. Stejný manifest může místo toho jmenovat **nástroj
+na MCP serveru**, který už máte nastavený v panelu MCP agenta, a nic dalšího se nemění: sloupce,
+brána schopností, lišta funkčních kláves i panel jsou stejný kód.
+
+```toml
+[plugin]
+id = "mail"
+name = "MailCraft"
+
+[source]
+name = "Pošta"
+backend = "mcp"                 # program je pořád výchozí
+server = "mailcraft"            # jméno, pod kterým je v panelu MCP agenta
+list = ["list_messages"]        # jedno jméno nástroje, žádné argumenty
+open = ["read_message"]
+key = "id"
+
+[source.list_arguments]         # pevné argumenty každého výpisu
+folder = "inbox"
+
+[source.open_arguments]         # {path} dostane klíč řádku
+id = "{path}"
+
+[[source.columns]]
+id = "subject"
+label = "Předmět"
+field = "subject"
+
+[source.capabilities]
+allow = ["view"]
+```
+
+Nástroj musí vrátit stejný tvar, jaký vypíše program: JSON pole objektů. Server, který pošle
+`structuredContent`, se čte odtamtud; server, který pošle text, se parsuje jako JSON. `isError: true`
+ze serveru se stane chybou panelu, doslova.
+
+Dvě poctivá omezení téhle vrstvy, obě vynucená, ne jen popsaná:
+
+- **Nezapisuje.** Deklarovat `copy`, `move`, `create`, `delete` nebo `rename` se odmítne už při
+  načtení manifestu, protože adaptér je nemá jak provést — manifest nesmí slibovat, co kód neumí.
+- **Připojuje se pro každé volání.** Obnovení otevře spojení a zavře ho, takže výpis nikdy nedrží
+  potomka otevřeného pro panel, na který se nikdo nedívá. Cenou je jedno handshake na obnovení.
+
+Manifest, který jmenuje server, jenž nikdo nenastavil, se jednou ohlásí při načtení — *needs the MCP
+server „mailcraft", which is not configured* — a přeskočí, místo aby se stal panelem, který selhává
+při každém stisku klávesy.
+
 ## Co zatím nejde
 
 - **Akce řádku** (položka *Odpovědět* nebo *Exportovat* v místní nabídce) umí zdroje kompilované
   do aplikace, ale manifest je zatím neumí deklarovat.
-- **MCP zdroje**: stejný manifest, jen `list` jmenuje nástroj místo programu, je další krok. Nic
-  z toho, co je výš, se přitom nezmění.
+- **Zápis** přes MCP backend; deklarované akce řádku; řazení uvnitř zdroje.
 - **Zápis**: manifestový zdroj neumí vytvářet, přesouvat ani mazat; `allow` jen říká, co by mělo
   smysl, kdyby mohl.

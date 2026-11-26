@@ -102,11 +102,60 @@ A declared capability is not a permission either. A plugin source is a *place*, 
 declares deletion, the policy, the approval dialog and the audit log decide exactly as they do for
 a local file.
 
+## The second backend: a tool instead of a program
+
+Everything above describes a program that prints rows. The same manifest can instead name **a tool on
+an MCP server** you already configured in the MCP agent panel, and nothing else changes: the columns,
+the capability gate, the function-key bar and the panel are the same code.
+
+```toml
+[plugin]
+id = "mail"
+name = "MailCraft"
+
+[source]
+name = "Mail"
+backend = "mcp"                 # a program is still the default
+server = "mailcraft"            # the name it has in the MCP agent panel
+list = ["list_messages"]        # one tool name, no arguments here
+open = ["read_message"]
+key = "id"
+
+[source.list_arguments]         # fixed arguments of every listing call
+folder = "inbox"
+
+[source.open_arguments]         # {path} receives the row's key
+id = "{path}"
+
+[[source.columns]]
+id = "subject"
+label = "Subject"
+field = "subject"
+
+[source.capabilities]
+allow = ["view"]
+```
+
+The tool must return the same shape a program prints: a JSON array of objects. A server that sends
+`structuredContent` is read from there; one that sends text is parsed as JSON. `isError: true` from
+the server becomes the panel's error message, word for word.
+
+Two honest limits of this backend, both enforced rather than documented:
+
+- **It cannot write.** Declaring `copy`, `move`, `create`, `delete` or `rename` is refused when the
+  manifest loads, because the adapter has no way to perform them — a manifest is not allowed to
+  promise what the code cannot do.
+- **It connects per call.** A refresh opens the connection and closes it, so a listing never holds a
+  child process open for a panel nobody is looking at. The price is one handshake per refresh.
+
+A manifest that names a server nobody configured is reported once at load — *needs the MCP server
+"mailcraft", which is not configured* — and skipped, rather than becoming a panel that fails on every
+keystroke.
+
 ## What is not possible yet
 
 - **Row verbs** (a *Reply* or *Export* entry in the right-click menu) are supported by compiled-in
   sources but not yet declared in a manifest.
-- **MCP sources**: the same manifest, with `list` naming a tool instead of a program, is the next
-  step. It will not change anything above.
+- **Writing** through the MCP backend; declared row verbs; sorting inside a source.
 - **Writing**: a manifest source cannot create, move or delete; `allow` merely states what would be
   meaningful if it could.

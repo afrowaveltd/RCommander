@@ -42,11 +42,53 @@ pub struct ManifestColumn {
     pub numeric: bool,
 }
 
+/// Where a source's rows come from.
+///
+/// Two backends, one shape. `Command` runs a program; `Mcp` calls a tool on a configured MCP
+/// server. Everything downstream — the JSON array, the column mapping, the capability gate — is
+/// identical, which is the point of the split: adding the second backend changed no column, no
+/// panel and no key.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Backend {
+    /// A program that prints rows on stdout.
+    #[default]
+    Command,
+    /// A tool on an MCP server the user configured.
+    Mcp,
+}
+
+impl Backend {
+    /// The name used in a manifest.
+    pub fn name(self) -> &'static str {
+        match self {
+            Backend::Command => "command",
+            Backend::Mcp => "mcp",
+        }
+    }
+
+    /// Parse the manifest spelling.
+    pub fn parse(name: &str) -> Option<Backend> {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "" | "command" => Some(Backend::Command),
+            "mcp" => Some(Backend::Mcp),
+            _ => None,
+        }
+    }
+}
+
 /// The declared shape of one source.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SourceSpec {
     /// Label shown in the path bar and the tab.
     pub name: String,
+    /// Which backend produces the rows.
+    pub backend: Backend,
+    /// Name of the MCP server the `mcp` backend calls; empty for a command source.
+    pub server: String,
+    /// Fixed arguments added to every listing call (mcp backend only).
+    pub list_arguments: std::collections::BTreeMap<String, String>,
+    /// Arguments of the open call; a value of `{path}` is replaced by the row's key.
+    pub open_arguments: std::collections::BTreeMap<String, String>,
     /// Argv that prints a JSON array of objects. Never empty.
     pub list: Vec<String>,
     /// Argv that opens one row; `{path}` is replaced by the row's key. Empty means "cannot open".
@@ -122,6 +164,24 @@ pub enum ManifestError {
     ReservedColumn(String),
     /// An operation name nobody knows.
     UnknownOperation(String),
+    /// A backend name nobody knows.
+    UnknownBackend(String),
+    /// An `mcp` source without a server name.
+    NoServer,
+    /// A field that only makes sense for the other backend, so the file is honest about itself.
+    WrongBackend {
+        /// The field's name in the manifest.
+        field: String,
+        /// The backend it belongs to.
+        backend: &'static str,
+    },
+    /// An `mcp` source that declares an operation its backend cannot perform.
+    UnsupportedOperation {
+        /// The declared operation.
+        operation: String,
+    },
+    /// The manifest is fine, but the MCP server it names is not configured.
+    NeedsServer(String),
 }
 
 impl std::fmt::Display for ManifestError {
@@ -144,6 +204,26 @@ impl std::fmt::Display for ManifestError {
                 f,
                 "declares the operation “{name}”, which does not exist ({})",
                 OPERATIONS.join(", ")
+            ),
+            ManifestError::UnknownBackend(name) => write!(
+                f,
+                "declares the backend “{name}”; only command and mcp exist"
+            ),
+            ManifestError::NoServer => write!(
+                f,
+                "uses the mcp backend but names no server: add server = \"<name>\""
+            ),
+            ManifestError::WrongBackend { field, backend } => write!(
+                f,
+                "declares “{field}”, which only the {backend} backend understands"
+            ),
+            ManifestError::UnsupportedOperation { operation } => write!(
+                f,
+                "declares “{operation}”, which the mcp backend cannot do yet"
+            ),
+            ManifestError::NeedsServer(name) => write!(
+                f,
+                "needs the MCP server “{name}”, which is not configured; add it in the MCP agent panel first"
             ),
         }
     }
@@ -180,6 +260,14 @@ struct RawPlugin {
 struct RawSource {
     #[serde(default)]
     name: String,
+    #[serde(default)]
+    backend: String,
+    #[serde(default)]
+    server: String,
+    #[serde(default)]
+    list_arguments: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    open_arguments: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     list: Vec<String>,
     #[serde(default)]
@@ -245,6 +333,44 @@ pub fn parse(text: &str, directory: &str) -> Result<PluginManifest, ManifestErro
     if raw.source.list.is_empty() || raw.source.list[0].trim().is_empty() {
         return Err(ManifestError::NoListCommand);
     }
+    let backend = Backend::parse(&raw.source.backend)
+        .ok_or_else(|| ManifestError::UnknownBackend(raw.source.backend.clone()))?;
+    let server = raw.source.server.trim().to_string();
+    match backend {
+        Backend::Mcp => {
+            if server.is_empty() {
+                return Err(ManifestError::NoServer);
+            }
+            // A tool name is one name. Extra elements would look like arguments and be ignored,
+            // which is the kind of silent difference this project refuses.
+            if raw.source.list.len() > 1 {
+                return Err(ManifestError::NoListCommand);
+            }
+            if !raw.source.open.is_empty() && raw.source.open.len() > 1 {
+                return Err(ManifestError::NoListCommand);
+            }
+        }
+        Backend::Command => {
+            if !server.is_empty() {
+                return Err(ManifestError::WrongBackend {
+                    field: "server".to_string(),
+                    backend: "mcp",
+                });
+            }
+            if !raw.source.list_arguments.is_empty() {
+                return Err(ManifestError::WrongBackend {
+                    field: "list_arguments".to_string(),
+                    backend: "mcp",
+                });
+            }
+            if !raw.source.open_arguments.is_empty() {
+                return Err(ManifestError::WrongBackend {
+                    field: "open_arguments".to_string(),
+                    backend: "mcp",
+                });
+            }
+        }
+    }
     if raw.source.columns.is_empty() {
         return Err(ManifestError::NoColumns("it declares none".to_string()));
     }
@@ -304,6 +430,15 @@ pub fn parse(text: &str, directory: &str) -> Result<PluginManifest, ManifestErro
             operations.push(operation);
         }
     }
+    if backend == Backend::Mcp
+        && let Some(operation) = operations
+            .iter()
+            .find(|operation| operation.as_str() != "view")
+    {
+        return Err(ManifestError::UnsupportedOperation {
+            operation: operation.clone(),
+        });
+    }
     let name = raw.source.name.trim().to_string();
     let plugin_name = raw.plugin.name.trim().to_string();
     Ok(PluginManifest {
@@ -323,6 +458,10 @@ pub fn parse(text: &str, directory: &str) -> Result<PluginManifest, ManifestErro
             } else {
                 name
             },
+            backend,
+            server,
+            list_arguments: raw.source.list_arguments.clone(),
+            open_arguments: raw.source.open_arguments.clone(),
             list: raw.source.list.clone(),
             open: raw.source.open.clone(),
             key: raw.source.key.trim().to_string(),
@@ -633,6 +772,117 @@ id = "title"
         let shouted = GOOD.replace("allow = [\"view\"]", "allow = [\"VIEW\", \"view\"]");
         let manifest = parse(&shouted, "notes").expect("parses");
         assert_eq!(manifest.source.operations, vec!["view"]);
+    }
+
+    const MCP: &str = r#"
+[plugin]
+id = "mail"
+name = "MailCraft"
+
+[source]
+name = "Mail"
+backend = "mcp"
+server = "mailcraft"
+list = ["list_messages"]
+open = ["read_message"]
+key = "id"
+
+[source.list_arguments]
+folder = "inbox"
+
+[source.open_arguments]
+id = "{path}"
+
+[[source.columns]]
+id = "subject"
+label = "Subject"
+
+[source.capabilities]
+allow = ["view"]
+"#;
+
+    #[test]
+    fn an_mcp_manifest_parses_with_its_tool_names_and_arguments() {
+        let manifest = parse(MCP, "mail").expect("parses");
+        assert_eq!(manifest.source.backend, Backend::Mcp);
+        assert_eq!(manifest.source.server, "mailcraft");
+        assert_eq!(manifest.source.list, vec!["list_messages"]);
+        assert_eq!(manifest.source.open, vec!["read_message"]);
+        assert_eq!(
+            manifest.source.list_arguments.get("folder").unwrap(),
+            "inbox"
+        );
+        assert_eq!(manifest.source.open_arguments.get("id").unwrap(), "{path}");
+        // The command backend stays the default, so an existing manifest keeps working.
+        let plain = parse(GOOD, "notes").expect("parses");
+        assert_eq!(plain.source.backend, Backend::Command);
+        assert!(plain.source.list_arguments.is_empty());
+    }
+
+    #[test]
+    fn an_unknown_backend_is_refused_by_name() {
+        let text = MCP.replace("backend = \"mcp\"", "backend = \"graphql\"");
+        match parse(&text, "mail") {
+            Err(ManifestError::UnknownBackend(name)) => assert_eq!(name, "graphql"),
+            other => panic!("expected an unknown backend, got {other:?}"),
+        }
+        // An empty name means the default backend, not an error.
+        let text = r#"
+[plugin]
+id = "notes"
+[source]
+backend = ""
+list = ["notes-index"]
+[[source.columns]]
+id = "title"
+label = "Title"
+"#;
+        let manifest = parse(text, "notes").expect("parses");
+        assert_eq!(manifest.source.backend, Backend::Command);
+    }
+
+    #[test]
+    fn an_mcp_source_must_name_a_server_and_a_single_tool() {
+        let no_server = MCP.replace("server = \"mailcraft\"", "");
+        assert_eq!(parse(&no_server, "mail"), Err(ManifestError::NoServer));
+        // Two elements in `list` would look like arguments and be ignored: refused instead.
+        let two = MCP.replace(
+            "list = [\"list_messages\"]",
+            "list = [\"list_messages\", \"inbox\"]",
+        );
+        assert_eq!(parse(&two, "mail"), Err(ManifestError::NoListCommand));
+    }
+
+    #[test]
+    fn a_field_of_the_wrong_backend_is_refused_rather_than_ignored() {
+        let command_with_server =
+            GOOD.replace("key = \"id\"", "key = \"id\"\nserver = \"mailcraft\"");
+        assert_eq!(
+            parse(&command_with_server, "notes"),
+            Err(ManifestError::WrongBackend {
+                field: "server".to_string(),
+                backend: "mcp",
+            })
+        );
+        let command_with_arguments = GOOD.replace(
+            "key = \"id\"",
+            "key = \"id\"\n[source.list_arguments]\nfolder = \"inbox\"",
+        );
+        assert!(matches!(
+            parse(&command_with_arguments, "notes"),
+            Err(ManifestError::WrongBackend { .. })
+        ));
+    }
+
+    #[test]
+    fn an_mcp_source_cannot_claim_an_operation_it_cannot_perform() {
+        let text = MCP.replace("allow = [\"view\"]", "allow = [\"view\", \"delete\"]");
+        assert_eq!(
+            parse(&text, "mail"),
+            Err(ManifestError::UnsupportedOperation {
+                operation: "delete".to_string()
+            })
+        );
     }
 
     #[test]
