@@ -2975,3 +2975,52 @@ fn the_bar_shows_the_modifier_variants_under_their_keys() {
         "the Alt row is drawn"
     );
 }
+
+#[test]
+fn processing_with_the_agent_opens_a_chat_about_a_copy() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    // A file to hand over, created before the model reads the directory.
+    std::fs::write(left.path().join("handover.txt"), b"the original").unwrap();
+    app.model.refresh_all();
+    let mut harness = harness(app);
+    let index = harness
+        .state()
+        .model
+        .left
+        .listing
+        .find("handover.txt")
+        .expect("the file is listed");
+    harness.state_mut().model.left.set_cursor(index);
+    harness.state_mut().model.focus = rcommander::model::Side::Left;
+    harness.state_mut().execute("cm_ProcessWithAgent");
+    harness.run();
+    // The chat sits in the other panel and the files are still visible.
+    assert!(
+        harness
+            .state()
+            .model
+            .panel_shows_chat(rcommander::model::Side::Right)
+    );
+    let workspace = harness
+        .state()
+        .model
+        .workspace()
+        .cloned()
+        .expect("a workspace");
+    assert_eq!(workspace.files.len(), 1);
+    let copy = workspace.files[0].copy.clone();
+    assert!(copy.is_file(), "the agent has a copy at {}", copy.display());
+    // The original is byte-identical, which is the whole point.
+    assert_eq!(
+        std::fs::read_to_string(left.path().join("handover.txt")).unwrap(),
+        "the original"
+    );
+    // Closing the workspace removes the copies and leaves the original.
+    let directory = workspace.directory.clone();
+    harness.state_mut().execute("cm_DiscardWorkspace");
+    harness.run();
+    assert!(!directory.exists(), "the copies are gone");
+    assert!(left.path().join("handover.txt").is_file());
+    assert!(harness.state().model.workspace().is_none());
+}

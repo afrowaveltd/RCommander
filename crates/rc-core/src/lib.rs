@@ -44,6 +44,7 @@ pub mod syntax;
 pub mod tabs;
 pub mod theme;
 pub mod transaction;
+pub mod workspace;
 
 pub use entry::{Attrs, Entry, EntryKind};
 pub use error::{CoreError, CoreResult};

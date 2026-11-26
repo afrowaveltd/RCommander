@@ -5,6 +5,7 @@
 //! a pure view over this state, which is what makes the behaviour testable
 //! without a display.
 
+pub mod agentworkspace;
 pub mod ai;
 /// Re-export of the sound kinds, so the model can name one without importing the whole desktop
 /// module at every call site.
@@ -521,6 +522,8 @@ pub struct Model {
     pub prompt_editor: prompts::PromptEditor,
     /// A message the user should not miss (error, finished work).
     pub alert: Option<Alert>,
+    /// The open "process with agent" workspace (Phase 16.10a).
+    pub agent_workspace: Option<AgentWorkspaceState>,
 }
 
 /// An open F3 viewer.
@@ -566,6 +569,17 @@ pub struct EditorState {
     pub binary: bool,
     /// Where the window sits: collapsed, maximized, pinned (Phase 14.9).
     pub chrome: crate::ui::workspace_window::Chrome,
+}
+
+/// A running "process with agent" workspace.
+#[derive(Clone, Debug)]
+pub struct AgentWorkspaceState {
+    /// The copies, their hashes and the directory they live in.
+    pub workspace: rc_core::workspace::Workspace,
+    /// What could not be copied, said in the transcript.
+    pub skipped: Vec<rc_core::workspace::Skipped>,
+    /// Panel hosting the chat of this workspace.
+    pub side: Side,
 }
 
 /// A message the user should not miss.
@@ -665,6 +679,7 @@ impl Model {
             prompt_picker: prompts::PromptPicker::default(),
             prompt_editor: prompts::PromptEditor::default(),
             alert: None,
+            agent_workspace: None,
             keymap,
             settings,
             strings,

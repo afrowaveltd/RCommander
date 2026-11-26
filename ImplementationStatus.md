@@ -310,6 +310,39 @@ Keyboard handling needed no new rule: typing into the input takes the focus, and
 shortcut handler already steps aside when a widget has focus. That is why F-keys do not navigate the
 hidden list while somebody is typing a question.
 
+## Phase 16.10a — process with the agent, on a copy (first slice, done)
+
+`cargo test -p rc-core --lib workspace` → **7 tests**, `cargo test -p rcommander --lib
+agentworkspace` → **4**, plus a UI test that runs the whole handoff.
+
+The panel owner's idea, built: right-click a file or a folder, choose **Process with agent…**,
+and the agent gets a **copy** in a workspace while the chat opens beside the files and asks what to
+do. `rc_core::workspace` does the copying and the bookkeeping; `model::agentworkspace` connects it to
+the app.
+
+What makes it trustworthy is not the copying but the **manifest** (`workspace.toml`): for every file
+it records the original path, the copy, the SHA-256 of the original and the size. That is what makes
+"has the copy changed?" answerable without asking the agent — a test edits a copy and checks that the
+original is byte-identical afterwards, which is the property the whole feature rests on.
+
+Four decisions worth naming:
+
+* **Copies, not the originals.** The workspace root is what the agent may see; the policy decides
+  what it may reach. At the lowest privilege an agent that can only break a copy is one you can
+  afford to let run.
+* **One unreadable file does not cost the others.** Unreadable files are named in the transcript and
+  skipped; if nothing could be copied at all, the workspace is removed and the user gets an error
+  instead of an empty conversation about nothing.
+* **Folders are copied as trees**, with a depth limit, because a symlink loop is a real thing in a
+  file manager.
+* **Discarding is the default end.** Closing the workspace deletes the copies; the originals were
+  never in it. Sending changes back is Phase 16.4's review pipeline (diff, per-file approval, a
+  transaction with a verified backup) and is deliberately not part of this slice — the help topic
+  says so plainly.
+
+The chat is seeded with what the agent can see and the reminder that it is a copy, so the next thing
+the user does is describe the task rather than explain the setup.
+
 ## Phase 14.9 — a keyboard that follows the focused surface (done)
 
 `cargo test -p rcommander --lib surfaces` → **7 tests**, plus **2 UI tests** (the bar changes with
@@ -1204,7 +1237,7 @@ command either by its own name or through a family rule:
 | Explorer-style right-click integration and capability-aware RCommander submenu are planned | Phase 10.10: native shell actions where supported, internal fallback, explicit selection/pane targeting |
 | Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
 | No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions; establish editable prompt and declarative workload contracts early (16.16–16.21) |
-| No "process with agent" handoff from the file list | Phase 16.10a (planned, designed in the plan): right-click on a file or selection opens the agent pane with a **workspace of verified copies** plus a manifest, never the originals; the chat opens with *what do you want?* and the matching prompts; applying changes back goes through the 16.4 review pipeline with a backup. Tests must prove the originals stay byte-identical after a refused or abandoned session |
+| "Process with agent" exists for the **copy** half: the workspace, its manifest and the seeded conversation are done, and the originals stay byte-identical (tested). **Sending changes back** is still open | Phase 16.4's review pipeline: diff of the copy against the original, per-file approval, a transaction with a verified backup and an audit entry |
 | Prompt catalogue, picker, editor, pins and recency are done (26 built-in prompts, copy/edit/reset, variables previewed); a **side-by-side diff of an edit** against the shipped text is still open | Phase 16.17d: the diff on the editor page, then 16.10a (process with agent) |
 | No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, tag-first classification, controlled SQL gateway, reviewed Knowledge Pull Requests, provenance and safe reuse |
 | No configurable multi-model team orchestration | Phase 16.27–16.30; define role assignments early with workload contracts, then bounded delegation, independent review, budgets, escalation and visible per-role activity; single-model mode stays available |

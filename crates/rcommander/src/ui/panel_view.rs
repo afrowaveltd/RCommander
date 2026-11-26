@@ -865,6 +865,21 @@ fn row_menu_items(model: &Model) -> Vec<MenuItem> {
         Some(Icon::Settings),
         false,
     );
+    // The agent: the feature this file manager is built around, right where the file is.
+    let (workspace_label, workspace_command) = if model.has_workspace() {
+        (model.t("workspace.close"), "cm_DiscardWorkspace")
+    } else {
+        (model.t("workspace.process"), "cm_ProcessWithAgent")
+    };
+    push(workspace_label, workspace_command, Some(Icon::Robot), true);
+    if model.has_workspace() {
+        push(
+            model.t("workspace.show"),
+            "cm_OpenWorkspace",
+            Some(Icon::Folder),
+            false,
+        );
+    }
     // The system's own actions: what a file manager is expected to offer next to its own.
     push(
         model.t("cmd.open_with"),

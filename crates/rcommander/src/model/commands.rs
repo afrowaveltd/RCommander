@@ -621,6 +621,10 @@ impl Model {
             "cm_viewerzoomin" | "cm_viewerzoomout" => {
                 self.viewer_zoom(command == "cm_viewerzoomin")
             }
+            // "Process with agent": the file-to-agent handoff (Phase 16.10a).
+            "cm_processwithagent" | "cm_agentworkspace" => self.process_with_agent(),
+            "cm_discardworkspace" => self.discard_workspace(),
+            "cm_openworkspace" => self.open_workspace_directory(),
             "cm_themetoggle" => self.toggle_theme(),
             "cm_themenext" => self.cycle_theme(1),
             "cm_themeprevious" => self.cycle_theme(-1),
