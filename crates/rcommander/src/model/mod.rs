@@ -524,6 +524,10 @@ pub struct ViewerState {
     pub wraps: bool,
     /// Bytes per hex line.
     pub hex_bytes: usize,
+    /// Row the user picked in the hexdump, for the detail panel.
+    pub hex_selected: usize,
+    /// Where "go to offset" points, as typed.
+    pub hex_goto: String,
     pub find: Option<String>,
     pub encoding: String,
     pub title: String,
@@ -548,6 +552,11 @@ pub struct EditorState {
     pub dirty_since_open: bool,
     pub line_ending: String,
     pub cursor_line: usize,
+    /// The file is not text (NUL bytes or invalid UTF-8), so the editor shows it as such instead of
+    /// pretending the bytes are characters.
+    pub binary: bool,
+    /// Where the window sits: collapsed, maximized, pinned (Phase 14.9).
+    pub chrome: crate::ui::workspace_window::Chrome,
 }
 
 /// The in-app help window.
@@ -786,8 +795,9 @@ impl Model {
                 Err(e) => CommandOutcome::Failed(e.to_string()),
             };
         }
-        // A plain file: the view layer opens the F3 window.
-        CommandOutcome::OpenFile(entry.path)
+        // A plain file: Enter and a double-click mean "do what the system would do", which is what
+        // the user expects from a file manager. The built-in viewer stays behind F3.
+        CommandOutcome::OpenExternally(entry.path)
     }
 
     /// Re-read both panels.
@@ -929,6 +939,11 @@ pub enum CommandOutcome {
     Failed(String),
     /// A file should be opened in the viewer by the view layer.
     OpenFile(std::path::PathBuf),
+    /// Hand the file to the platform's default action: run it if it is a program, otherwise open
+    /// it in whatever the system associates with it.
+    ///
+    /// This is what Enter and a double-click mean; `OpenFile` is the built-in viewer behind F3.
+    OpenExternally(std::path::PathBuf),
     /// The application should exit.
     Quit,
     /// The window should be minimized.

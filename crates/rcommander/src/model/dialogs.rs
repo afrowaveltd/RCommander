@@ -11,6 +11,8 @@ use rc_core::ops::OverwriteMode;
 #[derive(Clone, Debug, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum Dialog {
+    /// "Open with": the system's applications for one file (the context menu entry).
+    OpenWith(OpenWithState),
     /// Copy (`F5`) / move (`F6`) with options.
     Transfer(TransferDialogState),
     /// Overwrite confirmation for one file.
@@ -396,6 +398,49 @@ impl super::Model {
         let state = super::dialogs::OptionsState::new(&self.settings, tab);
         self.open_dialog(super::Dialog::Options(state));
         super::CommandOutcome::Ok
+    }
+}
+
+/// The "open with" chooser.
+///
+/// Linux and macOS have no standard dialog for this, so the list comes from the desktop's own
+/// `.desktop` files — which is where the system menu gets it from as well. Windows uses its native
+/// chooser instead and never shows this dialog.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OpenWithState {
+    /// The file to open.
+    pub path: std::path::PathBuf,
+    /// Applications offered, already sorted and deduplicated.
+    pub apps: Vec<rc_core::desktop::DesktopApp>,
+    /// Index of the highlighted application.
+    pub selected: usize,
+    /// Filter typed by the user.
+    pub filter: String,
+}
+
+impl OpenWithState {
+    /// Build the list for one file.
+    pub fn new(path: &std::path::Path, apps: Vec<rc_core::desktop::DesktopApp>) -> Self {
+        OpenWithState {
+            path: path.to_path_buf(),
+            apps,
+            selected: 0,
+            filter: String::new(),
+        }
+    }
+
+    /// The applications matching the filter, in display order.
+    pub fn visible(&self) -> Vec<&rc_core::desktop::DesktopApp> {
+        let needle = self.filter.trim().to_lowercase();
+        self.apps
+            .iter()
+            .filter(|app| needle.is_empty() || app.name.to_lowercase().contains(&needle))
+            .collect()
+    }
+
+    /// The application the user picked, if any.
+    pub fn chosen(&self) -> Option<&rc_core::desktop::DesktopApp> {
+        self.visible().get(self.selected).copied()
     }
 }
 

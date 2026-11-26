@@ -95,6 +95,9 @@ pub struct RCommanderApp {
     /// Screen rectangles of the two panels, used to resolve drop targets.
     /// Screen rectangles of the two panels, used to resolve drop targets.
     pub panel_rects: [Option<egui::Rect>; 2],
+    /// The rectangle the two panels occupy, captured every frame so a workspace window knows what
+    /// "cover the panels" means — the panels, not the whole window including the menu bar.
+    workspace_rect: egui::Rect,
     /// Theme name that is currently applied to the egui context.
     applied_theme: String,
     /// Font settings the context was built from, so a change reinstalls the fonts.
@@ -164,6 +167,7 @@ impl RCommanderApp {
             thumbnails: ThumbnailCache::new(),
             search_hit_selection: 0,
             panel_rects: [None, None],
+            workspace_rect: egui::Rect::NOTHING,
             applied_theme: String::new(),
             font_signature: String::new(),
             settings_writer,
@@ -291,7 +295,89 @@ impl RCommanderApp {
     }
 
     /// Execute one internal command and handle what the view layer must do.
+    /// The path the desktop actions act on: the cursor entry, or the panel's own directory.
+    fn desktop_target(&self, want_directory: bool) -> Option<std::path::PathBuf> {
+        let panel = self.model.active();
+        if want_directory {
+            return panel.location().as_path().map(|path| path.to_path_buf());
+        }
+        panel
+            .cursor_entry()
+            .map(|entry| entry.path.clone())
+            .or_else(|| panel.location().as_path().map(|path| path.to_path_buf()))
+    }
+
+    /// Run one of the desktop actions the context menu offers.
+    fn run_desktop_action(&mut self, action: rc_core::desktop::Action) {
+        match crate::system_open::run(&action) {
+            Ok(started) => {
+                let key = if started.program {
+                    "status.running"
+                } else {
+                    "status.opening"
+                };
+                let message = self.model.tf(key, &[("what", &started.what)]);
+                self.model.report(message);
+            }
+            Err(error) => {
+                let message = self
+                    .model
+                    .tf("status.open.failed", &[("path", ""), ("error", &error)]);
+                self.model.report_error(message);
+            }
+        }
+    }
+
     pub fn run_command(&mut self, command: &str, ctx: &Context) {
+        // The desktop actions need the cursor and the panel rather than the command table, so they
+        // are handled here, where both are in reach.
+        match command {
+            "cm_OpenExternal" => {
+                if let Some(path) = self.desktop_target(false) {
+                    self.run_desktop_action(rc_core::desktop::Action::Open(path));
+                }
+                return;
+            }
+            "cm_SendByEmail" => {
+                if let Some(path) = self.desktop_target(false) {
+                    self.run_desktop_action(rc_core::desktop::Action::MailTo(path));
+                }
+                return;
+            }
+            "cm_TerminalHere" => {
+                if let Some(path) = self.desktop_target(true) {
+                    self.run_desktop_action(rc_core::desktop::Action::TerminalAt(path));
+                }
+                return;
+            }
+            "cm_RunInTerminal" => {
+                if let Some(path) = self.desktop_target(false) {
+                    self.run_desktop_action(rc_core::desktop::Action::RunInTerminal(path));
+                }
+                return;
+            }
+            "cm_OpenWith" => {
+                // Windows has a native chooser; elsewhere the dialog lists the desktop's own
+                // applications, which is the closest thing to the system menu.
+                if rc_core::desktop::Platform::current() == rc_core::desktop::Platform::Windows {
+                    if let Some(path) = self.desktop_target(false) {
+                        self.run_desktop_action(rc_core::desktop::Action::OpenWith {
+                            path,
+                            app: String::new(),
+                        });
+                    }
+                } else if let Some(path) = self.desktop_target(false) {
+                    self.model.open_dialog(Dialog::OpenWith(
+                        crate::model::dialogs::OpenWithState::new(
+                            &path,
+                            rc_core::desktop::desktop_apps(),
+                        ),
+                    ));
+                }
+                return;
+            }
+            _ => {}
+        }
         if command == "rc_TreeToSource" {
             if let Some(Dialog::Tree(state)) = self.model.top_dialog().cloned()
                 && let Some(index) = state.selected
@@ -449,6 +535,7 @@ impl RCommanderApp {
         }
         match self.model.execute(command) {
             CommandOutcome::OpenFile(path) => self.open_viewer(path),
+            CommandOutcome::OpenExternally(path) => self.open_externally(path),
             CommandOutcome::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             CommandOutcome::Minimize => {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true))
@@ -459,12 +546,48 @@ impl RCommanderApp {
         self.sync_theme();
     }
 
+    /// The rectangle a maximized workspace window should fill.
+    fn workspace_for_windows(&self, ctx: &Context) -> egui::Rect {
+        if self.workspace_rect.is_positive() {
+            self.workspace_rect
+        } else {
+            // The very first frame has not drawn the panels yet; the content rect is the honest
+            // stand-in and is replaced one frame later.
+            ctx.content_rect()
+        }
+    }
+
     /// Show `path` in the F3 viewer.
     pub fn open_viewer(&mut self, path: std::path::PathBuf) {
         self.model.open_viewer_for(path.clone());
         if !self.viewer_ui.load(&path) {
             let error = self.viewer_ui.error.clone().unwrap_or_default();
             self.model.report_error(error);
+        }
+    }
+
+    /// Hand `path` to the platform's default action, which is what Enter and a double-click mean.
+    ///
+    /// The result is announced rather than swallowed: a file manager that appears to do nothing is
+    /// the worst possible answer, and the message also says whether something was *run* or *opened*.
+    pub fn open_externally(&mut self, path: std::path::PathBuf) {
+        match crate::system_open::open(&path) {
+            Ok(started) => {
+                let key = if started.program {
+                    "status.running"
+                } else {
+                    "status.opening"
+                };
+                let message = self.model.tf(key, &[("what", &started.what)]);
+                self.model.report(message);
+            }
+            Err(error) => {
+                let message = self.model.tf(
+                    "status.open.failed",
+                    &[("path", &path.display().to_string()), ("error", &error)],
+                );
+                self.model.report_error(message);
+            }
         }
     }
 
@@ -570,6 +693,7 @@ impl RCommanderApp {
     fn enter_pressed(&mut self) {
         match self.model.enter() {
             CommandOutcome::OpenFile(path) => self.open_viewer(path),
+            CommandOutcome::OpenExternally(path) => self.open_externally(path),
             CommandOutcome::Ok => {}
             CommandOutcome::Failed(message) => self.model.report_error(message),
             _ => {}
@@ -870,6 +994,8 @@ impl RCommanderApp {
     }
 
     fn panels(&mut self, ui: &mut egui::Ui) {
+        // The area the panels are about to fill; a maximized or pinned window covers exactly this.
+        self.workspace_rect = ui.max_rect();
         let palette = self.palette.clone();
         let split = self.model.settings.layout.panel_split.clamp(0.2, 0.8);
         let rtl = self.model.direction().is_rtl();
@@ -911,6 +1037,7 @@ impl RCommanderApp {
                 match action {
                     PanelAction::Command(command) => self.pending_command = Some(command),
                     PanelAction::OpenFile(path) => self.open_viewer(path),
+                    PanelAction::OpenExternal(path) => self.open_externally(path),
                     PanelAction::Enter => self.enter_pressed(),
                     PanelAction::Volume(root) => {
                         self.model.open_volume(side, &root);
@@ -969,6 +1096,7 @@ impl RCommanderApp {
             match action {
                 PanelAction::Command(command) => self.pending_command = Some(command),
                 PanelAction::OpenFile(path) => self.open_viewer(path),
+                PanelAction::OpenExternal(path) => self.open_externally(path),
                 PanelAction::Enter => self.enter_pressed(),
                 PanelAction::Volume(root) => {
                     self.model.open_volume(side, &root);
@@ -1246,7 +1374,14 @@ impl eframe::App for RCommanderApp {
             }
         }
         if self.model.editor.is_some() {
-            crate::ui::editor_window::show(ctx, &mut self.model, &palette);
+            let workspace = self.workspace_for_windows(ctx);
+            crate::ui::editor_window::show(
+                ctx,
+                &mut self.model,
+                &mut self.editor_ui,
+                &palette,
+                workspace,
+            );
         }
         if self.model.help.is_some() {
             crate::ui::help_window::show(ctx, &mut self.model, &mut self.help_ui, &palette);
@@ -1259,7 +1394,14 @@ impl eframe::App for RCommanderApp {
         }
         if self.model.show_chat_panel {
             let palette = self.palette.clone();
-            if crate::ui::chat_window::show(ctx, &mut self.model, &mut self.chat_ui, &palette) {
+            let workspace = self.workspace_for_windows(ctx);
+            if crate::ui::chat_window::show(
+                ctx,
+                &mut self.model,
+                &mut self.chat_ui,
+                &palette,
+                workspace,
+            ) {
                 self.model.show_chat_panel = false;
             }
         }

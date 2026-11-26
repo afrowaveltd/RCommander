@@ -47,7 +47,7 @@ mod text;
 
 pub use classify::{ContentKind, FileFormat, detect, probe};
 pub use encoding::decode_text;
-pub use hex::{HexDocument, HexLine, hex_document, load_hex};
+pub use hex::{HexDocument, HexLine, hex_document, load_hex, reformat};
 pub use img::{
     ImageDocument, MAX_DECODED_BYTES, MAX_IMAGE_FILE_BYTES, decode_image_bytes, load_image,
 };

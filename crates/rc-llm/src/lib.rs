@@ -218,7 +218,9 @@ pub trait Provider: std::fmt::Debug + Send + Sync {
     }
 
     fn chat_stream_controlled(
-        &self, request: &ChatRequest, control: &StreamControl,
+        &self,
+        request: &ChatRequest,
+        control: &StreamControl,
         on_event: &mut dyn FnMut(StreamEvent<'_>),
     ) -> Result<ChatReply, LlmError> {
         if control.is_cancelled() {
@@ -423,24 +425,35 @@ impl Provider for OllamaProvider {
     fn model_loaded(&self, model: &str) -> Result<Option<bool>, LlmError> {
         let response = self.get("/api/ps")?;
         if !response.is_success() {
-            return Err(LlmError::new(format!("model status returned {}", response.status)));
+            return Err(LlmError::new(format!(
+                "model status returned {}",
+                response.status
+            )));
         }
-        let value: serde_json::Value = serde_json::from_str(&response.body)
-            .map_err(|e| LlmError::new(e.to_string()))?;
-        let models = value.get("models").and_then(|v| v.as_array())
+        let value: serde_json::Value =
+            serde_json::from_str(&response.body).map_err(|e| LlmError::new(e.to_string()))?;
+        let models = value
+            .get("models")
+            .and_then(|v| v.as_array())
             .ok_or_else(|| LlmError::new("invalid model status response"))?;
         Ok(Some(models.iter().any(|entry| {
             ["name", "model"].iter().any(|key| {
-                entry.get(*key).and_then(|v| v.as_str()).is_some_and(|name| {
-                    name == model || format!("{name}:latest") == model
-                        || format!("{model}:latest") == name
-                })
+                entry
+                    .get(*key)
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|name| {
+                        name == model
+                            || format!("{name}:latest") == model
+                            || format!("{model}:latest") == name
+                    })
             })
         })))
     }
 
     fn chat_stream(
-        &self, request: &ChatRequest, on_chunk: &mut dyn FnMut(&str),
+        &self,
+        request: &ChatRequest,
+        on_chunk: &mut dyn FnMut(&str),
     ) -> Result<ChatReply, LlmError> {
         self.stream_chat(request, None, &mut |event| {
             if let StreamEvent::Text(text) = event {
@@ -450,7 +463,9 @@ impl Provider for OllamaProvider {
     }
 
     fn chat_stream_controlled(
-        &self, request: &ChatRequest, control: &StreamControl,
+        &self,
+        request: &ChatRequest,
+        control: &StreamControl,
         on_event: &mut dyn FnMut(StreamEvent<'_>),
     ) -> Result<ChatReply, LlmError> {
         self.stream_chat(request, Some(control), on_event)
@@ -459,7 +474,9 @@ impl Provider for OllamaProvider {
 
 impl OllamaProvider {
     fn stream_chat(
-        &self, request: &ChatRequest, control: Option<&StreamControl>,
+        &self,
+        request: &ChatRequest,
+        control: Option<&StreamControl>,
         on_event: &mut dyn FnMut(StreamEvent<'_>),
     ) -> Result<ChatReply, LlmError> {
         let body = chat_body_streaming(request);
@@ -511,7 +528,12 @@ impl OllamaProvider {
         };
         let result = match control {
             Some(control) => http::post_json_stream_controlled(
-                &target, "/api/chat", &body, self.timeout, control, &mut on_line,
+                &target,
+                "/api/chat",
+                &body,
+                self.timeout,
+                control,
+                &mut on_line,
             ),
             None => http::post_json_stream(&target, "/api/chat", &body, self.timeout, &mut on_line),
         };

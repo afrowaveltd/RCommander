@@ -14,9 +14,25 @@ picks the best representation:
 
 ## Modes
 
-`T` text, `H` hex, `I` image, `A` automatic. The hex dump shows the offset, the
-bytes in groups and the printable ASCII gutter; the number of bytes per line is
-configurable.
+`T` text, `H` hex, `I` image, `A` automatic.
+
+### The hex dump
+
+The dump shows the offset, the bytes in groups and the printable ASCII gutter, and
+it is meant to be *read*, not just looked at:
+
+- **the width is yours**: the *bytes/line* slider re-formats the dump immediately,
+  from 1 to 64 bytes per row, without re-reading the file;
+- **it scrolls properly** in both directions and draws only the visible rows, so a
+  multi-megabyte file is no slower than a small one;
+- **click a row** to select it: the strip at the bottom shows the offset in hex and
+  decimal and that row's bytes as unsigned, signed, 16-bit and 32-bit numbers (little
+  endian, which is what x86 file formats mean by those columns), plus the ASCII;
+- **go to** takes `0x200`, `512`, `200h` or plain hex and jumps there, which is how
+  you follow a header that says "the table starts at 0x200".
+
+A file that is not text opens here directly: there is nothing to decode, and
+pretending otherwise would show mojibake.
 
 ## Keys
 

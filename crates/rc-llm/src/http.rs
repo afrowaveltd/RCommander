@@ -7,8 +7,8 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Shutdown, TcpStream, ToSocketAddrs};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// One HTTP response, decoded.
@@ -213,11 +213,18 @@ impl StreamControl {
     }
 
     fn attach(&self, stream: &TcpStream) -> Result<SocketGuard<'_>, HttpError> {
-        let mut slot = self.socket.lock().map_err(|_| HttpError::new("request lock poisoned"))?;
+        let mut slot = self
+            .socket
+            .lock()
+            .map_err(|_| HttpError::new("request lock poisoned"))?;
         if self.is_cancelled() {
             return Err(HttpError::new("request cancelled"));
         }
-        *slot = Some(stream.try_clone().map_err(|e| HttpError::new(e.to_string()))?);
+        *slot = Some(
+            stream
+                .try_clone()
+                .map_err(|e| HttpError::new(e.to_string()))?,
+        );
         Ok(SocketGuard(self))
     }
 }
@@ -248,35 +255,57 @@ pub fn post_json_stream(
 
 /// No read deadline: the owner may cancel the socket while waiting for a cold model.
 pub fn post_json_stream_controlled(
-    target: &Target, path: &str, body: &str, timeout: Duration,
-    control: &StreamControl, on_line: &mut dyn FnMut(&str),
+    target: &Target,
+    path: &str,
+    body: &str,
+    timeout: Duration,
+    control: &StreamControl,
+    on_line: &mut dyn FnMut(&str),
 ) -> Result<(), HttpError> {
     stream_impl(target, path, body, timeout, Some(control), on_line)
 }
 
 fn stream_impl(
-    target: &Target, path: &str, body: &str, timeout: Duration,
-    control: Option<&StreamControl>, on_line: &mut dyn FnMut(&str),
+    target: &Target,
+    path: &str,
+    body: &str,
+    timeout: Duration,
+    control: Option<&StreamControl>,
+    on_line: &mut dyn FnMut(&str),
 ) -> Result<(), HttpError> {
     let address = format!("{}:{}", target.host, target.port);
     let mut connected = None;
     let mut last_error = None;
-    for addr in address.to_socket_addrs().map_err(|e| HttpError::new(e.to_string()))? {
+    for addr in address
+        .to_socket_addrs()
+        .map_err(|e| HttpError::new(e.to_string()))?
+    {
         if control.is_some_and(StreamControl::is_cancelled) {
             return Err(HttpError::new("request cancelled"));
         }
         match TcpStream::connect_timeout(&addr, timeout) {
-            Ok(stream) => { connected = Some(stream); break; }
+            Ok(stream) => {
+                connected = Some(stream);
+                break;
+            }
             Err(error) => last_error = Some(error),
         }
     }
-    let stream = connected.ok_or_else(|| HttpError::new(format!(
-        "cannot reach {address}: {} (is the server running?)",
-        last_error.map(|e| e.to_string()).unwrap_or_else(|| "no address".into())
-    )))?;
+    let stream = connected.ok_or_else(|| {
+        HttpError::new(format!(
+            "cannot reach {address}: {} (is the server running?)",
+            last_error
+                .map(|e| e.to_string())
+                .unwrap_or_else(|| "no address".into())
+        ))
+    })?;
     let _guard = control.map(|c| c.attach(&stream)).transpose()?;
     stream
-        .set_read_timeout(if control.is_some() { None } else { Some(timeout) })
+        .set_read_timeout(if control.is_some() {
+            None
+        } else {
+            Some(timeout)
+        })
         .map_err(|error| HttpError::new(error.to_string()))?;
     stream
         .set_write_timeout(Some(timeout))
@@ -437,7 +466,9 @@ mod tests {
         let (ready_tx, ready_rx) = std::sync::mpsc::channel();
         let server = std::thread::spawn(move || {
             let (mut socket, _) = listener.accept().unwrap();
-            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
             let mut buffer = [0; 1024];
             let _ = socket.read(&mut buffer).unwrap();
             ready_tx.send(()).unwrap();
@@ -448,15 +479,24 @@ mod tests {
         let (done_tx, done_rx) = std::sync::mpsc::channel();
         let worker = std::thread::spawn(move || {
             let result = post_json_stream_controlled(
-                &target, "/api/chat", "{}", Duration::from_secs(1),
-                &worker_control, &mut |_| {},
+                &target,
+                "/api/chat",
+                "{}",
+                Duration::from_secs(1),
+                &worker_control,
+                &mut |_| {},
             );
             done_tx.send(result).unwrap();
         });
         ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(done_rx.recv_timeout(Duration::from_millis(50)).is_err());
         control.cancel();
-        assert!(done_rx.recv_timeout(Duration::from_secs(3)).unwrap().is_err());
+        assert!(
+            done_rx
+                .recv_timeout(Duration::from_secs(3))
+                .unwrap()
+                .is_err()
+        );
         worker.join().unwrap();
         server.join().unwrap();
     }

@@ -96,6 +96,32 @@ pub fn load_hex(path: &Path, opts: &ViewerOptions) -> std::io::Result<HexDocumen
     Ok(doc)
 }
 
+/// Re-format an existing dump with a different number of bytes per row.
+///
+/// The bytes are taken from the rows themselves, so this works without keeping the source file
+/// open — and the result is identical to loading the same prefix again. This is what the viewer
+/// calls when the user drags the "bytes per line" slider: re-reading the file for a cosmetic change
+/// would be both slower and wrong (the file may have changed under the viewer).
+pub fn reformat(doc: &HexDocument, bytes_per_line: usize) -> HexDocument {
+    let per_line = bytes_per_line.clamp(1, 64);
+    if per_line == doc.bytes_per_line {
+        return doc.clone();
+    }
+    let mut bytes: Vec<u8> = Vec::with_capacity(doc.bytes_shown() as usize);
+    for line in &doc.lines {
+        bytes.extend_from_slice(&line.bytes);
+    }
+    let mut reformatted = hex_document(
+        &bytes,
+        doc.lines.first().map(|l| l.offset).unwrap_or(0),
+        per_line,
+    );
+    // The totals describe the *source*, not the slice, so they are carried over unchanged.
+    reformatted.total_bytes = doc.total_bytes;
+    reformatted.truncated = doc.truncated;
+    reformatted
+}
+
 /// Format one row.
 fn format_line(offset: u64, chunk: &[u8]) -> HexLine {
     let mut hex = String::with_capacity(chunk.len() * 3);
@@ -297,5 +323,64 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let missing = dir.path().join("nope.bin");
         assert!(load_hex(&missing, &ViewerOptions::default()).is_err());
+    }
+}
+
+#[cfg(test)]
+mod reformat_tests {
+    use super::*;
+
+    #[test]
+    fn reformatting_keeps_every_byte_and_changes_only_the_row_width() {
+        let bytes: Vec<u8> = (0..40u8).collect();
+        let doc = hex_document(&bytes, 0, 16);
+        assert_eq!(doc.line_count(), 3);
+        let narrow = reformat(&doc, 8);
+        assert_eq!(narrow.bytes_per_line, 8);
+        assert_eq!(narrow.line_count(), 5);
+        // The bytes are the same, in the same order.
+        let gathered: Vec<u8> = narrow
+            .lines
+            .iter()
+            .flat_map(|line| line.bytes.clone())
+            .collect();
+        assert_eq!(gathered, bytes);
+        // And the offsets still point at the same places.
+        assert_eq!(narrow.lines[1].offset, 8);
+        assert_eq!(narrow.lines[1].hex, "08 09 0a 0b 0c 0d 0e 0f");
+        // Widening back returns the original shape.
+        let wide = reformat(&narrow, 16);
+        assert_eq!(wide.lines, doc.lines);
+    }
+
+    #[test]
+    fn the_source_totals_survive_a_truncated_dump() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("big.bin");
+        let bytes: Vec<u8> = (0..1000u32).map(|value| (value % 256) as u8).collect();
+        std::fs::write(&path, &bytes).unwrap();
+        let options = ViewerOptions {
+            max_bytes_read: 128,
+            ..Default::default()
+        };
+        let doc = load_hex(&path, &options).unwrap();
+        assert!(doc.truncated);
+        assert_eq!(doc.total_bytes, 1000);
+        let wide = reformat(&doc, 32);
+        assert_eq!(
+            wide.total_bytes, 1000,
+            "the file is still 1000 bytes, whatever the row width"
+        );
+        assert!(wide.truncated);
+        assert_eq!(wide.bytes_shown(), doc.bytes_shown());
+    }
+
+    #[test]
+    fn a_width_outside_the_range_is_clamped_instead_of_panicking() {
+        let doc = hex_document(b"abcdef", 0, 16);
+        assert_eq!(reformat(&doc, 0).bytes_per_line, 1);
+        assert_eq!(reformat(&doc, 9999).bytes_per_line, 64);
+        // Re-asking for the same width returns the dump untouched.
+        assert_eq!(reformat(&doc, 16), doc);
     }
 }

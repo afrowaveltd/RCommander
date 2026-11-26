@@ -11,3 +11,4 @@ pub mod panel_view;
 pub mod thumbs;
 pub mod transfer_window;
 pub mod viewer_window;
+pub mod workspace_window;

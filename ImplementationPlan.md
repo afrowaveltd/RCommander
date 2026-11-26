@@ -261,6 +261,43 @@ visible Chinese dragon behind the panels — the kind of thing that needs only 1
 and a theme file to share. Which is the point: the shiny parts are data, so the wild ideas
 do not need code.
 
+### Phase 14.9 — A keyboard that follows the focused surface (planned)
+
+The function key bar is drawn, the keys mostly work, but the model behind it is still
+"one panel of files": pressing `F3` while the chat has the focus does nothing useful,
+and there is no way to ask for a variant of a command without leaving the keyboard.
+A file manager that is fast for its expert users is fast because of this layer, and
+the future TUI frontend needs exactly the same layer, so it belongs in the model and
+not in the GUI.
+
+The insight is that **the focused surface decides what the keys mean**. The list of
+surfaces is short and stable: the two file panels (local, archive or Git), the agent
+chat, the editor and the viewer. Each surface publishes what its `F1…F12` do, and the
+bar under the panels draws the *focused* surface's row — so a key that means "view"
+over a file means "regenerate" over a conversation, and the user sees that.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 14.9.1 | Surface-aware command table | a `Surface` enum in the headless model with a per-surface command table; the `F` bar renders the focused surface's row and every drawn button is clickable and mapped to the same command | tests: the same `F` key maps to different commands per surface, the bar drawn for the chat matches what the key does, and clicking a bar button equals pressing the key |
+| 14.9.2 | Modifier variants | `Ctrl+Fx`, `Alt+Fx` and `Shift+Fx` bound as first-class shortcuts with defaults and overrides, plus a conflict check when two bindings collide | tests: every variant is listed in the key map, a user override wins over the default, a collision is reported instead of silently losing one |
+| 14.9.3 | The chat's own row | over the chat: change provider, change model, save the prompt, export the conversation, clear it, stop a running answer — the ones the panel owner asked for, and nothing that needs a file | tests: each key works with a fake provider, and a key that needs files is *absent* from the chat row rather than disabled |
+| 14.9.4 | The editor's and viewer's rows | the editor gets save, save-as, find, go-to-line and the window controls; the viewer gets its modes, zoom and find | tests: the rows are complete, the keys do what the row says, and switching surface switches the row |
+| 14.9.5 | Documentation and a cheat sheet | the *Keyboard shortcuts* topic gains the per-surface tables, and `Ctrl+F1` shows the same thing as an overlay inside the application | topic present in both languages; the overlay renders the same data as the topic, so the two cannot drift |
+
+### Phase 17.3 — Reading binary data with help (planned)
+
+The hex dump arrived because a file manager must be able to show *anything*; it should also be able
+to explain it. Reverse-engineering a format by hand is exactly the kind of work an assistant can
+make bearable, and it is also exactly the kind of work where a wrong guess is expensive, so the
+feature is designed around "the agent proposes, the file stays untouched".
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 17.3.1 | Byte ranges and grouping | a selection of a byte range in the dump, with the same bytes shown as u8/i8/u16/i16/u32/i32/f32 and as a UTF-8 / UTF-16 / Latin-1 run; endianness switchable with the byte order marked | tests: every numeric view of a known fixture matches, a range crossing a row boundary selects correctly, and an odd-length range is reported instead of silently truncated |
+| 17.3.2 | Structure hints for known formats | the container, archive and image formats we already recognise get a "what this region is" line: PNG chunks, ZIP local headers, ELF/PE/Mach-O headers, TAR entries, and the pack formats from Phase 10 | tests: fixtures of each format show the expected region names at the expected offsets, and an unknown format says "unknown" rather than guessing |
+| 17.3.3 | Ask the agent about a range | the selected range, plus the file name and the surrounding bytes, is offered to the chat as *data*: the bytes go out only after the user sees exactly what will be sent, and the answer comes back as text in the conversation | tests: nothing is sent without the preview, the request carries the byte range and no path from outside the workspace, and a refused send leaves the transcript unchanged |
+| 17.3.4 | Verified edits (later, and separately) | patching bytes through the Phase 16.4 transaction pipeline: a change set with the original hashes, the new bytes, a diff of the affected region and a verified backup before anything is written | tests: a refused or failed patch leaves the file byte-identical, a successful patch is reversible from the backup and the manifest, and a stale file (changed outside) is refused rather than overwritten |
+
 ## Phase 15 — Git repositories as panels
 
 A repository is a natural fit for a commander: the working tree is already an

@@ -125,14 +125,35 @@ fn go_parent_at_root_reports_an_error() {
 }
 
 #[test]
-fn entering_a_regular_file_asks_the_viewer_to_open_it() {
+fn entering_a_regular_file_asks_the_system_to_open_it() {
+    // Enter and a double-click mean "the default action": the system opens the file in whatever it
+    // associates with it, or runs it if it is a program. The built-in viewer stays on F3.
     let (left, _r, mut model) = fixture();
     let index = model.left.listing.find("alpha.txt").unwrap();
     model.left.set_cursor(index);
     match model.enter() {
-        CommandOutcome::OpenFile(path) => assert_eq!(path, left.path().join("alpha.txt")),
-        other => panic!("expected OpenFile, got {other:?}"),
+        CommandOutcome::OpenExternally(path) => {
+            assert_eq!(path, left.path().join("alpha.txt"))
+        }
+        other => panic!("expected OpenExternally, got {other:?}"),
     }
+}
+
+#[test]
+fn entering_a_folder_still_navigates_instead_of_launching_it() {
+    let (_left, _r, mut model) = fixture();
+    let index = model.left.listing.find("sub").unwrap();
+    model.left.set_cursor(index);
+    assert_eq!(model.enter(), CommandOutcome::Ok);
+    assert!(
+        model
+            .left
+            .location()
+            .as_path()
+            .is_some_and(|path| path.ends_with("sub")),
+        "the panel entered the folder: {}",
+        model.left.location().display()
+    );
 }
 
 #[test]
@@ -147,7 +168,10 @@ fn a_zip_archive_can_be_entered_and_listed() {
     model.left.set_cursor(index);
     let outcome = model.enter();
     assert!(
-        !matches!(outcome, CommandOutcome::OpenFile(_)),
+        !matches!(
+            outcome,
+            CommandOutcome::OpenFile(_) | CommandOutcome::OpenExternally(_)
+        ),
         "archives are entered: {outcome:?}"
     );
     assert!(
@@ -178,7 +202,10 @@ fn entering_an_archive_location_is_attempted_when_enabled() {
     // Either the archive backend lists it, or the read error is reported — but
     // the cursor entry must have been treated as an archive, not a plain file.
     assert!(
-        !matches!(outcome, CommandOutcome::OpenFile(_)),
+        !matches!(
+            outcome,
+            CommandOutcome::OpenFile(_) | CommandOutcome::OpenExternally(_)
+        ),
         "archives are entered, not opened: {outcome:?}"
     );
 }
@@ -191,7 +218,7 @@ fn archives_are_not_entered_when_the_option_is_off() {
     model.refresh_active();
     let index = model.left.listing.find("pack.zip").unwrap();
     model.left.set_cursor(index);
-    assert!(matches!(model.enter(), CommandOutcome::OpenFile(_)));
+    assert!(matches!(model.enter(), CommandOutcome::OpenExternally(_)));
 }
 
 #[test]

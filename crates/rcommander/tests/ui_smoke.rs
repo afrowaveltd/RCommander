@@ -1662,11 +1662,8 @@ fn saving_in_the_editor_offers_to_commit() {
         state.modified = true;
     }
     harness.run();
-    // The editor's Apply button saves the file, which asks about committing.
-    harness
-        .root()
-        .get_by_label("dialog.config.apply")
-        .click_accesskit();
+    // The editor's Save button writes the file, which asks about committing.
+    harness.root().get_by_label("prompt.save").click_accesskit();
     harness.run();
     harness.run();
     match harness.state().model.top_dialog() {

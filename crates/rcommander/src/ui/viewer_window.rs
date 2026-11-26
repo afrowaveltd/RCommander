@@ -167,6 +167,18 @@ fn show_text(
         });
 }
 
+/// The hexdump: real scrolling, a width the user can change, and a detail panel for one row.
+///
+/// Three things were wrong with the first version and each has a cause worth keeping in mind:
+///
+/// * the "bytes per line" slider changed a number nothing re-read, so it did nothing — the dump is
+///   now re-formatted from its own bytes when the value changes;
+/// * the whole dump was one huge label inside an unbounded scroll area, so the *window* grew
+///   instead of the content scrolling — now the rows are drawn with `show_rows`, which both scrolls
+///   and keeps a 10 MB dump cheap;
+/// * a byte was only a dot in a gutter. Clicking a row now shows the offset in hex and decimal and
+///   the row's bytes as unsigned, signed, 16- and 32-bit values, which is what "study it in detail"
+///   means when you are looking at a file format.
 fn show_hex(
     ui: &mut egui::Ui,
     state: &mut crate::model::ViewerState,
@@ -181,7 +193,9 @@ fn show_hex(
             return;
         }
     };
-    ui.horizontal(|ui| {
+    // The slider edits a request; the dump is rebuilt when it differs from what is on screen.
+    let mut width = state.hex_bytes.clamp(1, 64);
+    ui.horizontal_wrapped(|ui| {
         ui.label(
             RichText::new(format!("{} bytes", doc.total_bytes))
                 .small()
@@ -190,24 +204,169 @@ fn show_hex(
         if doc.truncated {
             ui.label(RichText::new("truncated").small().color(palette.readonly));
         }
-        ui.add(egui::Slider::new(&mut state.hex_bytes, 1..=64).text(model_bytes_label()));
+        if ui
+            .add(egui::Slider::new(&mut width, 1..=64).text(model_bytes_label()))
+            .changed()
+        {
+            state.hex_bytes = width;
+        }
+        // Jumping to an offset is how a person reads a file format: the header says "at 0x200".
+        ui.label(RichText::new("|").color(palette.hidden));
+        ui.label("go to");
+        ui.add(
+            egui::TextEdit::singleline(&mut state.hex_goto)
+                .desired_width(90.0)
+                .hint_text("0x200"),
+        );
+        if ui.button("→").clicked()
+            && let Some(offset) = parse_offset(&state.hex_goto)
+        {
+            let per_line = doc.bytes_per_line.max(1) as u64;
+            state.hex_selected = (offset / per_line) as usize;
+        }
     });
-    egui::ScrollArea::both()
-        .auto_shrink([false, false])
+    let view: std::borrow::Cow<'_, rc_viewer::HexDocument> =
+        if state.hex_bytes != doc.bytes_per_line {
+            std::borrow::Cow::Owned(rc_viewer::reformat(doc, state.hex_bytes))
+        } else {
+            std::borrow::Cow::Borrowed(doc)
+        };
+    let view = view.as_ref();
+
+    let row_height = ui.text_style_height(&egui::TextStyle::Monospace) + 2.0;
+    let selected = state.hex_selected.min(view.lines.len().saturating_sub(1));
+    let mut clicked_row: Option<usize> = None;
+    // The detail panel is a bottom strip, so the rows keep the rest of the height and scroll.
+    let detail_height = if view.lines.is_empty() { 0.0 } else { 66.0 };
+    egui::Panel::bottom("hex_detail")
+        .resizable(false)
+        .exact_size(detail_height)
         .show(ui, |ui| {
-            let mut text = String::new();
-            for line in &doc.lines {
-                text.push_str(&format!(
-                    "{:08x}  {:<48}  |{}|\n",
-                    line.offset, line.hex, line.ascii
-                ));
-            }
-            if text.is_empty() {
-                ui.label(rc_viewer::describe(loaded));
-            } else {
-                ui.add(egui::Label::new(RichText::new(text).monospace()).selectable(true));
+            if let Some(line) = view.lines.get(selected) {
+                ui.label(
+                    RichText::new(format!(
+                        "offset {} (0x{:x}) · {} bytes",
+                        line.offset,
+                        line.offset,
+                        line.bytes.len()
+                    ))
+                    .small()
+                    .color(palette.hidden),
+                );
+                ui.label(
+                    RichText::new(format!(
+                        "u8: {}   i8: {}   u16: {}   u32: {}",
+                        describe_unsigned(&line.bytes),
+                        describe_signed(&line.bytes),
+                        describe_u16(&line.bytes),
+                        describe_u32(&line.bytes)
+                    ))
+                    .small()
+                    .monospace(),
+                );
+                ui.label(
+                    RichText::new(format!("ascii: |{}|", line.ascii))
+                        .small()
+                        .monospace(),
+                );
             }
         });
+    egui::ScrollArea::both()
+        .auto_shrink([false, false])
+        .id_salt("hex_rows")
+        .show_rows(ui, row_height, view.lines.len(), |ui, range| {
+            let font = egui::TextStyle::Monospace.resolve(ui.style());
+            for index in range {
+                let line = &view.lines[index];
+                let text = format!(
+                    "{:08x}  {:<width$}  |{}|",
+                    line.offset,
+                    line.hex,
+                    line.ascii,
+                    width = view.bytes_per_line * 3
+                );
+                let mut job = egui::text::LayoutJob::default();
+                job.append(
+                    &text,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: font.clone(),
+                        color: if index == selected {
+                            palette.selected_foreground
+                        } else {
+                            palette.foreground
+                        },
+                        background: if index == selected {
+                            palette.selected_background
+                        } else {
+                            egui::Color32::TRANSPARENT
+                        },
+                        ..Default::default()
+                    },
+                );
+                let response = ui.add(egui::Label::new(job).sense(egui::Sense::click()));
+                if response.clicked() {
+                    clicked_row = Some(index);
+                }
+            }
+        });
+    if let Some(index) = clicked_row {
+        state.hex_selected = index;
+    }
+}
+
+/// Parse `0x200`, `512` or `200h` into a byte offset.
+fn parse_offset(text: &str) -> Option<u64> {
+    let text = text.trim().to_ascii_lowercase();
+    if text.is_empty() {
+        return None;
+    }
+    if let Some(hex) = text.strip_prefix("0x") {
+        return u64::from_str_radix(hex, 16).ok();
+    }
+    if let Some(hex) = text.strip_suffix('h') {
+        return u64::from_str_radix(hex, 16).ok();
+    }
+    if let Ok(decimal) = text.parse::<u64>() {
+        return Some(decimal);
+    }
+    u64::from_str_radix(&text, 16).ok()
+}
+
+fn describe_unsigned(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .take(8)
+        .map(|byte| byte.to_string())
+        .collect::<Vec<String>>()
+        .join(" ")
+}
+
+fn describe_signed(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .take(8)
+        .map(|byte| (*byte as i8).to_string())
+        .collect::<Vec<String>>()
+        .join(" ")
+}
+
+fn describe_u16(bytes: &[u8]) -> String {
+    bytes
+        .chunks_exact(2)
+        .take(4)
+        .map(|pair| u16::from_le_bytes([pair[0], pair[1]]).to_string())
+        .collect::<Vec<String>>()
+        .join(" ")
+}
+
+fn describe_u32(bytes: &[u8]) -> String {
+    bytes
+        .chunks_exact(4)
+        .take(2)
+        .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]).to_string())
+        .collect::<Vec<String>>()
+        .join(" ")
 }
 
 fn model_bytes_label() -> String {
@@ -295,5 +454,33 @@ mod tests {
             effective_mode(ViewerMode::Text, &ViewerUi::default()),
             ViewerMode::Text
         );
+    }
+}
+
+#[cfg(test)]
+mod hex_tests {
+    use super::*;
+
+    #[test]
+    fn an_offset_can_be_typed_the_ways_a_person_types_it() {
+        assert_eq!(parse_offset("0x200"), Some(0x200));
+        assert_eq!(parse_offset("512"), Some(512));
+        assert_eq!(parse_offset("200h"), Some(0x200));
+        assert_eq!(parse_offset("  ff  "), Some(0xff));
+        assert_eq!(parse_offset(""), None);
+        assert_eq!(parse_offset("nothing"), None);
+    }
+
+    #[test]
+    fn the_byte_columns_read_as_numbers_in_every_width_that_matters() {
+        let bytes = [0x01u8, 0x02, 0xff, 0x00];
+        assert_eq!(describe_unsigned(&bytes), "1 2 255 0");
+        // The same bytes signed: 0xff is -1, which is the whole reason the column exists.
+        assert_eq!(describe_signed(&bytes), "1 2 -1 0");
+        assert_eq!(describe_u16(&bytes), "513 255");
+        // Little-endian, which is what every x86 file format means by these columns.
+        assert_eq!(describe_u32(&bytes), "16712193");
+        // An empty row prints nothing rather than panicking.
+        assert!(describe_u32(&[]).is_empty());
     }
 }

@@ -30,6 +30,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             action = match &mut dialog {
+                Dialog::OpenWith(state) => open_with(ui, model, state),
                 Dialog::Transfer(state) => transfer(ui, model, state),
                 Dialog::Overwrite(state) => overwrite(ui, model, state),
                 Dialog::MakeDir(state) => mkdir(ui, model, state),
@@ -97,6 +98,105 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
     }
 }
 
+/// The "open with" chooser: a searchable list of the desktop's applications.
+fn open_with(ui: &mut egui::Ui, model: &mut Model, state: &mut OpenWithState) -> DialogAction {
+    let palette = crate::theme::Palette::for_model(model);
+    ui.label(
+        egui::RichText::new(state.path.display().to_string())
+            .monospace()
+            .small(),
+    );
+    if state.apps.is_empty() {
+        ui.separator();
+        ui.label(egui::RichText::new(model.t("dialog.openwith.none")).color(palette.warning));
+        ui.label(
+            egui::RichText::new(model.t("dialog.openwith.none.hint"))
+                .small()
+                .color(palette.hidden),
+        );
+        let (_, cancel) = buttons(ui, model);
+        return if cancel {
+            DialogAction::Close
+        } else {
+            DialogAction::None
+        };
+    }
+    ui.horizontal(|ui| {
+        ui.add(
+            egui::TextEdit::singleline(&mut state.filter)
+                .desired_width(240.0)
+                .hint_text(model.t("dialog.openwith.filter")),
+        );
+        ui.label(
+            egui::RichText::new(model.tf(
+                "prompt.count",
+                &[("count", &state.visible().len().to_string())],
+            ))
+            .small()
+            .color(palette.hidden),
+        );
+    });
+    ui.separator();
+    let mut chosen: Option<usize> = None;
+    let names: Vec<String> = state.visible().iter().map(|app| app.name.clone()).collect();
+    let selected = state.selected;
+    egui::ScrollArea::vertical()
+        .max_height(220.0)
+        .auto_shrink([false, true])
+        .id_salt("open_with_list")
+        .show(ui, |ui| {
+            for (index, name) in names.iter().enumerate() {
+                if ui.selectable_label(index == selected, name).clicked() {
+                    chosen = Some(index);
+                }
+            }
+        });
+    if let Some(index) = chosen {
+        state.selected = index;
+    }
+    let mut action = DialogAction::None;
+    // A double click or Enter opens; so does the button, which is what a keyboard user reaches for.
+    if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !chosen.is_some() {
+        chosen = Some(state.selected);
+    }
+    ui.separator();
+    ui.horizontal(|ui| {
+        if ui.button(model.t("dialog.openwith.open")).clicked() {
+            chosen = Some(state.selected);
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            action = DialogAction::Close;
+        }
+    });
+    if let Some(index) = chosen
+        && let Some(app) = state.visible().get(index).copied()
+    {
+        let plan = app.command_for(&state.path);
+        let action = rc_core::desktop::Action::OpenWith {
+            path: state.path.clone(),
+            app: plan.program.clone(),
+        };
+        // An application whose `Exec` had more than the program name is run as-is.
+        let started = if plan.args.is_empty() {
+            crate::system_open::run(&action)
+        } else {
+            crate::system_open::run_plan(&plan)
+        };
+        match started {
+            Ok(started) => {
+                let message = model.tf("status.opening", &[("what", &started.what)]);
+                model.report(message);
+                return DialogAction::Close;
+            }
+            Err(error) => {
+                let message = model.tf("status.open.failed", &[("path", ""), ("error", &error)]);
+                model.report_error(message);
+            }
+        }
+    }
+    action
+}
+
 fn replace_dialog(new: Dialog, old: Dialog) -> Dialog {
     // Keep the edited state, but preserve the variant identity of the old one.
     match (new, old) {
@@ -110,6 +210,7 @@ fn replace_dialog(new: Dialog, old: Dialog) -> Dialog {
 
 fn title_for(model: &Model, dialog: &Dialog) -> String {
     let key = match dialog {
+        Dialog::OpenWith(_) => "dialog.openwith.title",
         Dialog::Transfer(state) => state.title_key(),
         Dialog::Overwrite(_) => "dialog.overwrite.title",
         Dialog::MakeDir(_) => "dialog.mkdir.title",
@@ -2713,8 +2814,13 @@ fn ai_model(ui: &mut egui::Ui, model: &mut Model, state: &mut AiModelState) -> D
     let wait_label = model.t("ai.wait.interval");
     ui.horizontal(|ui| {
         ui.label(wait_label);
-        if ui.add(egui::DragValue::new(&mut model.settings.agent.response_wait_seconds)
-            .range(1..=3600).suffix(" s")).changed()
+        if ui
+            .add(
+                egui::DragValue::new(&mut model.settings.agent.response_wait_seconds)
+                    .range(1..=3600)
+                    .suffix(" s"),
+            )
+            .changed()
         {
             model.mark_settings_dirty();
         }

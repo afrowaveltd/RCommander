@@ -310,6 +310,48 @@ Keyboard handling needed no new rule: typing into the input takes the focus, and
 shortcut handler already steps aside when a widget has focus. That is why F-keys do not navigate the
 hidden list while somebody is typing a question.
 
+## Phase 14.8b — the evening of small defects (done)
+
+`cargo test -p rc-core --lib desktop` → **8 tests**, `cargo test -p rc-viewer --lib reformat` →
+**3**, two model tests for the editor and the hex helpers, plus the UI suite.
+
+The panel owner reported eight things that were wrong or missing. Each was a real defect and most
+had a cause worth remembering.
+
+1. **Enter and double-click opened the internal viewer** instead of doing what the system would do.
+   A new `CommandOutcome::OpenExternally` splits "hand it to the platform" from "look at it here":
+   Enter and a double-click run or open the file, `F3` stays the internal viewer. The pure half of
+   the platform call lives in `rc_core::desktop` (which program, which arguments, per platform, with
+   no shell string building), the impure half in `rcommander::system_open` (find the program, spawn
+   it, never wait).
+2. **The up and refresh buttons above a panel acted on the other panel.** They pushed a
+   source-panel command without making their own panel the source. One line each: activate the
+   panel the button sits in, then send the command.
+3. **The editor could not save where it had no rights.** It now warns before the user types ("this
+   file cannot be written"), reports the system's own error on a failed save, and offers two honest
+   ways out: save a copy into the documents folder (numbered so a copy never overwrites), or ask the
+   system for elevated rights (`pkexec` / UAC / `osascript`) — and say so plainly when elevation is
+   not available. Binary files are refused with a reason instead of being shown as mojibake.
+4. **The editor and the chat had no window controls.** `ui::workspace_window` gives both a title row
+   with min / max / pin / close. Maximize and pin fill the rectangle the two panels occupy — captured
+   every frame — so they follow a resize of the main window; minimize folds the window to its title
+   bar without losing the buffer.
+5. **The chat's bottom row was half outside the window** because the input height was subtracted
+   from a guessed available height. The input row is now a bottom panel *inside* the window, so it
+   keeps its own height while the transcript above scrolls.
+6. **The context menu stopped at file operations.** It now offers the system's actions: open with
+   (the native chooser on Windows, elsewhere a searchable list read from the desktop's `.desktop`
+   files), send by e-mail, run in a terminal, open a terminal here.
+7. **The hex dump could not be read.** The bytes-per-line slider changed a value nothing re-read, the
+   whole dump was one label inside an unbounded scroll area (so the window grew instead of the
+   content scrolling), and a row was just text. It now re-formats from its own bytes, scrolls with
+   `show_rows` (so a multi-megabyte file costs the same as a small one), selects a row by click and
+   shows that row as unsigned, signed, 16- and 32-bit numbers, and jumps to an offset typed as
+   `0x200`, `512` or `200h`.
+8. **The function keys do not follow the focused surface** — planned as Phase 14.9, with the chat's
+   own row (provider, model, save prompt, export conversation) and the `Ctrl`/`Alt`/`Shift` variants
+   the panel owner asked for, because the coming TUI frontend needs the same layer.
+
 ## Phase 17.0 — a small highlighter and six colour roles (done)
 
 `cargo test -p rc-core --lib syntax` → **13 tests**, `cargo test -p rcommander --lib code_tests` →
@@ -1101,6 +1143,8 @@ command either by its own name or through a family rule:
 | No persona catalogue or creative document/image workflows | Phase 24.1–24.6; optional personalities and team templates, image provider adapters, editable document sources, exact text layout and reviewed export, optional public gateway with separate privacy and cost controls |
 | No first-class database panels or administration | Phase 23; independent database providers, read-only browser and SQL editor first, reviewed mutations and administration later, native MongoDB document support (23.10) |
 | Editor **annotations** (Phase 17.2) and the remaining previewer work are still open; the shared Markdown parser and the syntax highlighter are done | Phase 17.1–17.2 next |
+| The function key bar does not follow the **focused surface**, and there are no `Ctrl`/`Alt`/`Shift` variants, so the chat cannot offer "change model" or "export the conversation" from the keyboard | Phase 14.9 (planned): a per-surface command table in the model, modifier variants as first-class shortcuts, the chat's own row, and a `Ctrl+F1` cheat sheet sharing its data with the help topic |
+| The hex dump can be read and studied but not **annotated or analysed by the agent** | Phase 17.3 (planned): a selection range with byte grouping (u8/u16/u32/f32/UTF-8 runs), struct-layout hints for known formats, and an "ask the agent about this range" handoff that sends the bytes as data with the same approval rules as any other tool |
 | Themes are **flat colour tables**: no background images, per-element opacity, gradients, shadows, real window transparency or procedural animation. The Amber-theme-with-a-faint-dragon example from the panel owner is the design target | Phase 14.8 (planned and designed in the plan, with the API facts checked rather than assumed): images with placement/scale/opacity and a one-off CPU blur, chrome roles (frame colour and width, corner radius, shadow), independent opacities with a readability floor, real window transparency plus behind-window blur where the platform offers it, gradients and textures, and opt-in procedural animation that cannot run while the window is hidden. Every effect is off by default and has an "off" that restores today's look; contrast is measured against the pixels the text actually sits on |
 | No general data/render plugin framework or enforceable isolation for untrusted plugins | Phase 18; process separation alone is insufficient |
 | MCP HTTP server advertised in CLI help is not connected: `run_mcp` ignores `--http` arguments | Implement and secure server transport separately, or remove the unused CLI help flag; stdio server and MCP HTTP **client** are distinct |

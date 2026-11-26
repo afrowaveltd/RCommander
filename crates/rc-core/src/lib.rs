@@ -16,6 +16,7 @@ pub mod command;
 pub mod comment;
 pub mod compare;
 pub mod config;
+pub mod desktop;
 pub mod drive;
 pub mod dupes;
 pub mod encode;

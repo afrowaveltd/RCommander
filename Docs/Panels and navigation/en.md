@@ -79,3 +79,27 @@ on the panel you pointed at.
 
 Commands that would grow past this (compile this project, check with the agent, publish to the
 server) belong here too once the agent layer exists; the menu is the natural place for them.
+
+## Opening a file
+
+`Enter` and a **double-click** mean *the default action of your system*: a program
+runs, anything else opens in the application your desktop associates with it, and
+the status line says which happened. The built-in viewer stays on `F3`, so looking at
+a text file never costs you a detour through another program.
+
+The right-click menu adds the actions people expect from a file manager:
+
+| Entry | What it does |
+| --- | --- |
+| **Open (default application)** | the same as Enter |
+| **Open with…** | on Windows the native chooser; elsewhere a searchable list of the applications your desktop knows (read from the `.desktop` files), showing only what a user is meant to see |
+| **Send by e-mail…** | attaches the file to a new message: `xdg-email`, Mail on macOS, the default handler on Windows |
+| **Run in terminal** | runs the program in a terminal, so its output stays on screen instead of vanishing |
+| **Open terminal here** | a terminal in the panel's own folder, whichever emulator you have (`$TERMINAL`, `gnome-terminal`, `konsole`, `xfce4-terminal`, `alacritty`, `kitty`, `xterm`) |
+
+Nothing is passed through a shell command line, so a file called `; rm -rf ~` is a
+file name and not an instruction.
+
+## Right-click menus
+
+TBD

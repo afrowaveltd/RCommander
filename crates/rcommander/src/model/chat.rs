@@ -257,7 +257,12 @@ impl Model {
         let control = StreamControl::default();
         let worker_control = control.clone();
         let estimate_key = format!("{}|{}|{}", provider.kind(), provider.base_url(), model);
-        let estimate = self.settings.agent.model_load_seconds.get(&estimate_key).copied();
+        let estimate = self
+            .settings
+            .agent
+            .model_load_seconds
+            .get(&estimate_key)
+            .copied();
         let started = Instant::now();
         std::thread::spawn(move || {
             let initial = provider.model_loaded(&model).ok().flatten();
@@ -348,10 +353,13 @@ impl Model {
                     }
                 }
                 Ok(ChatEvent::Done(reply)) => {
-                    if job.cold && let Some(duration) = job.load_duration {
-                        self.settings.agent.model_load_seconds.insert(
-                            job.estimate_key.clone(), duration.as_secs().max(1),
-                        );
+                    if job.cold
+                        && let Some(duration) = job.load_duration
+                    {
+                        self.settings
+                            .agent
+                            .model_load_seconds
+                            .insert(job.estimate_key.clone(), duration.as_secs().max(1));
                         self.mark_settings_dirty();
                     }
                     if let Some(line) = self.chat_session.lines.last_mut()

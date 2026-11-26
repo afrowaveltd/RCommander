@@ -77,3 +77,24 @@ panel, na který jsi ukázal.
 
 Až bude vrstva agenta, patří sem i věci typu „zkontrolovat agentem" nebo „publikovat na server" —
 nabídka je pro ně přirozené místo.
+
+## Otevírání souborů
+
+`Enter` a **dvojklik** znamenají *výchozí akci vašeho systému*: program se spustí,
+cokoli jiného se otevře v aplikaci, kterou tomu desktop přiřadil, a stavový řádek
+řekne, co se stalo. Zabudovaný prohlížeč zůstává na `F3`, takže podívat se na textový
+soubor nikdy neznamená obejít jiný program.
+
+Kontextová nabídka přidává akce, které se od správce souborů čekají:
+
+| Položka | Co udělá |
+| --- | --- |
+| **Otevřít (přiřazená aplikace)** | totéž co Enter |
+| **Otevřít v aplikaci…** | na Windows nativní volič; jinde prohledatelný seznam aplikací, které desktop zná (čtený ze souborů `.desktop`), a to jen těch, které se mají zobrazovat |
+| **Odeslat e-mailem…** | přiloží soubor k nové zprávě: `xdg-email`, Mail na macOS, výchozí handler na Windows |
+| **Spustit v terminálu** | spustí program v terminálu, takže jeho výstup zůstane na obrazovce |
+| **Otevřít terminál zde** | terminál ve složce panelu, s tím emulátorem, který máte (`$TERMINAL`, `gnome-terminal`, `konsole`, `xfce4-terminal`, `alacritty`, `kitty`, `xterm`) |
+
+Nic nejde přes příkazovou řádku shellu, takže soubor jménem `; rm -rf ~` je název
+souboru a ne instrukce.
+

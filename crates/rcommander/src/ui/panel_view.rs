@@ -14,6 +14,8 @@ pub enum PanelAction {
     Command(String),
     /// Preview the file (F3 semantics).
     OpenFile(std::path::PathBuf),
+    /// Open with the platform's default action (double-click, Enter).
+    OpenExternal(std::path::PathBuf),
     /// Open the directory the user double-clicked.
     Enter,
     /// Show a context menu for the cursor row.
@@ -368,6 +370,9 @@ fn path_row(
             .on_hover_text(model.t("cmd.go_up"))
             .clicked()
         {
+            // The button sits in *this* panel's header, so it belongs to this panel: a click both
+            // activates it and sends the command there. Anything else is the bug the user reported.
+            model.focus = side;
             actions.push(PanelAction::Command("cm_GoToParent".to_string()));
         }
         if ui
@@ -394,6 +399,7 @@ fn path_row(
             .on_hover_text(model.t("cmd.refresh"))
             .clicked()
         {
+            model.focus = side;
             actions.push(PanelAction::Command("cm_RereadSource".to_string()));
         }
     });
@@ -626,6 +632,9 @@ fn file_list(
                     crate::model::CommandOutcome::OpenFile(path) => {
                         actions.push(PanelAction::OpenFile(path))
                     }
+                    crate::model::CommandOutcome::OpenExternally(path) => {
+                        actions.push(PanelAction::OpenExternal(path))
+                    }
                     crate::model::CommandOutcome::Ok => {}
                     _ => {}
                 }
@@ -856,6 +865,48 @@ fn row_menu_items(model: &Model) -> Vec<MenuItem> {
         Some(Icon::Settings),
         false,
     );
+    // The system's own actions: what a file manager is expected to offer next to its own.
+    push(
+        model.t("cmd.open_with"),
+        "cm_OpenWith",
+        Some(Icon::Settings),
+        true,
+    );
+    if !is_dir {
+        push(
+            model.t("cmd.open_default"),
+            "cm_OpenExternal",
+            Some(Icon::FolderOpen),
+            false,
+        );
+    }
+    push(
+        model.t("cmd.send_email"),
+        "cm_SendByEmail",
+        Some(Icon::Download),
+        false,
+    );
+    if is_dir {
+        push(
+            model.t("cmd.terminal_here"),
+            "cm_TerminalHere",
+            Some(Icon::Terminal),
+            false,
+        );
+    } else {
+        push(
+            model.t("cmd.run_terminal"),
+            "cm_RunInTerminal",
+            Some(Icon::Terminal),
+            false,
+        );
+        push(
+            model.t("cmd.terminal_here"),
+            "cm_TerminalHere",
+            Some(Icon::Terminal),
+            false,
+        );
+    }
     items
 }
 

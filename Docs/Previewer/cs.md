@@ -14,9 +14,25 @@ zobrazení:
 
 ## Režimy
 
-`T` text, `H` hex, `I` obrázek, `A` automaticky. Hexdump zobrazuje offset, bajty
-ve skupinách a sloupec tisknutelných ASCII znaků; počet bajtů na řádek je
-nastavitelný.
+`T` text, `H` hex, `I` obrázek, `A` automaticky.
+
+### Hexdump
+
+Dump ukazuje offset, bajty ve skupinách a sloupec tisknutelných ASCII znaků — a je
+určený ke *čtení*, nejen k podívání:
+
+- **šířku si určujete sami**: posuvník *bajtů/řádek* dump okamžitě přeformátuje, od
+  1 do 64 bajtů na řádek, bez znovunačtení souboru;
+- **skroluje pořádně** oběma směry a kreslí jen viditelné řádky, takže
+  několika-megabajtový soubor není pomalejší než malý;
+- **kliknutím vyberete řádek**: pruh dole ukáže offset v hexu i desítkově a bajty
+  daného řádku jako unsigned, signed, 16bitové a 32bitové číslo (little endian, jak to
+  x86 formáty souborů myslí), plus ASCII;
+- **přejít na** bere `0x200`, `512`, `200h` i holý hex a skočí tam — tak se sleduje
+  hlavička, která říká „tabulka začíná na 0x200“.
+
+Soubor, který není text, se otevře rovnou tady: není co dekódovat a předstírat opak
+by ukázalo mojibake.
 
 ## Klávesy
 

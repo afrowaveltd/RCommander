@@ -24,6 +24,8 @@ pub struct ChatUi {
     pub follow: bool,
     /// Parsed Markdown keyed by a line's stable identity, with the text length it was parsed from.
     parsed: HashMap<u64, (usize, Vec<rc_help::Block>)>,
+    /// Where the window sits: collapsed, maximized, pinned.
+    pub chrome: crate::ui::workspace_window::Chrome,
 }
 
 impl ChatUi {
@@ -59,19 +61,31 @@ pub struct ChatActions {
 }
 
 /// Render the chat window; returns true when the user closed it.
-pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut ChatUi, palette: &Palette) -> bool {
-    let mut open = true;
+///
+/// The window has its own title row with minimize, maximize, pin and close, because a decorated
+/// egui window offers only a close button and cannot be folded out of the way.
+pub fn show(
+    ctx: &Context,
+    model: &mut Model,
+    ui_state: &mut ChatUi,
+    palette: &Palette,
+    workspace: egui::Rect,
+) -> bool {
     let title = model.t("ai.chat.title");
-    let actions = egui::Window::new(title)
-        .open(&mut open)
-        .resizable(true)
-        .default_size([760.0, 560.0])
-        .min_size([420.0, 260.0])
-        .show(ctx, |ui| body(ui, model, ui_state, palette, false))
-        .map(|response| response.inner)
-        .unwrap_or_default();
-    let _ = actions;
-    !open
+    let mut chrome = ui_state.chrome;
+    let action = crate::ui::workspace_window::show(
+        ctx,
+        "chat_window",
+        &title,
+        workspace,
+        &mut chrome,
+        palette,
+        |ui| {
+            body(ui, model, ui_state, palette, false);
+        },
+    );
+    ui_state.chrome = chrome;
+    matches!(action, crate::ui::workspace_window::ChromeAction::Close)
 }
 
 /// Render the chat inside a panel, next to the file list of the other panel.
@@ -167,7 +181,8 @@ fn body(
     ui.separator();
 
     if let Some(wait) = model.chat_waiting() {
-        ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(100));
         let label = if wait.responding {
             model.t("ai.wait.responding")
         } else {
@@ -181,7 +196,8 @@ fn body(
         ui.horizontal_wrapped(|ui| {
             ui.spinner();
             ui.label(format!("{label} · {elapsed}"));
-            if !wait.responding && wait.loaded != Some(true)
+            if !wait.responding
+                && wait.loaded != Some(true)
                 && let Some(seconds) = wait.estimate
             {
                 let estimate = format!("{}:{:02}", seconds / 60, seconds % 60);
@@ -190,7 +206,7 @@ fn body(
         });
         if wait.ask {
             egui::Window::new(model.t("ai.wait.title"))
-                .id(egui::Id::new("ai_wait_for_response"))
+                .id(egui::Id::unique("ai_wait_for_response"))
                 .collapsible(false)
                 .resizable(false)
                 .show(ui.ctx(), |ui| {
@@ -208,15 +224,59 @@ fn body(
         }
     }
 
-    // The transcript. It takes everything but the input row.
     // A panel is narrower than the window, so the input gets one line there and two in the window;
     // more lines of typing space would push the transcript out of sight.
     let rows = if compact { 1.0 } else { 2.0 };
-    let input_height = ui.spacing().interact_size.y * (rows + 1.0);
-    let available = ui.available_height();
+
+    // The input row is a bottom panel *inside* the window: it keeps its own height while the
+    // transcript above scrolls, so the prompt and its buttons are always reachable. Reserving a
+    // guessed height instead is what put the last row half outside the window.
+    egui::Panel::bottom(("chat_input_row", compact))
+        .resizable(false)
+        .show(ui, |ui| {
+            // The prompt picker, when it is open, sits above the input so the choice is visible
+            // while the text lands in the box below it.
+            if model.prompt_picker.open {
+                prompt_picker(ui, model, palette);
+            }
+            ui.horizontal(|ui| {
+                let width = (ui.available_width() - 110.0).max(80.0);
+                let input = ui.add(
+                    egui::TextEdit::multiline(&mut model.chat().input)
+                        .desired_rows(rows as usize)
+                        .desired_width(width)
+                        .hint_text(&label_placeholder),
+                );
+                if input.has_focus() && ui.ctx().input(|i| i.key_pressed(egui::Key::Enter)) {
+                    let shift = ui.ctx().input(|i| i.modifiers.shift);
+                    if !shift {
+                        send = true;
+                    }
+                }
+                ui.vertical(|ui| {
+                    let button = ui.add_enabled(
+                        !running && !model.chat().input.trim().is_empty(),
+                        egui::Button::new(&label_send),
+                    );
+                    if button.clicked() {
+                        send = true;
+                    }
+                    // The prompt catalogue: the chat is more useful when a good question is one
+                    // click away, and a prompt is only text — it cannot grant anything.
+                    if ui
+                        .add_enabled(!running, egui::Button::new(&label_prompts))
+                        .clicked()
+                    {
+                        model.prompt_picker.open = !model.prompt_picker.open;
+                    }
+                    ui.label(RichText::new(send_hint).small().color(palette.hidden));
+                });
+            });
+        });
+
+    // The transcript takes whatever the bottom panel left, and scrolls on its own.
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
-        .max_height((available - input_height).max(60.0))
         .stick_to_bottom(true)
         .show(ui, |ui| {
             // A read-only borrow: rendering needs the transcript, not the session.
@@ -234,48 +294,6 @@ fn body(
                 transcript_line(ui, line, speaker, palette, ui_state);
             }
         });
-    ui.separator();
-
-    // The prompt picker, when it is open, sits above the input so the choice is visible while
-    // the text lands in the box below it.
-    if model.prompt_picker.open {
-        prompt_picker(ui, model, palette);
-    }
-
-    // The input row. Enter sends, Shift+Enter inserts a newline.
-    ui.horizontal(|ui| {
-        let width = (ui.available_width() - 90.0).max(80.0);
-        let input = ui.add(
-            egui::TextEdit::multiline(&mut model.chat().input)
-                .desired_rows(rows as usize)
-                .desired_width(width)
-                .hint_text(&label_placeholder),
-        );
-        if input.has_focus() && ui.ctx().input(|i| i.key_pressed(egui::Key::Enter)) {
-            let shift = ui.ctx().input(|i| i.modifiers.shift);
-            if !shift {
-                send = true;
-            }
-        }
-        ui.vertical(|ui| {
-            let button = ui.add_enabled(
-                !running && !model.chat().input.trim().is_empty(),
-                egui::Button::new(&label_send),
-            );
-            if button.clicked() {
-                send = true;
-            }
-            // The prompt catalogue: the chat is more useful when a good question is one click
-            // away, and a prompt is only text — it cannot grant anything.
-            if ui
-                .add_enabled(!running, egui::Button::new(&label_prompts))
-                .clicked()
-            {
-                model.prompt_picker.open = !model.prompt_picker.open;
-            }
-            ui.label(RichText::new(send_hint).small().color(palette.hidden));
-        });
-    });
 
     if clear {
         model.chat_clear();

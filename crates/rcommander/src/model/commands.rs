@@ -900,18 +900,61 @@ impl Model {
     /// Open the F4 editor for `path`, loading the text.
     pub fn open_editor_for(&mut self, path: impl Into<PathBuf>) -> std::io::Result<()> {
         let path = path.into();
-        let text = match std::fs::read_to_string(&path) {
-            Ok(t) => t,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
             Err(e) => return Err(e),
         };
+        // A file that is not text is shown as binary rather than as mojibake, and saving it is
+        // refused: an editor that silently rewrites bytes it could not read is a data-loss bug.
+        let binary = looks_binary(&bytes);
+        let text = if binary {
+            String::new()
+        } else {
+            String::from_utf8_lossy(&bytes).to_string()
+        };
+        let line_ending = if text.contains("\r\n") { "crlf" } else { "lf" }.to_string();
         self.editor = Some(crate::model::EditorState {
             path: path.to_string_lossy().to_string(),
             text,
-            line_ending: "lf".to_string(),
+            line_ending,
+            binary,
             ..Default::default()
         });
         Ok(())
+    }
+
+    /// Where a copy of `path` could be saved when the original cannot be written.
+    ///
+    /// The documents folder is the honest answer: it exists on every platform we support and the
+    /// user certainly owns it. The file name keeps the original one so nothing is lost in the
+    /// translation.
+    pub fn suggest_copy_path(&self, path: &std::path::Path) -> PathBuf {
+        let name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "untitled.txt".to_string());
+        let base = rc_core::drive::home_dir()
+            .map(|home| home.join("Documents"))
+            .filter(|documents| documents.is_dir())
+            .or_else(rc_core::drive::home_dir)
+            .unwrap_or_else(std::env::temp_dir);
+        // Never overwrite an existing file with a copy: the user's documents folder is theirs.
+        let mut candidate = base.join(&name);
+        let mut counter = 1;
+        while candidate.exists() {
+            let stem = path
+                .file_stem()
+                .map(|stem| stem.to_string_lossy().to_string())
+                .unwrap_or_else(|| "untitled".to_string());
+            let extension = path
+                .extension()
+                .map(|extension| format!(".{}", extension.to_string_lossy()))
+                .unwrap_or_default();
+            candidate = base.join(format!("{stem} ({counter}){extension}"));
+            counter += 1;
+        }
+        candidate
     }
 
     // ----- keyboard --------------------------------------------------
@@ -2714,4 +2757,17 @@ pub fn safe_mask(spec: &str) -> MaskSet {
 /// Human readable error text for the status bar.
 pub fn error_text(error: &CoreError) -> String {
     error.to_string()
+}
+
+/// True when these bytes are not text: a NUL byte or invalid UTF-8 means "binary".
+///
+/// The rule is deliberately simple and checkable. A file that *is* UTF-8 text with a few control
+/// characters (a tab, a form feed) is still text; a file with a NUL in the first kilobyte is not,
+/// which is what every diff tool and editor on the planet agrees on.
+pub fn looks_binary(bytes: &[u8]) -> bool {
+    let head = &bytes[..bytes.len().min(8192)];
+    if head.contains(&0) {
+        return true;
+    }
+    std::str::from_utf8(head).is_err() && !head.is_ascii()
 }
