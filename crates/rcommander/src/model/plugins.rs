@@ -661,6 +661,74 @@ label = "Title"
 
     #[cfg(unix)]
     #[test]
+    fn the_shipped_example_plugin_lists_real_notes_through_a_real_process() {
+        use std::os::unix::fs::PermissionsExt;
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|dir| dir.parent())
+            .map(|dir| dir.join("plugins").join("examples").join("notes"));
+        let Some(example) = repo.filter(|dir| dir.is_dir()) else {
+            return;
+        };
+        let config = tempfile::tempdir().unwrap();
+        let plugin_dir = config.path().join("plugins").join("notes");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        for name in ["list.sh", "open.sh"] {
+            let target = plugin_dir.join(name);
+            std::fs::copy(example.join(name), &target).unwrap();
+            let mut mode = std::fs::metadata(&target).unwrap().permissions();
+            mode.set_mode(0o755);
+            std::fs::set_permissions(&target, mode).unwrap();
+        }
+        // A folder of notes to point the shipped lister at, and a manifest that uses it.
+        let notes = config.path().join("notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        std::fs::write(notes.join("hello.md"), "# Hello\nfive words in this note\n").unwrap();
+        std::fs::write(notes.join("todo.md"), "# Todo\none\n").unwrap();
+        let manifest = std::fs::read_to_string(example.join("plugin.toml")).unwrap();
+        let manifest = manifest.replace(
+            "list = [\"./list.sh\"]",
+            &format!("list = [\"./list.sh\", {:?}]", notes.display().to_string()),
+        );
+        std::fs::write(plugin_dir.join("plugin.toml"), manifest).unwrap();
+
+        let mut model = model_with_config(config.path());
+        assert_eq!(model.load_plugins(), "1 plugin(s)");
+        model.focus = crate::model::Side::Left;
+        model
+            .open_in(crate::model::Side::Left, Location::plugin("notes", ""))
+            .expect("the example lists its notes");
+        let names: Vec<String> = model
+            .panel(crate::model::Side::Left)
+            .entries()
+            .iter()
+            .map(|entry| entry.name.clone())
+            .collect();
+        assert!(names.contains(&"hello".to_string()), "{names:?}");
+        assert!(names.contains(&"todo".to_string()), "{names:?}");
+        // The declared columns are what the panel draws, and the cells are the JSON fields.
+        let columns = model.columns(crate::model::Side::Left);
+        let ids: Vec<&str> = columns.iter().map(|column| column.id.as_str()).collect();
+        assert_eq!(ids, vec!["title", "words", "modified"]);
+        let entry = model
+            .panel(crate::model::Side::Left)
+            .entries()
+            .iter()
+            .find(|entry| entry.name == "hello")
+            .cloned()
+            .expect("hello is listed");
+        let cells = model.row_cells(crate::model::Side::Left, &entry);
+        assert_eq!(cells[0], "hello");
+        // "#", "Hello", "five", "words", "in", "this", "note" — wc counts them all.
+        assert_eq!(cells[1], "7", "the word count comes from the JSON field");
+        assert!(!cells[2].is_empty(), "the modified date is filled in");
+        // And the place is read-only, as the example declares.
+        assert!(!model.allows(crate::model::Side::Left, "cm_Delete"));
+        assert!(model.allows(crate::model::Side::Left, "cm_List"));
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn the_process_runner_captures_stdout_and_reports_a_failure() {
         let stdout = ProcessRunner
             .run(

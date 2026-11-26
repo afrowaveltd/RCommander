@@ -1,7 +1,9 @@
 #!/bin/sh
 # Print every note as a JSON array of objects, which is the one shape a manifest source accepts.
 # RCommander runs this from the plugin's own folder, so every path here is relative to it.
-notes_dir="${RCOMMANDER_NOTES_DIR:-$HOME/Notes}"
+# The first argument, if any, is the folder to list — the manifest passes none, so the default
+# applies: $RCOMMANDER_NOTES_DIR, or ~/Notes.
+notes_dir="${1:-${RCOMMANDER_NOTES_DIR:-$HOME/Notes}}"
 
 # JSON needs two things escaped in a string: the backslash and the quote.
 escape() {
