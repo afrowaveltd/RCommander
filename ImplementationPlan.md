@@ -1369,7 +1369,35 @@ mentions a project; a task board the agent can read and write; memory that outli
 search across every stored conversation. All of it wants a real store and a real migration story, and
 none of it is needed to *switch sessions*.
 
-**The one decision this needs** is the store itself, because it is hard to undo:
+**Settled (2026-11):** bundled **SQLite** as the store every installation has, behind a
+`SessionStore` trait so an installation that wants its history elsewhere can have that too. The owner's
+point is the right one: SQLite is available to everybody, and whoever wants the data "jinde" should be
+able to point it at a server they already run.
+
+| Backend | When | What it costs |
+| --- | --- | --- |
+| **SQLite** (bundled) | always, the default | one C library in the build; the file opens in any `sqlite3` |
+| **PostgreSQL** | optional, later | a real driver, and it needs the TLS decision (`rustls`) to be worth having |
+| **MariaDB / MySQL** | optional, later, one connector | the two speak the same protocol for everything this needs, so one connector serves both — the owner is right that the differences are not ours to solve |
+| **MS SQL** | optional, later | a driver that only Windows users will ask for; last, deliberately |
+
+Three rules for the remote case, because a database is the first place this application would keep
+user data on somebody else's machine:
+
+- **Local first, remote explicitly.** The default is a file in the configuration directory. A remote
+  store is a choice with a name and a test button, never a fallback.
+- **Credentials live in the encrypted store**, never in `settings.toml` — the secret store with argon2
+  and AES-GCM already exists for exactly this, and a database password is not a preference.
+- **A store that cannot be reached says so** and keeps the session in memory for as long as the
+  application runs, instead of losing the transcript quietly. The same rule as a plugin source: an
+  empty list is never a stand-in for a failure.
+
+The schema is ours and dialect-free where it can be: one table of sessions, one of messages, both with
+an explicit schema version, and migrations written in code so a store created by one version opens in
+the next. Remote backends use the same schema, which is what makes "my history is on my server" a
+transport change rather than a second design.
+
+**The decision that had to be made** was the local store, because it is the one that is hard to undo:
 
 - **`rusqlite` with the bundled feature** — a real SQLite compiled into the binary, one new dependency,
   the same behaviour on Linux, Windows and Android, and it brings a C compiler into the build (already
