@@ -9,7 +9,8 @@
 //! through the policy layer (16.0) by way of an MCP tool.
 
 use super::{CommandOutcome, Model};
-use rc_llm::{ChatReply, ChatRequest, Message};
+use rc_llm::{ChatReply, ChatRequest, Message, StreamControl, StreamEvent};
+use std::time::{Duration, Instant};
 
 /// One line of the transcript.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -114,10 +115,45 @@ impl std::fmt::Debug for ChatSession {
 /// One answer being streamed.
 struct ChatJob {
     receiver: std::sync::mpsc::Receiver<ChatEvent>,
+    control: StreamControl,
+    started: Instant,
+    last_activity: Instant,
+    interval: Duration,
+    loaded: Option<bool>,
+    cold: bool,
+    initial_probe: bool,
+    responding: bool,
+    load_duration: Option<Duration>,
+    estimate_key: String,
+    estimate: Option<u64>,
+}
+
+impl Drop for ChatJob {
+    fn drop(&mut self) {
+        self.control.cancel();
+    }
+}
+
+impl ChatJob {
+    fn wait_due(&self, now: Instant) -> bool {
+        now.saturating_duration_since(self.last_activity) >= self.interval
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ChatWaiting {
+    pub elapsed: u64,
+    pub loaded: Option<bool>,
+    pub responding: bool,
+    pub estimate: Option<u64>,
+    pub ask: bool,
 }
 
 /// What the worker sends back.
 enum ChatEvent {
+    Probe(Option<bool>),
+    Activity,
+    LoadDuration(Duration),
     Chunk(String),
     Done(Box<ChatReply>),
     Failed(String),
@@ -132,6 +168,24 @@ impl Model {
     /// True while an answer is streaming.
     pub fn chat_is_running(&self) -> bool {
         self.chat_session.job.is_some()
+    }
+
+    pub fn chat_waiting(&self) -> Option<ChatWaiting> {
+        let job = self.chat_session.job.as_ref()?;
+        let now = Instant::now();
+        Some(ChatWaiting {
+            elapsed: now.saturating_duration_since(job.started).as_secs(),
+            loaded: job.loaded,
+            responding: job.responding,
+            estimate: job.estimate,
+            ask: job.wait_due(now),
+        })
+    }
+
+    pub fn chat_continue_waiting(&mut self) {
+        if let Some(job) = self.chat_session.job.as_mut() {
+            job.last_activity = Instant::now();
+        }
     }
 
     /// The model the chat uses, with a helpful message when none is configured.
@@ -200,17 +254,60 @@ impl Model {
 
         let request = ChatRequest::new(model.clone(), messages);
         let (sender, receiver) = std::sync::mpsc::channel();
+        let control = StreamControl::default();
+        let worker_control = control.clone();
+        let estimate_key = format!("{}|{}|{}", provider.kind(), provider.base_url(), model);
+        let estimate = self.settings.agent.model_load_seconds.get(&estimate_key).copied();
+        let started = Instant::now();
         std::thread::spawn(move || {
-            let stream_sender = sender.clone();
-            let result = provider.chat_stream(&request, &mut |chunk| {
-                let _ = stream_sender.send(ChatEvent::Chunk(chunk.to_string()));
+            let initial = provider.model_loaded(&model).ok().flatten();
+            let _ = sender.send(ChatEvent::Probe(initial));
+            if worker_control.is_cancelled() {
+                return;
+            }
+            let probe_provider = provider.clone();
+            let probe_control = worker_control.clone();
+            let probe_sender = sender.clone();
+            std::thread::spawn(move || {
+                while !probe_control.is_cancelled() {
+                    std::thread::sleep(Duration::from_secs(5));
+                    if probe_control.is_cancelled() {
+                        break;
+                    }
+                    let loaded = probe_provider.model_loaded(&model).ok().flatten();
+                    if probe_sender.send(ChatEvent::Probe(loaded)).is_err() {
+                        break;
+                    }
+                }
+            });
+            let result = provider.chat_stream_controlled(&request, &worker_control, &mut |event| {
+                let event = match event {
+                    StreamEvent::Activity => ChatEvent::Activity,
+                    StreamEvent::Text(text) => ChatEvent::Chunk(text.to_string()),
+                    StreamEvent::LoadDuration(duration) => ChatEvent::LoadDuration(duration),
+                };
+                let _ = sender.send(event);
             });
             let _ = match result {
                 Ok(reply) => sender.send(ChatEvent::Done(Box::new(reply))),
                 Err(error) => sender.send(ChatEvent::Failed(error.to_string())),
             };
+            worker_control.cancel();
         });
-        self.chat_session.job = Some(ChatJob { receiver });
+        self.chat_session.job = Some(ChatJob {
+            receiver,
+            control,
+            started,
+            last_activity: started,
+            interval: Duration::from_secs(self.settings.agent.response_wait_seconds.clamp(1, 3600)),
+            loaded: None,
+            cold: false,
+            initial_probe: false,
+            responding: false,
+            load_duration: None,
+            estimate_key,
+            estimate,
+        });
         CommandOutcome::Ok
     }
 
@@ -218,7 +315,7 @@ impl Model {
     pub fn poll_chat(&mut self) -> bool {
         // The job is moved out for the duration of the poll so the transcript and the
         // status line can be written without borrowing the session twice.
-        let Some(job) = self.chat_session.job.take() else {
+        let Some(mut job) = self.chat_session.job.take() else {
             return false;
         };
         let mut changed = false;
@@ -226,6 +323,22 @@ impl Model {
         let mut failure: Option<String> = None;
         loop {
             match job.receiver.try_recv() {
+                Ok(ChatEvent::Probe(loaded)) => {
+                    if !job.initial_probe {
+                        job.cold = loaded == Some(false);
+                        job.initial_probe = true;
+                    }
+                    job.loaded = loaded;
+                    changed = true;
+                }
+                Ok(ChatEvent::Activity) => {
+                    job.last_activity = Instant::now();
+                    job.responding = true;
+                    changed = true;
+                }
+                Ok(ChatEvent::LoadDuration(duration)) => {
+                    job.load_duration = Some(duration);
+                }
                 Ok(ChatEvent::Chunk(text)) => {
                     if let Some(line) = self.chat_session.lines.last_mut()
                         && line.streaming
@@ -235,6 +348,12 @@ impl Model {
                     }
                 }
                 Ok(ChatEvent::Done(reply)) => {
+                    if job.cold && let Some(duration) = job.load_duration {
+                        self.settings.agent.model_load_seconds.insert(
+                            job.estimate_key.clone(), duration.as_secs().max(1),
+                        );
+                        self.mark_settings_dirty();
+                    }
                     if let Some(line) = self.chat_session.lines.last_mut()
                         && line.streaming
                     {
@@ -403,6 +522,35 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
         model.poll_chat();
+    }
+
+    #[test]
+    fn wait_question_repeats_after_another_interval() {
+        use super::*;
+        let (mut model, _) = chat_model(vec!["answer"], None);
+        let (_sender, receiver) = std::sync::mpsc::channel();
+        let now = Instant::now();
+        model.chat_session.job = Some(ChatJob {
+            receiver,
+            control: StreamControl::default(),
+            started: now - Duration::from_secs(121),
+            last_activity: now - Duration::from_secs(121),
+            interval: Duration::from_secs(120),
+            loaded: Some(false),
+            cold: true,
+            initial_probe: true,
+            responding: false,
+            load_duration: None,
+            estimate_key: "test".into(),
+            estimate: Some(300),
+        });
+        assert!(model.chat_waiting().unwrap().ask);
+        model.chat_continue_waiting();
+        assert!(!model.chat_waiting().unwrap().ask);
+        let job = model.chat_session.job.as_ref().unwrap();
+        assert!(job.wait_due(job.last_activity + Duration::from_secs(120)));
+        model.chat_stop();
+        assert!(model.chat_waiting().is_none());
     }
 
     #[test]

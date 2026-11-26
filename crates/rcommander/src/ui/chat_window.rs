@@ -130,7 +130,7 @@ fn body(
     // Strings are resolved up front: the body borrows the model mutably for the input field.
     let label_model = model.t("ai.chat.model");
     let label_clear = model.t("ai.chat.clear");
-    let label_stop = model.t("ai.chat.stop");
+    let label_stop = model.t("ai.wait.cancel");
     let label_send = model.t("ai.chat.send");
     let label_empty = model.t("ai.chat.empty");
     let label_placeholder = model.t("ai.chat.placeholder");
@@ -165,6 +165,48 @@ fn body(
         });
     });
     ui.separator();
+
+    if let Some(wait) = model.chat_waiting() {
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+        let label = if wait.responding {
+            model.t("ai.wait.responding")
+        } else {
+            match wait.loaded {
+                Some(true) => model.t("ai.wait.loaded"),
+                Some(false) => model.t("ai.wait.loading"),
+                None => model.t("ai.wait.unknown"),
+            }
+        };
+        let elapsed = format!("{}:{:02}", wait.elapsed / 60, wait.elapsed % 60);
+        ui.horizontal_wrapped(|ui| {
+            ui.spinner();
+            ui.label(format!("{label} · {elapsed}"));
+            if !wait.responding && wait.loaded != Some(true)
+                && let Some(seconds) = wait.estimate
+            {
+                let estimate = format!("{}:{:02}", seconds / 60, seconds % 60);
+                ui.label(model.tf("ai.wait.estimate", &[("time", &estimate)]));
+            }
+        });
+        if wait.ask {
+            egui::Window::new(model.t("ai.wait.title"))
+                .id(egui::Id::new("ai_wait_for_response"))
+                .collapsible(false)
+                .resizable(false)
+                .show(ui.ctx(), |ui| {
+                    ui.label(model.t("ai.wait.question"));
+                    ui.label(&label);
+                    ui.horizontal(|ui| {
+                        if ui.button(model.t("ai.wait.continue")).clicked() {
+                            model.chat_continue_waiting();
+                        }
+                        if ui.button(model.t("ai.wait.cancel")).clicked() {
+                            stop = true;
+                        }
+                    });
+                });
+        }
+    }
 
     // The transcript. It takes everything but the input row.
     // A panel is narrower than the window, so the input gets one line there and two in the window;

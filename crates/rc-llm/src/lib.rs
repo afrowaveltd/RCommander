@@ -9,6 +9,7 @@
 //! the request shape, so they slot in behind the same trait.
 
 pub mod http;
+pub use http::StreamControl;
 
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -181,6 +182,12 @@ pub struct ChatReply {
     pub answer_tokens: Option<u64>,
 }
 
+pub enum StreamEvent<'a> {
+    Activity,
+    Text(&'a str),
+    LoadDuration(Duration),
+}
+
 /// A connection to one model server.
 pub trait Provider: std::fmt::Debug + Send + Sync {
     /// Provider name used in the settings (`ollama`).
@@ -205,6 +212,26 @@ pub trait Provider: std::fmt::Debug + Send + Sync {
         on_chunk(&reply.content);
         Ok(reply)
     }
+    /// None means unsupported; errors mean status could not be checked.
+    fn model_loaded(&self, _model: &str) -> Result<Option<bool>, LlmError> {
+        Ok(None)
+    }
+
+    fn chat_stream_controlled(
+        &self, request: &ChatRequest, control: &StreamControl,
+        on_event: &mut dyn FnMut(StreamEvent<'_>),
+    ) -> Result<ChatReply, LlmError> {
+        if control.is_cancelled() {
+            return Err(LlmError::new("request cancelled"));
+        }
+        self.chat_stream(request, &mut |text| {
+            if !control.is_cancelled() {
+                on_event(StreamEvent::Activity);
+                on_event(StreamEvent::Text(text));
+            }
+        })
+    }
+
     /// True when the server answers at all (used to enable the UI).
     fn is_available(&self) -> bool {
         self.list_models().is_ok()
@@ -393,10 +420,47 @@ impl Provider for OllamaProvider {
         parse_chat(&response.body)
     }
 
+    fn model_loaded(&self, model: &str) -> Result<Option<bool>, LlmError> {
+        let response = self.get("/api/ps")?;
+        if !response.is_success() {
+            return Err(LlmError::new(format!("model status returned {}", response.status)));
+        }
+        let value: serde_json::Value = serde_json::from_str(&response.body)
+            .map_err(|e| LlmError::new(e.to_string()))?;
+        let models = value.get("models").and_then(|v| v.as_array())
+            .ok_or_else(|| LlmError::new("invalid model status response"))?;
+        Ok(Some(models.iter().any(|entry| {
+            ["name", "model"].iter().any(|key| {
+                entry.get(*key).and_then(|v| v.as_str()).is_some_and(|name| {
+                    name == model || format!("{name}:latest") == model
+                        || format!("{model}:latest") == name
+                })
+            })
+        })))
+    }
+
     fn chat_stream(
-        &self,
-        request: &ChatRequest,
-        on_chunk: &mut dyn FnMut(&str),
+        &self, request: &ChatRequest, on_chunk: &mut dyn FnMut(&str),
+    ) -> Result<ChatReply, LlmError> {
+        self.stream_chat(request, None, &mut |event| {
+            if let StreamEvent::Text(text) = event {
+                on_chunk(text);
+            }
+        })
+    }
+
+    fn chat_stream_controlled(
+        &self, request: &ChatRequest, control: &StreamControl,
+        on_event: &mut dyn FnMut(StreamEvent<'_>),
+    ) -> Result<ChatReply, LlmError> {
+        self.stream_chat(request, Some(control), on_event)
+    }
+}
+
+impl OllamaProvider {
+    fn stream_chat(
+        &self, request: &ChatRequest, control: Option<&StreamControl>,
+        on_event: &mut dyn FnMut(StreamEvent<'_>),
     ) -> Result<ChatReply, LlmError> {
         let body = chat_body_streaming(request);
         let target = self.target()?;
@@ -407,43 +471,61 @@ impl Provider for OllamaProvider {
             prompt_tokens: None,
             answer_tokens: None,
         };
-        let mut failure: Option<LlmError> = None;
-        let mut lines: Vec<String> = Vec::new();
-        http::post_json_stream(&target, "/api/chat", &body, self.timeout, &mut |line| {
-            lines.push(line.to_string());
-        })
-        .map_err(|error| LlmError::new(error.to_string()))?;
-        for line in lines {
-            match parse_stream_line(&line) {
-                Ok(Some(chunk)) => {
-                    reply.content.push_str(&chunk.text);
-                    if let Some(model) = chunk.model {
-                        reply.model = model;
-                    }
-                    if let Some(reason) = chunk.done_reason {
-                        reply.done_reason = Some(reason);
-                    }
-                    if chunk.prompt_tokens.is_some() {
-                        reply.prompt_tokens = chunk.prompt_tokens;
-                    }
-                    if chunk.answer_tokens.is_some() {
-                        reply.answer_tokens = chunk.answer_tokens;
-                    }
-                    if !chunk.text.is_empty() {
-                        on_chunk(&chunk.text);
-                    }
-                }
-                Ok(None) => {}
-                Err(error) => {
-                    failure = Some(error);
-                    break;
-                }
+        let mut failure = None;
+        let mut complete = false;
+        let mut on_line = |line: &str| {
+            if failure.is_some() || control.is_some_and(StreamControl::is_cancelled) {
+                return;
             }
+            match parse_stream_line(line) {
+                Ok(chunk) => {
+                    if let Ok(value) = serde_json::from_str::<serde_json::Value>(line) {
+                        on_event(StreamEvent::Activity);
+                        complete |= value.get("done").and_then(|v| v.as_bool()) == Some(true);
+                        if let Some(ns) = value.get("load_duration").and_then(|v| v.as_u64()) {
+                            on_event(StreamEvent::LoadDuration(Duration::from_nanos(ns)));
+                        }
+                    }
+                    if let Some(chunk) = chunk {
+                        reply.content.push_str(&chunk.text);
+                        if let Some(model) = chunk.model {
+                            reply.model = model;
+                        }
+                        if let Some(reason) = chunk.done_reason {
+                            reply.done_reason = Some(reason);
+                            complete = true;
+                        }
+                        if chunk.prompt_tokens.is_some() {
+                            reply.prompt_tokens = chunk.prompt_tokens;
+                        }
+                        if chunk.answer_tokens.is_some() {
+                            reply.answer_tokens = chunk.answer_tokens;
+                        }
+                        if !chunk.text.is_empty() {
+                            on_event(StreamEvent::Text(&chunk.text));
+                        }
+                    }
+                }
+                Err(error) => failure = Some(error),
+            }
+        };
+        let result = match control {
+            Some(control) => http::post_json_stream_controlled(
+                &target, "/api/chat", &body, self.timeout, control, &mut on_line,
+            ),
+            None => http::post_json_stream(&target, "/api/chat", &body, self.timeout, &mut on_line),
+        };
+        if control.is_some_and(StreamControl::is_cancelled) {
+            return Err(LlmError::new("request cancelled"));
         }
-        match failure {
-            Some(error) => Err(error),
-            None => Ok(reply),
+        result.map_err(|error| LlmError::new(error.to_string()))?;
+        if let Some(error) = failure {
+            return Err(error);
         }
+        if !complete {
+            return Err(LlmError::new("model response ended before completion"));
+        }
+        Ok(reply)
     }
 }
 

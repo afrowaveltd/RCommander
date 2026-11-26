@@ -888,6 +888,10 @@ pub struct Agent {
     pub provider_url: String,
     /// Model the agent uses; empty means "ask the user to pick one".
     pub model: String,
+    /// Seconds of silence before asking whether to keep waiting, not a read timeout.
+    pub response_wait_seconds: u64,
+    /// Last successful cold load duration by provider and model.
+    pub model_load_seconds: BTreeMap<String, u64>,
     /// Operations the human permanently pre-approved in the approval dialog.
     ///
     /// Written only by an explicit, typed confirmation; every use is still audited.
@@ -931,6 +935,8 @@ impl Default for Agent {
             provider_kind: "ollama".to_string(),
             provider_url: "http://127.0.0.1:11434".to_string(),
             model: String::new(),
+            response_wait_seconds: 120,
+            model_load_seconds: BTreeMap::new(),
             preapproved: Vec::new(),
         }
     }

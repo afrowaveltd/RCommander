@@ -55,6 +55,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Prompt catalogue tests failed' }
           cargo test --locked -p rcommander --test ui_smoke the_prompt_picker_offers_the_catalogue_and_inserts_the_filled_text
           if ($LASTEXITCODE -ne 0) { throw 'Prompt picker UI test failed' }
+          cargo test --locked -p rc-llm
+          if ($LASTEXITCODE -ne 0) { throw 'LLM transport tests failed' }
+          cargo test --locked -p rcommander --lib model::chat::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Chat model tests failed' }
 
       - name: Compile Windows x64 release
         shell: pwsh

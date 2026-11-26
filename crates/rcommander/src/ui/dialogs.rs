@@ -2710,6 +2710,15 @@ fn ai_model(ui: &mut egui::Ui, model: &mut Model, state: &mut AiModelState) -> D
         }
     });
 
+    let wait_label = model.t("ai.wait.interval");
+    ui.horizontal(|ui| {
+        ui.label(wait_label);
+        if ui.add(egui::DragValue::new(&mut model.settings.agent.response_wait_seconds)
+            .range(1..=3600).suffix(" s")).changed()
+        {
+            model.mark_settings_dirty();
+        }
+    });
     let models = model.ai_models().to_vec();
     let current = model.ai_model().map(|name| name.to_string());
     if let Some(error) = model.ai_models.error.clone() {

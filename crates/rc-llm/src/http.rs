@@ -6,7 +6,9 @@
 //! when the remote providers are added.
 
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpStream;
+use std::net::{Shutdown, TcpStream, ToSocketAddrs};
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 /// One HTTP response, decoded.
@@ -189,6 +191,47 @@ fn request(
     Ok(Response { status, body })
 }
 
+/// Owns only the active request socket; cancelling never kills the Ollama server.
+#[derive(Clone, Debug, Default)]
+pub struct StreamControl {
+    cancelled: Arc<AtomicBool>,
+    socket: Arc<Mutex<Option<TcpStream>>>,
+}
+
+impl StreamControl {
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+        if let Ok(mut slot) = self.socket.lock()
+            && let Some(socket) = slot.take()
+        {
+            let _ = socket.shutdown(Shutdown::Both);
+        }
+    }
+
+    fn attach(&self, stream: &TcpStream) -> Result<SocketGuard<'_>, HttpError> {
+        let mut slot = self.socket.lock().map_err(|_| HttpError::new("request lock poisoned"))?;
+        if self.is_cancelled() {
+            return Err(HttpError::new("request cancelled"));
+        }
+        *slot = Some(stream.try_clone().map_err(|e| HttpError::new(e.to_string()))?);
+        Ok(SocketGuard(self))
+    }
+}
+
+struct SocketGuard<'a>(&'a StreamControl);
+
+impl Drop for SocketGuard<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut slot) = self.0.socket.lock() {
+            *slot = None;
+        }
+    }
+}
+
 /// POST a JSON body and hand every line of the response to `on_line` as it arrives.
 ///
 /// This is what streaming needs: the caller sees each NDJSON object while the model is still
@@ -200,14 +243,40 @@ pub fn post_json_stream(
     timeout: Duration,
     on_line: &mut dyn FnMut(&str),
 ) -> Result<(), HttpError> {
+    stream_impl(target, path, body, timeout, None, on_line)
+}
+
+/// No read deadline: the owner may cancel the socket while waiting for a cold model.
+pub fn post_json_stream_controlled(
+    target: &Target, path: &str, body: &str, timeout: Duration,
+    control: &StreamControl, on_line: &mut dyn FnMut(&str),
+) -> Result<(), HttpError> {
+    stream_impl(target, path, body, timeout, Some(control), on_line)
+}
+
+fn stream_impl(
+    target: &Target, path: &str, body: &str, timeout: Duration,
+    control: Option<&StreamControl>, on_line: &mut dyn FnMut(&str),
+) -> Result<(), HttpError> {
     let address = format!("{}:{}", target.host, target.port);
-    let stream = TcpStream::connect(&address).map_err(|error| {
-        HttpError::new(format!(
-            "cannot reach {address}: {error} (is the server running?)"
-        ))
-    })?;
+    let mut connected = None;
+    let mut last_error = None;
+    for addr in address.to_socket_addrs().map_err(|e| HttpError::new(e.to_string()))? {
+        if control.is_some_and(StreamControl::is_cancelled) {
+            return Err(HttpError::new("request cancelled"));
+        }
+        match TcpStream::connect_timeout(&addr, timeout) {
+            Ok(stream) => { connected = Some(stream); break; }
+            Err(error) => last_error = Some(error),
+        }
+    }
+    let stream = connected.ok_or_else(|| HttpError::new(format!(
+        "cannot reach {address}: {} (is the server running?)",
+        last_error.map(|e| e.to_string()).unwrap_or_else(|| "no address".into())
+    )))?;
+    let _guard = control.map(|c| c.attach(&stream)).transpose()?;
     stream
-        .set_read_timeout(Some(timeout))
+        .set_read_timeout(if control.is_some() { None } else { Some(timeout) })
         .map_err(|error| HttpError::new(error.to_string()))?;
     stream
         .set_write_timeout(Some(timeout))
@@ -359,6 +428,38 @@ fn read_chunked(reader: &mut impl BufRead) -> Result<String, HttpError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn silent_stream_can_be_cancelled() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let target = Target::parse(&format!("http://{addr}")).unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buffer = [0; 1024];
+            let _ = socket.read(&mut buffer).unwrap();
+            ready_tx.send(()).unwrap();
+            while matches!(socket.read(&mut buffer), Ok(n) if n > 0) {}
+        });
+        let control = StreamControl::default();
+        let worker_control = control.clone();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let result = post_json_stream_controlled(
+                &target, "/api/chat", "{}", Duration::from_secs(1),
+                &worker_control, &mut |_| {},
+            );
+            done_tx.send(result).unwrap();
+        });
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(done_rx.recv_timeout(Duration::from_millis(50)).is_err());
+        control.cancel();
+        assert!(done_rx.recv_timeout(Duration::from_secs(3)).unwrap().is_err());
+        worker.join().unwrap();
+        server.join().unwrap();
+    }
 
     #[test]
     fn a_base_url_is_parsed_into_a_target() {
