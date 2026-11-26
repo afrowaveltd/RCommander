@@ -1345,6 +1345,54 @@ The rules that do **not** move:
 4. **`plugins.call` with trust switches and on-demand activation.**
 5. **The URL installer and the web index**, once the transport question below is settled.
 
+#### Conversations as records: keeping chats, and switching between them (requested 2026-11)
+
+The request, in the owner's words: a setting to *keep chats*, stored in a local SQLite database, and
+then choosing a **session** — one for the Linux work, one for the Windows configuration, one for the
+server — the way this conversation already behaves. It is the same need Phase 16.31-16.35 already
+named (agent memory and a task board on SQLite), arriving from the direction of the transcript.
+
+This is the honest split, because the joke about the factory is right: pins are cheap and locomotives
+are not.
+
+**Pins (small, and worth doing first):**
+
+| Piece | Why it is small |
+| --- | --- |
+| a stored **session** record: id, title, project directory, created, last used | the panel already has a chat transcript; this is what names it |
+| `chat.keep` setting: keep transcripts at all, and for how long | off by default, because a transcript is a record of what you asked |
+| a **switcher** (menu + `Ctrl+Shift+N`): new session, rename, delete, pick one from the list | the user's own example: switch from Linux work to the server config without closing anything |
+| the transcript written on every turn, so a crash costs one message, not the conversation | already the pattern the settings writer uses |
+
+**Locomotives (deliberately later):** retrieving related past conversations when a new question
+mentions a project; a task board the agent can read and write; memory that outlives a project folder;
+search across every stored conversation. All of it wants a real store and a real migration story, and
+none of it is needed to *switch sessions*.
+
+**The one decision this needs** is the store itself, because it is hard to undo:
+
+- **`rusqlite` with the bundled feature** — a real SQLite compiled into the binary, one new dependency,
+  the same behaviour on Linux, Windows and Android, and it brings a C compiler into the build (already
+  required by `argon2`/`aes-gcm`? those are pure Rust; SQLite is not). SQL that a future contributor can
+  read and a file they can open with any tool.
+- **A pure-Rust embedded store** (`redb`, `sled`) — no C, still transactional, but the format is ours
+  and nobody can open it with `sqlite3`; the owner asked for SQLite by name.
+- **JSON files per session** — no dependency at all, fine for pins, and it will not carry a task board
+  or a search.
+
+My recommendation is the first: the owner asked for SQLite, the file stays portable and inspectable,
+and one bundled C library is a price this application can pay once.
+
+Rules that come from the rest of the design and do not change here:
+
+- **A kept transcript is user data, not a training set.** It stays on the machine, in the
+  configuration directory, and the setting that keeps it says plainly where it is and how to delete
+  every one of them in one action.
+- **Deleting a session deletes it**, with the same "verified backup or no change" rule as everything
+  else — a backup file the user can find, then the row goes.
+- **What is written is what was said**: the stored form is the same Markdown the export writes, so the
+  export, the restore and the store cannot disagree about what a conversation is.
+
 #### The plugin package: one structure, three consumers (decided 2026-11)
 
 A plugin folder is a **package**, not a stray manifest, because the same folder has to be readable by
