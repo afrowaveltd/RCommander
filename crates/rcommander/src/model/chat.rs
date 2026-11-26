@@ -456,19 +456,20 @@ impl Model {
             self.report_error(&message);
             return CommandOutcome::Failed(message);
         }
-        let mut text = String::new();
-        for line in &lines {
-            let speaker = self.t(line.speaker.label_key());
-            text.push_str(&format!("[{speaker}] {}\n\n", line.text));
-        }
+        // Markdown, not plain text, because that is what a conversation with a model already *is*:
+        // its answers arrive as Markdown, and flattening them into a .txt loses the code fences and
+        // the lists that made them readable. `chat_markdown` is the one definition of that format;
+        // the importer reads exactly what it writes.
+        let stamp = chrono::Local::now();
+        let text = self.chat_markdown();
         let directory = self
             .active()
             .location()
             .as_path()
             .map(|path| path.to_path_buf())
             .unwrap_or_else(std::env::temp_dir);
-        let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-        let target = directory.join(format!("chat-{stamp}.txt"));
+        let file_stamp = stamp.format("%Y%m%d-%H%M%S");
+        let target = directory.join(format!("chat-{file_stamp}.md"));
         match std::fs::write(&target, text.as_bytes()) {
             Ok(()) => {
                 let message = self.tf(
@@ -485,6 +486,141 @@ impl Model {
                 CommandOutcome::Failed(message)
             }
         }
+    }
+
+    /// Read a conversation back from a Markdown export.
+    ///
+    /// The format the export writes is the format this reads: front matter naming it, `## You` and
+    /// `## Agent` for the turns, and blockquotes for the application's own notes. Anything that does
+    /// not match is refused with the reason rather than half-loaded — a conversation that silently
+    /// loses its middle is worse than one that does not open.
+    pub fn chat_import_markdown(&mut self, path: &std::path::Path) -> CommandOutcome {
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        let mut lines: Vec<ChatLine> = Vec::new();
+        let mut speaker: Option<Speaker> = None;
+        let mut body = String::new();
+        let mut in_front_matter = false;
+        let mut seen_front_matter = false;
+        for line in text.lines() {
+            let trimmed = line.trim_end();
+            if trimmed == "---" && !seen_front_matter {
+                in_front_matter = !in_front_matter;
+                if !in_front_matter {
+                    seen_front_matter = true;
+                }
+                continue;
+            }
+            if in_front_matter {
+                continue;
+            }
+            let heading = match trimmed {
+                "## You" => Some(Speaker::User),
+                "## Agent" => Some(Speaker::Model),
+                _ => None,
+            };
+            if let Some(next) = heading {
+                if let Some(previous) = speaker.take()
+                    && !body.trim().is_empty()
+                {
+                    lines.push(ChatLine::new(previous, body.trim().to_string()));
+                }
+                speaker = Some(next);
+                body.clear();
+                continue;
+            }
+            if trimmed.starts_with("> ") {
+                // A note after a turn has to close that turn first, or its body would swallow the
+                // quote and the note would arrive as part of the answer.
+                if let Some(previous) = speaker.take()
+                    && !body.trim().is_empty()
+                {
+                    lines.push(ChatLine::new(previous, body.trim().to_string()));
+                }
+                body.clear();
+                lines.push(ChatLine::new(
+                    Speaker::System,
+                    trimmed.trim_start_matches("> ").to_string(),
+                ));
+                continue;
+            }
+            if trimmed == "> " {
+                continue;
+            }
+            // The title and its date line are the file's own decoration, not a turn.
+            if speaker.is_some() {
+                body.push_str(trimmed);
+                body.push('\n');
+            }
+        }
+        if let Some(previous) = speaker
+            && !body.trim().is_empty()
+        {
+            lines.push(ChatLine::new(previous, body.trim().to_string()));
+        }
+        if lines.is_empty() {
+            let message = self.t("prompt.export.unreadable");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        // Sequence numbers are the session's, not the file's: they are what a view caches on, so a
+        // loaded conversation must look exactly like a typed one.
+        for line in &mut lines {
+            line.seq = self.chat_session.next_seq;
+            self.chat_session.next_seq += 1;
+        }
+        self.chat_session.lines = lines;
+        self.chat_session.job = None;
+        let count = self.chat_session.lines.len().to_string();
+        let message = self.tf("prompt.import.done", &[("count", &count)]);
+        self.report_done(message, None);
+        CommandOutcome::Ok
+    }
+
+    /// The transcript as the Markdown export writes it.
+    ///
+    /// Shared by the exporter and the tests so the round trip is checked against the real format
+    /// rather than against a copy of it that can drift.
+    pub fn chat_markdown(&self) -> String {
+        let stamp = chrono::Local::now();
+        let mut text = String::new();
+        text.push_str("---\n");
+        text.push_str("format: rcommander-chat\n");
+        text.push_str("version: 1\n");
+        text.push_str(&format!("exported: {}\n", stamp.to_rfc3339()));
+        text.push_str(&format!("messages: {}\n", self.chat_session.lines.len()));
+        text.push_str("---\n\n");
+        text.push_str("# Conversation\n\n");
+        text.push_str(&format!("_{}_\n\n", stamp.format("%Y-%m-%d %H:%M")));
+        for line in &self.chat_session.lines {
+            match line.speaker {
+                Speaker::System => {
+                    for part in line.text.lines() {
+                        text.push_str("> ");
+                        text.push_str(part);
+                        text.push('\n');
+                    }
+                    text.push('\n');
+                }
+                Speaker::User => {
+                    text.push_str("## You\n\n");
+                    text.push_str(line.text.trim_end());
+                    text.push_str("\n\n");
+                }
+                Speaker::Model => {
+                    text.push_str("## Agent\n\n");
+                    text.push_str(line.text.trim_end());
+                    text.push_str("\n\n");
+                }
+            }
+        }
+        text
     }
 
     /// Turn the question in the input (or the last one asked) into a prompt being edited.
@@ -758,5 +894,86 @@ mod tests {
                 || matches!(outcome, crate::model::CommandOutcome::Failed(_)),
             "{outcome:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod markdown_tests {
+    use super::*;
+    use crate::model::Model;
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    fn fresh_model(dir: &std::path::Path) -> Model {
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local(dir),
+            Location::local(dir),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model
+    }
+
+    #[test]
+    fn an_export_is_markdown_a_reader_can_restore() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = fresh_model(dir.path());
+        model
+            .chat_session
+            .push(Speaker::User, "Co je v téhle složce?");
+        model.chat_session.push(
+            Speaker::Model,
+            "Tři soubory:\n\n```\nalpha.txt\nbeta.log\ngamma.md\n```\n",
+        );
+        model
+            .chat_session
+            .push(Speaker::System, "připojení ukončeno");
+        let text = model.chat_markdown();
+        assert!(text.starts_with("---\nformat: rcommander-chat\n"), "{text}");
+        assert!(text.contains("## You\n"), "{text}");
+        assert!(text.contains("## Agent\n"), "{text}");
+        // The code fence survives: that is the whole reason for Markdown.
+        assert!(text.contains("```\nalpha.txt"), "{text}");
+        // A system note is a blockquote, not a turn with a heading.
+        assert!(text.contains("> připojení ukončeno"), "{text}");
+        assert!(!text.contains("## Note"), "{text}");
+
+        // Round trip: the file, read back, is the conversation it came from.
+        let path = dir.path().join("chat.md");
+        std::fs::write(&path, &text).unwrap();
+        let mut fresh = fresh_model(dir.path());
+        fresh.chat_session.lines.clear();
+        fresh.chat_session.push(Speaker::User, "jiná konverzace");
+        assert!(matches!(
+            fresh.chat_import_markdown(&path),
+            crate::model::CommandOutcome::Ok
+        ));
+        let lines = &fresh.chat_session.lines;
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0].speaker, Speaker::User);
+        assert_eq!(lines[0].text, "Co je v téhle složce?");
+        assert_eq!(lines[1].speaker, Speaker::Model);
+        assert!(lines[1].text.contains("```"), "{}", lines[1].text);
+        assert_eq!(lines[2].speaker, Speaker::System);
+        // Identities are fresh and unique, so a view can cache on them.
+        let seqs: Vec<u64> = lines.iter().map(|line| line.seq).collect();
+        let mut unique = seqs.clone();
+        unique.sort_unstable();
+        unique.dedup();
+        assert_eq!(unique.len(), seqs.len(), "sequence numbers are unique");
+    }
+
+    #[test]
+    fn a_file_that_is_not_a_conversation_is_refused_rather_than_half_loaded() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = fresh_model(dir.path());
+        model.chat_session.push(Speaker::User, "keep me");
+        let path = dir.path().join("notes.md");
+        std::fs::write(&path, "# Something else\n\nJust prose.\n").unwrap();
+        let outcome = model.chat_import_markdown(&path);
+        assert!(matches!(outcome, crate::model::CommandOutcome::Failed(_)));
+        // The transcript that was there is untouched.
+        assert_eq!(model.chat_session.lines.len(), 1);
+        assert_eq!(model.chat_session.lines[0].text, "keep me");
     }
 }
