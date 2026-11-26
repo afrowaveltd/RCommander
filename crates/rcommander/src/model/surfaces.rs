@@ -99,6 +99,8 @@ pub struct KeyVariant {
     pub modifier_key: &'static str,
     /// The command it runs.
     pub command: String,
+    /// What the command is called, so the bar can swap the caption while the modifier is held.
+    pub label_key: &'static str,
 }
 
 impl KeyVariant {
@@ -151,6 +153,7 @@ impl Model {
                     modifier,
                     modifier_key,
                     command: command.to_string(),
+                    label_key: command_label_key(command).unwrap_or(""),
                 };
                 if variant.is_usable() {
                     variants.push(variant);
@@ -159,6 +162,47 @@ impl Model {
         }
         variants
     }
+}
+
+/// What a command is called in a caption.
+///
+/// The F-key row carries the labels of the plain keys; this covers the commands the *modifiers*
+/// add, so holding `Shift` can change a caption into the other function instead of growing a
+/// second row of buttons underneath. A command that is not here keeps its bare shortcut as the
+/// caption, which is honest: the function still runs, we just have no name for it in words.
+pub fn command_label_key(command: &str) -> Option<&'static str> {
+    Some(match command {
+        "cm_SrcShort" => "cmd.view_short",
+        "cm_SrcLong" => "cmd.view_long",
+        "cm_SrcByName" => "cmd.sort_name",
+        "cm_SrcByExt" => "cmd.sort_ext",
+        "cm_SrcByDateTime" => "cmd.sort_date",
+        "cm_SrcBySize" => "cmd.sort_size",
+        "cm_SrcUnsorted" => "cmd.sort_unsorted",
+        "cm_SrcTree" => "cmd.tree",
+        "cm_SrcAllFiles" => "cmd.all_files",
+        "cm_SrcExecs" => "cmd.execs",
+        "cm_SrcUserDef" => "cmd.user_defined",
+        "cm_ListInternalOnly" => "cmd.view_internal",
+        "cm_ListExternal" => "cmd.view_external",
+        "cm_CopySamePanel" => "cmd.copy_same_panel",
+        "cm_RenameOnly" => "cmd.rename",
+        "cm_MkDirOther" => "cmd.mkdir_other",
+        "cm_SearchFor" => "cmd.search",
+        "cm_DeletePermanent" => "cmd.delete_permanent",
+        "cm_UnpackFiles" => "cmd.unpack",
+        "cm_PackFiles" => "cmd.pack",
+        "cm_CompareDirs" => "cmd.compare_dirs",
+        "cm_EditNewFile" => "cmd.new_file",
+        "cm_CustomColumnViewMenu" => "cmd.custom_columns",
+        "cm_ContextMenu" => "cmd.context_menu",
+        "cm_ShowCmdLineHistory" => "cmd.cmdline_history",
+        "cm_CDtree" => "cmd.cdtree",
+        "cm_SrcBreadcrumbar" | "cm_TrgBreadcrumbar" => "cmd.breadcrumb",
+        "cm_PrintFile" => "cmd.print",
+        "cm_Exit" => "cmd.quit",
+        _ => return None,
+    })
 }
 
 /// The F-key row of one surface.

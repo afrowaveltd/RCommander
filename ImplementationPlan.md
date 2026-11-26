@@ -1345,6 +1345,59 @@ The rules that do **not** move:
 4. **`plugins.call` with trust switches and on-demand activation.**
 5. **The URL installer and the web index**, once the transport question below is settled.
 
+#### The plugin package: one structure, three consumers (decided 2026-11)
+
+A plugin folder is a **package**, not a stray manifest, because the same folder has to be readable by
+three different consumers: the application (to run it), the installer (to place it) and the website
+(to list it). One structure, no copies:
+
+```
+notes/
+  plugin.toml        required — identity, backend, columns, capabilities
+  README.md          required — the human description, rendered in the app and used verbatim on the web
+  LICENSE            for a shared plugin
+  icon.svg           optional — the panel's own icon in lists and on the web
+  screenshots/*.png  optional — what the README refers to
+  lib/               optional — helper scripts or data the manifest's argv reaches
+```
+
+`plugin.toml` carries the machine facts and stays short — `name`, `version`, `description` (one line,
+for lists), plus the source declaration. **`README.md` carries the human description**: what the
+plugin is for, what it needs, what it will do to your data, and how to switch it off. The application
+shows it in the manager page and in the help window (the markdown viewer already exists); the website
+lists plugins from the same file; the installer refuses a package without it, because a plugin nobody
+can read about is a plugin nobody should install.
+
+Four consequences worth stating, because they are what make this a structure rather than a wish:
+
+- **The short line and the long page must not disagree.** `description` is the list entry,
+  `README.md` is the page; the manager shows both, so a mismatch is visible to the person installing.
+- **Capabilities are declared twice on purpose** — as flags in `plugin.toml` (for the gate) and in
+  words in `README.md` (for the human). The installer shows the flags and links the words.
+- **A package is versioned as a whole.** `[plugin] version` names the package, and the provenance
+  sidecar records which version was installed from where; the manager can then say "installed
+  1.0, available 1.1" without guessing.
+- **Nothing executable is required.** A package that only lists things needs no `lib/` at all; a
+  package that carries a script says so in the README, and the installer can show what it will run.
+
+The web index is then a thin projection of the same files: a list of `(id, name, description,
+version, sha256, download url)` plus the rendered `README.md` for the detail page. Nothing is
+authored twice, and nothing on the website can describe a plugin differently from the plugin itself.
+
+#### Function keys: one row, duplicated in the menu (decided 2026-11)
+
+Two rules from the owner, both about the same thing — never making a function reachable by one
+muscle memory only:
+
+- **The bar is one row.** A modifier does not add a second line of labels; holding `Shift` (or `Ctrl`,
+  or `Alt`) **replaces the caption** of each key with the function it would run, marked with a `*` so
+  it is obvious why the text changed. `F3 View` becomes `Shift+F3 View in lister` while Shift is
+  held, with no legend to read and no widget that exists only to explain another widget.
+- **Every function key is also a menu entry.** Someone with a mouse has to be able to click every
+  command, and someone without one should not have to guess: a command is reachable by its shortcut,
+  by its function key, and from the menu where it belongs. That is a checklist to audit, not a design
+  to admire — the audit is Phase 14.9's job and the gaps are listed in `ImplementationStatus.md`.
+
 #### Policy layers: global, user, session (decided 2026-11)
 
 "May an agent install a plugin" is not one question with one answer, and it should not become one

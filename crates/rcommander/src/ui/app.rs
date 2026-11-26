@@ -1218,32 +1218,59 @@ impl RCommanderApp {
             crate::model::Surface::Editor => self.model.t("surface.editor"),
             crate::model::Surface::Viewer => self.model.t("surface.viewer"),
         };
-        // The variants are collected before the closure: they borrow the model, the buttons do not.
-        let variants: Vec<(u8, Vec<crate::model::surfaces::KeyVariant>)> = keys
-            .iter()
-            .map(|key| (key.slot, self.model.key_variants(key.slot)))
-            .collect();
-        let labels: Vec<(String, String)> = keys
-            .iter()
-            .map(|key| (key.shortcut(), self.model.t(key.label_key)))
-            .collect();
-        // A key whose operation this place does not support stays visible but inert, so the
-        // layout does not move and the user can see that the key exists — it just has nothing
-        // to do here.
+        // Which modifier is held right now. A held modifier turns the key's caption into the
+        // function it would run, which is the whole point: no second row of buttons underneath and
+        // no legend to read — hold Shift and F1 says what Shift+F1 does.
+        let held = ui.input(|i| {
+            if i.modifiers.shift {
+                Some("shift")
+            } else if i.modifiers.ctrl || i.modifiers.command {
+                Some("ctrl")
+            } else if i.modifiers.alt {
+                Some("alt")
+            } else {
+                None
+            }
+        });
         let side = self.model.focus;
-        let available: Vec<bool> = keys
+        // Collected before the closure: they borrow the model, the buttons do not.
+        let rows: Vec<(
+            String,
+            String,
+            String,
+            bool,
+            Option<crate::model::surfaces::KeyVariant>,
+        )> = keys
             .iter()
-            .map(|key| self.model.allows(side, key.command))
+            .map(|key| {
+                let variant = held.and_then(|modifier| {
+                    self.model
+                        .key_variants(key.slot)
+                        .into_iter()
+                        .find(|variant| variant.modifier == modifier)
+                });
+                let (shortcut, label) = match &variant {
+                    Some(variant) => {
+                        let modifier = self.model.t(variant.modifier_key);
+                        let caption = if variant.label_key.is_empty() {
+                            variant.command.clone()
+                        } else {
+                            self.model.t(variant.label_key)
+                        };
+                        (format!("{modifier}+F{}", key.slot), caption)
+                    }
+                    None => (key.shortcut(), self.model.t(key.label_key)),
+                };
+                // The command this button would run, and whether the place allows it.
+                let command = variant
+                    .as_ref()
+                    .map(|variant| variant.command.clone())
+                    .unwrap_or_else(|| key.command.to_string());
+                let allowed = self.model.allows(side, &command);
+                (shortcut, label, command, allowed, variant)
+            })
             .collect();
         let unavailable_hint = self.model.t("cmd.not_available_here");
-        let modifier_names: Vec<String> = [
-            "key.modifier.shift",
-            "key.modifier.ctrl",
-            "key.modifier.alt",
-        ]
-        .iter()
-        .map(|key| self.model.t(key))
-        .collect();
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label(
@@ -1252,44 +1279,22 @@ impl RCommanderApp {
                         .color(palette.hidden),
                 );
                 ui.separator();
-                for (index, key) in keys.iter().enumerate() {
-                    let (shortcut, label) = &labels[index];
-                    let button = egui::Button::new(format!("{shortcut} {label}")).small();
-                    let response = ui.add_enabled(available[index], button);
-                    if available[index] {
+                for (shortcut, label, recipe, allowed, variant) in &rows {
+                    let mut text = format!("{shortcut} {label}");
+                    if variant.is_some() {
+                        // A caption that changed because of a held key says so, or it looks like
+                        // the bar randomly renamed itself.
+                        text.push('*');
+                    }
+                    let button = egui::Button::new(text).small();
+                    let response = ui.add_enabled(*allowed, button);
+                    if *allowed {
                         if response.clicked() {
-                            command = Some(key.command.to_string());
+                            command = Some(recipe.clone());
                         }
                     } else {
                         response.on_disabled_hover_text(unavailable_hint.replace("{cmd}", label));
                     }
-                }
-            });
-            // The variants sit directly under their key, so the eye pairs them without a legend.
-            ui.horizontal(|ui| {
-                ui.add_space(4.0);
-                for (index, _key) in keys.iter().enumerate() {
-                    let entries = &variants[index].1;
-                    if entries.is_empty() {
-                        // Keep the column aligned with the key above it.
-                        ui.add_space(46.0);
-                        continue;
-                    }
-                    ui.vertical(|ui| {
-                        for variant in entries {
-                            let name = match variant.modifier {
-                                "shift" => &modifier_names[0],
-                                "ctrl" => &modifier_names[1],
-                                _ => &modifier_names[2],
-                            };
-                            let response = ui
-                                .small_button(egui::RichText::new(name).small())
-                                .on_hover_text(variant.command.as_str());
-                            if response.clicked() {
-                                command = Some(variant.command.clone());
-                            }
-                        }
-                    });
                 }
             });
         });

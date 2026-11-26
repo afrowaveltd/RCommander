@@ -2953,27 +2953,40 @@ fn f10_leaves_the_program_like_it_did_in_norton_commander() {
 }
 
 #[test]
-fn the_bar_shows_the_modifier_variants_under_their_keys() {
+fn a_held_modifier_turns_the_bar_into_the_other_function() {
     let (left, right) = fixture();
-    let harness = harness(app(left.path(), right.path()));
-    // Shift and Alt variants of the file keys are drawn as small labels, and their hover text
-    // names the command they run.
-    assert!(
+    let mut harness = harness(app(left.path(), right.path()));
+    // The bar is one row: no second line of modifier labels underneath it.
+    assert_eq!(
         harness
             .root()
             .query_all_by_label("key.modifier.shift")
-            .count()
-            > 0,
-        "the Shift row is drawn"
+            .count(),
+        0,
+        "the variants are not a row of their own"
     );
-    assert!(
-        harness
-            .root()
-            .query_all_by_label("key.modifier.alt")
-            .count()
-            > 0,
-        "the Alt row is drawn"
+    // The model is what knows the variant and its caption; the bar only reads it.
+    let variants = harness.state().model.key_variants(3);
+    assert!(!variants.is_empty(), "F3 has modifier variants");
+    let shift = variants
+        .iter()
+        .find(|variant| variant.modifier == "shift")
+        .expect("shift+F3 exists");
+    assert_eq!(shift.command, "cm_ListInternalOnly");
+    assert_eq!(
+        shift.label_key, "cmd.view_internal",
+        "the caption of the variant is known, so the bar can say it"
     );
+    // Holding a modifier is an input event, so it is expressed as one: the bar reads the modifiers
+    // of the frame and swaps the caption, which needs no second row of widgets.
+    harness.event(egui::Event::Key {
+        key: egui::Key::F3,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::SHIFT,
+    });
+    harness.run();
 }
 
 #[test]
