@@ -37,7 +37,7 @@ cargo test --workspace
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **pending** — common parser/tokenizer and rendering foundation before 17.1–17.2 |
 | 17 | Rich document previewer (PDF, Office, Markdown, code) | **pending** — planned in Phase 17 |
 | 18 | Plugin architecture (data sources and renderers) | **pending** — planned in Phase 18 |
-| 19 | Integrated SSH terminal (PuTTY-style) | **pending** — planned in Phase 19 |
+| 19 | Integrated SSH terminal and PowerShell remoting | **pending** — SSH terminal (19.1–19.5), Windows WSMan/WinRM and optional PowerShell-over-SSH sessions, scoped agent execution and Windows diagnostic workloads (19.6–19.9); no RDP dependency |
 | 20 | Optional privileged system capabilities | **pending** — narrow helper, OS authentication, verified backup/restore and optional installation; not required for normal chat |
 | 21 | Portable host diagnostics, System Check and repair workloads | **pending** — read-only diagnostics, evidence-based approved repairs, preventive checks, portable technician mode, remote .NET/Apache deployment and optional diagnostic integrations |
 | 22 | Native WSL integration and cross-OS workspaces | **pending** — native filesystem/execution providers, mount-aware path mapping and cross-OS tests |
@@ -1104,7 +1104,7 @@ command either by its own name or through a family rule:
 | Themes are **flat colour tables**: no background images, per-element opacity, gradients, shadows, real window transparency or procedural animation. The Amber-theme-with-a-faint-dragon example from the panel owner is the design target | Phase 14.8 (planned and designed in the plan, with the API facts checked rather than assumed): images with placement/scale/opacity and a one-off CPU blur, chrome roles (frame colour and width, corner radius, shadow), independent opacities with a readability floor, real window transparency plus behind-window blur where the platform offers it, gradients and textures, and opt-in procedural animation that cannot run while the window is hidden. Every effect is off by default and has an "off" that restores today's look; contrast is measured against the pixels the text actually sits on |
 | No general data/render plugin framework or enforceable isolation for untrusted plugins | Phase 18; process separation alone is insufficient |
 | MCP HTTP server advertised in CLI help is not connected: `run_mcp` ignores `--http` arguments | Implement and secure server transport separately, or remove the unused CLI help flag; stdio server and MCP HTTP **client** are distinct |
-| Integrated SSH shell remains planned | Phase 19 |
+| Integrated SSH shell and Windows PowerShell remoting remain planned | Phase 19.1–19.9; secure per-host sessions, supported authentication, structured results and separately approved remote agent actions |
 | Optional privileged OS helper not implemented | Phase 20 (not required for ordinary AI chat) |
 | Portable host diagnosis/repair, System Check, before/after verification and remote deployment workflows are planned | Phase 21; read-only fixtures first, gated repairs only after policy and applicable OS/SSH capabilities |
 
@@ -1130,8 +1130,9 @@ command either by its own name or through a family rule:
    and policy enforcement.
 7. Continue Phase 17 previewers and Phase 18 plugin APIs; distinguish genuine
    OS sandbox enforcement from out-of-process crash isolation.
-8. Add Phase 19 SSH terminal separately; implement optional Phase 20 privileged
-   capabilities only for supported systems and approved operations.
+8. Add Phase 19 SSH terminal and Windows PowerShell remoting independently;
+   start with verified session contracts and read-only probes. Implement optional
+   Phase 20 privileged capabilities only for supported systems and approved operations.
 9. Start Phase 21 with read-only Windows/Linux System Check and fault-diagnostic
    fixtures; add verified, approved repair and portable technician mode once
    their prerequisites are satisfied. Remote deployment is a reference workload,

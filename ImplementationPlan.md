@@ -486,7 +486,7 @@ Example user journey:
 | 16.11 | Permission profiles and approvals | layered global/provider/workspace/session policies, time-limited grants, operation-scoped approvals, audit trail, emergency stop/revoke | tests: deny wins, expired grants fail closed, changing pane paths never changes granted roots, no silent remote command, Git push or GitHub issue, every external write shows the destination and requires its own appropriate grant |
 | 16.12 | Model/tool/data plugin contracts | versioned adapter manifests and registries; separate model APIs (Ollama and configurable endpoints), MCP tool discovery and capability-based data providers | fake providers and fake MCP servers verify discovery, conflicts, unavailable providers, refusal of unknown privileges, tool-chain cancellation and provenance of every tool call; no untrusted extension runs by default |
 | 16.13 | Project scaffolding and approved commands | bounded project-task runner with working-directory constraints, configured commands such as `dotnet new`, `dotnet test`, `git init` and local commit, streaming logs and live file updates | temp-directory integration test creates a C# solution and test project using fixture/fake command runners; tests prohibit arbitrary commands, unsafe working paths, secrets in command/log output and unapproved external publication |
-| 16.14 | Remote SSH workspace actions | browse/preview/edit via SFTP provider, optional separately authorised SSH command transport using verified host keys, isolated command scope, per-host identity and operation logs | mock SSH/SFTP integration tests for host verification, reauthentication, network loss, stale remote file conflicts and refusal of remote shell execution without its specific grant; depends on Phase 13 |
+| 16.14 | Remote SSH workspace actions (Windows PowerShell remoting: Phase 19.6–19.9) | browse/preview/edit via SFTP provider, optional separately authorised SSH command transport using verified host keys, isolated command scope, per-host identity and operation logs | mock SSH/SFTP integration tests for host verification, reauthentication, network loss, stale remote file conflicts and refusal of remote shell execution without its specific grant; depends on Phase 13 |
 | 16.15 | Platform capability matrix | desktop-first feature toggles for agent chat, model runtime, MCP tools, project execution and SSH commands; optional/limited Android UI with no forced parity | Linux/Windows test matrix covers chat and tool workflows; Android build remains valid with desktop-only extensions disabled and unsupported actions hidden or clearly disabled; no requirement to ship an Android AI workstation |
 
 ### Phase 16.16–16.21 — Prompt library, workload packs and reusable agent runtime
@@ -1065,7 +1065,7 @@ Store secrets behind the host broker and do not forward credentials to arbitrary
 plugins. Headless fixtures exercise policy decisions; separate platform tests
 are required to claim actual sandbox enforcement.
 
-## Phase 19 — Integrated SSH terminal (PuTTY-style)
+## Phase 19 — Integrated SSH terminal and PowerShell remoting
 
 An IT professional who already uses the file manager to look at a server wants the
 shell next to it. This is a **terminal emulator**, not a file transfer, so it gets
@@ -1079,6 +1079,65 @@ its own isolated phase.
 | 19.4 | Sessions | several terminal tabs bound to saved sessions, per-host profiles, reconnect after a dropped connection, a log file option | model tests for tab lifetimes, reconnect and per-session settings; a dropped connection shows a clear state instead of a frozen screen |
 | 19.5 | Safety | no automatic command execution from the file manager side, confirmation for "open shell on this host", the terminal is a separate window by default | tests that opening a terminal does not run anything else; documentation of what the terminal can and cannot do |
 
+
+### Phase 19.6–19.9 — Windows PowerShell remoting (planned)
+
+Add a native remote administration workflow for Windows hosts, alongside the
+SSH terminal and SSH/SFTP providers. The use case is an individual technician
+working with an explicitly selected and authorised workstation or server.
+A graphical RDP session is not required: the goal is PowerShell command
+execution, structured diagnostic results and reviewed remote repairs.
+
+Support standard PowerShell remoting over WSMan/WinRM as the Windows-native
+transport, and PowerShell remoting over SSH where the target is configured
+for it. Distinguish Windows PowerShell 5.1 endpoints from PowerShell 7
+endpoints, detect the actual available version, transport and capabilities,
+and do not assume that installing PowerShell 7 creates a remoting endpoint.
+Investigate using the host's supported PowerShell client/runtime rather than
+reimplementing WSMan or authentication from scratch. Windows client first;
+Linux/macOS support through PowerShell 7 and available compatible transports
+is subject to separate real compatibility tests. Do not promise full WSMan
+parity on non-Windows systems. Keep the provider optional.
+
+Use an explicitly selected host, transport, endpoint/configuration name,
+authenticated identity and per-host session context. Prefer OS-integrated
+authentication (including Kerberos in a suitable AD environment) when
+available; support certificate-validated HTTPS and explicitly approved
+authentication methods appropriate to the environment. SSH must reuse
+Phase 13 host-key verification. Never disable certificate/host-key checks,
+enable unencrypted authentication, globally broaden TrustedHosts, turn on
+CredSSP, open firewall rules or enable remoting automatically to make a
+connection work. Respect existing domain policy, JEA/constrained endpoints
+and the account's remote privileges. Use supported OS credential mechanisms
+or the existing secure credential store where appropriate; secrets must not
+enter model context, command transcripts or diagnostic reports. Do not
+silently fall back to a different transport, account or host.
+
+Expose an interactive, user-controlled remote PowerShell session and a
+separate structured execution adapter for authorised agent operations.
+Capture output objects with a documented safe serialization boundary,
+stdout/stderr or PowerShell streams as appropriate, error records, completion
+state and bounded results. Remote objects are data, not executable local
+objects; never evaluate received content or deserialize arbitrary types
+unsafely. Handle Unicode, cancellation, network loss, timeouts, disconnected
+sessions and ambiguous execution outcomes. Cancelling a client request is
+not proof that a remote command stopped or rolled back; recheck target
+state before retrying a mutation. Keep host identity visible in the UI and
+approval/audit records; distinguish local paths/commands from remote ones.
+Do not treat a general PowerShell script as inherently read-only.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 19.6 | PowerShell remoting provider and session profiles | capability discovery, WSMan/WinRM and optional SSH adapter, endpoint/version detection, supported secure authentication and explicit session selection | mocked transport tests, then authorised Windows fixtures for domain/workgroup scenarios as available, invalid identity/certificate, unavailable endpoint, access denied and secure disconnect; report unsupported combinations honestly |
+| 19.7 | Remote PowerShell console | interactive sessions alongside existing terminal/panels, visible host/identity, command history with sensitive-data handling, structured results and remote errors | tests for Unicode, stream/error handling, host separation, cancellation, connection loss, reconnect and command failure; opening a session performs no unrequested mutation |
+| 19.8 | Scoped remote agent tools | typed diagnostic probes and reviewed PowerShell command/script execution through Phase 16.0, shared remote evidence and audit | tests for exact command/target approval, JEA restrictions, denied access, malicious output, stale approvals, timeouts and ambiguous remote results; no credential disclosure or automatic retry of uncertain mutations |
+| 19.9 | Windows remote diagnostic workloads | Event Logs, services, processes, networking, disks, updates, system inventory and selected repairs through Phase 21 | mock evidence first, then an authorised disposable Windows target; read-only probes, approval and recovery preparation before repairs, before/after verification and honest partial coverage |
+
+**Dependencies:** reuse Phase 13 secure sessions, Phase 16.0 policy and audit,
+Phase 16.14 remote action contracts and Phase 21 diagnostic adapters. The
+provider may be implemented independently of the graphical terminal emulator.
+Basic local file management and offline AI remain functional without WinRM,
+PowerShell 7, a remote endpoint or a running remote agent.
 
 ## Phase 20 — Optional privileged system capabilities
 
@@ -1163,8 +1222,9 @@ scheduled tasks or agents behind in portable mode; close owned processes/SSH ses
 and flush reports before detach. If elevated repair needs a helper that is unavailable
 or forbidden on the host, mark that action unavailable; no workaround to evade policy.
 Local/offline deterministic check packs remain useful without any LLM or internet.
-Use the existing Phase 13 saved SSH identity and Phase 16.14 tool transport for remote
-targets; never confuse the local USB host with the remote system.
+Use the existing Phase 13 saved SSH identity and Phase 16.14 tool transport for SSH
+remote targets, and Phase 19.6–19.9 for Windows PowerShell remoting. Never confuse
+the local USB host with the remote system.
 
 | # | Step | Output | DoD |
 | --- | --- | --- | --- |
@@ -1191,7 +1251,8 @@ Phase 19 terminal, and Phase 20 privileged helper where applicable.
 
 **Order:** Phase 21.1 and read-only offline check fixtures can start with Phase 16.18
 workload contracts. All AI-controlled changes require Phase 16.0 and the agent runtime;
-privileged local actions require Phase 20, remote actions require Phase 13/16.14
+privileged local actions require Phase 20; remote actions require the relevant
+verified SSH (Phase 13/16.14) or PowerShell remoting (Phase 19.6–19.9) transport
 and an authorised remote execution policy. Desktop Windows/Linux first; Android
 does not need system-repair or administrator feature parity. Keep ordinary file
 management fully functional with no workload packs, model or helper installed.
