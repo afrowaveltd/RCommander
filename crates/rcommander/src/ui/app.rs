@@ -1178,40 +1178,87 @@ impl RCommanderApp {
         });
     }
 
-    /// The F-key bar: whatever the focused surface says those keys mean.
+    /// The F-key bar: whatever the focused surface says those keys mean, with their variants.
     ///
-    /// The row comes from the model, so the bar and the keys cannot disagree: an empty slot is not
-    /// drawn at all, because a button that cannot work is worse than a missing one.
+    /// Two rows, the way Total Commander has always drawn it: the plain function keys on top and
+    /// the modifier variants under them. The row comes from the model, so the bar and the keys
+    /// cannot disagree; an empty slot is not drawn at all, because a button that cannot work is
+    /// worse than a missing one.
     fn function_key_bar(&mut self, ui: &mut egui::Ui) {
         let mut command: Option<String> = None;
-        let keys = self.model.function_keys();
+        let keys: Vec<crate::model::FnKey> = self
+            .model
+            .function_keys()
+            .into_iter()
+            .filter(|entry| !entry.is_empty())
+            .collect();
         let surface = self.model.surface();
         let palette = self.palette.clone();
-        ui.horizontal(|ui| {
-            // Which surface is listening for these keys, said in one word.
-            ui.label(
-                egui::RichText::new(match surface {
-                    crate::model::Surface::Panel(_) => self.model.t("surface.files"),
-                    crate::model::Surface::Chat => self.model.t("surface.chat"),
-                    crate::model::Surface::Editor => self.model.t("surface.editor"),
-                    crate::model::Surface::Viewer => self.model.t("surface.viewer"),
-                })
-                .small()
-                .color(palette.hidden),
-            );
-            ui.separator();
-            for entry in keys.iter().filter(|entry| !entry.is_empty()) {
-                if ui
-                    .small_button(format!(
-                        "{} {}",
-                        entry.shortcut(),
-                        self.model.t(entry.label_key)
-                    ))
-                    .clicked()
-                {
-                    command = Some(entry.command.to_string());
+        let surface_label = match surface {
+            crate::model::Surface::Panel(_) => self.model.t("surface.files"),
+            crate::model::Surface::Chat => self.model.t("surface.chat"),
+            crate::model::Surface::Editor => self.model.t("surface.editor"),
+            crate::model::Surface::Viewer => self.model.t("surface.viewer"),
+        };
+        // The variants are collected before the closure: they borrow the model, the buttons do not.
+        let variants: Vec<(u8, Vec<crate::model::surfaces::KeyVariant>)> = keys
+            .iter()
+            .map(|key| (key.slot, self.model.key_variants(key.slot)))
+            .collect();
+        let labels: Vec<(String, String)> = keys
+            .iter()
+            .map(|key| (key.shortcut(), self.model.t(key.label_key)))
+            .collect();
+        let modifier_names: Vec<String> = [
+            "key.modifier.shift",
+            "key.modifier.ctrl",
+            "key.modifier.alt",
+        ]
+        .iter()
+        .map(|key| self.model.t(key))
+        .collect();
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(&surface_label)
+                        .small()
+                        .color(palette.hidden),
+                );
+                ui.separator();
+                for (index, key) in keys.iter().enumerate() {
+                    let (shortcut, label) = &labels[index];
+                    if ui.small_button(format!("{shortcut} {label}")).clicked() {
+                        command = Some(key.command.to_string());
+                    }
                 }
-            }
+            });
+            // The variants sit directly under their key, so the eye pairs them without a legend.
+            ui.horizontal(|ui| {
+                ui.add_space(4.0);
+                for (index, _key) in keys.iter().enumerate() {
+                    let entries = &variants[index].1;
+                    if entries.is_empty() {
+                        // Keep the column aligned with the key above it.
+                        ui.add_space(46.0);
+                        continue;
+                    }
+                    ui.vertical(|ui| {
+                        for variant in entries {
+                            let name = match variant.modifier {
+                                "shift" => &modifier_names[0],
+                                "ctrl" => &modifier_names[1],
+                                _ => &modifier_names[2],
+                            };
+                            let response = ui
+                                .small_button(egui::RichText::new(name).small())
+                                .on_hover_text(variant.command.as_str());
+                            if response.clicked() {
+                                command = Some(variant.command.clone());
+                            }
+                        }
+                    });
+                }
+            });
         });
         if let Some(command) = command {
             self.pending_command = Some(command);

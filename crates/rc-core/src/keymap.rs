@@ -243,7 +243,10 @@ impl KeyMap {
         bind("f8", "cm_Delete");
         bind("shift+f8", "cm_DeletePermanent");
         bind("f9", "cm_MenuSource");
-        bind("f10", "cm_MenuLeft");
+        // Norton Commander (and Total Commander in its DOS lineage) uses F10 to leave the program.
+        // It used to be bound to a menu command that this application does not have, which made the
+        // key do nothing at all — worse than either choice.
+        bind("f10", "cm_Exit");
         bind("alt+f4", "cm_Exit");
         bind("alt+f8", "cm_ShowCmdLineHistory");
         bind("alt+f10", "cm_CDtree");

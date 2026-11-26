@@ -15,6 +15,10 @@ stored in the `[shortcuts]` table of `settings.toml` as `"ctrl+f3" = "cm_SrcByNa
 | `F6` | move / rename |
 | `F7` | create directory |
 | `F8` | delete |
+| `F9` | pack |
+| `F10` | **quit** — the Norton Commander ending |
+| `F11` | open |
+| `F12` | open a terminal here |
 | `Tab` | switch panel |
 | `Enter` | open |
 | `Backspace` | parent directory |
@@ -38,6 +42,14 @@ Over a conversation there is no cursor row to copy or delete, so those commands 
 **absent** from its row rather than disabled: a button that cannot work is worse than
 no button. `F1` is always help, and it opens the topic of the surface you pressed it
 on — the chat, the editor, the viewer or the shortcuts themselves.
+
+Under the plain keys the bar draws a second row of **modifier variants** — `Shift`,
+`Ctrl` and `Alt` — and they are not decoration: hovering one names the command it
+runs, clicking it runs it. They come from the key map, so a variant you rebind
+appears with its new command and one that does not exist is not offered.
+
+`F10` leaves the program, as it did in Norton Commander; `Alt+F4` does the same.
+(The menu bar is always visible, so no key is needed to open a menu.)
 
 The rows are read from the model, which is why the bar and the keys can never
 disagree, and why the coming text frontend will have the same keyboard.

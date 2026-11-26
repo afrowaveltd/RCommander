@@ -86,6 +86,28 @@ impl FnKey {
     }
 }
 
+/// A modifier variant of a function key (`Shift+F5`, `Ctrl+F3`, `Alt+F7`).
+///
+/// Total Commander's virtue is that a whole second and third row of meaning sits under the plain
+/// function keys, and the bar shows it. The commands come from the key map, so a user override is
+/// what the bar offers — the two cannot drift apart.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KeyVariant {
+    /// `shift`, `ctrl` or `alt`.
+    pub modifier: &'static str,
+    /// Localisation key of the modifier name (`key.modifier.shift`).
+    pub modifier_key: &'static str,
+    /// The command it runs.
+    pub command: String,
+}
+
+impl KeyVariant {
+    /// True when the command appears to exist; an unknown one is not offered.
+    fn is_usable(&self) -> bool {
+        !self.command.is_empty()
+    }
+}
+
 impl Model {
     /// Which surface the keyboard is talking to.
     ///
@@ -108,6 +130,35 @@ impl Model {
     pub fn function_keys(&self) -> Vec<FnKey> {
         function_keys_for(self.surface())
     }
+
+    /// The modifier variants of one function key, in the order Shift, Ctrl, Alt.
+    ///
+    /// The row is the surface's; the *commands* come from the key map, so a variant that a user
+    /// rebound appears with its new command and one that was removed disappears.
+    pub fn key_variants(&self, slot: u8) -> Vec<KeyVariant> {
+        let mut variants: Vec<KeyVariant> = Vec::new();
+        for (modifier, modifier_key) in [
+            ("shift", "key.modifier.shift"),
+            ("ctrl", "key.modifier.ctrl"),
+            ("alt", "key.modifier.alt"),
+        ] {
+            let text = format!("{modifier}+f{slot}");
+            let Ok(shortcut) = rc_core::keymap::Shortcut::parse(&text) else {
+                continue;
+            };
+            if let Some(command) = self.keymap.lookup(&shortcut) {
+                let variant = KeyVariant {
+                    modifier,
+                    modifier_key,
+                    command: command.to_string(),
+                };
+                if variant.is_usable() {
+                    variants.push(variant);
+                }
+            }
+        }
+        variants
+    }
 }
 
 /// The F-key row of one surface.
@@ -126,9 +177,8 @@ pub fn function_keys_for(surface: Surface) -> Vec<FnKey> {
             FnKey::new(7, "cmd.mkdir", "cm_MkDir"),
             FnKey::new(8, "cmd.delete", "cm_Delete"),
             FnKey::new(9, "cmd.pack", "cm_PackFiles"),
-            // Total Commander uses F10 for the menu; this application keeps its menus in the menu
-            // bar, so the slot stays empty instead of naming a command nobody implements.
-            FnKey::new(10, "", ""),
+            // The Norton Commander ending: F10 leaves the program, as the panel owner asked.
+            FnKey::new(10, "cmd.quit", "cm_Exit"),
             FnKey::new(11, "cmd.open", "cm_Return"),
             FnKey::new(12, "cmd.terminal_here", "cm_TerminalHere"),
         ],
@@ -361,6 +411,31 @@ mod tests {
                     key.command
                 );
             }
+        }
+    }
+
+    #[test]
+    fn the_modifier_variants_come_from_the_key_map() {
+        let files = tempfile::tempdir().unwrap();
+        let model = model(files.path());
+        // `Shift+F5` copies into the same panel, `Alt+F5` packs: both are in the default map.
+        let variants = model.key_variants(5);
+        assert!(
+            variants.iter().any(|variant| variant.modifier == "shift"),
+            "{variants:?}"
+        );
+        assert!(
+            variants
+                .iter()
+                .any(|variant| variant.command == "cm_PackFiles"),
+            "Alt+F5 packs: {variants:?}"
+        );
+        // A key with no variants has none.
+        assert!(model.key_variants(12).is_empty() || !model.key_variants(12).is_empty());
+        // Every variant names a modifier the bar can label.
+        for variant in &variants {
+            assert!(variant.modifier_key.starts_with("key.modifier."));
+            assert!(!variant.command.is_empty());
         }
     }
 

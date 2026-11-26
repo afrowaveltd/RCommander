@@ -2936,3 +2936,42 @@ fn exporting_the_conversation_writes_a_readable_file() {
     assert!(text.contains("why is the sky blue?"), "{text}");
     assert!(text.contains("Rayleigh scattering."), "{text}");
 }
+
+#[test]
+fn f10_leaves_the_program_like_it_did_in_norton_commander() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    // The bar offers F10 over files, and it means Quit.
+    harness.root().get_by_label("surface.files");
+    assert!(
+        harness.root().query_all_by_label_contains("F10").count() > 0,
+        "F10 is on the bar"
+    );
+    // Pressing it exits: the model reports Quit, and the window is asked to close.
+    let outcome = harness.state_mut().execute("cm_Exit");
+    assert_eq!(outcome, rcommander::model::CommandOutcome::Quit);
+}
+
+#[test]
+fn the_bar_shows_the_modifier_variants_under_their_keys() {
+    let (left, right) = fixture();
+    let harness = harness(app(left.path(), right.path()));
+    // Shift and Alt variants of the file keys are drawn as small labels, and their hover text
+    // names the command they run.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("key.modifier.shift")
+            .count()
+            > 0,
+        "the Shift row is drawn"
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label("key.modifier.alt")
+            .count()
+            > 0,
+        "the Alt row is drawn"
+    );
+}

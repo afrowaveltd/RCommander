@@ -15,6 +15,10 @@ tabulky `[shortcuts]` v souboru `settings.toml` jako `"ctrl+f3" = "cm_SrcByName"
 | `F6` | přesunout / přejmenovat |
 | `F7` | vytvořit adresář |
 | `F8` | smazat |
+| `F9` | zabalit |
+| `F10` | **ukončit program** — klasické zakončení z Norton Commanderu |
+| `F11` | otevřít |
+| `F12` | otevřít terminál zde |
 | `Tab` | přepnout panel |
 | `Enter` | otevřít |
 | `Backspace` | nadřazený adresář |
@@ -37,6 +41,14 @@ Nad konverzací není žádný řádek kurzoru ke kopírování ani mazání, ta
 její řadě **nejsou** — místo aby byly zašedlé: tlačítko, které nemůže fungovat, je
 horší než žádné. `F1` je vždy nápověda a otevře téma té plochy, na které jste ji
 stiskli — chat, editor, prohlížeč nebo samotné zkratky.
+
+Pod holými klávesami kreslí lišta druhou řadu **variant s modifikátory** — `Shift`,
+`Ctrl` a `Alt`. Nejsou to dekorace: najetí myší řekne, který příkaz spustí, a kliknutí
+ho spustí. Berou se z klávesové mapy, takže varianta, kterou si přemapujete, se objeví
+se svým novým příkazem a ta, která neexistuje, se nenabízí.
+
+`F10` ukončí program, jak to dělal Norton Commander; totéž `Alt+F4`. (Lišta nabídek
+je stále vidět, takže žádná klávesa k otevření nabídky není potřeba.)
 
 Řady se čtou z modelu, a proto se lišta a klávesy nemohou rozejít — a budoucí textové
 rozhraní bude mít stejnou klávesnici.
