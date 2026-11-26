@@ -32,6 +32,7 @@ pub mod knownhosts;
 pub mod listing;
 pub mod location;
 pub mod mask;
+pub mod mcptools;
 pub mod ops;
 pub mod policy;
 pub mod prompt;

@@ -78,6 +78,40 @@ command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
 ```
 
+## Katalog nástrojů: co jste povolili, si pamatujeme
+
+Když se server připojí poprvé, RCommander si přečte, co publikuje, a **seznam si zapamatuje**: názvy
+nástrojů, schémata argumentů a odhad, co který dělá. Od té chvíle panel agenta ten seznam ukazuje s
+třípolohovým přepínačem u každého nástroje a odpovědi přežijí restart.
+
+| Přepínač | Co znamená |
+| --- | --- |
+| **povolit** | model ho smí volat. Volání je pořád policy request, pořád se schvaluje podle pravidel a pořád se audituje |
+| **zeptat se** | pokaždé se objeví schvalovací dialog. Takhle začíná **každý** nástroj |
+| **zakázat** | nástroj se modelu vůbec nenabízí |
+
+### Jak se odhaduje nebezpečnost
+
+Z **názvu a argumentů**, nikdy z popisu — popis píše autor serveru a může tvrdit cokoli, kdežto
+parametr `recursive` u nástroje `delete_directory` je fakt.
+
+| Vypadá jako | Protože |
+| --- | --- |
+| **čte** | `get_*`, `list_*`, `read_*`, `search_*`, `describe_*` … |
+| **mění data** | `create_*`, `update_*`, `write_*`, `move_*`, `commit_*` … nebo argumenty zmiňující `recursive`, `everything`, `wildcard` |
+| **ničivé** | `delete_*`, `remove_*`, `drop_*`, `send_*`, `push_*`, `exec_*`, `run_*`, `pay_*` … |
+| **neznámé** | nic rozpoznatelného — bereme je stejně opatrně jako ničivé, nikdy jako bezpečné |
+
+**Ničivý (ani neznámý) nástroj nelze přepnout na `povolit` kliknutím.** Potřebuje stejné napsané
+potvrzení jako trvalé předběžné schválení souborů a důvod se zapíše do auditu. Kde operační systém
+nabízí elevaci, je autoritou privilegovaný helper; do té doby je napsané slovo podpis člověka a
+všechno ostatní zůstává vázáno na běžná práva vašeho účtu.
+
+**Nástroj, který změní povahu, ztratí odpověď.** Když upgrade udělá z `read_file` něco, co bere
+`recursive`, odhad se změní, staré `povolit` se zahodí a nástroj se zase ptá. Přejmenovaný nástroj
+zděděnou permission nemá a nový začíná na `zeptat se` — upgrade tedy nemůže potichu rozšířit, co model
+smí.
+
 ## Bezpečnost
 
 Server zpřístupňuje jen to, co protokol inzeruje; nic se nespustí, dokud není

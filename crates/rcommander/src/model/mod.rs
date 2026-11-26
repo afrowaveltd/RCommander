@@ -18,6 +18,7 @@ pub mod commands;
 pub mod dialogs;
 pub mod fonts;
 pub mod git;
+pub mod mcptools;
 pub mod policy;
 pub mod prompts;
 pub mod remote;

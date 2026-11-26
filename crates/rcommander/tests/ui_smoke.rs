@@ -3137,3 +3137,76 @@ fn the_review_blocks_a_file_with_a_syntax_error_and_offers_hunks() {
         "the diff is split into hunks"
     );
 }
+
+#[test]
+fn the_agent_panel_lists_the_remote_tools_with_a_trust_switch_each() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    // Pretend the panel connected to a server that publishes two tools.
+    app.model.remember_mcp_tools(
+        "photo-craft",
+        vec![
+            (
+                "create_icon".to_string(),
+                "draw an icon".to_string(),
+                "{}".to_string(),
+            ),
+            (
+                "delete_document".to_string(),
+                String::new(),
+                "{}".to_string(),
+            ),
+        ],
+    );
+    app.model.show_agent_panel = true;
+    let mut harness = harness(app);
+    // The catalogue is on the model, which is what the panel draws from.
+    assert_eq!(
+        harness
+            .state()
+            .model
+            .mcp_available_tools("photo-craft")
+            .len(),
+        2
+    );
+    // Denying a tool removes it from what the model may be offered, and the switch is remembered.
+    harness
+        .state_mut()
+        .model
+        .set_mcp_tool_trust(
+            "photo-craft",
+            "delete_document",
+            rc_core::mcptools::ToolTrust::Deny,
+            "",
+        )
+        .expect("denying needs no ceremony");
+    assert_eq!(
+        harness
+            .state()
+            .model
+            .mcp_available_tools("photo-craft")
+            .len(),
+        1
+    );
+    // Allowing a destructive tool is refused without the word, and accepted with it.
+    let refused = harness.state_mut().model.set_mcp_tool_trust(
+        "photo-craft",
+        "delete_document",
+        rc_core::mcptools::ToolTrust::Allow,
+        "",
+    );
+    assert!(refused.is_err(), "a click is not a signature");
+    let allowed = harness.state_mut().model.set_mcp_tool_trust(
+        "photo-craft",
+        "delete_document",
+        rc_core::mcptools::ToolTrust::Allow,
+        "yes",
+    );
+    assert!(allowed.is_ok());
+    assert!(
+        harness
+            .state()
+            .model
+            .mcp_tool_allowed("photo-craft", "delete_document")
+    );
+}

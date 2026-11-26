@@ -939,6 +939,11 @@ pub struct Agent {
     pub response_wait_seconds: u64,
     /// Last successful cold load duration by provider and model.
     pub model_load_seconds: BTreeMap<String, u64>,
+    /// What we remember about each connected MCP server and its tools (Phase 16.37).
+    ///
+    /// Kept in the settings file so a second connection does not ask the same questions again.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mcp_servers: Vec<crate::mcptools::ServerRecord>,
     /// Operations the human permanently pre-approved in the approval dialog.
     ///
     /// Written only by an explicit, typed confirmation; every use is still audited.
@@ -984,6 +989,7 @@ impl Default for Agent {
             model: String::new(),
             response_wait_seconds: 120,
             model_load_seconds: BTreeMap::new(),
+            mcp_servers: Vec::new(),
             preapproved: Vec::new(),
         }
     }

@@ -310,6 +310,38 @@ Keyboard handling needed no new rule: typing into the input takes the focus, and
 shortcut handler already steps aside when a widget has focus. That is why F-keys do not navigate the
 hidden list while somebody is typing a question.
 
+## Phase 16.37a — a remembered catalogue with per-tool trust (done)
+
+`cargo test -p rc-core --lib mcptools` → **7 tests**, `cargo test -p rcommander --lib mcptools` →
+**4**, plus a UI test that walks the three answers through the model.
+
+The panel could connect to another application and list its tools, but it could not *remember*
+anything about them: every connection started from zero, and nothing said which of a server's tools
+were safe. `rc_core::mcptools` is that memory, stored in the settings so it survives a restart.
+
+Every tool gets the three-state switch the panel owner asked for — **allow**, **ask**, **deny** — and
+`ask` is the default for everything, including a brand-new tool a server added in an upgrade.
+
+The danger estimate reads the **name and the argument schema, never the description**, because a
+description is written by the server's author and may say anything. Four levels: reads, changes data,
+destructive, unknown — and `unknown` is treated as carefully as destructive, never as safe.
+
+Three rules give the catalogue its teeth, each with a test:
+
+* **A destructive or unknown tool cannot be switched to `allow` by a click.** It needs the same typed
+  confirmation a permanent file pre-approval needs, and the allowance is written to the audit log.
+  Where the OS offers elevation the Phase 20 helper will be the authority; until then the typed word
+  is the human's signature.
+* **A tool that changes nature loses its answer.** An upgrade that adds a `recursive` flag to
+  `read_file` changes the estimate, and the old `allow` is dropped back to `ask`. A renamed tool
+  inherits nothing; a new tool starts at `ask`.
+* **`deny` removes the tool from what the model is offered**, not merely from what it may call.
+
+Security **zones** — loopback, the trusted overlay, client overlays, the domain and the internet,
+each with its own posture — are designed in the plan as 16.36 and are the next step here: a zone says
+how much the *peer* is trusted, the catalogue says what the *tool* does, and the stricter of the two
+wins.
+
 ## Phase 16.4b — hunks and syntax checks in the review (done)
 
 `cargo test -p rc-core --lib diff` → **13 tests**, `cargo test -p rc-core --lib validate` →

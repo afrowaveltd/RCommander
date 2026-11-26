@@ -296,6 +296,17 @@ authors = ["RCommander contributors"]
 "ftp.remote_dir" = "Remote directory"
 
 # Agent (built-in assistant) ------------------------------------------------
+"mcp.trust.header" = "Trust these {count} tool(s)"
+"mcp.trust.allow" = "allow"
+"mcp.trust.ask" = "ask"
+"mcp.trust.deny" = "deny"
+"mcp.trust.confirm" = "“{tool}” can destroy or publish; type the confirmation word to allow it"
+"mcp.trust.confirm.ok" = "Allow it"
+"mcp.danger.read" = "reads"
+"mcp.danger.mutate" = "changes data"
+"mcp.danger.destroy" = "destructive"
+"mcp.danger.unknown" = "unknown"
+"mcp.unknown_server" = "This server has not been connected yet."
 "agent.panel" = "Agent"
 "agent.server_enabled" = "MCP server enabled"
 "agent.tools" = "Tools"

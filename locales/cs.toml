@@ -292,6 +292,17 @@ authors = ["RCommander contributors"]
 "ftp.remote_dir" = "Vzdálený adresář"
 
 # Agent (vestavěný asistent) ------------------------------------------------
+"mcp.trust.header" = "Důvěra pro {count} nástrojů"
+"mcp.trust.allow" = "povolit"
+"mcp.trust.ask" = "zeptat se"
+"mcp.trust.deny" = "zakázat"
+"mcp.trust.confirm" = "„{tool}“ může ničit nebo odesílat data; napište potvrzovací slovo, ať ho povolíte"
+"mcp.trust.confirm.ok" = "Povolit"
+"mcp.danger.read" = "čte"
+"mcp.danger.mutate" = "mění data"
+"mcp.danger.destroy" = "ničivé"
+"mcp.danger.unknown" = "neznámé"
+"mcp.unknown_server" = "Tento server ještě nebyl připojen."
 "agent.panel" = "Agent"
 "agent.server_enabled" = "Server MCP je zapnutý"
 "agent.tools" = "Nástroje"

@@ -56,6 +56,8 @@ pub struct ConnectedServer {
     pub args: String,
     pub output: String,
     pub error: Option<String>,
+    /// What the user typed to confirm allowing a dangerous tool.
+    pub confirm_word: String,
 }
 
 /// Panel state.
@@ -85,6 +87,8 @@ impl AgentUi {
         match rc_agent::McpClient::connect(&config) {
             Ok(client) => {
                 let tools = client.tools();
+                // Remember the catalogue the moment the server connects: the danger estimate and
+                // the user's previous answers are what the tool list below is built from.
                 let mut args = String::from("{}");
                 if let Some(tool) = tools.first() {
                     args = "{}".to_string();
@@ -98,6 +102,7 @@ impl AgentUi {
                     args,
                     output: String::new(),
                     error: None,
+                    confirm_word: String::new(),
                 });
                 Ok(())
             }
@@ -220,6 +225,110 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut AgentUi, palette: &
                                 .desired_width(f32::INFINITY)
                                 .hint_text("JSON arguments"),
                         );
+                        // What the model may call, decided per tool. The list comes from the
+                        // remembered catalogue, so a second connection shows the same answers.
+                        let server_name = server.name.clone();
+                        let mut changes: Vec<(String, rc_core::mcptools::ToolTrust)> = Vec::new();
+                        let mut typed: Option<(String, rc_core::mcptools::ToolTrust)> = None;
+                        if let Some(catalogue) = model.mcp_catalogue(&server_name).cloned() {
+                            egui::CollapsingHeader::new(model.tf(
+                                "mcp.trust.header",
+                                &[("count", &catalogue.tools.len().to_string())],
+                            ))
+                            .id_salt(("mcp_trust", server_index))
+                            .show(ui, |ui| {
+                                for tool in &catalogue.tools {
+                                    ui.horizontal(|ui| {
+                                        ui.label(RichText::new(&tool.name).monospace());
+                                        // The danger estimate is explained, not just coloured: the
+                                        // reason is the whole argument for asking.
+                                        let (colour, label) = match tool.danger {
+                                            rc_core::mcptools::Danger::ReadOnly => {
+                                                (palette.archive, model.t("mcp.danger.read"))
+                                            }
+                                            rc_core::mcptools::Danger::Mutating => {
+                                                (palette.accent, model.t("mcp.danger.mutate"))
+                                            }
+                                            rc_core::mcptools::Danger::Destructive => {
+                                                (palette.warning, model.t("mcp.danger.destroy"))
+                                            }
+                                            rc_core::mcptools::Danger::Unknown => {
+                                                (palette.readonly, model.t("mcp.danger.unknown"))
+                                            }
+                                        };
+                                        ui.label(RichText::new(label).small().color(colour))
+                                            .on_hover_text(&tool.reason);
+                                        ui.with_layout(
+                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            |ui| {
+                                                for trust in [
+                                                    rc_core::mcptools::ToolTrust::Deny,
+                                                    rc_core::mcptools::ToolTrust::Ask,
+                                                    rc_core::mcptools::ToolTrust::Allow,
+                                                ] {
+                                                    let chosen = tool.trust == trust;
+                                                    let label = match trust {
+                                                        rc_core::mcptools::ToolTrust::Allow => {
+                                                            model.t("mcp.trust.allow")
+                                                        }
+                                                        rc_core::mcptools::ToolTrust::Ask => {
+                                                            model.t("mcp.trust.ask")
+                                                        }
+                                                        rc_core::mcptools::ToolTrust::Deny => {
+                                                            model.t("mcp.trust.deny")
+                                                        }
+                                                    };
+                                                    if ui.selectable_label(chosen, label).clicked()
+                                                        && !chosen
+                                                    {
+                                                        changes.push((tool.name.clone(), trust));
+                                                    }
+                                                }
+                                            },
+                                        );
+                                    });
+                                }
+                            });
+                        }
+                        for (tool, trust) in changes {
+                            match model.set_mcp_tool_trust(&server_name, &tool, trust, "") {
+                                Ok(_) => {}
+                                // A dangerous tool needs a word rather than a click, so the panel
+                                // asks for it instead of refusing silently.
+                                Err(_) => typed = Some((tool, trust)),
+                            }
+                        }
+                        if let Some((tool, trust)) = typed {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(
+                                        model.tf("mcp.trust.confirm", &[("tool", &tool)]),
+                                    )
+                                    .small()
+                                    .color(palette.warning),
+                                );
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut server.confirm_word)
+                                        .desired_width(80.0)
+                                        .hint_text("yes"),
+                                );
+                                if ui.button(model.t("mcp.trust.confirm.ok")).clicked() {
+                                    let word = server.confirm_word.clone();
+                                    match model.set_mcp_tool_trust(
+                                        &server_name,
+                                        &tool,
+                                        trust,
+                                        &word,
+                                    ) {
+                                        Ok(_) => {
+                                            server.error = None;
+                                            server.confirm_word.clear();
+                                        }
+                                        Err(error) => server.error = Some(error),
+                                    }
+                                }
+                            });
+                        }
                         if let Some(error) = &server.error {
                             ui.label(RichText::new(error).color(palette.readonly));
                         }

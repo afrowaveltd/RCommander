@@ -298,7 +298,7 @@ feature is designed around "the agent proposes, the file stays untouched".
 | 17.3.3 | Ask the agent about a range | the selected range, plus the file name and the surrounding bytes, is offered to the chat as *data*: the bytes go out only after the user sees exactly what will be sent, and the answer comes back as text in the conversation | tests: nothing is sent without the preview, the request carries the byte range and no path from outside the workspace, and a refused send leaves the transcript unchanged |
 | 17.3.4 | Verified edits (later, and separately) | patching bytes through the Phase 16.4 transaction pipeline: a change set with the original hashes, the new bytes, a diff of the affected region and a verified backup before anything is written | tests: a refused or failed patch leaves the file byte-identical, a successful patch is reversible from the backup and the manifest, and a stale file (changed outside) is refused rather than overwritten |
 
-### Phase 16.31–16.35 — MCP as a capability fabric, agent memory, and the Swiss army knife
+### Phase 16.31–16.37 — MCP as a capability fabric, zones, agent memory and the Swiss army knife
 
 The panel owner's picture, written down because it is the direction the whole Phase 16 has been
 pointing at: several models of different sizes and skills, plus **other applications' MCP servers**
@@ -320,6 +320,60 @@ What it does not do yet is let a **model** use the tools of another application,
 | 16.33 | Models with different skills, and a supervisor | role → provider + model assignments (already planned in 16.27) connected to *capabilities*: a model that can see images is offered picture tools, a small local model is offered only what it can do, and one model is the **supervisor** whose job is to delegate and to accept the result. The supervisor can never approve its own writes: approvals stay with the human | tests: a simulated team (supervisor + coder + tester + image model) completes a task through fake providers; the supervisor's attempt to approve its own change is refused; a missing capability degrades to "cannot do that here" instead of a wrong-shaped call |
 | 16.34 | Memory: one local store | SQLite by default behind a `HistoryStore` trait: conversations, tasks, their results, artifacts and links to audit entries; a shared **task board** (the "common place to talk") where agents claim work and report back, scoped per workspace | tests: a stored conversation and its tool calls round-trip; a task claimed by one agent cannot be claimed twice; the store is scoped per workspace and purge deletes everything for one; the schema version migrates forward and a newer file is refused rather than corrupted |
 | 16.35 | The two postures: protected and workshop | one switch with a **typed confirmation** (like the "allow always" dialog) between *protected* — the default: read-only tools, writes and executions need approval, MCP servers are `ask`, elevation unavailable — and *workshop*: bulk grants, `allow_exec` lists, `trusted` MCP servers, the elevated helper from Phase 20. The security page states the current posture in one sentence, and diagnostics never lie about it | tests: the default is protected; the switch needs the confirmation word; every grant that workshop allows is still written to the audit log; returning to protected revokes what it granted; a fresh profile with a workshop settings file that contains unknown grants fails closed |
+
+#### Zones: one posture per network, not one for everything
+
+A single global "how careful should I be" switch is wrong for a community that runs its own
+infrastructure. Afrowave's networks are not equally trustworthy and pretending otherwise either
+over-protects the loopback (where the developer is) or under-protects the internet (where strangers
+are):
+
+| Zone | What it is | Sensible posture |
+| --- | --- | --- |
+| **loopback** | `127.0.0.1`, `::1`, local sockets | permissive — the developer's own machine, still audited |
+| **trusted overlay** | e.g. `WG-Link`: servers we own, nobody else can join | allow read/write after the first approval per tool |
+| **client overlay** | e.g. `WG-Inet`, `WG-Local`: our clients, less trusted | ask for anything that changes data |
+| **domain** | the Samba AD-DC zone | ask, and never auto-approve an upload |
+| **public** | the internet | deny by default, approve per action, no remembered "always" |
+
+The zone is decided by **where the peer actually is** — the address the socket connects to or accepts
+from, matched against configured CIDRs and interface names (`wg-*`) — never by a host name typed in
+a dialog, because a name is a claim and an address is a fact. Every decision records the zone, so the
+audit log answers "was this the loopback or the internet?" without guessing.
+
+Zones apply in **both directions**: the address a remote connection goes to (which also covers model
+providers and MCP servers), and the address an incoming MCP client comes from when RCommander serves.
+
+**Danger is a property of the tool, not of the zone.** A zone says how much we trust the *peer*; the
+danger level says what the *tool* does when it is called. Both must allow the call, and the stricter
+one wins — which is why the tool catalogue below is not optional.
+
+#### The tool catalogue: remembered trust per tool
+
+When a server connects, RCommander reads what it publishes and keeps the list: tool names, their
+JSON schemas, and a **danger estimate** from the name and schema (`delete*`, `remove*`, `drop*`,
+`send*`, `post*`, `push*`, `exec*`, `run*`, `write*`, `move*`, `pay*` are destructive until the user
+says otherwise). The list is remembered, so a second connection shows the same answers instead of
+asking again.
+
+Every tool gets a three-state switch, exactly as the panel owner described:
+
+| Switch | Meaning |
+| --- | --- |
+| **allow** | the model may call it; the call is still a policy request and still audited |
+| **ask** | the approval dialog appears each time (the default for anything unknown) |
+| **deny** | the tool is not offered to the model at all |
+
+A tool the estimate marks **destructive** cannot be set to `allow` by a click: it needs the same
+typed confirmation as a permanent pre-approval, and the reason is recorded in the audit log. Where
+the operating system offers elevation, the privileged helper from Phase 20 is the authority that can
+raise that; until then the typed word is the human's signature, and everything else stays bound to
+the ordinary rights of the user account.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 16.36 | Zones and their matrix | zone detection from the peer address (CIDRs, interface names), a zone × operation matrix in the security page, per-zone approvals, and the zone named in every audit entry | tests: 127.0.0.1 is loopback, a `WG-Link` address matches the trusted overlay, an unknown address falls to public; a name that *claims* to be local does not change the zone; the stricter of zone and tool answers wins; a stored matrix is validated and a bad CIDR fails closed |
+| 16.37 | Tool catalogue and remembered trust | discovery stored per server, a danger estimate with an honest "unknown" case, three-state switches per tool, and destructive tools gated behind the typed confirmation | tests: a fake server with safe and destructive tools is classified correctly; `ask` is the default; `deny` removes the tool from what the model is offered; promoting a destructive tool to `allow` without the word is refused and audited; the catalogue survives a restart and a renamed tool is re-asked instead of inherited |
 
 **Why this shape.** The multi-model part (16.27–16.30) decides *who does the work*; the capability
 part (16.31–16.32) decides *what the work can touch*; memory (16.34) is what makes a multi-step job

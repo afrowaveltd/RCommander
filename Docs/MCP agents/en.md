@@ -80,6 +80,42 @@ command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
 ```
 
+## The tool catalogue: what you allowed, remembered
+
+The first time a server connects, RCommander reads what it publishes and **keeps the list**: the
+tool names, their argument schemas and an estimate of what each one does. From then on the agent
+panel shows that list with a three-state switch per tool, and the answers survive a restart.
+
+| Switch | What it means |
+| --- | --- |
+| **allow** | the model may call it. The call is still a policy request, still approved per the rules, still audited |
+| **ask** | the approval dialog appears each time. This is what every tool starts with |
+| **deny** | the tool is not offered to the model at all |
+
+### How danger is estimated
+
+From the **name and the arguments**, never from the description — a description is written by the
+server's author and may say anything, while a parameter called `recursive` on a tool called
+`delete_directory` is a fact.
+
+| Looks like | Because |
+| --- | --- |
+| **reads** | `get_*`, `list_*`, `read_*`, `search_*`, `describe_*` … |
+| **changes data** | `create_*`, `update_*`, `write_*`, `move_*`, `commit_*` … or arguments mentioning `recursive`, `everything`, `wildcard` |
+| **destructive** | `delete_*`, `remove_*`, `drop_*`, `send_*`, `push_*`, `exec_*`, `run_*`, `pay_*` … |
+| **unknown** | nothing recognisable — treated as carefully as destructive, never as safe |
+
+**A destructive (or unknown) tool cannot be switched to `allow` by a click.** It needs the same
+typed confirmation a permanent file pre-approval needs, and the reason is written to the audit log.
+Where the operating system offers elevation, the privileged helper is the authority that can raise
+that; until it exists the typed word is the human's signature, and everything else stays bound to the
+ordinary rights of your user account.
+
+**A tool that changes nature loses its answer.** If an upgrade turns `read_file` into something that
+takes a `recursive` flag, the estimate changes, the old `allow` is dropped and the tool goes back to
+asking. A renamed tool does not inherit a permission at all, and a new tool starts at `ask` — so an
+upgrade cannot quietly widen what a model may do.
+
 ## Safety
 
 The server only exposes what the protocol advertises; nothing runs unless a tool
