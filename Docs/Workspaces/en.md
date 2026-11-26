@@ -78,10 +78,45 @@ as its reason — a change with a side effect is never silent.
 Afterwards the workspace is coherent again: the copies equal the originals, which is
 what the manifest then says.
 
+## Hunks: this change yes, that one no
+
+The diff is split into **hunks** — one contiguous run of changes with a little context
+around it — and each hunk has its own tick. That is the difference between "accept the
+file" and "accept the fix but not the reformatting the agent also did".
+
+```
+[x] @@ -12 @@ +1 -1
+      def handler(self):
+    -     return None
+    +     return self.value
+```
+
+Take every hunk and the file is written exactly as the agent left it; take none and
+nothing is written; take some and the file is assembled from the ones you took. The
+three cases are tested against each other, because a merge that is *almost* right is
+worse than none at all.
+
+## Syntax checks before you read the diff
+
+A parser catches what a reader has to notice: an agent that "fixed" a JSON file by
+removing a comma produces a change that looks plausible and breaks the program.
+
+| File | Check |
+| --- | --- |
+| `.json` | parsed as JSON |
+| `.toml`, `.ini`, `.cfg`, `.conf` | parsed as TOML |
+| anything else | no check, and no claim that there was one |
+
+A file that fails is **not pre-ticked**, its row says why in the parser's own words,
+and none of its hunks are ticked either: writing syntax errors back is not something
+anybody decides on purpose. A file we cannot check stays silent — a false alarm on a
+valid file would train you to ignore the warning, which is worse than not having one.
+
+Running a compiler or a test suite is deliberately **not** part of this: that executes
+code, and it belongs behind its own approval.
+
 ## What is still open
 
-Whole-file review only. A three-line change to a thousand-line file is shown as a
-three-line diff, but a **hunk-by-hunk** approval is not here yet, and neither is
-running a validator (JSON/TOML parse, `cargo check`) on the agent's output before the
-review appears. Both belong to the rest of Phase 16.4 and change nothing about the
-safety rules above.
+The remaining piece of Phase 16.4 is a **checklist of approved commands** — `cargo
+check`, a JSON Schema, a formatter — that a user can configure per project and that the
+review runs (with progress and cancellation) before showing the diff.

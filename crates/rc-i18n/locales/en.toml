@@ -258,6 +258,7 @@ authors = ["RCommander contributors"]
 "workspace.review.apply" = "Write {count} file(s) back"
 "workspace.review.clean" = "Nothing changed in the copies."
 "workspace.review.binary" = "binary"
+"workspace.review.syntax.ok" = "syntax ok"
 "workspace.review.binary.hint" = "This file is not text, so no diff can be shown. It is never written back automatically."
 "workspace.review.none" = "Select a file to see what changed."
 "workspace.stale" = "the original changed after the workspace was made; refusing to overwrite it"

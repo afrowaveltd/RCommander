@@ -254,6 +254,7 @@ authors = ["RCommander contributors"]
 "workspace.review.apply" = "Zapsat {count} soubor(ů) zpět"
 "workspace.review.clean" = "V kopiích se nic nezměnilo."
 "workspace.review.binary" = "binární"
+"workspace.review.syntax.ok" = "syntaxe v pořádku"
 "workspace.review.binary.hint" = "Tohle není text, takže diff nelze ukázat. Nikdy se to nezapíše zpět samo."
 "workspace.review.none" = "Vyberte soubor, ať vidíte, co se změnilo."
 "workspace.stale" = "originál se po vytvoření prostoru změnil; odmítám ho přepsat"

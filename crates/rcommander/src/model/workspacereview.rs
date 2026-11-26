@@ -34,8 +34,25 @@ pub struct ReviewItem {
     pub stale: bool,
     /// True when the user ticked it.
     pub approved: bool,
+    /// The hunks the user can take or leave, one tick each.
+    pub hunks: Vec<ReviewHunk>,
+    /// What a parser said about the copy, when we can parse that kind of file.
+    pub syntax: rc_core::validate::Verdict,
     /// Why this file cannot be sent back, when it cannot.
     pub blocked: Option<String>,
+}
+
+/// One hunk of the review, with the user's answer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReviewHunk {
+    /// Index in the diff.
+    pub index: usize,
+    /// Header line (`@@ -12 @@ +1 -1`).
+    pub header: String,
+    /// The lines, contexts included.
+    pub lines: Vec<rc_core::diff::DiffLine>,
+    /// True when the user wants this change.
+    pub taken: bool,
 }
 
 impl ReviewItem {
@@ -47,6 +64,20 @@ impl ReviewItem {
     /// True when ticking it would actually write something.
     pub fn can_apply(&self) -> bool {
         self.approved && self.blocked.is_none() && self.changed()
+    }
+
+    /// The hunks the user wants.
+    pub fn taken_hunks(&self) -> Vec<usize> {
+        self.hunks
+            .iter()
+            .filter(|hunk| hunk.taken)
+            .map(|hunk| hunk.index)
+            .collect()
+    }
+
+    /// True when the file will be written as the agent left it.
+    pub fn all_hunks_taken(&self) -> bool {
+        !self.hunks.is_empty() && self.hunks.iter().all(|hunk| hunk.taken)
     }
 }
 
@@ -117,16 +148,43 @@ impl Model {
             } else {
                 None
             };
+            let syntax = rc_core::validate::check(&file.original, &copy_bytes);
+            // Every hunk starts ticked: the user asked for the change by opening the review, and
+            // unticking is the deliberate act. A broken file is never ticked, because writing
+            // syntax errors back is not a decision anybody makes on purpose.
+            let syntax_blocks = syntax.is_broken();
+            let hunks: Vec<ReviewHunk> = diff
+                .hunks()
+                .into_iter()
+                .map(|hunk| ReviewHunk {
+                    index: hunk.index,
+                    header: hunk.header(),
+                    lines: hunk.lines,
+                    taken: !syntax_blocks,
+                })
+                .collect();
+            let mut blocked = blocked;
+            if syntax_blocks && blocked.is_none() {
+                blocked = Some(match &syntax {
+                    rc_core::validate::Verdict::Broken(message) => message.clone(),
+                    _ => String::new(),
+                });
+            }
             review.items.push(ReviewItem {
                 relative: file.relative.clone(),
                 original: file.original.clone(),
                 copy: file.copy.clone(),
                 // A file that did not change is not pre-ticked: sending it back would be a write
                 // with no reason.
-                approved: !binary && !diff.is_empty() && blocked.is_none(),
+                approved: !binary
+                    && !diff.is_empty()
+                    && blocked.is_none()
+                    && hunks.iter().any(|hunk| hunk.taken),
                 diff,
                 binary,
                 stale,
+                hunks,
+                syntax,
                 blocked,
             });
         }
@@ -151,13 +209,19 @@ impl Model {
         ));
         let mut transaction = Transaction::new(&backups, "process with agent");
         for item in &approved {
-            let bytes = match std::fs::read(&item.copy) {
-                Ok(bytes) => bytes,
-                Err(error) => {
-                    let message = error.to_string();
-                    self.report_error(&message);
-                    return CommandOutcome::Failed(message);
+            // The content is assembled from the hunks the user took, not blindly copied: taking
+            // one change and leaving another is a real answer, and it has to be honoured exactly.
+            let bytes = if item.hunks.is_empty() || item.all_hunks_taken() {
+                match std::fs::read(&item.copy) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        let message = error.to_string();
+                        self.report_error(&message);
+                        return CommandOutcome::Failed(message);
+                    }
                 }
+            } else {
+                item.diff.apply_selected(&item.taken_hunks()).into_bytes()
             };
             transaction.add(Change::write(&item.original, bytes));
         }
@@ -399,5 +463,94 @@ mod tests {
         assert_eq!(diff_marker(&DiffLine::Removed("x".into())), '-');
         assert_eq!(diff_marker(&DiffLine::Same("x".into())), ' ');
         assert_eq!(diff_marker(&DiffLine::Skipped(3)), '…');
+    }
+}
+
+#[cfg(test)]
+mod hunk_review_tests {
+    use crate::model::{CommandOutcome, Model, Side};
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    fn prepared(files: &std::path::Path, config: &std::path::Path, entry: &str) -> Model {
+        let mut model = Model::for_test(
+            Settings::default(),
+            Location::local(files),
+            Location::local(files),
+        );
+        model.config_dir_override = Some(config.to_path_buf());
+        model
+            .open_in(Side::Left, Location::local(files))
+            .expect("the fixture opens");
+        model.focus = Side::Left;
+        let index = model.left.listing.find(entry).expect("the file is listed");
+        model.left.set_cursor(index);
+        assert_eq!(model.process_with_agent(), CommandOutcome::Ok);
+        model
+    }
+
+    #[test]
+    fn a_partial_selection_writes_the_mix_the_user_chose() {
+        let files = tempfile::tempdir().unwrap();
+        let config = tempfile::tempdir().unwrap();
+        let original = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n";
+        std::fs::write(files.path().join("a.txt"), original).unwrap();
+        let mut model = prepared(files.path(), config.path(), "a.txt");
+        let copy = model.workspace().unwrap().files[0].copy.clone();
+        // Two changes far apart, so they are two hunks.
+        std::fs::write(
+            &copy,
+            "one\nTWO\nthree\nfour\nfive\nsix\nseven\neight\nNINE\nten\n",
+        )
+        .unwrap();
+        let mut review = model.review_workspace();
+        let item = &mut review.items[0];
+        assert_eq!(item.hunks.len(), 2, "{:?}", item.hunks);
+        // Take the first change, leave the second.
+        item.hunks[0].taken = true;
+        item.hunks[1].taken = false;
+        item.approved = true;
+        // The dialog holds the state, so the model is told what to write by the same review it
+        // built: simulate the dialog applying it.
+        let written = item.diff.apply_selected(&item.taken_hunks());
+        assert!(written.contains("TWO"), "{written}");
+        assert!(!written.contains("NINE"), "{written}");
+        assert!(written.contains("nine"), "{written}");
+    }
+
+    #[test]
+    fn a_file_with_a_syntax_error_is_not_pre_ticked() {
+        let files = tempfile::tempdir().unwrap();
+        let config = tempfile::tempdir().unwrap();
+        std::fs::write(files.path().join("data.json"), "{\"a\": 1}\n").unwrap();
+        let mut model = prepared(files.path(), config.path(), "data.json");
+        let copy = model.workspace().unwrap().files[0].copy.clone();
+        // The agent breaks the JSON.
+        std::fs::write(&copy, "{\"a\": 1,}\n").unwrap();
+        let review = model.review_workspace();
+        let item = &review.items[0];
+        assert!(item.syntax.is_broken(), "{:?}", item.syntax);
+        assert!(item.blocked.is_some(), "the review says why");
+        assert!(!item.approved, "a broken file is not pre-ticked");
+        assert!(
+            item.hunks.iter().all(|hunk| !hunk.taken),
+            "and none of its hunks are taken"
+        );
+        assert!(review.approved().is_empty());
+    }
+
+    #[test]
+    fn valid_json_is_ticked_and_says_the_syntax_is_fine() {
+        let files = tempfile::tempdir().unwrap();
+        let config = tempfile::tempdir().unwrap();
+        std::fs::write(files.path().join("data.json"), "{\"a\": 1}\n").unwrap();
+        let mut model = prepared(files.path(), config.path(), "data.json");
+        let copy = model.workspace().unwrap().files[0].copy.clone();
+        std::fs::write(&copy, "{\"a\": 2}\n").unwrap();
+        let review = model.review_workspace();
+        let item = &review.items[0];
+        assert_eq!(item.syntax, rc_core::validate::Verdict::Valid);
+        assert!(item.approved);
+        assert!(item.blocked.is_none());
     }
 }

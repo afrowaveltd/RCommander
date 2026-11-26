@@ -77,9 +77,45 @@ změna s vedlejším účinkem nikdy není tichá.
 Potom je pracovní prostor zase konzistentní: kopie se rovnají originálům, což říká i
 manifest.
 
+## Hunky: tuto změnu ano, tamtu ne
+
+Diff je rozdělený na **hunky** — jeden souvislý úsek změn s kouskem kontextu kolem — a
+každý má vlastní fajfku. To je rozdíl mezi „přijmi soubor" a „přijmi opravu, ale ne to
+přeformátování, které agent taky udělal".
+
+```
+[x] @@ -12 @@ +1 -1
+      def handler(self):
+    -     return None
+    +     return self.value
+```
+
+Vezměte všechny hunky a soubor se zapíše přesně tak, jak ho agent nechal; nevezměte
+žádný a nezapíše se nic; vezměte některé a soubor se složí z těch, které jste vzali.
+Všechny tři případy jsou navzájem otestované, protože merge, který je *skoro* správný,
+je horší než žádný.
+
+## Kontrola syntaxe před čtením diffu
+
+Parser chytí to, čeho by si čtenář musel všimnout: agent, který „opravil" JSON soubor
+odebráním čárky, vyrobí změnu, která vypadá uvěřitelně a rozbije program.
+
+| Soubor | Kontrola |
+| --- | --- |
+| `.json` | parsuje se jako JSON |
+| `.toml`, `.ini`, `.cfg`, `.conf` | parsuje se jako TOML |
+| cokoli jiného | žádná kontrola — a žádné tvrzení, že nějaká byla |
+
+Soubor, který neprojde, **není předzaškrtnutý**, jeho řádek řekne proč slovy parseru a
+ani žádný jeho hunk není zaškrtnutý: zapisovat syntaktické chyby zpět nikdo nedělá
+úmyslně. Soubor, který zkontrolovat neumíme, zůstane bez varování — planý poplach u
+platného souboru by tě naučil varování ignorovat, což je horší než žádné.
+
+Spouštění překladače nebo testů sem **záměrně** nepatří: to spouští kód a patří to za
+vlastní schválení.
+
 ## Co ještě chybí
 
-Revize je po celých souborech. Třířádková změna v tisíciřádkovém souboru se ukáže jako
-třířádkový diff, ale **schvalování po hunkech** tu ještě není — a stejně tak spouštění
-validátoru (JSON/TOML parse, `cargo check`) nad výstupem agenta před zobrazením revize.
-Obojí patří ke zbytku fáze 16.4 a na bezpečnostních pravidlech výše nic nemění.
+Zbývající kus fáze 16.4 je **seznam schválených příkazů** — `cargo check`, JSON Schema,
+formátovač — který si uživatel nastaví pro projekt a který revize spustí (s průběhem a
+možností zrušit) ještě před zobrazením diffu.

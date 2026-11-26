@@ -3093,3 +3093,47 @@ fn the_workspace_review_shows_the_diff_and_writes_only_what_is_ticked() {
         "the untouched file was not rewritten"
     );
 }
+
+#[test]
+fn the_review_blocks_a_file_with_a_syntax_error_and_offers_hunks() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    std::fs::write(left.path().join("data.json"), "{\n  \"a\": 1\n}\n").unwrap();
+    app.model.refresh_all();
+    let mut harness = harness(app);
+    let index = harness
+        .state()
+        .model
+        .left
+        .listing
+        .find("data.json")
+        .expect("data.json is listed");
+    harness.state_mut().model.left.set_cursor(index);
+    harness.state_mut().model.focus = rcommander::model::Side::Left;
+    harness.state_mut().execute("cm_ProcessWithAgent");
+    harness.run();
+    // The agent breaks the JSON.
+    let copy = harness.state().model.workspace().unwrap().files[0]
+        .copy
+        .clone();
+    std::fs::write(&copy, "{\n  \"a\": 1,\n}\n").unwrap();
+    harness.state_mut().execute("cm_ReviewWorkspace");
+    harness.run();
+    // The parser catches it, the row says why, and nothing is ticked.
+    assert!(
+        harness.root().query_all_by_label_contains("JSON:").count() > 0,
+        "the parser's own message is on screen"
+    );
+    let apply_count = harness
+        .state_mut()
+        .model
+        .review_workspace()
+        .approved()
+        .len();
+    assert_eq!(apply_count, 0, "a broken file is not approved");
+    // Hunks are offered for a file that parses, with a header a reviewer can read.
+    assert!(
+        harness.root().query_all_by_label_contains("@@ -").count() > 0,
+        "the diff is split into hunks"
+    );
+}

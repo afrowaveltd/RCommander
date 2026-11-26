@@ -310,6 +310,29 @@ Keyboard handling needed no new rule: typing into the input takes the focus, and
 shortcut handler already steps aside when a widget has focus. That is why F-keys do not navigate the
 hidden list while somebody is typing a question.
 
+## Phase 16.4b — hunks and syntax checks in the review (done)
+
+`cargo test -p rc-core --lib diff` → **13 tests**, `cargo test -p rc-core --lib validate` →
+**5**, `cargo test -p rcommander --lib workspacereview` → **9**, plus a UI test that a broken JSON
+file is refused while its hunks are still readable.
+
+The review approved whole files, which is the wrong unit for the work: an agent that fixes a bug and
+also reformats the file makes a change nobody wants to accept or reject wholesale. The diff is now
+split into **hunks**, each with its own tick, and the file is assembled from the ones taken —
+selecting everything reproduces the agent's copy byte for byte, selecting nothing reproduces the
+original, and the tests check all three cases against each other because a merge that is *almost*
+right is worse than none.
+
+`rc_core::validate` puts a parser in front of the reader: JSON and TOML (plus `ini`/`cfg`/`conf`) are
+checked in-process, and a file that fails is not pre-ticked, says why in the parser's own words, and
+has none of its hunks ticked. A kind of file we cannot check returns `Unknown` and says **nothing** —
+a false alarm on a valid file would train the user to ignore the warning, which is worse than not
+having one. Running a compiler or a test suite is deliberately excluded: that executes code and
+belongs behind its own approval.
+
+What is left in 16.4 is a configurable checklist of approved commands (`cargo check`, a JSON Schema,
+a formatter) that the review runs with progress and cancellation before showing the diff.
+
 ## Phase 16.10b / 16.4a — sending changes back, with a diff and a backup (done)
 
 `cargo test -p rc-core --lib diff` → **7 tests**, `cargo test -p rcommander --lib workspacereview` →
@@ -1274,7 +1297,7 @@ command either by its own name or through a family rule:
 | Explorer-style right-click integration and capability-aware RCommander submenu are planned | Phase 10.10: native shell actions where supported, internal fallback, explicit selection/pane targeting |
 | Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
 | No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions; establish editable prompt and declarative workload contracts early (16.16–16.21) |
-| "Process with agent" works end to end for whole files: copies, manifest, seeded chat, diff review, per-file approval, verified backup and audit. **Hunk-by-hunk approval** and **validators on the agent's output** are still open | The rest of Phase 16.4: hunk granularity, JSON/TOML/`cargo check` validation before the review |
+| "Process with agent" works end to end: copies, manifest, seeded chat, per-hunk review, JSON/TOML syntax checks, verified backup and audit. **Approved command checklists** are still open | The rest of Phase 16.4: per-project commands (`cargo check`, schema, formatter) run by the review with progress and cancellation |
 | Prompt catalogue, picker, editor, pins and recency are done (26 built-in prompts, copy/edit/reset, variables previewed); a **side-by-side diff of an edit** against the shipped text is still open | Phase 16.17d: the diff on the editor page, then 16.10a (process with agent) |
 | No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, tag-first classification, controlled SQL gateway, reviewed Knowledge Pull Requests, provenance and safe reuse |
 | No configurable multi-model team orchestration | Phase 16.27–16.30; define role assignments early with workload contracts, then bounded delegation, independent review, budgets, escalation and visible per-role activity; single-model mode stays available |

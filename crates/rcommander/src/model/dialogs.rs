@@ -428,6 +428,11 @@ impl WorkspaceReviewState {
     pub fn current(&self) -> Option<&crate::model::workspacereview::ReviewItem> {
         self.review.items.get(self.selected)
     }
+
+    /// The same file, for the ticks the user is changing.
+    pub fn current_mut(&mut self) -> Option<&mut crate::model::workspacereview::ReviewItem> {
+        self.review.items.get_mut(self.selected)
+    }
 }
 
 /// The "open with" chooser.

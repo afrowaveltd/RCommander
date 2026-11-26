@@ -168,7 +168,9 @@ fn workspace_review(
         });
         ui.separator();
         // The diff of the selected file.
-        ui.vertical(|ui| match state.current() {
+        // The current file is taken mutably: the ticks are the whole point of the view.
+        let selected_index = state.selected;
+        ui.vertical(|ui| match state.review.items.get_mut(selected_index) {
             Some(item) => {
                 if let Some(reason) = &item.blocked {
                     ui.label(egui::RichText::new(reason).color(palette.warning));
@@ -180,29 +182,75 @@ fn workspace_review(
                             .color(palette.hidden),
                     );
                 } else {
+                    // The syntax verdict sits above the diff: a parser catches what a reader would
+                    // have to notice, and a file with a syntax error is not pre-ticked.
+                    match &item.syntax {
+                        rc_core::validate::Verdict::Valid => {
+                            ui.label(
+                                egui::RichText::new(model.t("workspace.review.syntax.ok"))
+                                    .small()
+                                    .color(palette.archive),
+                            );
+                        }
+                        rc_core::validate::Verdict::Broken(message) => {
+                            ui.label(egui::RichText::new(message).small().color(palette.warning));
+                        }
+                        rc_core::validate::Verdict::Unknown => {}
+                    }
+                    // The blocked state is read before the loop: the loop borrows the hunks
+                    // mutably, and `item.blocked` would borrow all of `item`.
+                    let blocked = item.blocked.is_some();
                     egui::ScrollArea::both()
-                        .max_height(300.0)
+                        .max_height(320.0)
                         .id_salt("workspace_review_diff")
                         .show(ui, |ui| {
-                            for line in &item.diff.lines {
-                                let marker = diff_marker(line);
-                                let colour = match line {
-                                    DiffLine::Added(_) => palette.archive,
-                                    DiffLine::Removed(_) => palette.readonly,
-                                    DiffLine::Skipped(_) => palette.hidden,
-                                    DiffLine::Same(_) => palette.foreground,
-                                };
-                                let text = match line {
-                                    DiffLine::Same(content)
-                                    | DiffLine::Added(content)
-                                    | DiffLine::Removed(content) => {
-                                        format!("{marker} {content}")
+                            for hunk_index in 0..item.hunks.len() {
+                                // A tick per hunk: "this change yes, that one no" is a real answer.
+                                let mut toggled = false;
+                                let mut taken = item.hunks[hunk_index].taken;
+                                let header = item.hunks[hunk_index].header.clone();
+                                ui.horizontal(|ui| {
+                                    if ui
+                                        .add_enabled(
+                                            !blocked,
+                                            egui::Checkbox::without_text(&mut taken),
+                                        )
+                                        .changed()
+                                    {
+                                        toggled = true;
                                     }
-                                    DiffLine::Skipped(count) => {
-                                        format!("… {count} line(s) unchanged")
-                                    }
-                                };
-                                ui.label(egui::RichText::new(text).monospace().color(colour));
+                                    ui.label(
+                                        egui::RichText::new(&header)
+                                            .monospace()
+                                            .small()
+                                            .color(palette.accent),
+                                    );
+                                });
+                                if toggled {
+                                    item.hunks[hunk_index].taken = taken;
+                                    // The file is written only if at least one hunk is taken.
+                                    item.approved = item.hunks.iter().any(|hunk| hunk.taken);
+                                }
+                                for line in &item.hunks[hunk_index].lines {
+                                    let marker = diff_marker(line);
+                                    let colour = match line {
+                                        DiffLine::Added(_) => palette.archive,
+                                        DiffLine::Removed(_) => palette.readonly,
+                                        DiffLine::Skipped(_) => palette.hidden,
+                                        DiffLine::Same(_) => palette.foreground,
+                                    };
+                                    let text = match line {
+                                        DiffLine::Same(content)
+                                        | DiffLine::Added(content)
+                                        | DiffLine::Removed(content) => {
+                                            format!("{marker} {content}")
+                                        }
+                                        DiffLine::Skipped(count) => {
+                                            format!("… {count} line(s) unchanged")
+                                        }
+                                    };
+                                    ui.label(egui::RichText::new(text).monospace().color(colour));
+                                }
                             }
                         });
                 }
