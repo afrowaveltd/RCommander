@@ -2,6 +2,26 @@
 
 RCommander speaks the Model Context Protocol (MCP) in both directions.
 
+## What MCP is, in one page
+
+MCP (Model Context Protocol) is a JSON-RPC protocol for *applications offering capabilities to
+programs*. It has three kinds of capability, and knowing which is which explains most of what a
+connected app can do:
+
+| Kind | What it is | Example |
+| --- | --- | --- |
+| **tools** | actions, each with a JSON schema for its arguments | `create_icon(prompt, size)` from a drawing app |
+| **resources** | readable items, addressed by a URL-like id | a document, an image, a database row |
+| **prompts** | templates the application publishes | "summarise this meeting" for a mail app |
+
+A client connects, asks what a server publishes (`tools/list`, `resources/list`, `prompts/list`),
+then calls what the human allowed. RCommander is **both**: `rcommander mcp` is a server other agents
+can drive, and the agent panel is a client that connects to other servers.
+
+The important thing it does *not* mean: a tool is not a permission. An application offering
+`delete_everything` does not make it safe or allowed; what a model may call is RCommander's business,
+and it goes through the same policy and approval dialog as everything else.
+
 ## The app as an MCP server
 
 Start `rcommander mcp` as a separate stdio server process. External agents can

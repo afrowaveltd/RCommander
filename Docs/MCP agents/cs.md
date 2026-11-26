@@ -2,6 +2,26 @@
 
 RCommander mluví protokolem Model Context Protocol (MCP) oběma směry.
 
+## Co je MCP, na jedné stránce
+
+MCP (Model Context Protocol) je JSON-RPC protokol pro *aplikace, které nabízejí schopnosti jiným
+programům*. Má tři druhy schopností a znalost toho, který je který, vysvětlí většinu toho, co
+připojená aplikace umí:
+
+| Druh | Co to je | Příklad |
+| --- | --- | --- |
+| **nástroje** (tools) | akce, každá s JSON schématem argumentů | `create_icon(prompt, size)` z kreslicí aplikace |
+| **zdroje** (resources) | čitelné položky adresované URL-podobným id | dokument, obrázek, řádek databáze |
+| **prompty** (prompts) | šablony, které aplikace publikuje | „shrn toto jednání" pro poštovní aplikaci |
+
+Klient se připojí, zeptá se, co server nabízí (`tools/list`, `resources/list`, `prompts/list`), a pak
+volá to, co člověk povolil. RCommander je **obojí**: `rcommander mcp` je server, kterým mohou
+ovládat jiní agenti, a panel agenta je klient, který se připojuje k jiným serverům.
+
+Co to ale **neznamená**: nástroj není oprávnění. Když aplikace nabídne `delete_everything`, neznamená
+to, že je to bezpečné ani povolené; co model smí volat, je věc RCommanderu a jde to přes stejná
+oprávnění a schvalovací dialog jako všechno ostatní.
+
 ## Aplikace jako MCP server
 
 MCP server spustíte samostatně příkazem `rcommander mcp` přes standardní
