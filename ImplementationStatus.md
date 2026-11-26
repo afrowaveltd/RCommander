@@ -310,6 +310,43 @@ Keyboard handling needed no new rule: typing into the input takes the focus, and
 shortcut handler already steps aside when a widget has focus. That is why F-keys do not navigate the
 hidden list while somebody is typing a question.
 
+## Phase 16.10b / 16.4a — sending changes back, with a diff and a backup (done)
+
+`cargo test -p rc-core --lib diff` → **7 tests**, `cargo test -p rcommander --lib workspacereview` →
+**6**, plus a UI test that reviews two files and writes only the ticked one.
+
+The workspace could prepare copies and hand them to the agent; it could not take anything back. It
+can now, through the panel owner's rule: **no verified backup, no change**, and nothing written that
+the user did not tick.
+
+`rc_core::diff` is a small LCS line diff. It is honest about its limit: past a cell budget it stops
+guessing and reports the file as wholly replaced, and the row says *large file* instead of pretending
+to have read it. Long unchanged stretches collapse to `… n lines unchanged`, so a diff of two files
+that differ in one place is three lines, not a thousand.
+
+The review (`model::workspacereview`) is one dialog: the changed files with a tick each and their
+diff beside them. Only files that changed are pre-ticked, a file that did not change is not written
+at all, and a **binary** file is reported as differing and never sent back by a stray Enter.
+
+Three safety rules, each with a test:
+
+1. **Per-file approval.** `apply_workspace_approved` writes exactly the ticked files; a test applies
+   a change to one file and checks the other is byte-identical.
+2. **A stale original is refused.** If the original changed between "process with agent" and "send
+   changes back", the copy is no longer a change to *that* file; overwriting the newer version would
+   be the worst thing this feature could do. The row says so, the file is not ticked, and applying
+   refuses — a test edits both sides and proves the human's version survives.
+3. **Every write goes through the transaction layer**: `prepare` takes and *verifies* the backup
+   first, then `apply` writes, then re-hashes. The backups land next to a manifest in
+   `<config>/agent-workspaces/apply-<timestamp>/`, so an approved change is reversible.
+
+Each write is recorded in the audit log with *approved in the workspace review* as its reason, and
+the manifest is updated afterwards so the workspace stops claiming a difference that no longer
+exists.
+
+What is still open in 16.4: **hunk-by-hunk approval** and **running validators** (JSON/TOML parse,
+`cargo check`) on the agent's output before the review appears.
+
 ## Phase 16.10a — process with the agent, on a copy (first slice, done)
 
 `cargo test -p rc-core --lib workspace` → **7 tests**, `cargo test -p rcommander --lib
@@ -1237,7 +1274,7 @@ command either by its own name or through a family rule:
 | Explorer-style right-click integration and capability-aware RCommander submenu are planned | Phase 10.10: native shell actions where supported, internal fallback, explicit selection/pane targeting |
 | Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
 | No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions; establish editable prompt and declarative workload contracts early (16.16–16.21) |
-| "Process with agent" exists for the **copy** half: the workspace, its manifest and the seeded conversation are done, and the originals stay byte-identical (tested). **Sending changes back** is still open | Phase 16.4's review pipeline: diff of the copy against the original, per-file approval, a transaction with a verified backup and an audit entry |
+| "Process with agent" works end to end for whole files: copies, manifest, seeded chat, diff review, per-file approval, verified backup and audit. **Hunk-by-hunk approval** and **validators on the agent's output** are still open | The rest of Phase 16.4: hunk granularity, JSON/TOML/`cargo check` validation before the review |
 | Prompt catalogue, picker, editor, pins and recency are done (26 built-in prompts, copy/edit/reset, variables previewed); a **side-by-side diff of an edit** against the shipped text is still open | Phase 16.17d: the diff on the editor page, then 16.10a (process with agent) |
 | No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, tag-first classification, controlled SQL gateway, reviewed Knowledge Pull Requests, provenance and safe reuse |
 | No configurable multi-model team orchestration | Phase 16.27–16.30; define role assignments early with workload contracts, then bounded delegation, independent review, budgets, escalation and visible per-role activity; single-model mode stays available |

@@ -11,6 +11,8 @@ use rc_core::ops::OverwriteMode;
 #[derive(Clone, Debug, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum Dialog {
+    /// The workspace review: what the agent changed, and whether to send it back.
+    WorkspaceReview(WorkspaceReviewState),
     /// "Open with": the system's applications for one file (the context menu entry).
     OpenWith(OpenWithState),
     /// Copy (`F5`) / move (`F6`) with options.
@@ -398,6 +400,33 @@ impl super::Model {
         let state = super::dialogs::OptionsState::new(&self.settings, tab);
         self.open_dialog(super::Dialog::Options(state));
         super::CommandOutcome::Ok
+    }
+}
+
+/// The review of a workspace before anything is sent back.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WorkspaceReviewState {
+    /// The files, their diffs and their ticks.
+    pub review: crate::model::workspacereview::WorkspaceReview,
+    /// Index of the file whose diff is shown.
+    pub selected: usize,
+    /// Set when applying failed, so the dialog can say why and stay open.
+    pub status: String,
+}
+
+impl WorkspaceReviewState {
+    /// Build the state from a fresh review.
+    pub fn new(review: crate::model::workspacereview::WorkspaceReview) -> Self {
+        WorkspaceReviewState {
+            review,
+            selected: 0,
+            status: String::new(),
+        }
+    }
+
+    /// The file whose diff is on screen.
+    pub fn current(&self) -> Option<&crate::model::workspacereview::ReviewItem> {
+        self.review.items.get(self.selected)
     }
 }
 

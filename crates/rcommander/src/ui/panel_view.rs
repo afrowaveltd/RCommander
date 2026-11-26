@@ -879,6 +879,12 @@ fn row_menu_items(model: &Model) -> Vec<MenuItem> {
             Some(Icon::Folder),
             false,
         );
+        push(
+            model.t("workspace.review"),
+            "cm_ReviewWorkspace",
+            Some(Icon::Sync),
+            false,
+        );
     }
     // The system's own actions: what a file manager is expected to offer next to its own.
     push(

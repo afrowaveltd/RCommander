@@ -3024,3 +3024,72 @@ fn processing_with_the_agent_opens_a_chat_about_a_copy() {
     assert!(left.path().join("handover.txt").is_file());
     assert!(harness.state().model.workspace().is_none());
 }
+
+#[test]
+fn the_workspace_review_shows_the_diff_and_writes_only_what_is_ticked() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    std::fs::write(left.path().join("a.txt"), b"one\ntwo\nthree\n").unwrap();
+    std::fs::write(left.path().join("b.txt"), b"keep this\n").unwrap();
+    app.model.refresh_all();
+    let mut harness = harness(app);
+    // Hand both files to the agent, marking them first so the workspace holds both.
+    harness.state_mut().model.focus = rcommander::model::Side::Left;
+    let first = harness
+        .state()
+        .model
+        .left
+        .listing
+        .find("a.txt")
+        .expect("a.txt is listed");
+    let second = harness
+        .state()
+        .model
+        .left
+        .listing
+        .find("b.txt")
+        .expect("b.txt is listed");
+    harness.state_mut().model.left.set_cursor(first);
+    harness.state_mut().model.left.toggle_current();
+    harness.state_mut().model.left.set_cursor(second);
+    harness.state_mut().model.left.toggle_current();
+    harness.state_mut().execute("cm_ProcessWithAgent");
+    harness.run();
+    let workspace = harness.state().model.workspace().cloned().unwrap();
+    // The agent edits one copy only.
+    let edited = workspace
+        .files
+        .iter()
+        .find(|file| file.relative == "a.txt")
+        .expect("a.txt is in the workspace")
+        .copy
+        .clone();
+    std::fs::write(&edited, b"one\nTWO\nthree\n").unwrap();
+    // The review lists both files and shows the diff of the changed one.
+    harness.state_mut().execute("cm_ReviewWorkspace");
+    harness.run();
+    harness.root().get_by_label("workspace.review.title");
+    assert!(
+        harness.root().query_all_by_label_contains("+ TWO").count() > 0,
+        "the diff shows the added line"
+    );
+    assert!(
+        harness.root().query_all_by_label_contains("- two").count() > 0,
+        "and the removed one"
+    );
+    // Only the changed file is pre-ticked, so writing back touches it and nothing else.
+    harness
+        .root()
+        .get_by_label("workspace.review.apply")
+        .click_accesskit();
+    harness.run();
+    assert_eq!(
+        std::fs::read_to_string(left.path().join("a.txt")).unwrap(),
+        "one\nTWO\nthree\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(left.path().join("b.txt")).unwrap(),
+        "keep this\n",
+        "the untouched file was not rewritten"
+    );
+}

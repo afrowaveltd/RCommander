@@ -46,10 +46,42 @@ session, and it is deliberately one entry away.
 | **Show the agent's copy** (`cm_OpenWorkspace`) | show the workspace folder in the panel, so you can look at exactly what the agent sees |
 | **Close the agent workspace** (`cm_DiscardWorkspace`) | delete the copies |
 
-## What is not here yet
+## Sending changes back
 
-**Sending changed copies back to the originals.** That is Phase 16.4's review
-pipeline — diff, per-file approval, a transaction with a verified backup, an audit
-entry — and it is a separate, deliberate act by design. Until it lands the workspace
-is a place to *look and think*, not to publish; you copy what you want across
-yourself, with your own hands and your own marks.
+**Send changes back…** (`cm_ReviewWorkspace`, in the same context menu) opens the
+review: every file in the workspace with what happened to it, and — for the one you
+click — its **diff**.
+
+| What you see | What it means |
+| --- | --- |
+| `+ line` | the agent's copy adds this line |
+| `- line` | the agent's copy removes it |
+| `… 20 line(s) unchanged` | context was collapsed; nothing was hidden that changed |
+| `binary` | not text, so no diff is possible — and it is never written back by accident |
+| a warning on the row | the original changed after the workspace was made |
+
+Only **ticked** files are written, and only the ones that actually changed are
+ticked for you. Three rules make this safe:
+
+1. **Nothing is written that you did not tick**, file by file.
+2. **A stale original is refused.** If the file changed between "process with agent"
+   and "send changes back", the copy is no longer a change to *that* file — and
+   overwriting the newer version would be the worst thing this feature could do.
+3. **Every write goes through the transaction layer**: a verified backup first, then
+   the write, then a re-hash. The backups land in
+   `~/.config/rcommander/agent-workspaces/apply-<timestamp>/` next to a manifest, so
+   an approved change is reversible and an interrupted one is restored.
+
+Each write is also recorded in the audit log, with *approved in the workspace review*
+as its reason — a change with a side effect is never silent.
+
+Afterwards the workspace is coherent again: the copies equal the originals, which is
+what the manifest then says.
+
+## What is still open
+
+Whole-file review only. A three-line change to a thousand-line file is shown as a
+three-line diff, but a **hunk-by-hunk** approval is not here yet, and neither is
+running a validator (JSON/TOML parse, `cargo check`) on the agent's output before the
+review appears. Both belong to the rest of Phase 16.4 and change nothing about the
+safety rules above.

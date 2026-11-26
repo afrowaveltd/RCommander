@@ -30,6 +30,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             action = match &mut dialog {
+                Dialog::WorkspaceReview(state) => workspace_review(ui, model, state),
                 Dialog::OpenWith(state) => open_with(ui, model, state),
                 Dialog::Transfer(state) => transfer(ui, model, state),
                 Dialog::Overwrite(state) => overwrite(ui, model, state),
@@ -96,6 +97,151 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
         }
         other => other,
     }
+}
+
+/// The review dialog: the changed files on the left, their diff on the right.
+///
+/// The diff is the point. "This file differs" is not a review; `+ one line, - one line, here they
+/// are` is. Files that did not change are listed greyed out and unticked, because a review that
+/// hides them makes the user wonder what happened to them.
+fn workspace_review(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut WorkspaceReviewState,
+) -> DialogAction {
+    use crate::model::workspacereview::diff_marker;
+    use rc_core::diff::DiffLine;
+    let palette = crate::theme::Palette::for_model(model);
+
+    ui.label(
+        egui::RichText::new(state.review.summary())
+            .small()
+            .color(palette.hidden),
+    );
+    if state.review.is_clean() {
+        ui.label(egui::RichText::new(model.t("workspace.review.clean")).color(palette.archive));
+    }
+    ui.separator();
+    let mut apply = false;
+    ui.horizontal_top(|ui| {
+        // The list: a tick per file, plus what changed about it.
+        ui.vertical(|ui| {
+            ui.set_min_width(300.0);
+            egui::ScrollArea::vertical()
+                .max_height(300.0)
+                .id_salt("workspace_review_list")
+                .show(ui, |ui| {
+                    for (index, item) in state.review.items.iter_mut().enumerate() {
+                        ui.horizontal(|ui| {
+                            let mut tick = item.approved;
+                            let enabled = item.blocked.is_none() && item.changed();
+                            if ui
+                                .add_enabled(enabled, egui::Checkbox::without_text(&mut tick))
+                                .changed()
+                            {
+                                item.approved = tick;
+                            }
+                            let label = if ui
+                                .selectable_label(state.selected == index, &item.relative)
+                                .clicked()
+                            {
+                                state.selected = index;
+                                true
+                            } else {
+                                false
+                            };
+                            let _ = label;
+                            let summary = if item.binary {
+                                model.t("workspace.review.binary").to_string()
+                            } else {
+                                item.diff.summary()
+                            };
+                            let colour = if item.blocked.is_some() {
+                                palette.warning
+                            } else {
+                                palette.hidden
+                            };
+                            ui.label(egui::RichText::new(summary).small().color(colour));
+                        });
+                    }
+                });
+        });
+        ui.separator();
+        // The diff of the selected file.
+        ui.vertical(|ui| match state.current() {
+            Some(item) => {
+                if let Some(reason) = &item.blocked {
+                    ui.label(egui::RichText::new(reason).color(palette.warning));
+                }
+                if item.binary {
+                    ui.label(
+                        egui::RichText::new(model.t("workspace.review.binary.hint"))
+                            .small()
+                            .color(palette.hidden),
+                    );
+                } else {
+                    egui::ScrollArea::both()
+                        .max_height(300.0)
+                        .id_salt("workspace_review_diff")
+                        .show(ui, |ui| {
+                            for line in &item.diff.lines {
+                                let marker = diff_marker(line);
+                                let colour = match line {
+                                    DiffLine::Added(_) => palette.archive,
+                                    DiffLine::Removed(_) => palette.readonly,
+                                    DiffLine::Skipped(_) => palette.hidden,
+                                    DiffLine::Same(_) => palette.foreground,
+                                };
+                                let text = match line {
+                                    DiffLine::Same(content)
+                                    | DiffLine::Added(content)
+                                    | DiffLine::Removed(content) => {
+                                        format!("{marker} {content}")
+                                    }
+                                    DiffLine::Skipped(count) => {
+                                        format!("… {count} line(s) unchanged")
+                                    }
+                                };
+                                ui.label(egui::RichText::new(text).monospace().color(colour));
+                            }
+                        });
+                }
+            }
+            None => {
+                ui.label(egui::RichText::new(model.t("workspace.review.none")));
+            }
+        });
+    });
+    if !state.status.is_empty() {
+        ui.separator();
+        ui.label(egui::RichText::new(&state.status).color(palette.warning));
+    }
+    ui.separator();
+    let mut cancel = false;
+    ui.horizontal(|ui| {
+        let count = state.review.approved().len();
+        let label = model.tf("workspace.review.apply", &[("count", &count.to_string())]);
+        if ui
+            .add_enabled(count > 0, egui::Button::new(label))
+            .clicked()
+        {
+            apply = true;
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            cancel = true;
+        }
+    });
+    if cancel {
+        return DialogAction::Close;
+    }
+    if apply {
+        match model.apply_workspace_approved() {
+            crate::model::CommandOutcome::Ok => return DialogAction::Close,
+            crate::model::CommandOutcome::Failed(message) => state.status = message,
+            _ => {}
+        }
+    }
+    DialogAction::None
 }
 
 /// The "open with" chooser: a searchable list of the desktop's applications.
@@ -210,6 +356,7 @@ fn replace_dialog(new: Dialog, old: Dialog) -> Dialog {
 
 fn title_for(model: &Model, dialog: &Dialog) -> String {
     let key = match dialog {
+        Dialog::WorkspaceReview(_) => "workspace.review.title",
         Dialog::OpenWith(_) => "dialog.openwith.title",
         Dialog::Transfer(state) => state.title_key(),
         Dialog::Overwrite(_) => "dialog.overwrite.title",

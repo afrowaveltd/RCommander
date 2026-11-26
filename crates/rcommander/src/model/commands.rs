@@ -624,6 +624,21 @@ impl Model {
             // "Process with agent": the file-to-agent handoff (Phase 16.10a).
             "cm_processwithagent" | "cm_agentworkspace" => self.process_with_agent(),
             "cm_discardworkspace" => self.discard_workspace(),
+            "cm_reviewworkspace" | "cm_applyworkspace" => {
+                if self.agent_workspace.is_none() {
+                    let message = self.t("workspace.none").to_string();
+                    self.report_error(&message);
+                    CommandOutcome::Failed(message)
+                } else {
+                    // A fresh review every time the dialog opens: a diff from an hour ago is not a
+                    // review.
+                    let review = self.review_workspace();
+                    self.open_dialog(Dialog::WorkspaceReview(
+                        crate::model::dialogs::WorkspaceReviewState::new(review),
+                    ));
+                    CommandOutcome::Ok
+                }
+            }
             "cm_openworkspace" => self.open_workspace_directory(),
             "cm_themetoggle" => self.toggle_theme(),
             "cm_themenext" => self.cycle_theme(1),

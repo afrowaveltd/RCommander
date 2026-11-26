@@ -25,6 +25,7 @@ pub mod reset;
 pub mod search;
 pub mod sessions;
 pub mod surfaces;
+pub mod workspacereview;
 pub use surfaces::{FnKey, Surface};
 pub mod themes;
 
