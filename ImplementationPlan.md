@@ -1152,10 +1152,48 @@ contract instead.
 | --- | --- | --- | --- |
 | 18.1 | Manifest and discovery | `plugins/<id>/plugin.toml` with name, version, capabilities, entry point and permissions; discovered at runtime like `locales/`, `Docs/` and `themes/` | manifest validation tests; a broken plugin is reported and skipped, never fatal |
 | 18.2 | Data-source capability | a `Provider` contract that lists a virtual directory tree and reads/writes entries, so a web API or a custom store appears as a panel — reusing the existing `RemoteBackend`/panel plumbing | an in-process fake provider lists and opens a virtual tree in the panel; write access is opt-in per manifest capability |
+| 18.2a | **Universal panels: a source is a table with actions** | the two panels stop being "two directories" and become two **views of anything**: a source declares its columns, which of them sort, what a click and a double click *mean*, what a key means, and which panel operations it supports at all. A mail list, a photo library, a document set, a database result — the panel plumbing stays the same because it only ever asks the source "what does this row do" | tests: a fake source with rows, columns and actions is shown in a panel and a click performs its declared action; a source that declares no copy/move/delete leaves those commands **absent** (not failing at the end of a 20 GB copy); sorting and filtering use the source's own declarations; a source that throws an error shows the error in the panel instead of an empty list |
+| 18.2b | **A source declared over MCP tools — no code at all** | the interesting shortcut: because MCP already describes tools with JSON schemas, a source can be *configuration*. A manifest names the tool that lists (`list_messages`), the tool that reads one (`get_message`), the field mapping (`subject` → name column, `size` → size), which tool a click runs, and which tools need approval. Nothing executes: the adapter is ours, the manifest is data | tests: a fake MCP server driven by a manifest produces a list, a preview and an action, all through the tool catalogue from 16.37 so a `send_mail` tool is destructive and asks; a manifest naming a tool the server does not publish is refused with the name; a server that stops answering leaves the panel with a clear error, not a hang |
 | 18.3 | Renderer capability | define the single versioned viewer-renderer contract and registry, with content type → validated rendered output; Phase 17.5 integrates it into F3 | create the fake renderer fixture in Phase 18.3 and reuse it in Phase 17.5; invalid output is rejected, ordering and fallback are deterministic |
 | 18.4 | Isolated plugin execution | plugins run out of process with a versioned protocol, least-privilege brokered operations, permission manifests and OS-enforced confinement where supported (e.g. Linux sandbox facilities, Windows AppContainer/restricted token); platform-specific restrictions are documented | tests enforce broker allowlists and fail-closed requests, verify process crash isolation, and exercise supported OS isolation; **a child process alone is not a sandbox**: where OS confinement cannot be enforced, untrusted executable plugins stay disabled unless the user explicitly accepts the reduced isolation; no guarantee that protocol checks alone stop direct filesystem/network access |
 | 18.5 | Example plugins and docs | at least one working example (a JSON-over-HTTP web API browser) and a developer guide describing the protocol, versioning and permissions | the example runs against a local fixture server; the guide is bilingual |
 | 18.6 | Evidence-based binary review | built-in deterministic `rc-core::binary_review` plus optional separately approved Ghidra/REA analyzer adapter; annotated PE/ELF/Mach-O report | fixtures include benign and suspicious-looking samples, corruption, truncation, packing/entropy hints and false positives; no execution, silent upload or unsupported "clean" verdict |
+
+### Universal panels: "the Commander can command anything"
+
+The panel owner's example is the whole argument. A **MailCraft** plugin puts the message list in the
+left panel and the open message in the right; a PhotoCraft plugin browses a photo library and
+generates an icon from the selection; a document tool lists drafts and previews the chosen one. The
+panels are the same two panels in every case, because a panel has never really been "a directory
+browser" — it is a **table plus a set of actions**, and both can be declared by a source.
+
+What a source has to declare, and nothing more:
+
+| It declares | Because |
+| --- | --- |
+| **columns** (name, size, date, custom fields) and which are sortable | the table has to draw headers that mean something |
+| **rows** with an opaque handle per row | the source decides what identifies an item; a mail id is not a path |
+| **actions**: primary (open, deepen or preview), the context-menu set, and the key each one takes | that is the answer to "what happens when I click" |
+| **preview pairing**: what the *other* panel should show for this row | the two-panel layout becomes a list-and-detail view for free |
+| **operation capabilities**: may this source be copied from, moved into, deleted from? | a mail is not a file: offering `F8 Delete` over an IMAP folder is a lie, so the command is **absent** |
+| **refresh and failure**: how to re-read, and what an error looks like | a panel that shows an empty list because the server died is the bug we already fixed once |
+
+Three tiers of plugin, in increasing power and decreasing trust:
+
+1. **Declarative, no code** (18.2b): a manifest over one or more MCP servers. It cannot do anything
+   the servers' own tools cannot do, every call goes through the tool catalogue (16.37) so
+   "send mail" is destructive and asks by default, and the whole plugin is a TOML file the user can
+   read. **This is the tier a community can share safely, and it is the one to build first.**
+2. **Built in** (18.2/18.3): our own sources and renderers, compiled in — git, archives, SFTP, the
+   previewer. No new trust question.
+3. **Executable, isolated** (18.4): a process with a versioned protocol, brokered operations and OS
+   confinement where the platform offers it — and, where it does not, disabled by default with the
+   reduced isolation stated plainly. Native in-process dynamic libraries are the last option and the
+   least safe; the plan does not promise them.
+
+The rule from 16.31 carries over unchanged: **a source is not a permission.** A plugin that can list
+your mail does not thereby get to send it; the tool catalogue decides that, per tool, with the
+destructive ones behind the typed confirmation.
 
 ### Binary inspection (requested 2026-11) — Phase 18 capability, not antivirus
 
