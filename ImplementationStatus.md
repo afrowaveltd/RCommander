@@ -310,6 +310,41 @@ Keyboard handling needed no new rule: typing into the input takes the focus, and
 shortcut handler already steps aside when a widget has focus. That is why F-keys do not navigate the
 hidden list while somebody is typing a question.
 
+## Phase 18.2a — one `Location` variant for every plugin (done, first slice)
+
+`cargo test -p rc-core --lib plugin_tests` → **5 tests**, `cargo test -p rcommander --lib sources` →
+**7**, and the whole workspace still green.
+
+The panel owner's question was the right one: instead of a `Location::Virtual` per kind of source,
+**one variant** covers all of them — `Location::Plugin { source, path }`, where `source` is a
+registered id and `path` is an opaque, slash-separated locator the source understands
+(`mailcraft://inbox/42`). Every source that will ever exist fits that shape, so the enum never grows
+again and no `match` in the codebase has to learn about the next one.
+
+What that bought, concretely:
+
+* the enum gained **one** arm in eight places, not eight arms per source kind;
+* `display`/`parse` round-trip (`mailcraft://inbox/42`), and parsing accepts a plugin scheme only
+  when the caller's registry names it — so a typo cannot become a source that fails mysteriously;
+* **built-in schemes win**: a plugin cannot shadow `sftp`, `zip` or `ftp`, because installing a
+  plugin must never change what an existing location means;
+* navigation is path-like for free: `child` appends a segment, `parent` removes one, the root is
+  named after the source — a tree-shaped source gets tabs, history and cursor handling without
+  writing any of it;
+* `as_path()` is `None`, which is the honest answer for a mail id and keeps every file operation
+  from pretending otherwise.
+
+The behaviour lives in `model::sources`: a `PanelSource` trait with three questions — *what is in
+this location*, *what does opening this row mean*, *can it be read at all* — and a `SourceRegistry`
+on the model. `Model::open_in` dispatches plugin locations there and hands the finished entries to
+`Panel::open_with_entries`, so **`Panel` itself never learns that plugins exist**. A source that fails
+produces an error in the panel, never an empty list, because "the server did not answer" and "this
+folder is empty" must not look the same.
+
+Next on this path: the source's **columns and actions** (18.2a), the **MCP-declared source with no
+code** (18.2b), and the operation capability flags so `F8 Delete` is *absent* over an inbox rather
+than failing at the end.
+
 ## Phase 16.37a — a remembered catalogue with per-tool trust (done)
 
 `cargo test -p rc-core --lib mcptools` → **7 tests**, `cargo test -p rcommander --lib mcptools` →
@@ -1336,7 +1371,7 @@ command either by its own name or through a family rule:
 | No configurable multi-model team orchestration | Phase 16.27–16.30; define role assignments early with workload contracts, then bounded delegation, independent review, budgets, escalation and visible per-role activity; single-model mode stays available |
 | No persona catalogue or creative document/image workflows | Phase 24.1–24.6; optional personalities and team templates, image provider adapters, editable document sources, exact text layout and reviewed export, optional public gateway with separate privacy and cost controls |
 | No first-class database panels or administration | Phase 23; independent database providers, read-only browser and SQL editor first, reviewed mutations and administration later, native MongoDB document support (23.10) |
-| The two panels are **two directories**, not two views of anything: a mail list, a photo library or a document set cannot be shown without a code change | Phase 18.2a–18.2b (designed in the plan): a source declares its columns, its actions and whether copy/move/delete apply at all, and a source can be **declared over MCP tools with no code** — a manifest names the list tool, the read tool, the field mapping and the click action, and the tool catalogue from 16.37 decides what it may do |
+| A plugin source can be **listed and navigated** (one `Location` variant, a registry, a fake source in tests), but a source cannot yet declare **columns, context-menu actions or preview pairing**, and there is no `plugin.toml` discovery or MCP-declared source | The rest of Phase 18.2a–18.2b: source-declared tables and actions, operation capability flags, manifest discovery, and the MCP-declared source that needs no code at all |
 | Editor **annotations** (Phase 17.2) and the remaining previewer work are still open; the shared Markdown parser and the syntax highlighter are done | Phase 17.1–17.2 next |
 | The function key bar does not follow the **focused surface**, and there are no `Ctrl`/`Alt`/`Shift` variants, so the chat cannot offer "change model" or "export the conversation" from the keyboard | Phase 14.9 (planned): a per-surface command table in the model, modifier variants as first-class shortcuts, the chat's own row, and a `Ctrl+F1` cheat sheet sharing its data with the help topic |
 | The hex dump can be read and studied but not **annotated or analysed by the agent** | Phase 17.3 (planned): a selection range with byte grouping (u8/u16/u32/f32/UTF-8 runs), struct-layout hints for known formats, and an "ask the agent about this range" handoff that sends the bytes as data with the same approval rules as any other tool |

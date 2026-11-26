@@ -25,6 +25,17 @@ pub enum Location {
         rev: String,
         path: String,
     },
+    /// Anything a **plugin** provides: a mail inbox, a photo library, a document set.
+    ///
+    /// There is exactly one variant for all of them, on purpose. A per-plugin variant would mean
+    /// touching every `match` in this file and a few in the application for every new source — and
+    /// the number of sources is unbounded, while the *shape* of a location is always the same: which
+    /// source, and where inside it. `source` is a registered id (`mailcraft`), `path` is an opaque,
+    /// `/`-separated locator the source understands (`inbox/42`).
+    ///
+    /// The variant carries no behaviour: everything a source can do lives behind the registry the
+    /// application installs, so adding a source never touches this enum again.
+    Plugin { source: String, path: String },
 }
 
 impl Location {
@@ -72,6 +83,26 @@ impl Location {
         }
     }
 
+    /// A location inside a plugin's source.
+    pub fn plugin(source: impl Into<String>, path: impl Into<String>) -> Self {
+        Location::Plugin {
+            source: source.into(),
+            path: normalize_inner(&path.into()),
+        }
+    }
+
+    /// Source id and locator of a plugin location.
+    pub fn plugin_parts(&self) -> Option<(&str, &str)> {
+        match self {
+            Location::Plugin { source, path } => Some((source.as_str(), path.as_str())),
+            _ => None,
+        }
+    }
+
+    pub fn is_plugin(&self) -> bool {
+        matches!(self, Location::Plugin { .. })
+    }
+
     /// Git root, revision key and inner path.
     pub fn git_parts(&self) -> Option<(&Path, &str, &str)> {
         match self {
@@ -91,8 +122,33 @@ impl Location {
         matches!(self, Location::Git { rev, .. } if rev.is_empty())
     }
 
-    /// Parse user input: an `ftp://`, `ftps://`, `sftp://` or `zip://` URL, or a
-    /// local path.
+    /// Parse user input: an `ftp://`, `ftps://`, `sftp://`, `zip://` or registered plugin URL, or
+    /// a local path.
+    ///
+    /// A plugin scheme is accepted only when it is named in `plugin_schemes`. That list is the
+    /// application's registry, and requiring it is what keeps a typo (`htp://host/path`) from
+    /// becoming a "plugin location" that then fails mysteriously.
+    pub fn parse_with(input: &str, plugin_schemes: &[&str]) -> CoreResult<Self> {
+        // The built-in schemes are tried first, so a plugin can never shadow `sftp`, `zip`, `ftp`
+        // or the others — that would make an existing location change meaning when a plugin is
+        // installed, which is exactly the sort of surprise this project tries to avoid.
+        if let Ok(built_in) = Location::parse(input) {
+            return Ok(built_in);
+        }
+        let trimmed = input.trim();
+        if let Some((scheme, rest)) = trimmed.split_once("://") {
+            let scheme_lower = scheme.to_ascii_lowercase();
+            if plugin_schemes
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(&scheme_lower))
+            {
+                return Ok(Location::plugin(scheme_lower, rest));
+            }
+        }
+        Err(CoreError::Location(trimmed.to_string()))
+    }
+
+    /// Parse user input with the built-in schemes only.
     pub fn parse(input: &str) -> CoreResult<Self> {
         let trimmed = input.trim();
         if trimmed.is_empty() {
@@ -143,6 +199,7 @@ impl Location {
     pub fn as_path(&self) -> Option<&Path> {
         match self {
             Location::Local(p) => Some(p.as_path()),
+            // A plugin location is never a filesystem path: a mail id is not a file.
             _ => None,
         }
     }
@@ -188,6 +245,13 @@ impl Location {
                 match user {
                     Some(u) => format!("{scheme}://{u}@{host}{path}"),
                     None => format!("{scheme}://{host}{path}"),
+                }
+            }
+            Location::Plugin { source, path } => {
+                if path.is_empty() {
+                    format!("{source}://")
+                } else {
+                    format!("{source}://{path}")
                 }
             }
             Location::Git { root, rev, path } => {
@@ -250,6 +314,15 @@ impl Location {
                 let cut = path.rfind('/').map(|i| &path[..i]).unwrap_or("");
                 Some(Location::git(root.clone(), rev.clone(), cut))
             }
+            // A plugin's locator is slash-separated so that "up" and "into" work without the
+            // source having to implement navigation: `inbox/42` sits inside `inbox`.
+            Location::Plugin { source, path } => {
+                if path.is_empty() {
+                    return None;
+                }
+                let cut = path.rfind('/').map(|i| &path[..i]).unwrap_or("");
+                Some(Location::plugin(source.clone(), cut))
+            }
         }
     }
 
@@ -296,6 +369,15 @@ impl Location {
                 };
                 Location::git(root.clone(), rev.clone(), path)
             }
+            // Into a plugin: the locator grows a segment, which is the whole navigation story.
+            Location::Plugin { source, path } => {
+                let path = if path.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{path}/{name}")
+                };
+                Location::plugin(source.clone(), path)
+            }
         })
     }
 
@@ -323,6 +405,14 @@ impl Location {
             Location::Git { root, path, .. } => {
                 if path.is_empty() {
                     root.file_name().map(|n| n.to_string_lossy().to_string())
+                } else {
+                    Some(path.rsplit('/').next().unwrap_or(path).to_string())
+                }
+            }
+            Location::Plugin { source, path } => {
+                if path.is_empty() {
+                    // The root of a source is named after the source itself.
+                    Some(source.clone())
                 } else {
                     Some(path.rsplit('/').next().unwrap_or(path).to_string())
                 }
@@ -498,5 +588,80 @@ mod tests {
     fn same_dir_compares_normalized_forms() {
         assert!(Location::local("/tmp/./a").same_dir(&Location::local("/tmp/a")));
         assert!(!Location::archive("/a.zip", "x").same_dir(&Location::archive("/a.zip", "y")));
+    }
+}
+
+#[cfg(test)]
+mod plugin_tests {
+    use super::*;
+
+    #[test]
+    fn a_plugin_location_round_trips_through_text() {
+        let location = Location::plugin("mailcraft", "inbox/42");
+        assert_eq!(location.display(), "mailcraft://inbox/42");
+        let back = Location::parse_with("mailcraft://inbox/42", &["mailcraft"]).unwrap();
+        assert_eq!(back, location);
+        // The root has no path but is still a location.
+        let root = Location::plugin("mailcraft", "");
+        assert_eq!(root.display(), "mailcraft://");
+        assert_eq!(
+            Location::parse_with("mailcraft://", &["mailcraft"]).unwrap(),
+            root
+        );
+    }
+
+    #[test]
+    fn an_unregistered_scheme_is_not_a_plugin_and_stays_an_error() {
+        // A typo must not become a source that then fails mysteriously.
+        assert!(Location::parse_with("htp://example.org/x", &["mailcraft"]).is_err());
+        assert!(Location::parse("mailcraft://inbox").is_err());
+        // Registered scheme names are matched without regard to case.
+        assert!(
+            Location::parse_with("MailCraft://inbox", &["mailcraft"])
+                .unwrap()
+                .is_plugin()
+        );
+    }
+
+    #[test]
+    fn navigation_of_a_plugin_location_is_path_like() {
+        let root = Location::plugin("mailcraft", "");
+        let inbox = root.child("inbox").expect("into the source");
+        assert_eq!(inbox.plugin_parts(), Some(("mailcraft", "inbox")));
+        let message = inbox.child("42").expect("into the item");
+        assert_eq!(message.plugin_parts(), Some(("mailcraft", "inbox/42")));
+        assert_eq!(message.file_name().as_deref(), Some("42"));
+        // Up is one segment back, and the root has no parent.
+        assert_eq!(message.parent(), Some(inbox.clone()));
+        assert_eq!(inbox.parent(), Some(root.clone()));
+        assert!(root.parent().is_none());
+        // The root is named after the source, so a tab title reads sensibly.
+        assert_eq!(root.file_name().as_deref(), Some("mailcraft"));
+    }
+
+    #[test]
+    fn a_plugin_location_is_never_a_file() {
+        let location = Location::plugin("mailcraft", "inbox/42");
+        assert!(location.is_plugin());
+        assert!(!location.is_local());
+        assert!(!location.is_remote());
+        assert!(!location.is_archive());
+        assert!(!location.is_git());
+        assert!(location.as_path().is_none(), "a mail id is not a path");
+        assert!(location.git_root().is_none());
+        assert!(location.archive_parts().is_none());
+        assert_eq!(location.plugin_parts(), Some(("mailcraft", "inbox/42")));
+    }
+
+    #[test]
+    fn built_in_schemes_still_win_over_a_plugin_with_the_same_name() {
+        // A plugin cannot shadow `sftp` or `zip`, whatever it calls itself.
+        let remote = Location::parse_with("sftp://host/pub", &["sftp"]).unwrap();
+        assert!(
+            remote.is_remote(),
+            "the built-in parse ran first: {remote:?}"
+        );
+        let archive = Location::parse_with("zip:///tmp/a.zip/x", &["zip"]).unwrap();
+        assert!(archive.is_archive());
     }
 }

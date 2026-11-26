@@ -25,6 +25,7 @@ pub mod remote;
 pub mod reset;
 pub mod search;
 pub mod sessions;
+pub mod sources;
 pub mod surfaces;
 pub mod workspacereview;
 pub use surfaces::{FnKey, Surface};
@@ -213,6 +214,29 @@ impl Panel {
             show_parent: settings.display.show_parent_entry,
             mask: MaskSet::parse_or_all(&self.mask_spec).unwrap_or_default(),
         }
+    }
+
+    /// Open a location whose entries come from somewhere other than the file system.
+    ///
+    /// A plugin source lists its own items; everything the panel does with them — cursor, sorting,
+    /// marks, tabs — is the same code as a directory, which is why this is a small function and not
+    /// a second panel implementation.
+    pub fn open_with_entries(
+        &mut self,
+        location: Location,
+        entries: Vec<Entry>,
+        settings: &Settings,
+    ) -> CoreResult<()> {
+        let opts = self.read_options(settings);
+        let sort = self.sort();
+        self.git_status.clear();
+        self.git_label.clear();
+        self.listing = Listing::from_entries(location.clone(), entries, &opts, sort);
+        self.error = None;
+        self.selection.clear();
+        self.quick.reset();
+        self.tabs.set_active_location(location);
+        Ok(())
     }
 
     /// Re-read the current directory, keeping the marks that still apply.
@@ -526,6 +550,8 @@ pub struct Model {
     pub alert: Option<Alert>,
     /// The open "process with agent" workspace (Phase 16.10a).
     pub agent_workspace: Option<AgentWorkspaceState>,
+    /// Plugin-provided panel sources (Phase 18.2a). One location variant, many sources.
+    pub sources: sources::SourceRegistry,
 }
 
 /// An open F3 viewer.
@@ -682,6 +708,7 @@ impl Model {
             prompt_editor: prompts::PromptEditor::default(),
             alert: None,
             agent_workspace: None,
+            sources: sources::SourceRegistry::new(),
             keymap,
             settings,
             strings,
@@ -767,6 +794,16 @@ impl Model {
     /// Open `location` in `side`, keeping the cursor on the previous name when
     /// it still exists.
     pub fn open_in(&mut self, side: Side, location: Location) -> CoreResult<()> {
+        if location.is_plugin() {
+            // A plugin location is not a file system: the registry on the model is the only thing
+            // that knows what is inside, and an unknown source is an error rather than an empty
+            // panel. `Panel` itself stays unaware of plugins, which is the point of one variant.
+            let settings = self.settings.clone();
+            let entries = self.sources.list(&location)?;
+            let panel = self.panel_mut(side);
+            panel.open_with_entries(location, entries, &settings)?;
+            return Ok(());
+        }
         if location.is_remote() {
             let keep = self.panel(side).cursor_entry().map(|e| e.name.clone());
             self.open_remote(side, location)?;
