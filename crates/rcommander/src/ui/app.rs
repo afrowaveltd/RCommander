@@ -18,57 +18,10 @@ use rc_core::config::Settings;
 use rc_core::keymap::Shortcut;
 use rc_core::location::Location;
 
-/// One entry of the function-key bar.
-struct FunctionKey {
-    label_key: &'static str,
-    command: &'static str,
-    shortcut: &'static str,
-}
+// The F-key row used to live here as one static table. It moved into the model
+// (`model::surfaces`) when the keyboard became surface-aware: the chat, the editor and the viewer
+// each publish their own row, and the headless frontend needs the same one.
 
-const FUNCTION_KEYS: [FunctionKey; 8] = [
-    FunctionKey {
-        label_key: "cmd.help",
-        command: "cm_HelpIndex",
-        shortcut: "F1",
-    },
-    FunctionKey {
-        label_key: "cmd.refresh",
-        command: "cm_RereadSource",
-        shortcut: "F2",
-    },
-    FunctionKey {
-        label_key: "cmd.view",
-        command: "cm_List",
-        shortcut: "F3",
-    },
-    FunctionKey {
-        label_key: "cmd.edit",
-        command: "cm_Edit",
-        shortcut: "F4",
-    },
-    FunctionKey {
-        label_key: "cmd.copy",
-        command: "cm_Copy",
-        shortcut: "F5",
-    },
-    FunctionKey {
-        label_key: "cmd.move",
-        command: "cm_RenMov",
-        shortcut: "F6",
-    },
-    FunctionKey {
-        label_key: "cmd.mkdir",
-        command: "cm_MkDir",
-        shortcut: "F7",
-    },
-    FunctionKey {
-        label_key: "cmd.delete",
-        command: "cm_Delete",
-        shortcut: "F8",
-    },
-];
-
-/// One entry of the button bar.
 /// The eframe application.
 pub struct RCommanderApp {
     pub model: Model,
@@ -1225,14 +1178,33 @@ impl RCommanderApp {
         });
     }
 
+    /// The F-key bar: whatever the focused surface says those keys mean.
+    ///
+    /// The row comes from the model, so the bar and the keys cannot disagree: an empty slot is not
+    /// drawn at all, because a button that cannot work is worse than a missing one.
     fn function_key_bar(&mut self, ui: &mut egui::Ui) {
         let mut command: Option<String> = None;
+        let keys = self.model.function_keys();
+        let surface = self.model.surface();
+        let palette = self.palette.clone();
         ui.horizontal(|ui| {
-            for entry in FUNCTION_KEYS.iter() {
+            // Which surface is listening for these keys, said in one word.
+            ui.label(
+                egui::RichText::new(match surface {
+                    crate::model::Surface::Panel(_) => self.model.t("surface.files"),
+                    crate::model::Surface::Chat => self.model.t("surface.chat"),
+                    crate::model::Surface::Editor => self.model.t("surface.editor"),
+                    crate::model::Surface::Viewer => self.model.t("surface.viewer"),
+                })
+                .small()
+                .color(palette.hidden),
+            );
+            ui.separator();
+            for entry in keys.iter().filter(|entry| !entry.is_empty()) {
                 if ui
                     .small_button(format!(
                         "{} {}",
-                        entry.shortcut,
+                        entry.shortcut(),
                         self.model.t(entry.label_key)
                     ))
                     .clicked()

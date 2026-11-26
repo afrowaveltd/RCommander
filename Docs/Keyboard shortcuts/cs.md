@@ -21,6 +21,26 @@ tabulky `[shortcuts]` v souboru `settings.toml` jako `"ctrl+f3" = "cm_SrcByName"
 | `Insert` / `Space` | označit |
 | `Esc` | zrušit |
 
+## Řada se řídí tím, co má fokus
+
+Funkční klávesy nejsou jedna tabulka, ale čtyři — a lišta dole kreslí řadu té plochy,
+která je právě vepředu, se jménem plochy na levém okraji.
+
+| Kde | Co dělají `F1`…`F4` |
+| --- | --- |
+| **soubory** | nápověda, znovunačtení, náhled, editace — klasická sada až po `F12` = otevřít terminál zde |
+| **chat** | nápověda k chatu, volba modelu, otevřít prompty, uložit otázku jako prompt |
+| **editor** | nápověda, uložit, uložit kopii, načíst z disku; `F10` zavře |
+| **prohlížeč** | nápověda, znovunačtení a tři režimy (`F3` text, `F4` hex, `F5` obrázek), zoom na `F6`/`F7`, `F10` zavře |
+
+Nad konverzací není žádný řádek kurzoru ke kopírování ani mazání, takže ty příkazy v
+její řadě **nejsou** — místo aby byly zašedlé: tlačítko, které nemůže fungovat, je
+horší než žádné. `F1` je vždy nápověda a otevře téma té plochy, na které jste ji
+stiskli — chat, editor, prohlížeč nebo samotné zkratky.
+
+Řady se čtou z modelu, a proto se lišta a klávesy nemohou rozejít — a budoucí textové
+rozhraní bude mít stejnou klávesnici.
+
 ## Kombinace
 
 `Ctrl+F1`…`Ctrl+F7` mění režim zobrazení a řazení, `Ctrl+Shift+F5` vytvoří

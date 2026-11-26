@@ -445,6 +445,71 @@ impl Model {
         CommandOutcome::Ok
     }
 
+    /// Write the transcript next to the active panel's directory, so it can be read and shared.
+    ///
+    /// The file name carries a timestamp and the panel is refreshed afterwards, so the export is
+    /// visible where the user is looking instead of in a place they have to be told about.
+    pub fn chat_export(&mut self) -> CommandOutcome {
+        let lines = self.chat_session.lines.clone();
+        if lines.is_empty() {
+            let message = self.t("prompt.export.empty");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        let mut text = String::new();
+        for line in &lines {
+            let speaker = self.t(line.speaker.label_key());
+            text.push_str(&format!("[{speaker}] {}\n\n", line.text));
+        }
+        let directory = self
+            .active()
+            .location()
+            .as_path()
+            .map(|path| path.to_path_buf())
+            .unwrap_or_else(std::env::temp_dir);
+        let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let target = directory.join(format!("chat-{stamp}.txt"));
+        match std::fs::write(&target, text.as_bytes()) {
+            Ok(()) => {
+                let message = self.tf(
+                    "prompt.export.done",
+                    &[("path", &target.display().to_string())],
+                );
+                self.report_done(message, None);
+                self.refresh_active();
+                CommandOutcome::Ok
+            }
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                CommandOutcome::Failed(message)
+            }
+        }
+    }
+
+    /// Turn the question in the input (or the last one asked) into a prompt being edited.
+    pub fn chat_save_prompt(&mut self) -> CommandOutcome {
+        let text = if self.chat_session.input.trim().is_empty() {
+            self.chat_session
+                .lines
+                .iter()
+                .rev()
+                .find(|line| line.speaker == Speaker::User)
+                .map(|line| line.text.clone())
+                .unwrap_or_default()
+        } else {
+            self.chat_session.input.clone()
+        };
+        if text.trim().is_empty() {
+            let message = self.t("prompt.error.text");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        self.new_prompt(rc_core::prompt::Category::General);
+        self.prompt_editor.text = text;
+        self.open_options_on(super::dialogs::OptionsTab::Prompts)
+    }
+
     /// Append a system note to the transcript (used by the agent tools later).
     pub fn chat_note(&mut self, text: impl Into<String>) {
         self.chat_session.push(Speaker::System, text);

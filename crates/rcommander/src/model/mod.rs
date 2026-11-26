@@ -23,6 +23,8 @@ pub mod remote;
 pub mod reset;
 pub mod search;
 pub mod sessions;
+pub mod surfaces;
+pub use surfaces::{FnKey, Surface};
 pub mod themes;
 
 use crate::i18n::{Direction, Strings};

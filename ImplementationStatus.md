@@ -310,6 +310,37 @@ Keyboard handling needed no new rule: typing into the input takes the focus, and
 shortcut handler already steps aside when a widget has focus. That is why F-keys do not navigate the
 hidden list while somebody is typing a question.
 
+## Phase 14.9 — a keyboard that follows the focused surface (done)
+
+`cargo test -p rcommander --lib surfaces` → **7 tests**, plus **2 UI tests** (the bar changes with
+the surface, and an export writes a readable file).
+
+The F-key bar was one static table in the view layer: eight keys, always the file commands. Over the
+chat that meant `F3` tried to preview a cursor row that does not exist, and there was no way to ask
+the keyboard for "change the model" or "export the conversation".
+
+`model::surfaces` now decides three things and is the only place that does: **which surface has the
+focus** (editor, then viewer, then a panel showing the chat, then the file panels), **which command
+each key means there**, and therefore **what the bar draws**. Four rows of twelve slots:
+
+| Surface | `F1`…`F4` |
+| --- | --- |
+| files | help, re-read, preview, edit … `F12` = terminal here |
+| chat | help, model picker, prompt picker, save the question as a prompt |
+| editor | help, save, save a copy, reload |
+| viewer | help, re-read, and the three modes, zoom, close |
+
+Three rules keep it honest. An empty slot is **absent from the bar**, not disabled — a button that
+cannot work is worse than no button. A test walks every row and checks that each command exists in
+the catalogue or in the application's own list, so a renamed command cannot linger in a bar. And
+`F1` is help everywhere, opening the **topic of the surface it was pressed on**: the chat, the
+editor, the viewer or the shortcuts themselves.
+
+Moving the actions into the model was the useful side effect. Editor save, save-a-copy, reload and
+close, the chat's clear/stop/export/save-as-prompt, and the viewer's mode and zoom are all model
+methods now, so the window's button, the function key and a headless caller share one implementation
+— and the TUI frontend will get the same keyboard for free.
+
 ## Phase 14.10 — the window that never stays silent, and SSH that says why (done)
 
 `cargo test -p rc-core --lib sound` → **3 tests**, `cargo test -p rc-core --lib expand` → **1**,

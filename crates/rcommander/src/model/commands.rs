@@ -528,7 +528,10 @@ impl Model {
                 CommandOutcome::Ok
             }
             "cm_helpindex" => {
-                self.open_help(None);
+                // F1 answers for the surface it was pressed on: help about the chat when the chat
+                // has the focus, about the editor when the editor does.
+                let topic = self.surface().help_topic().to_string();
+                self.open_help(Some(topic));
                 CommandOutcome::Ok
             }
             "cm_versioninfo" => self.show_properties(),
@@ -595,6 +598,28 @@ impl Model {
                 }
                 self.show_chat_panel = true;
                 CommandOutcome::Ok
+            }
+            // The keyboard's own row over a conversation (Phase 14.9). These live in the model so
+            // the bar, the shortcut and the future TUI all reach the same implementation.
+            "cm_chatclear" => self.chat_clear(),
+            "cm_chatstop" => self.chat_stop(),
+            "cm_chatexport" => self.chat_export(),
+            "cm_chatsaveprompt" => self.chat_save_prompt(),
+            "cm_promptpicker" => {
+                self.prompt_picker.open = true;
+                CommandOutcome::Ok
+            }
+            "cm_editorsave" => self.editor_save(),
+            "cm_editorsavecopy" => self.editor_save_copy(),
+            "cm_editorreload" => self.editor_reload(),
+            "cm_editorclose" => self.editor_close(),
+            "cm_viewerclose" => {
+                self.viewer = None;
+                CommandOutcome::Ok
+            }
+            "cm_viewertext" | "cm_viewerhex" | "cm_viewerimage" => self.viewer_set_mode(command),
+            "cm_viewerzoomin" | "cm_viewerzoomout" => {
+                self.viewer_zoom(command == "cm_viewerzoomin")
             }
             "cm_themetoggle" => self.toggle_theme(),
             "cm_themenext" => self.cycle_theme(1),
@@ -2770,4 +2795,124 @@ pub fn looks_binary(bytes: &[u8]) -> bool {
         return true;
     }
     std::str::from_utf8(head).is_err() && !head.is_ascii()
+}
+
+impl Model {
+    /// Save the edited buffer, refusing to pretend when it fails.
+    ///
+    /// Shared by the window's Save button, the `F2` key of the editor row and a headless caller:
+    /// one implementation, one behaviour.
+    pub fn editor_save(&mut self) -> CommandOutcome {
+        let Some(mut state) = self.editor.clone() else {
+            return CommandOutcome::None;
+        };
+        if state.binary {
+            let message = self.t("editor.binary");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        let path = std::path::PathBuf::from(&state.path);
+        match std::fs::write(&path, state.text.as_bytes()) {
+            Ok(()) => {
+                state.modified = false;
+                self.report(self.t("status.done"));
+                let _ = self.on_file_saved(&path);
+                self.editor = Some(state);
+                CommandOutcome::Ok
+            }
+            Err(error) => {
+                let message = self.tf(
+                    "editor.save.failed",
+                    &[("path", &state.path), ("error", &error.to_string())],
+                );
+                self.report_error(&message);
+                // The buffer stays as it was, with the error visible: nothing was written.
+                self.editor = Some(state);
+                CommandOutcome::Failed(message)
+            }
+        }
+    }
+
+    /// Save the buffer somewhere the user certainly can write.
+    pub fn editor_save_copy(&mut self) -> CommandOutcome {
+        let Some(mut state) = self.editor.clone() else {
+            return CommandOutcome::None;
+        };
+        let target = self.suggest_copy_path(std::path::Path::new(&state.path));
+        match std::fs::write(&target, state.text.as_bytes()) {
+            Ok(()) => {
+                let message = self.tf(
+                    "editor.saved_copy",
+                    &[("path", &target.display().to_string())],
+                );
+                self.report_done(message, None);
+                state.path = target.to_string_lossy().to_string();
+                state.modified = false;
+                self.editor = Some(state);
+                CommandOutcome::Ok
+            }
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                CommandOutcome::Failed(message)
+            }
+        }
+    }
+
+    /// Re-read the file from disk, discarding nothing silently: a modified buffer is kept.
+    pub fn editor_reload(&mut self) -> CommandOutcome {
+        let Some(state) = self.editor.clone() else {
+            return CommandOutcome::None;
+        };
+        if state.modified {
+            let message = self.t("editor.modified").to_string();
+            self.report_error(message.clone());
+            return CommandOutcome::Failed(message);
+        }
+        match self.open_editor_for(std::path::PathBuf::from(&state.path)) {
+            Ok(()) => CommandOutcome::Ok,
+            Err(error) => {
+                let message = error.to_string();
+                self.report_error(&message);
+                CommandOutcome::Failed(message)
+            }
+        }
+    }
+
+    /// Close the editor, keeping a modified buffer open until the user decides.
+    pub fn editor_close(&mut self) -> CommandOutcome {
+        if let Some(state) = self.editor.clone()
+            && state.modified
+        {
+            let message = self.t("editor.modified").to_string();
+            self.report_error(message.clone());
+            return CommandOutcome::Failed(message);
+        }
+        self.editor = None;
+        CommandOutcome::Ok
+    }
+
+    /// Switch the viewer's mode from the keyboard.
+    pub fn viewer_set_mode(&mut self, command: &str) -> CommandOutcome {
+        let Some(state) = self.viewer.as_mut() else {
+            return CommandOutcome::None;
+        };
+        state.mode = match command {
+            "cm_viewertext" => crate::model::ViewerMode::Text,
+            "cm_viewerhex" => crate::model::ViewerMode::Hex,
+            "cm_viewerimage" => crate::model::ViewerMode::Image,
+            _ => return CommandOutcome::None,
+        };
+        CommandOutcome::Ok
+    }
+
+    /// Zoom the viewer in or out, within a range that stays useful.
+    pub fn viewer_zoom(&mut self, closer: bool) -> CommandOutcome {
+        let Some(state) = self.viewer.as_mut() else {
+            return CommandOutcome::None;
+        };
+        let factor = if closer { 1.25 } else { 0.8 };
+        state.zoom = (state.zoom * factor).clamp(0.1, 10.0);
+        CommandOutcome::Ok
+    }
 }

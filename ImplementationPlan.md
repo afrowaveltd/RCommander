@@ -261,7 +261,7 @@ visible Chinese dragon behind the panels — the kind of thing that needs only 1
 and a theme file to share. Which is the point: the shiny parts are data, so the wild ideas
 do not need code.
 
-### Phase 14.9 — A keyboard that follows the focused surface (planned)
+### Phase 14.9 — A keyboard that follows the focused surface (14.9.1, 14.9.3, 14.9.4 done)
 
 The function key bar is drawn, the keys mostly work, but the model behind it is still
 "one panel of files": pressing `F3` while the chat has the focus does nothing useful,

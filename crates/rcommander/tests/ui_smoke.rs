@@ -2849,3 +2849,90 @@ fn the_status_line_reports_progress_and_alerts() {
             > 0
     );
 }
+
+#[test]
+fn the_function_key_bar_follows_the_focused_surface() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.chat().push(
+        rcommander::model::chat::Speaker::User,
+        "what is in this folder?",
+    );
+    let mut harness = harness(app);
+    // Over the files the bar offers the file commands.
+    harness.root().get_by_label("surface.files");
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("cmd.copy")
+            .count()
+            > 0,
+        "the file row is drawn (the test translator echoes keys)"
+    );
+    // Put the chat in the focused panel: the bar changes with it.
+    harness
+        .state_mut()
+        .model
+        .set_panel_chat(rcommander::model::Side::Left, true);
+    harness.run();
+    harness.root().get_by_label("surface.chat");
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("prompt.export")
+            .count()
+            > 0,
+        "the chat row offers the export"
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("cmd.copy")
+            .count()
+            == 0,
+        "and no longer offers a command that makes no sense here"
+    );
+    // Pressing the F5 button of that row clears the conversation.
+    harness
+        .root()
+        .query_all_by_label_contains("F5")
+        .next()
+        .expect("the chat row has an F5")
+        .click_accesskit();
+    harness.run();
+    assert!(
+        harness.state().model.chat_session.lines.is_empty(),
+        "F5 over the chat is New conversation, not Copy"
+    );
+}
+
+#[test]
+fn exporting_the_conversation_writes_a_readable_file() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.chat().push(
+        rcommander::model::chat::Speaker::User,
+        "why is the sky blue?",
+    );
+    app.model.chat().push(
+        rcommander::model::chat::Speaker::Model,
+        "Rayleigh scattering.",
+    );
+    let mut harness = harness(app);
+    harness.state_mut().execute("cm_ChatExport");
+    harness.run();
+    let mut written: Vec<std::path::PathBuf> = std::fs::read_dir(left.path())
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().starts_with("chat-"))
+                .unwrap_or(false)
+        })
+        .collect();
+    assert_eq!(written.len(), 1, "one transcript was written: {written:?}");
+    let text = std::fs::read_to_string(written.pop().unwrap()).unwrap();
+    assert!(text.contains("why is the sky blue?"), "{text}");
+    assert!(text.contains("Rayleigh scattering."), "{text}");
+}
