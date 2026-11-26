@@ -43,6 +43,41 @@ pub struct Settings {
     pub prompts: PromptSettings,
     /// Which sounds the application makes (Phase 14.10).
     pub sounds: Sounds,
+    /// Which plugins are switched on (Phase 18.7).
+    pub plugins: Plugins,
+}
+
+/// Which plugins the user switched off.
+///
+/// The list is of *disabled* ids, not enabled ones, and that direction is deliberate: an installed
+/// plugin is on unless the user said otherwise, so installing one by hand (by copying a folder) does
+/// not need a second step to make it work. A plugin that is switched off keeps its manifest and its
+/// files; it simply is not registered as a source, so it cannot appear in a panel and none of its
+/// declared capabilities exist.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Plugins {
+    /// Ids switched off, in the order the user switched them off.
+    pub disabled: Vec<String>,
+}
+
+impl Plugins {
+    /// Whether a plugin id is switched on.
+    pub fn is_enabled(&self, id: &str) -> bool {
+        !self
+            .disabled
+            .iter()
+            .any(|disabled| disabled.eq_ignore_ascii_case(id))
+    }
+
+    /// Switch one plugin on or off, keeping the list free of duplicates.
+    pub fn set_enabled(&mut self, id: &str, enabled: bool) {
+        self.disabled
+            .retain(|disabled| !disabled.eq_ignore_ascii_case(id));
+        if !enabled {
+            self.disabled.push(id.to_string());
+        }
+    }
 }
 
 /// Short sounds for short events.
@@ -124,6 +159,7 @@ impl Default for Settings {
             save_position: true,
             prompts: PromptSettings::default(),
             sounds: Sounds::default(),
+            plugins: Plugins::default(),
         }
     }
 }

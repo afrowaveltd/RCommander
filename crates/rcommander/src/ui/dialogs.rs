@@ -1589,6 +1589,114 @@ fn prompts_page(ui: &mut egui::Ui, model: &mut Model) {
 /// Everything on the page is a *policy* control, so it applies to the agent — not to the human
 /// using the panels. The two live controls (revoking session approvals and the audit state) act on
 /// the running model, because a safety button that waits for OK would be useless.
+/// The plugin manager: what is installed, what each one may do, and which are on.
+///
+/// The page answers the three questions a user actually has, in that order: *what did I install*,
+/// *what is it allowed to do*, and *is it running*. Switching one off is immediate — the source is
+/// unregistered, so its panels and its capabilities disappear rather than waiting for a restart.
+fn plugins_page(ui: &mut egui::Ui, model: &mut Model) {
+    let palette = crate::theme::Palette::for_model(model);
+    let mut toggle: Option<(String, bool)> = None;
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .id_salt("plugins_scroll")
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new(model.t("plugins.heading"))
+                    .strong()
+                    .color(palette.accent),
+            );
+            ui.label(
+                egui::RichText::new(model.t("plugins.hint"))
+                    .small()
+                    .color(palette.hidden),
+            );
+            ui.add_space(6.0);
+            if model.plugin_entries().is_empty() {
+                ui.label(model.t("plugins.none"));
+            }
+            // Collected first: the list borrows the model that the toggle needs.
+            let entries: Vec<(String, String, String, String, bool, bool, String)> = model
+                .plugin_entries()
+                .iter()
+                .map(|plugin| {
+                    (
+                        plugin.id.clone(),
+                        plugin.name.clone(),
+                        plugin.version.clone(),
+                        plugin.description.clone(),
+                        plugin.enabled,
+                        plugin.is_read_only(),
+                        plugin.backend.to_string(),
+                    )
+                })
+                .collect();
+            for (id, name, version, description, enabled, read_only, backend) in entries {
+                ui.separator();
+                ui.horizontal(|ui| {
+                    let mut on = enabled;
+                    // A checkbox, because the question is yes/no and the answer takes effect now.
+                    if ui.checkbox(&mut on, model.t("plugins.enabled")).changed() {
+                        toggle = Some((id.clone(), on));
+                    }
+                    ui.label(egui::RichText::new(&name).strong());
+                    ui.label(
+                        egui::RichText::new(format!("{id}://"))
+                            .small()
+                            .color(palette.hidden),
+                    );
+                    if !version.trim().is_empty() {
+                        ui.label(
+                            egui::RichText::new(format!("v{version}"))
+                                .small()
+                                .color(palette.hidden),
+                        );
+                    }
+                    ui.label(egui::RichText::new(backend).small().color(palette.hidden));
+                });
+                if !description.trim().is_empty() {
+                    ui.label(egui::RichText::new(description).small());
+                }
+                // What the place allows, said in words before the switch is touched.
+                let capabilities = if read_only {
+                    model.t("plugins.capabilities.readonly")
+                } else {
+                    model.t("plugins.capabilities.writable")
+                };
+                ui.label(
+                    egui::RichText::new(capabilities)
+                        .small()
+                        .color(if read_only {
+                            palette.hidden
+                        } else {
+                            palette.readonly
+                        }),
+                );
+            }
+            // A manifest that did not load is worth showing here: this is the page where somebody
+            // would come to look for the plugin that "does not appear".
+            if !model.plugin_problems.is_empty() {
+                ui.separator();
+                ui.label(
+                    egui::RichText::new(model.t("plugins.problems"))
+                        .strong()
+                        .color(palette.readonly),
+                );
+                for problem in &model.plugin_problems {
+                    ui.label(
+                        egui::RichText::new(problem.to_string())
+                            .small()
+                            .color(palette.readonly),
+                    );
+                }
+            }
+        });
+    if let Some((id, enabled)) = toggle {
+        let summary = model.set_plugin_enabled(&id, enabled);
+        model.report(summary);
+    }
+}
+
 fn security_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) {
     let palette = crate::theme::Palette::for_model(model);
     egui::ScrollArea::vertical()
@@ -1994,6 +2102,9 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
         }
         OptionsTab::Prompts => {
             prompts_page(ui, model);
+        }
+        OptionsTab::Plugins => {
+            plugins_page(ui, model);
         }
         OptionsTab::Dangerous => {
             dangerous_page(ui, model, state);

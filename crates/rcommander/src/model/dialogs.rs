@@ -350,13 +350,15 @@ pub enum OptionsTab {
     Security,
     /// The prompt catalogue and its editor (Phase 16.17b).
     Prompts,
+    /// Installed plugins: which are on, what they may do, where they came from (Phase 18.7).
+    Plugins,
     Shortcuts,
     /// Factory resets; the page warns loudly because nothing here can be undone.
     Dangerous,
 }
 
 impl OptionsTab {
-    pub fn all() -> [OptionsTab; 12] {
+    pub fn all() -> [OptionsTab; 13] {
         [
             OptionsTab::Display,
             OptionsTab::Language,
@@ -368,6 +370,7 @@ impl OptionsTab {
             OptionsTab::Agent,
             OptionsTab::Security,
             OptionsTab::Prompts,
+            OptionsTab::Plugins,
             OptionsTab::Shortcuts,
             OptionsTab::Dangerous,
         ]
@@ -385,6 +388,7 @@ impl OptionsTab {
             OptionsTab::Agent => "dialog.config.agent",
             OptionsTab::Security => "dialog.config.security",
             OptionsTab::Prompts => "dialog.config.prompts",
+            OptionsTab::Plugins => "dialog.config.plugins",
             OptionsTab::Shortcuts => "dialog.config.shortcuts",
             OptionsTab::Dangerous => "dialog.config.dangerous",
         }
@@ -2043,10 +2047,14 @@ mod tests {
             o.draft.shortcuts.get("f9").map(|s| s.as_str()),
             Some("cm_Test")
         );
-        assert_eq!(OptionsTab::all().len(), 12, "a new page must be counted");
+        assert_eq!(OptionsTab::all().len(), 13, "a new page must be counted");
         assert!(
             OptionsTab::all().contains(&OptionsTab::Security),
             "the security page is reachable"
+        );
+        assert!(
+            OptionsTab::all().contains(&OptionsTab::Plugins),
+            "the plugin manager is reachable"
         );
         assert!(OptionsTab::Language.key().starts_with("dialog.config."));
         // The reset page has to stay last: it is the one nobody opens by accident.

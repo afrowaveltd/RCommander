@@ -555,8 +555,8 @@ pub struct Model {
     pub agent_workspace: Option<AgentWorkspaceState>,
     /// Plugin-provided panel sources (Phase 18.2a). One location variant, many sources.
     pub sources: sources::SourceRegistry,
-    /// Manifests the last scan loaded, as `(id, title)`.
-    pub plugins_loaded: Vec<(String, String)>,
+    /// Every installed plugin, switched on or off, from the last scan.
+    pub plugins_loaded: Vec<plugins::PluginSummary>,
     /// Manifests the last scan refused, with the reason, for the status line and diagnostics.
     pub plugin_problems: Vec<rc_core::plugin::PluginProblem>,
 }

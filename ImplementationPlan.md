@@ -1258,6 +1258,109 @@ refuses to declare an operation it cannot perform.
 Deliberately later: declared row verbs, sorting inside a source, and writes through either backend.
 Nothing above changes when they arrive.
 
+### The plugin workshop: install, switch on and off, and let the agent use them
+
+A manifest is only useful if a user can get one without a terminal. Three parts, and each answers a
+different question: **where does a plugin come from**, **which ones are on**, and **may the agent use
+them**.
+
+#### 1. The installer
+
+| Source | How |
+| --- | --- |
+| a folder | pick a directory that contains `plugin.toml`, or one that contains several plugin folders; each is installed separately |
+| an archive | `.zip` / `.tar.gz` unpacked with `rc-archive`, which the application already carries |
+| a URL | later, and it needs a decision (see the open questions) |
+| a web index | later still: a page listing plugins, ours and community, with a copyable URL |
+
+Installation is a transaction, and it follows the same rule as every other change in this
+application: **no verified backup, no change.**
+
+1. Read into a staging directory next to the real one — never over a live plugin.
+2. Validate *there*: parse the manifest, check the id matches its folder, check that a declared
+   helper script exists and is executable, and refuse a manifest that would shadow a bundled plugin
+   without saying so.
+3. Back up any existing `<id>` folder to `plugins/.backup-<id>-<stamp>/`.
+4. Move staging into place, write a provenance sidecar (`installed.toml`: where from, when, which
+   version), and re-read the registry.
+
+**Nothing is executed during an install.** Not the lister, not the opener, not a "post-install"
+hook — there is no such hook, and that is deliberate: downloading a plugin must never be the moment
+it runs. The first time any command runs is when the user opens the panel.
+
+**No restart.** The panel registry is rebuilt after the install, so the source appears immediately.
+That is strictly better than the restart the request allowed for, and it also makes switching a
+plugin off instantaneous.
+
+#### 2. The manager
+
+A new page in the options dialog, because that is where the rest of the per-user state lives:
+
+| Column | Why |
+| --- | --- |
+| name, id, version | identity; the id is also the URL scheme |
+| **on / off** | a checkbox that unregisters the source immediately — no one needs four hundred active panels |
+| what it may do | the declared capabilities in words: *read-only* or *can delete* — the user decides with this in front of them, not after |
+| where it came from | the provenance sidecar, or *bundled* / *hand-written* |
+| problems | a manifest that failed to parse, with its reason, so it can be fixed rather than guessed at |
+
+Switching off removes the source, its panels and its capabilities; nothing is deleted from disk.
+Removing takes a backup first. The default for a newly installed plugin is **on**, because a user who
+installed it asked for it; the default for a *broken* one is nothing at all, since it is not a source.
+
+#### 3. Plugins as an agent capability
+
+The request is the interesting one: an agent should be able to reach a plugin *if the user allows it*,
+and should mostly not keep four hundred panels open. Three pieces:
+
+- **A catalogue.** Each plugin can describe itself for a model, in the manifest:
+  `[plugin.agent] summary`, `when_to_use`, and per action a `description` and `destructive` flag.
+  The model gets `plugins.list` — id, name, summary, when to use it, the actions with their arguments — and
+  that is how it knows *what a plugin is good for* without opening it.
+- **A call.** `plugins.call { id, action, arguments }` runs one declared action and returns its
+  output. It is a tool like any other, so it goes through the catalogue from 16.37: unknown plugin,
+  unknown action, wrong argument types are refused before anything happens, and a `destructive`
+  action asks first, exactly as `send_mail` does.
+- **Activation on demand.** A plugin that is off can be *activated for the turn* if the user allowed
+  it (`agent_activate`), which registers the source in memory and drops it when the turn ends. It
+  never flips the on/off switch on disk: that is the human's decision and it stays that way.
+
+The rules that do **not** move:
+
+- A plugin is not a permission. The catalogue tells the model what exists; the policy, the approval
+  dialog and the audit log still decide, per call, with the plugin id in the audit record.
+- The model may **propose** an install — *"this needs the MailCraft plugin"* — but a proposal is a
+  sentence with a button next to it, and the human clicks it. An agent that can install code is an
+  agent that can widen its own sandbox, and no amount of validation makes that a good idea.
+- Data from a plugin is data. Tool output never becomes a permission, and never becomes an
+  instruction.
+
+#### Order of work
+
+1. **On/off and the manager page** — the foundation everything else needs, and testable without any
+   network or dialog machinery.
+2. **Install from a folder and from an archive** — staging, validation, backup, provenance, no restart.
+3. **The catalogue** — `[plugin.agent]` in the manifest and `plugins.list`, so a model can read what
+   is installed.
+4. **`plugins.call` with trust switches and on-demand activation.**
+5. **The URL installer and the web index**, once the transport question below is settled.
+
+#### Open questions for the owner
+
+- **TLS**: this workspace has no TLS stack today (`rc-agent` speaks plain `http://` only, and says so).
+  Downloading a plugin from a website needs one. Three options: add a `rustls`-based client (a real
+  dependency, but self-contained and the same on Windows, Linux and Android), shell out to
+  `curl`/`wget`/`Invoke-WebRequest` (no new dependency, but three code paths and a program that may
+  not exist), or keep the URL installer to `http://` on the local network and let the website be
+  fetched by the browser. My recommendation is the first, when the website exists.
+- **Signatures**: a community plugin index invites supply-chain questions. Cheapest honest option:
+  the index publishes a SHA-256 per plugin, the installer shows what it got and refuses a mismatch —
+  and says plainly that this proves integrity against a corrupt download, not authorship.
+- **May an agent install?** My answer is no, for the reason above. It may propose.
+- **Where does "off by default, activated on demand" apply?** I would allow on-demand activation only
+  for plugins whose declared capabilities are read-only; a plugin that can delete stays off until a
+  human turns it on.
+
 ### Universal panels: "the Commander can command anything"
 
 The panel owner's example is the whole argument. A **MailCraft** plugin puts the message list in the

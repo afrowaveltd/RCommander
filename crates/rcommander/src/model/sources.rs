@@ -294,6 +294,22 @@ impl SourceRegistry {
         self.sources.push(source);
     }
 
+    /// Unregister one source, so its scheme stops answering.
+    ///
+    /// Switching a plugin off does this and nothing else: the manifest stays on disk, the
+    /// capabilities stop existing, and an attempt to open its scheme says so.
+    pub fn remove(&mut self, id: &str) -> bool {
+        let before = self.sources.len();
+        self.sources
+            .retain(|source| !source.id().eq_ignore_ascii_case(id));
+        self.sources.len() != before
+    }
+
+    /// Unregister everything. Plugins are re-registered from disk after this.
+    pub fn clear(&mut self) {
+        self.sources.clear();
+    }
+
     /// The ids of the registered sources, which is also the list of accepted schemes.
     pub fn ids(&self) -> Vec<&str> {
         self.sources.iter().map(|source| source.id()).collect()

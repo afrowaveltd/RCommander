@@ -344,6 +344,41 @@ impl ManifestSource {
     }
 }
 
+/// One installed plugin, as the manager page needs it.
+///
+/// The manager has to show what a plugin *may do* before the user switches it on, not after: the
+/// capabilities are therefore part of the summary, and the page can say "read-only" or "can delete"
+/// next to the checkbox instead of leaving it to a manual.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PluginSummary {
+    pub id: String,
+    /// The plugin's own name.
+    pub name: String,
+    /// The label its panel carries, which may differ.
+    pub source_name: String,
+    pub version: String,
+    pub description: String,
+    /// `command` or `mcp`.
+    pub backend: &'static str,
+    /// What the place allows, so the page can warn before it is switched on.
+    pub capabilities: SourceCapabilities,
+    /// Where the manifest lives, for a "open the folder" button and for diagnostics.
+    pub directory: PathBuf,
+    /// Whether it is registered right now.
+    pub enabled: bool,
+}
+
+impl PluginSummary {
+    /// Whether the plugin's place is read-only, which the page says in words.
+    pub fn is_read_only(&self) -> bool {
+        !self.capabilities.copy
+            && !self.capabilities.move_entry
+            && !self.capabilities.create
+            && !self.capabilities.delete
+            && !self.capabilities.rename
+    }
+}
+
 impl Model {
     /// The directory manifests are read from: `<config>/plugins/<id>/plugin.toml`.
     pub fn plugin_dir(&self) -> PathBuf {
@@ -368,9 +403,12 @@ impl Model {
             roots.push(user);
         }
         let mut problems = Vec::new();
-        let mut loaded: std::collections::BTreeMap<String, String> =
+        let mut loaded: std::collections::BTreeMap<String, PluginSummary> =
             std::collections::BTreeMap::new();
         let settings = self.settings.clone();
+        // Rebuilt from disk every time, so switching a plugin off is a removal and switching it back
+        // on is a re-registration — no second source of truth to drift.
+        self.sources.clear();
         for root in roots {
             let discovery = rc_core::plugin::discover_in(&root);
             for manifest in discovery.plugins {
@@ -378,8 +416,21 @@ impl Model {
                 let manifest_path = manifest.directory.join("plugin.toml");
                 match ManifestSource::from_manifest(manifest, &settings) {
                     Ok(source) => {
-                        loaded.insert(source.id().to_string(), source.title().to_string());
-                        self.sources.register(Box::new(source));
+                        let summary = PluginSummary {
+                            id: source.id().to_string(),
+                            name: source.manifest().plugin.name.clone(),
+                            source_name: source.title().to_string(),
+                            version: source.manifest().plugin.version.clone(),
+                            description: source.manifest().plugin.description.clone(),
+                            backend: source.manifest().source.backend.name(),
+                            capabilities: source.capabilities(),
+                            directory: source.manifest().directory.clone(),
+                            enabled: settings.plugins.is_enabled(source.id()),
+                        };
+                        if summary.enabled {
+                            self.sources.register(Box::new(source));
+                        }
+                        loaded.insert(summary.id.clone(), summary);
                     }
                     Err(reason) => problems.push(rc_core::plugin::PluginProblem {
                         path: manifest_path,
@@ -389,24 +440,64 @@ impl Model {
             }
             problems.extend(discovery.problems);
         }
-        self.plugins_loaded = loaded.into_iter().collect();
+        self.plugins_loaded = loaded.into_values().collect();
         for problem in &problems {
             self.report_error(problem.to_string());
         }
         self.plugin_problems = problems;
-        match (self.plugins_loaded.len(), self.plugin_problems.len()) {
-            (0, 0) => "No plugins found".to_string(),
-            (found, 0) => format!("{found} plugin(s)"),
-            (0, broken) => format!("{broken} plugin(s) could not be loaded"),
-            (found, broken) => {
-                format!("{found} plugin(s), {broken} could not be loaded")
-            }
-        }
+        self.plugin_summary()
     }
 
-    /// The plugins that were loaded by the last scan, as `(id, title)`.
-    pub fn plugin_sources(&self) -> &[(String, String)] {
+    /// One line describing what the last scan found, for the status bar.
+    ///
+    /// Switched-off plugins are counted apart from the active ones, because "nothing is running"
+    /// and "twelve are installed but off" are very different situations to be in.
+    pub fn plugin_summary(&self) -> String {
+        let enabled = self
+            .plugins_loaded
+            .iter()
+            .filter(|plugin| plugin.enabled)
+            .count();
+        let off = self.plugins_loaded.len() - enabled;
+        let broken = self.plugin_problems.len();
+        let mut parts: Vec<String> = Vec::new();
+        if enabled > 0 {
+            parts.push(format!("{enabled} plugin(s)"));
+        }
+        if off > 0 {
+            parts.push(format!("{off} switched off"));
+        }
+        if broken > 0 {
+            parts.push(format!("{broken} could not be loaded"));
+        }
+        if parts.is_empty() {
+            return "No plugins found".to_string();
+        }
+        parts.join(", ")
+    }
+
+    /// Every installed plugin, switched on or off, for the manager page.
+    pub fn plugin_entries(&self) -> &[PluginSummary] {
         &self.plugins_loaded
+    }
+
+    /// The plugins that are registered right now, as `(id, panel label)`.
+    pub fn plugin_sources(&self) -> Vec<(String, String)> {
+        self.plugins_loaded
+            .iter()
+            .filter(|plugin| plugin.enabled)
+            .map(|plugin| (plugin.id.clone(), plugin.source_name.clone()))
+            .collect()
+    }
+
+    /// Switch one plugin on or off, and rebuild the registry so it takes effect at once.
+    ///
+    /// The switch is remembered in the settings file, which the view layer persists; the plugin's
+    /// files are never touched. Returns the summary line for the status bar.
+    pub fn set_plugin_enabled(&mut self, id: &str, enabled: bool) -> String {
+        self.settings.plugins.set_enabled(id, enabled);
+        self.mark_settings_dirty();
+        self.load_plugins()
     }
 }
 
@@ -835,6 +926,74 @@ label = "Title"
     }
 
     #[test]
+    fn switching_a_plugin_off_unregisters_it_and_remembers_that() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("plugins").join("notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        std::fs::write(notes.join("plugin.toml"), MANIFEST).unwrap();
+        let mut model = model_with_config(dir.path());
+        model.load_plugins();
+        assert_eq!(model.plugin_sources().len(), 1);
+        let location = Location::plugin("notes", "");
+        assert!(model.sources.source_of(&location).is_some());
+
+        // Off: the source is gone, the plugin is still known, and the settings remember why.
+        let summary = model.set_plugin_enabled("notes", false);
+        assert_eq!(summary, "1 switched off", "nothing is registered now");
+        assert!(model.sources.source_of(&location).is_none());
+        assert_eq!(
+            model.plugin_entries().len(),
+            1,
+            "still listed for the manager"
+        );
+        assert!(!model.plugin_entries()[0].enabled);
+        assert_eq!(model.settings.plugins.disabled, vec!["notes".to_string()]);
+        assert!(
+            model.settings_dirty,
+            "the view layer has to persist the switch"
+        );
+        // The scheme no longer answers, and says so instead of showing an empty panel.
+        let error = model
+            .open_in(crate::model::Side::Left, location.clone())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("notes"), "{error}");
+
+        // On again: registered, and the settings no longer claim otherwise.
+        let summary = model.set_plugin_enabled("notes", true);
+        assert_eq!(summary, "1 plugin(s)");
+        assert!(model.sources.source_of(&location).is_some());
+        assert!(model.settings.plugins.disabled.is_empty());
+        assert!(model.plugin_entries()[0].enabled);
+    }
+
+    #[test]
+    fn the_manager_summary_says_what_a_plugin_may_do_before_it_is_switched_on() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("plugins").join("notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        // The example manifest declares `allow = ["view"]`.
+        std::fs::write(notes.join("plugin.toml"), MANIFEST).unwrap();
+        let mut model = model_with_config(dir.path());
+        model.load_plugins();
+        let entry = &model.plugin_entries()[0];
+        assert_eq!(entry.id, "notes");
+        assert_eq!(entry.name, "Notes");
+        assert_eq!(entry.backend, "command");
+        assert!(
+            entry.is_read_only(),
+            "the page can say so before switching on"
+        );
+        assert!(!entry.capabilities.delete);
+        // A writable declaration flips that answer.
+        let writable = MANIFEST.replace("allow = [\"view\"]", "allow = [\"view\", \"delete\"]");
+        std::fs::write(notes.join("plugin.toml"), writable).unwrap();
+        model.load_plugins();
+        assert!(!model.plugin_entries()[0].is_read_only());
+        assert!(model.plugin_entries()[0].capabilities.delete);
+    }
+
+    #[test]
     fn a_plugin_whose_command_does_not_exist_leaves_an_error_in_the_panel() {
         let dir = tempfile::tempdir().unwrap();
         let notes = dir.path().join("plugins").join("notes");
@@ -1109,7 +1268,7 @@ allow = ["view"]
         std::fs::write(dir.join("plugin.toml"), MCP_MANIFEST).unwrap();
         let mut model = model_with_config(config.path());
         // No MCP server is configured, so this manifest cannot become a source.
-        assert_eq!(model.load_plugins(), "1 plugin(s) could not be loaded");
+        assert_eq!(model.load_plugins(), "1 could not be loaded");
         assert!(model.plugin_sources().is_empty());
         assert_eq!(model.plugin_problems.len(), 1);
         let message = model.plugin_problems[0].to_string();

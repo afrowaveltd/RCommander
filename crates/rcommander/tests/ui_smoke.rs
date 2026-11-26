@@ -3300,3 +3300,68 @@ fn a_plugin_source_panel_draws_its_own_columns_and_hides_file_operations() {
         "a refused operation opens nothing"
     );
 }
+
+#[test]
+fn the_plugins_page_lists_what_is_installed_and_switches_it_off() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    // A plugin installed in the configuration directory the app was pointed at.
+    let config = tempfile::tempdir().unwrap();
+    let notes = config.path().join("plugins").join("notes");
+    std::fs::create_dir_all(&notes).unwrap();
+    write(
+        &notes.join("plugin.toml"),
+        r#"
+[plugin]
+id = "notes"
+name = "Notes"
+version = "1.0"
+description = "Every note as a row"
+
+[source]
+name = "Notes"
+list = ["notes-index"]
+[[source.columns]]
+id = "title"
+label = "Note"
+[source.capabilities]
+allow = ["view"]
+"#,
+    );
+    app.model.config_dir_override = Some(config.path().to_path_buf());
+    app.model.load_plugins();
+    assert_eq!(app.model.plugin_entries().len(), 1);
+    let mut harness = harness(app);
+    harness
+        .state_mut()
+        .model
+        .open_options_on(rcommander::model::dialogs::OptionsTab::Plugins);
+    harness.run();
+    // The page names the plugin and says what it may do.
+    assert!(
+        harness.root().query_all_by_label_contains("Notes").count() > 0,
+        "the plugin is listed"
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("plugins.capabilities.readonly")
+            .count()
+            > 0,
+        "the page says the place is read-only"
+    );
+    // Switching it off takes effect immediately: the source is gone from the registry.
+    let location = Location::plugin("notes", "");
+    assert!(harness.state().model.sources.source_of(&location).is_some());
+    harness.state_mut().model.set_plugin_enabled("notes", false);
+    assert!(harness.state().model.sources.source_of(&location).is_none());
+    harness.run();
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("plugins.capabilities.readonly")
+            .count()
+            > 0,
+        "the disabled plugin is still listed, so it can be switched back on"
+    );
+}
