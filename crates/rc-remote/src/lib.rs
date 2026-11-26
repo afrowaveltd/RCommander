@@ -97,7 +97,7 @@ mod time;
 mod tree;
 
 pub use entry::RemoteEntry;
-pub use error::RemoteError;
+pub use error::{ConnectStage, RemoteError, StageReporter};
 pub use parse::{parse_list_line, parse_mlsd_line};
 pub use remote_fs::{RemoteFs, TransferStats};
 pub use spec::{AuthMethod, ConnectionSpec, Protocol};
@@ -130,14 +130,30 @@ pub fn connect(spec: &ConnectionSpec) -> Result<Box<dyn RemoteFs>, RemoteError> 
 /// background transfer worker. This exists as a separate entry point because
 /// the required [`RemoteFs`] trait deliberately carries no `Send` bound.
 pub fn connect_send(spec: &ConnectionSpec) -> Result<Box<dyn RemoteFs + Send>, RemoteError> {
+    connect_send_reporting(spec, &mut |_stage| {})
+}
+
+/// Connect and report every step, so a window can say what it is waiting for.
+///
+/// The stages are best effort: a protocol that cannot be divided into steps simply reports the
+/// ones it knows, and the caller shows whatever arrives.
+pub fn connect_send_reporting(
+    spec: &ConnectionSpec,
+    on_stage: StageReporter<'_>,
+) -> Result<Box<dyn RemoteFs + Send>, RemoteError> {
     spec.validate()?;
     match spec.protocol {
         Protocol::Ftp => {
+            on_stage(ConnectStage::Connecting);
             let client = ftp::FtpClient::connect(spec)?;
+            on_stage(ConnectStage::Opening);
             Ok(Box::new(client))
         }
-        Protocol::Ftps => connect_ftps_send(spec),
-        Protocol::Sftp => connect_sftp_send(spec),
+        Protocol::Ftps => {
+            on_stage(ConnectStage::Connecting);
+            connect_ftps_send(spec)
+        }
+        Protocol::Sftp => connect_sftp_send_reporting(spec, on_stage),
     }
 }
 
@@ -171,6 +187,13 @@ fn connect_sftp(spec: &ConnectionSpec) -> Result<Box<dyn RemoteFs>, RemoteError>
     Ok(Box::new(sftp::SftpClient::connect(spec)?))
 }
 
+/// The `+ Send` twin of [`connect_sftp`]; both are used by different callers.
+#[cfg(feature = "sftp")]
+#[allow(dead_code)]
+fn connect_sftp_send_plain(spec: &ConnectionSpec) -> Result<Box<dyn RemoteFs + Send>, RemoteError> {
+    connect_sftp_send(spec)
+}
+
 #[cfg(not(feature = "sftp"))]
 fn connect_sftp(_spec: &ConnectionSpec) -> Result<Box<dyn RemoteFs>, RemoteError> {
     Err(RemoteError::Unsupported(
@@ -183,11 +206,29 @@ fn connect_sftp_send(spec: &ConnectionSpec) -> Result<Box<dyn RemoteFs + Send>, 
     Ok(Box::new(sftp::SftpClient::connect(spec)?))
 }
 
+#[cfg(feature = "sftp")]
+fn connect_sftp_send_reporting(
+    spec: &ConnectionSpec,
+    on_stage: StageReporter<'_>,
+) -> Result<Box<dyn RemoteFs + Send>, RemoteError> {
+    Ok(Box::new(sftp::SftpClient::connect_reporting(
+        spec, on_stage,
+    )?))
+}
+
 #[cfg(not(feature = "sftp"))]
 fn connect_sftp_send(_spec: &ConnectionSpec) -> Result<Box<dyn RemoteFs + Send>, RemoteError> {
     Err(RemoteError::Unsupported(
         "sftp feature disabled".to_string(),
     ))
+}
+
+#[cfg(not(feature = "sftp"))]
+fn connect_sftp_send_reporting(
+    spec: &ConnectionSpec,
+    _on_stage: StageReporter<'_>,
+) -> Result<Box<dyn RemoteFs + Send>, RemoteError> {
+    connect_sftp_send(spec)
 }
 
 /// Short human readable protocol label for a status bar or a panel title,

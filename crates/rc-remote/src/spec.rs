@@ -181,7 +181,10 @@ impl ConnectionSpec {
             timeout: DEFAULT_TIMEOUT,
             auth: match saved.auth_method.trim().to_ascii_lowercase().as_str() {
                 "key" => AuthMethod::KeyFile {
-                    path: PathBuf::from(saved.key_path.trim()),
+                    // `~/...` is what the dialog suggests, and what people type; the operating
+                    // system does not expand it for us, and a private key that "does not exist"
+                    // is a confusing way to find that out.
+                    path: crate::spec::expand_key_path(&saved.key_path),
                     passphrase: if saved.key_passphrase.is_empty() {
                         None
                     } else {
@@ -449,5 +452,46 @@ mod tests {
         assert_eq!(Protocol::Ftp.default_port(), 21);
         assert_eq!(Protocol::Ftps.default_port(), 21);
         assert_eq!(Protocol::Sftp.default_port(), 22);
+    }
+}
+
+/// Expand a key path as a user would type it.
+///
+/// Kept here rather than in the app so a headless caller (the MCP tools, a future CLI) gets the
+/// same behaviour as the dialog.
+pub fn expand_key_path(path: &str) -> PathBuf {
+    rc_core::drive::expand_home(path)
+}
+
+#[cfg(test)]
+mod key_path_tests {
+    use super::*;
+
+    #[test]
+    fn a_tilde_in_a_key_path_is_expanded_from_the_settings() {
+        let Some(home) = rc_core::drive::home_dir() else {
+            return;
+        };
+        let saved = SavedConnection {
+            protocol: "sftp".to_string(),
+            host: "example.org".to_string(),
+            user: "someone".to_string(),
+            auth_method: "key".to_string(),
+            key_path: "~/.ssh/id_ed25519".to_string(),
+            host_key_policy: "ignore".to_string(),
+            ..Default::default()
+        };
+        let spec = ConnectionSpec::from_saved(&saved);
+        match spec.auth {
+            AuthMethod::KeyFile { path, .. } => {
+                assert_eq!(path, home.join(".ssh/id_ed25519"))
+            }
+            other => panic!("expected a key file, got {other:?}"),
+        }
+        // And the host key policy the user chose is the one that travels.
+        assert_eq!(
+            spec.host_key_policy,
+            rc_core::knownhosts::HostKeyPolicy::Ignore
+        );
     }
 }

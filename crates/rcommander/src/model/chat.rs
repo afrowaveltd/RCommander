@@ -270,21 +270,29 @@ impl Model {
             if worker_control.is_cancelled() {
                 return;
             }
-            let probe_provider = provider.clone();
-            let probe_control = worker_control.clone();
-            let probe_sender = sender.clone();
-            std::thread::spawn(move || {
-                while !probe_control.is_cancelled() {
-                    std::thread::sleep(Duration::from_secs(5));
-                    if probe_control.is_cancelled() {
-                        break;
+            // Only a provider that can actually answer the question is polled: a provider that
+            // returns `None` would otherwise have a thread asking it every five seconds for an
+            // answer it has already said it does not have.
+            if initial.is_some() {
+                let probe_provider = provider.clone();
+                let probe_control = worker_control.clone();
+                let probe_sender = sender.clone();
+                std::thread::spawn(move || {
+                    // A budget, so a server that stops answering cannot leave a thread polling
+                    // forever: five minutes of five-second probes covers any load worth waiting
+                    // for, and the request itself is cancelled long before that matters.
+                    for _ in 0..60 {
+                        std::thread::sleep(Duration::from_secs(5));
+                        if probe_control.is_cancelled() {
+                            break;
+                        }
+                        let loaded = probe_provider.model_loaded(&model).ok().flatten();
+                        if probe_sender.send(ChatEvent::Probe(loaded)).is_err() {
+                            break;
+                        }
                     }
-                    let loaded = probe_provider.model_loaded(&model).ok().flatten();
-                    if probe_sender.send(ChatEvent::Probe(loaded)).is_err() {
-                        break;
-                    }
-                }
-            });
+                });
+            }
             let result = provider.chat_stream_controlled(&request, &worker_control, &mut |event| {
                 let event = match event {
                     StreamEvent::Activity => ChatEvent::Activity,
@@ -325,6 +333,7 @@ impl Model {
         };
         let mut changed = false;
         let mut finished = false;
+        let mut done = false;
         let mut failure: Option<String> = None;
         loop {
             match job.receiver.try_recv() {
@@ -372,6 +381,7 @@ impl Model {
                         changed = true;
                     }
                     finished = true;
+                    done = true;
                 }
                 Ok(ChatEvent::Failed(message)) => {
                     if let Some(line) = self.chat_session.lines.last_mut()
@@ -395,7 +405,12 @@ impl Model {
         }
         if finished {
             if let Some(message) = failure {
+                // A failed answer is an error the user was waiting for, so it is an alert.
                 self.report_error(message);
+            } else if done {
+                let model = self.chat_session.model.clone();
+                let text = self.tf("ai.chat.finished", &[("model", &model)]);
+                self.report_done(text, Some(crate::model::desktop_sound::Sound::Done));
             }
         } else {
             self.chat_session.job = Some(job);

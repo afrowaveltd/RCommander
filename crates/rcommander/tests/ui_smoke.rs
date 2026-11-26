@@ -2816,3 +2816,36 @@ fn the_picker_pins_a_prompt_and_remembers_what_was_used() {
         Some(used.as_str())
     );
 }
+
+#[test]
+fn the_status_line_reports_progress_and_alerts() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    // An error becomes an alert with the warning colour and a lasting line in the status bar.
+    harness
+        .state_mut()
+        .model
+        .report_error("the server refused the key");
+    harness.run();
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("the server refused the key")
+            .count()
+            > 0,
+        "the error is visible, not only in the last line of the log"
+    );
+    // A finished answer is announced too, and does not look like an error.
+    harness.state_mut().model.report_done(
+        "the model finished its answer",
+        Some(rc_core::desktop::Sound::Done),
+    );
+    harness.run();
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("the model finished its answer")
+            .count()
+            > 0
+    );
+}

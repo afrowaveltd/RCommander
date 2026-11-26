@@ -91,7 +91,7 @@ jméno a nabízí tři způsoby ověření:
 | Ověření | Co potřebuje |
 | --- | --- |
 | heslo | pole hesla, nebo hodnotu už uloženou v úložišti pověření |
-| soubor s klíčem | cestu k privátnímu klíči; je-li klíč chráněný, aplikace se zeptá na passphrase |
+| soubor s klíčem | cestu k privátnímu klíči; je-li klíč chráněný, aplikace se zeptá na passphrase. `~` se rozbaluje, takže `~/.ssh/id_ed25519` funguje |
 | ssh-agent | jen běžícího agenta s alespoň jednou identitou |
 
 ### Klíče hostitele
@@ -104,6 +104,26 @@ konfigurace:
 * **ignore** — žádné ověřování; jen pro zařízení, které si klíč generuje při každém
   startu.
 
-**Změněný** klíč je odmítnut ve všech režimech a zpráva uvede oba klíče: změněný
+**Změněný** klíč je odmítnut ve všech režimech kromě `ignore` a zpráva uvede oba klíče: změněný
 klíč hostitele je přesně to, jak vypadá man-in-the-middle. Pokud víte, proč se klíč
 serveru změnil, smažte jeho řádek z `known_hosts` a připojte se znovu.
+
+### Když se připojení nepovede
+
+Stavový řádek pokus vypráví: *hledám adresu hostitele*, *otevírám spojení*,
+*vyměňuji klíče*, *ověřuji identitu serveru*, *přihlašuji*, *čtu adresář*. Krok, na
+kterém se to zastaví, je odpověď na otázku „proč to selhalo":
+
+| Zastavilo se na | Na co se podívat |
+| --- | --- |
+| hledání adresy | jméno hostitele a jestli vůbec funguje DNS |
+| otevírání spojení | port, firewall, nebo server neběží |
+| výměna klíčů | server mluví něčím, co toto sestavení neumí: zkuste jiný port nebo ověřte, že jde opravdu o SSH a ne FTP |
+| identita serveru | klíč hostitele: `known_hosts`, nebo politika v dialogu |
+| přihlašování | uživatel, heslo, soubor s klíčem nebo agent |
+| čtení adresáře | účet se přihlásí, ale ten adresář mu nelze vypsat |
+
+Dvě chyby jsou pojmenované přesně, protože dřív vypadaly stejně: *privátní klíč `…`
+neexistuje* (s cestou, která se skutečně zkusila, po rozbalení `~`) a *server klíč `…`
+odmítl*. Volba *ignorovat* u klíče hostitele neopraví ani jednu — týká se identity
+serveru, ne té vaší.

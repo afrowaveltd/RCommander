@@ -50,8 +50,16 @@ pub struct RcRemoteBackend {
 impl RcRemoteBackend {
     /// Connect with `spec` and return a backend for the panel.
     pub fn connect(spec: &rc_remote::ConnectionSpec) -> Result<Self, String> {
+        Self::connect_reporting(spec, &mut |_stage| {})
+    }
+
+    /// Connect, reporting each step of the attempt.
+    pub fn connect_reporting(
+        spec: &rc_remote::ConnectionSpec,
+        on_stage: rc_remote::StageReporter<'_>,
+    ) -> Result<Self, String> {
         let description = rc_remote::describe(spec);
-        let inner = rc_remote::connect_send(spec).map_err(|e| e.to_string())?;
+        let inner = rc_remote::connect_send_reporting(spec, on_stage).map_err(|e| e.to_string())?;
         Ok(RcRemoteBackend { inner, description })
     }
 }

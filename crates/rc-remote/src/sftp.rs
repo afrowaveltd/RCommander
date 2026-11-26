@@ -48,7 +48,7 @@ use rc_core::ops::CancelToken;
 use ssh2::{ErrorCode, FileStat, Session};
 
 use crate::entry::RemoteEntry;
-use crate::error::RemoteError;
+use crate::error::{ConnectStage, RemoteError, StageReporter};
 use crate::remote_fs::RemoteFs;
 use crate::spec::{ConnectionSpec, DEFAULT_TIMEOUT, Protocol};
 
@@ -161,6 +161,14 @@ fn base_name(path: &str) -> String {
 impl SftpClient {
     /// Connect, authenticate and resolve the home directory.
     pub(crate) fn connect(spec: &ConnectionSpec) -> Result<Self, RemoteError> {
+        Self::connect_reporting(spec, &mut |_stage| {})
+    }
+
+    /// Connect and report each step, so the window can say what is happening.
+    pub(crate) fn connect_reporting(
+        spec: &ConnectionSpec,
+        on_stage: StageReporter<'_>,
+    ) -> Result<Self, RemoteError> {
         let timeout = if spec.timeout.is_zero() {
             DEFAULT_TIMEOUT
         } else {
@@ -178,8 +186,10 @@ impl SftpClient {
             reason,
         };
 
+        on_stage(ConnectStage::Resolving);
         let addresses = resolve(bare, port)
             .map_err(|e| connect_error(format!("cannot resolve the host: {e}")))?;
+        on_stage(ConnectStage::Connecting);
         let mut socket = None;
         let mut last_error = None;
         for address in addresses {
@@ -209,13 +219,18 @@ impl SftpClient {
         session.set_tcp_stream(socket);
         let millis = timeout.as_millis().clamp(1, u32::MAX as u128) as u32;
         session.set_timeout(millis);
+        on_stage(ConnectStage::Handshake);
         session
             .handshake()
             .map_err(|e| connect_error(format!("ssh handshake failed: {e}")))?;
 
         // Host-key verification: refuse a changed key even in permissive mode.
+        if spec.host_key_policy != rc_core::knownhosts::HostKeyPolicy::Ignore {
+            on_stage(ConnectStage::HostKey);
+        }
         verify_host_key(&session, spec, host, port)?;
 
+        on_stage(ConnectStage::Authenticating);
         let user = spec.user.trim();
         match &spec.auth {
             crate::spec::AuthMethod::Password => {
@@ -230,9 +245,19 @@ impl SftpClient {
             }
             crate::spec::AuthMethod::KeyFile { path, passphrase } => {
                 if path.as_os_str().is_empty() {
-                    return Err(RemoteError::Authentication(
-                        "no private key file was configured".to_string(),
-                    ));
+                    return Err(RemoteError::Authentication(format!(
+                        "{user}@{host}: the authentication method is “key file” but no file is \
+                         set; type the path to your private key or switch to a password"
+                    )));
+                }
+                // Checked before libssh2 sees it: "the key does not open" and "the key is not
+                // there" are different problems with different fixes, and the second one is the
+                // one a typed path usually has.
+                if !path.is_file() {
+                    return Err(RemoteError::Authentication(format!(
+                        "{user}@{host}: the private key {} does not exist",
+                        path.display()
+                    )));
                 }
                 let public = key_public_path(path);
                 session
@@ -280,6 +305,7 @@ impl SftpClient {
             }
         }
 
+        on_stage(ConnectStage::Opening);
         let mut client = SftpClient {
             session,
             cwd: "/".to_string(),

@@ -1654,6 +1654,7 @@ fn date_text(unix_seconds: i64) -> String {
 }
 
 fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> DialogAction {
+    let palette = crate::theme::Palette::for_model(model);
     ui.horizontal_wrapped(|ui| {
         for tab in OptionsTab::all() {
             if ui
@@ -1674,6 +1675,34 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
             ui.add(
                 egui::Slider::new(&mut state.draft.display.font_size, 8.0..=28.0).text("font size"),
             );
+            ui.separator();
+            ui.label(
+                egui::RichText::new(model.t("sounds.title"))
+                    .strong()
+                    .color(palette.accent),
+            );
+            ui.label(
+                egui::RichText::new(model.t("sounds.help"))
+                    .small()
+                    .color(palette.hidden),
+            );
+            ui.checkbox(&mut state.draft.sounds.enabled, model.t("sounds.enabled"));
+            ui.add_enabled_ui(state.draft.sounds.enabled, |ui| {
+                ui.checkbox(&mut state.draft.sounds.on_error, model.t("sounds.error"));
+                ui.checkbox(
+                    &mut state.draft.sounds.on_disconnect,
+                    model.t("sounds.disconnect"),
+                );
+                ui.checkbox(
+                    &mut state.draft.sounds.on_agent_done,
+                    model.t("sounds.agent_done"),
+                );
+            });
+            if state.draft.sounds.enabled && ui.button(model.t("sounds.test")).clicked() {
+                // The test button is the only honest way to answer "will I hear it?": it plays
+                // exactly what an error would play.
+                crate::system_open::play_sound(rc_core::desktop::Sound::Problem);
+            }
             ui.add(
                 egui::Slider::new(&mut state.draft.display.row_height, 14.0..=40.0)
                     .text("row height"),

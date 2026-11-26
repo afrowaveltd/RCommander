@@ -123,3 +123,52 @@ mod tests {
         assert!(error.to_string().contains("3"));
     }
 }
+
+/// The step a connection attempt has reached.
+///
+/// Reported while connecting so the status line can say *what* is happening: a window that shows
+/// "authenticating" for ten seconds is honest, one that shows nothing is not. It is also how a
+/// failure explains itself — "the host key is not trusted" and "the socket was refused" are very
+/// different problems and the step is what makes the difference visible.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConnectStage {
+    /// Looking the host name up.
+    Resolving,
+    /// Opening the socket.
+    Connecting,
+    /// Exchanging keys with the server (SSH) or waiting for the greeting (FTP).
+    Handshake,
+    /// Checking the server's identity.
+    HostKey,
+    /// Presenting the password, the key or the agent's identities.
+    Authenticating,
+    /// Opening the file-transfer channel and reading the first directory.
+    Opening,
+}
+
+impl ConnectStage {
+    /// Localisation key of the stage.
+    pub fn key(self) -> &'static str {
+        match self {
+            ConnectStage::Resolving => "connect.stage.resolving",
+            ConnectStage::Connecting => "connect.stage.connecting",
+            ConnectStage::Handshake => "connect.stage.handshake",
+            ConnectStage::HostKey => "connect.stage.hostkey",
+            ConnectStage::Authenticating => "connect.stage.authenticating",
+            ConnectStage::Opening => "connect.stage.opening",
+        }
+    }
+
+    /// Every stage, in order, for the tests and the documentation.
+    pub const ALL: [ConnectStage; 6] = [
+        ConnectStage::Resolving,
+        ConnectStage::Connecting,
+        ConnectStage::Handshake,
+        ConnectStage::HostKey,
+        ConnectStage::Authenticating,
+        ConnectStage::Opening,
+    ];
+}
+
+/// A cheap way to report stages without forcing every caller to care.
+pub type StageReporter<'a> = &'a mut dyn FnMut(ConnectStage);

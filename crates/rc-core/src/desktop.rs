@@ -317,6 +317,106 @@ fn dir_text_and_quotes(dir: &Path) -> String {
     format!("\"{}\"", text(dir))
 }
 
+/// A short sound worth making.
+///
+/// The kinds are chosen so the same three sounds can be reused as the program grows: a *done*
+/// chime for an agent answer or a finished transfer, a *problem* for a failed operation, and a
+/// *disconnect* for a connection that dropped. Nothing here is downloaded — every platform already
+/// has these sounds, and using them keeps the program small and the result familiar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Sound {
+    /// Something finished successfully.
+    Done,
+    /// Something went wrong.
+    Problem,
+    /// A connection or session ended unexpectedly.
+    Disconnected,
+}
+
+impl Sound {
+    /// Name used in the settings file.
+    pub fn name(self) -> &'static str {
+        match self {
+            Sound::Done => "done",
+            Sound::Problem => "problem",
+            Sound::Disconnected => "disconnected",
+        }
+    }
+
+    /// True when this sound reports a problem, which is what the alert colour follows.
+    pub fn is_negative(self) -> bool {
+        matches!(self, Sound::Problem | Sound::Disconnected)
+    }
+}
+
+/// The command lines that would play `sound`, best first.
+///
+/// Candidates rather than one guess, for the same reason the terminal is: a Linux desktop may have
+/// `canberra-gtk-play`, only `paplay` with files, or neither, and a sound that does not play must
+/// never be mistaken for a failure of the operation that caused it.
+pub fn sound_plan(sound: Sound, platform: Platform) -> Vec<Plan> {
+    match platform {
+        Platform::Linux => {
+            // freedesktop event names, then the same events as files, then a plain beep.
+            let event = match sound {
+                Sound::Done => "complete",
+                Sound::Problem => "dialog-error",
+                Sound::Disconnected => "network-disconnect",
+            };
+            let file = match sound {
+                Sound::Done => "complete",
+                Sound::Problem => "dialog-error",
+                Sound::Disconnected => "dialog-error",
+            };
+            vec![
+                Plan::new(
+                    "canberra-gtk-play",
+                    vec!["-i".to_string(), event.to_string()],
+                ),
+                Plan::new(
+                    "paplay",
+                    vec![format!("/usr/share/sounds/freedesktop/stereo/{file}.oga")],
+                ),
+                Plan::new(
+                    "aplay",
+                    vec![
+                        "-q".to_string(),
+                        format!("/usr/share/sounds/alsa/Front_Center.wav"),
+                    ],
+                ),
+            ]
+        }
+        Platform::MacOs => {
+            let name = match sound {
+                Sound::Done => "Glass",
+                Sound::Problem => "Basso",
+                Sound::Disconnected => "Funk",
+            };
+            vec![Plan::new(
+                "afplay",
+                vec![format!("/System/Library/Sounds/{name}.aiff")],
+            )]
+        }
+        Platform::Windows => {
+            // A generated tone through PowerShell: no file, no download, and it works on a machine
+            // whose sound scheme has been customised into silence.
+            let (frequency, millis) = match sound {
+                Sound::Done => (880, 120),
+                Sound::Problem => (420, 260),
+                Sound::Disconnected => (320, 320),
+            };
+            vec![Plan::new(
+                "powershell",
+                vec![
+                    "-NoProfile".to_string(),
+                    "-Command".to_string(),
+                    format!("[console]::beep({frequency},{millis})"),
+                ],
+            )]
+        }
+    }
+}
+
 /// One application the desktop knows about, from its `.desktop` file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DesktopApp {
@@ -648,5 +748,51 @@ mod tests {
         assert!(plan.describe().starts_with("xdg-open "));
         assert!(Plan::new("open", Vec::new()).describe() == "open");
         assert!(plan.describe().len() < 120, "{}", plan.describe());
+    }
+}
+
+#[cfg(test)]
+mod sound_tests {
+    use super::*;
+
+    #[test]
+    fn every_sound_has_a_plan_on_every_platform() {
+        for platform in [Platform::Linux, Platform::MacOs, Platform::Windows] {
+            for sound in [Sound::Done, Sound::Problem, Sound::Disconnected] {
+                let plans = sound_plan(sound, platform);
+                assert!(!plans.is_empty(), "{sound:?} on {platform:?} has no plan");
+                assert!(
+                    plans.iter().all(|plan| !plan.program.is_empty()),
+                    "{sound:?} on {platform:?} would run nothing"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_platform_sounds_are_the_ones_each_system_actually_has() {
+        // Linux prefers the freedesktop event name, and never passes a shell string.
+        let done = sound_plan(Sound::Done, Platform::Linux);
+        assert_eq!(done[0].program, "canberra-gtk-play");
+        assert!(done[0].args.join(" ").contains("complete"));
+        // macOS uses the system sound files.
+        let problem = sound_plan(Sound::Problem, Platform::MacOs);
+        assert!(problem[0].args[0].ends_with("Basso.aiff"), "{problem:?}");
+        // Windows generates a tone instead of relying on a sound scheme.
+        let windows = sound_plan(Sound::Problem, Platform::Windows);
+        assert!(windows[0].args.join(" ").contains("beep"), "{windows:?}");
+        // A problem and a success must not sound the same on a platform that has both.
+        assert_ne!(
+            sound_plan(Sound::Done, Platform::MacOs)[0].args,
+            sound_plan(Sound::Problem, Platform::MacOs)[0].args
+        );
+    }
+
+    #[test]
+    fn a_sound_is_named_for_the_settings_file_and_knows_its_tone() {
+        assert_eq!(Sound::Done.name(), "done");
+        assert!(!Sound::Done.is_negative());
+        assert!(Sound::Problem.is_negative());
+        assert!(Sound::Disconnected.is_negative());
     }
 }

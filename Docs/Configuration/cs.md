@@ -39,6 +39,36 @@ Zbytek je tam, kde se pracuje: souborové operace v *Soubory*, označování v
 soubor z novější verze stále načte. Soubor vznikne při prvním spuštění a přepíše
 se po volbě *Konfigurace → Uložit nastavení*.
 
+## Stavový řádek, alerty a zvuky
+
+Stavový řádek není dekorace: **nikdy neumlká, dokud se něco děje**. Připojení říká, ve
+kterém kroku je, přenos ukazuje procenta a aktuální soubor, běžící hledání i přemýšlející
+agent to také řeknou — každé s otáčejícím se indikátorem. „Nic se nestalo" je jediná
+zpráva, kterou správce souborů nesmí poslat.
+
+Chyba je **alert**: objeví se barvou varování v horní části stavového řádku, má `!` na
+začátku a po pár sekundách se skryje. Dokončená odpověď se objeví stejně, jen s
+fajfkou a zmizí dřív.
+
+Zvuky jsou volitelné a úspěchy jsou ve výchozím stavu tiché (`[sounds]` v nastavení
+nebo *Konfigurace → Možnosti → Zobrazení*):
+
+| Nastavení | Výchozí | Co dělá |
+| --- | --- | --- |
+| `enabled` | zapnuto | hlavní vypínač |
+| `on_error` | zapnuto | zvuk, když operace selže |
+| `on_disconnect` | zapnuto | zvuk, když spadne spojení |
+| `on_agent_done` | **vypnuto** | zvuk, když agent dokončí odpověď |
+
+Správce souborů, který pípne u každého kopírování, je správce, kterého si lidé úplně
+vypnou — a pak jim unikne chyba. Proto je úspěch ve výchozím stavu tichý. Zvuky jsou
+systémové (události freedesktop na Linuxu, systémové soubory na macOS, generovaný tón na
+Windows), takže se nic nestahuje a nic nedodatečně neinstaluje. *Vyzkoušet zvuk chyby*
+zahraje přesně to, co by zahrála chyba.
+
+Protože je zvuk jen oznámení, všechno, co ohlašuje, je i napsané: počítač s vypnutými
+reproduktory o nic nepřijde.
+
 ## Zabezpečení
 
 Stránka *Zabezpečení* rozhoduje, co agent smí. Platí jen pro agenta: vaše vlastní

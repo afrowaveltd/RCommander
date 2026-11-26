@@ -41,6 +41,52 @@ pub struct Settings {
     pub save_position: bool,
     /// The prompt catalogue's own preferences (Phase 16.17c).
     pub prompts: PromptSettings,
+    /// Which sounds the application makes (Phase 14.10).
+    pub sounds: Sounds,
+}
+
+/// Short sounds for short events.
+///
+/// Sound is a *notification*, not information: everything it announces is also written to the
+/// status line, so a machine with the speakers off loses nothing. The default is on for problems
+/// and off for successes, because a file manager that chirps on every copy is a file manager
+/// people mute entirely — and then miss the error.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Sounds {
+    /// Master switch.
+    pub enabled: bool,
+    /// Play when an operation fails.
+    pub on_error: bool,
+    /// Play when the agent finishes an answer.
+    pub on_agent_done: bool,
+    /// Play when a connection drops or a transfer fails.
+    pub on_disconnect: bool,
+}
+
+impl Default for Sounds {
+    fn default() -> Self {
+        Sounds {
+            enabled: true,
+            on_error: true,
+            on_agent_done: false,
+            on_disconnect: true,
+        }
+    }
+}
+
+impl Sounds {
+    /// True when this kind of sound should be played at all.
+    pub fn allows(&self, kind: crate::desktop::Sound) -> bool {
+        if !self.enabled {
+            return false;
+        }
+        match kind {
+            crate::desktop::Sound::Done => self.on_agent_done,
+            crate::desktop::Sound::Problem => self.on_error,
+            crate::desktop::Sound::Disconnected => self.on_disconnect,
+        }
+    }
 }
 
 /// Preferences for the prompt picker.
@@ -77,6 +123,7 @@ impl Default for Settings {
             history_length: 30,
             save_position: true,
             prompts: PromptSettings::default(),
+            sounds: Sounds::default(),
         }
     }
 }

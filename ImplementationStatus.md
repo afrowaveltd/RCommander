@@ -310,6 +310,43 @@ Keyboard handling needed no new rule: typing into the input takes the focus, and
 shortcut handler already steps aside when a widget has focus. That is why F-keys do not navigate the
 hidden list while somebody is typing a question.
 
+## Phase 14.10 — the window that never stays silent, and SSH that says why (done)
+
+`cargo test -p rc-core --lib sound` → **3 tests**, `cargo test -p rc-core --lib expand` → **1**,
+`cargo test -p rcommander --lib stage_tests` → **2**, `-p rc-remote` → **113**, plus a UI test for
+the status line.
+
+Three things came out of one evening of use.
+
+**The model access fix was reviewed, not just accepted.** The incoming "keep cold model requests
+alive" work is sound: it splits "activity" from "text" so a cold model can be *loading* without
+being silent, cancels by shutting the socket (not by killing the server), and remembers the load
+time per provider and model so the next cold start can give an estimate. Three things needed
+tidying: `StreamEvent` had no documentation (it is public API now), the load-status probe thread
+started even for providers that had already said they cannot answer *and* had no time limit, and a
+deprecated `Id::new` was left in the chat window. The probe now only starts when the provider can
+answer and stops after five minutes.
+
+**SSH: the key that "did not exist".** The dialog hints at `~/.ssh/id_ed25519`, and nothing expanded
+the `~` — so the key file the user was told to type was looked up as a literal directory called `~`,
+and the failure looked like a *host key* problem, which made choosing "ignore" useless. `~` is now
+expanded (`rc_core::drive::expand_home`, one test), a missing key is named with the path that was
+actually tried, and an empty key path explains what to do instead of saying nothing.
+
+**A connection now narrates itself.** `rc_remote::ConnectStage` (resolving → connecting → handshake
+→ host key → authenticating → opening) travels through the connect job into the status line, so a
+slow attempt says *authenticating* instead of showing nothing. The stage a failure stops at is the
+answer to "why did it fail", and the help topic has a table for it.
+
+**Status line and sound.** The status bar now shows the current activity with a spinner (connection
+stage, transfer percentage, search, a thinking agent) above the message, and errors become
+**alerts** in the warning colour that stay for twelve seconds; a finished answer is a check mark for
+four. Sounds are `[sounds]` in the settings: on for errors and dropped connections, **off** for
+successes, because a file manager that chirps on every copy gets muted and then misses the error.
+They are the platform's own sounds (`canberra-gtk-play`/`paplay` on Linux, the system files on
+macOS, a generated tone on Windows) with a fallback chain and a *Test* button; a machine that cannot
+play them loses nothing, because every sound also writes to the status line.
+
 ## Phase 14.8b — the evening of small defects (done)
 
 `cargo test -p rc-core --lib desktop` → **8 tests**, `cargo test -p rc-viewer --lib reformat` →

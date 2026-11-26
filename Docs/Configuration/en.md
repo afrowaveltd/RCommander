@@ -39,6 +39,36 @@ in *Mark*, and the tools that act on a whole directory in *Commands*.
 newer version's file still loads. The file is created on first start and rewritten
 when you choose *Configuration → Save Settings*.
 
+## The status line, alerts and sounds
+
+The status line is not decoration: **it never goes silent while something is
+happening**. A connection says which step it is on, a transfer says its percentage
+and the current file, a running search and a thinking agent say so too, each with a
+spinner. "Nothing happened" is the one message a file manager must not send.
+
+An error is an **alert**: it appears in the warning colour at the top of the status
+line, has a `!` in front, and stays for a few seconds before folding away. A finished
+answer appears the same way with a check mark and disappears sooner.
+
+Sounds are optional and off for successes by default (`[sounds]` in the settings, or
+*Configuration → Options → Display*):
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `enabled` | on | the master switch |
+| `on_error` | on | a sound when an operation fails |
+| `on_disconnect` | on | a sound when a connection drops |
+| `on_agent_done` | **off** | a sound when the agent finishes an answer |
+
+A file manager that chirps on every copy is a file manager people mute entirely, and
+then they miss the error — which is why success is quiet by default. The sounds are
+the platform's own (freedesktop events on Linux, the system sound files on macOS, a
+generated tone on Windows), so nothing is downloaded and nothing has to be installed.
+*Test the error sound* plays exactly what a failure would play.
+
+Because a sound is only a notification, everything it announces is also written down:
+a machine with the speakers off loses nothing.
+
 ## Security
 
 The *Security* page decides what the agent may do. It applies to the agent only:

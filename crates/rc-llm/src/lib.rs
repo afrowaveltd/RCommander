@@ -182,9 +182,18 @@ pub struct ChatReply {
     pub answer_tokens: Option<u64>,
 }
 
+/// What a streaming answer reports while it happens.
+///
+/// The distinction between "silence" and "activity" is the whole point: a cold model can take a
+/// minute to load and produces no text at all, so the caller needs to know that something is
+/// happening without being told there is an answer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StreamEvent<'a> {
+    /// The server said something, even if it was not text yet (a keep-alive, a metadata line).
     Activity,
+    /// A piece of the answer.
     Text(&'a str),
+    /// How long the model needed before the first token, as the server reported it.
     LoadDuration(Duration),
 }
 
@@ -212,7 +221,11 @@ pub trait Provider: std::fmt::Debug + Send + Sync {
         on_chunk(&reply.content);
         Ok(reply)
     }
-    /// None means unsupported; errors mean status could not be checked.
+    /// True when the model is already in memory, `None` when the provider cannot say.
+    ///
+    /// The answer is what lets the chat say "loading a cold model" instead of showing a spinner
+    /// with no explanation. A provider that does not know simply returns `None`, and the caller
+    /// stops asking.
     fn model_loaded(&self, _model: &str) -> Result<Option<bool>, LlmError> {
         Ok(None)
     }

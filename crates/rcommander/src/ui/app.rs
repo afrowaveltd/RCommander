@@ -98,6 +98,8 @@ pub struct RCommanderApp {
     /// The rectangle the two panels occupy, captured every frame so a workspace window knows what
     /// "cover the panels" means — the panels, not the whole window including the menu bar.
     workspace_rect: egui::Rect,
+    /// The alert being shown in the status line, with the moment it arrived.
+    alert_until: Option<(crate::model::AlertKind, String, std::time::Instant)>,
     /// Theme name that is currently applied to the egui context.
     applied_theme: String,
     /// Font settings the context was built from, so a change reinstalls the fonts.
@@ -168,6 +170,7 @@ impl RCommanderApp {
             search_hit_selection: 0,
             panel_rects: [None, None],
             workspace_rect: egui::Rect::NOTHING,
+            alert_until: None,
             applied_theme: String::new(),
             font_signature: String::new(),
             settings_writer,
@@ -1243,8 +1246,94 @@ impl RCommanderApp {
         }
     }
 
+    /// What the application is doing *right now*, or `None` when it is idle.
+    ///
+    /// The rule for the status line is that it never goes silent while work is in progress: a
+    /// connection that is authenticating, a transfer that is running and an agent that is thinking
+    /// all say so. "Nothing happened" is the one message a file manager must never send.
+    fn current_activity(&self) -> Option<String> {
+        if let Some(stage) = self.model.connect_stage() {
+            return Some(self.model.t(stage.key()));
+        }
+        if let Some(progress) = self.model.transfer_progress() {
+            let (fraction, current) = progress;
+            let percent = (fraction * 100.0).round() as u32;
+            return Some(if current.is_empty() {
+                format!("{}%", percent)
+            } else {
+                format!("{percent}% · {current}")
+            });
+        }
+        if self.model.chat_is_running() {
+            let waiting = self.model.chat_waiting();
+            return Some(match waiting {
+                Some(wait) if !wait.responding => {
+                    let elapsed = format!("{}:{:02}", wait.elapsed / 60, wait.elapsed % 60);
+                    format!("{} · {elapsed}", self.model.t("ai.wait.loading"))
+                }
+                _ => self.model.t("ai.chat.running"),
+            });
+        }
+        if self.model.is_searching() {
+            return Some(self.model.t("cmd.search"));
+        }
+        if self.model.is_connecting() {
+            return Some(self.model.t("session.connecting.short"));
+        }
+        None
+    }
+
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         let palette = self.palette.clone();
+        // An alert is played once and shown until something replaces it. The sound is fired here
+        // because this is the one place that runs exactly once per alert.
+        if let Some(alert) = self.model.take_alert() {
+            if let Some(sound) = alert.sound
+                && self.model.settings.sounds.allows(sound)
+            {
+                crate::system_open::play_sound(sound);
+            }
+            self.alert_until = Some((alert.kind, alert.text, alert.at));
+        }
+        if let Some((kind, text, at)) = self.alert_until.clone() {
+            let age = at.elapsed().as_secs_f32();
+            // An error stays for a while and then folds into the ordinary status; a "done" is a
+            // moment, not a state.
+            let lifetime = if kind == crate::model::AlertKind::Error {
+                12.0
+            } else {
+                4.0
+            };
+            if age > lifetime {
+                self.alert_until = None;
+            } else {
+                let colour = match kind {
+                    crate::model::AlertKind::Error => palette.warning,
+                    crate::model::AlertKind::Done => palette.archive,
+                };
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(match kind {
+                            crate::model::AlertKind::Error => "!",
+                            crate::model::AlertKind::Done => "✓",
+                        })
+                        .strong()
+                        .color(colour),
+                    );
+                    ui.label(egui::RichText::new(text).color(colour));
+                });
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(250));
+            }
+        }
+        if let Some(activity) = self.current_activity() {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(egui::RichText::new(activity).small().color(palette.accent));
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(150));
+            });
+        }
         if self.model.is_busy() {
             let progress = self.model.transfer_progress();
             ui.horizontal(|ui| {

@@ -715,3 +715,51 @@ mod selector_entry_tests {
         assert_eq!(ranks, sorted, "removable media come first");
     }
 }
+
+/// Expand a leading `~` in a user-typed path.
+///
+/// The dialog hints at `~/.ssh/id_ed25519`, so people type exactly that; the operating system
+/// does not expand it for us, and a private key that "does not exist" is a confusing way to learn
+/// that. Only a leading `~` (alone or followed by a separator) is expanded — `~user/...` and a `~`
+/// in the middle of a name are left alone, because guessing there would be worse than failing.
+pub fn expand_home(path: &str) -> std::path::PathBuf {
+    let trimmed = path.trim();
+    if trimmed == "~" {
+        return home_dir().unwrap_or_else(|| std::path::PathBuf::from(trimmed));
+    }
+    let rest = trimmed
+        .strip_prefix("~/")
+        .or_else(|| trimmed.strip_prefix("~\\"));
+    match (rest, home_dir()) {
+        (Some(rest), Some(home)) => home.join(rest),
+        _ => std::path::PathBuf::from(trimmed),
+    }
+}
+
+#[cfg(test)]
+mod expand_tests {
+    use super::expand_home;
+    use std::path::PathBuf;
+
+    #[test]
+    fn a_leading_tilde_becomes_the_home_directory() {
+        let Some(home) = super::home_dir() else {
+            return; // a machine with no home directory is not our problem
+        };
+        assert_eq!(expand_home("~"), home);
+        assert_eq!(expand_home("   "), PathBuf::from(""));
+        assert_eq!(
+            expand_home("~/.ssh/id_ed25519"),
+            home.join(".ssh/id_ed25519")
+        );
+        // An absolute path is returned untouched.
+        assert_eq!(
+            expand_home("/etc/ssh/id_ed25519"),
+            PathBuf::from("/etc/ssh/id_ed25519")
+        );
+        // A tilde inside a name is not a home directory.
+        assert_eq!(expand_home("back~up.txt"), PathBuf::from("back~up.txt"));
+        // Nor is `~user`, which needs a passwd lookup we do not do.
+        assert_eq!(expand_home("~root/key"), PathBuf::from("~root/key"));
+    }
+}

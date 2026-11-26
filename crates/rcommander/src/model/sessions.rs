@@ -136,6 +136,25 @@ impl Model {
         self.connect_job.is_some()
     }
 
+    /// The step a running connection attempt has reached, for the status line.
+    pub fn connect_stage(&self) -> Option<rc_remote::ConnectStage> {
+        self.connect_job
+            .as_ref()
+            .and_then(|job| job.stage)
+            .or_else(|| {
+                self.connect_job
+                    .as_ref()
+                    .map(|_| rc_remote::ConnectStage::Connecting)
+            })
+    }
+
+    /// How long the running connection attempt has been going, in seconds.
+    pub fn connect_elapsed(&self) -> Option<u64> {
+        self.connect_job
+            .as_ref()
+            .map(|job| job.started.elapsed().as_secs())
+    }
+
     /// Start connecting the focused panel in the background, so a slow or dead
     /// host never freezes the window. The result is picked up by
     /// [`Model::poll_connect`].
@@ -154,14 +173,21 @@ impl Model {
             std::time::Duration::from_secs(self.settings.ftp.timeout_seconds.clamp(3, 120));
         let (sender, receiver) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            let result = super::remote::RcRemoteBackend::connect(&spec)
-                .map(|backend| Box::new(backend) as Box<dyn super::remote::RemoteBackend>);
-            let _ = sender.send(result);
+            let stage_sender = sender.clone();
+            let result = super::remote::RcRemoteBackend::connect_reporting(&spec, &mut |stage| {
+                // A closed receiver means the user gave up; the connect then finishes into
+                // nothing, which is fine.
+                let _ = stage_sender.send(ConnectEvent::Stage(stage));
+            })
+            .map(|backend| Box::new(backend) as Box<dyn super::remote::RemoteBackend>);
+            let _ = sender.send(ConnectEvent::Done(result));
         });
         self.connect_job = Some(ConnectJob {
             session: session.clone(),
             connection: connection.clone(),
             side: self.focus,
+            stage: None,
+            started: std::time::Instant::now(),
             receiver,
         });
         let message = self.tf("session.connecting", &[("name", &session.name)]);
@@ -175,13 +201,46 @@ impl Model {
         let Some(job) = self.connect_job.as_mut() else {
             return false;
         };
-        let outcome = match job.receiver.try_recv() {
-            Ok(result) => result,
-            Err(std::sync::mpsc::TryRecvError::Empty) => return false,
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                Err("the connection attempt stopped unexpectedly".to_string())
+        // Stages are drained first: they are what keeps the window talking while the socket
+        // waits, and a stage alone is a state change worth a repaint.
+        let session_name = job.session.name.clone();
+        let mut progressed: Option<(String, &'static str)> = None;
+        let mut outcome: Option<Result<Box<dyn super::remote::RemoteBackend>, String>> = None;
+        loop {
+            match job.receiver.try_recv() {
+                Ok(ConnectEvent::Stage(stage)) => {
+                    job.stage = Some(stage);
+                    // Collected here and reported after the loop: `job` borrows the model
+                    // mutably, and `t()`/`report()` need it back.
+                    progressed = Some((session_name.clone(), stage.key()));
+                }
+                Ok(ConnectEvent::Done(result)) => {
+                    outcome = Some(result);
+                    break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    outcome = Some(Err(
+                        "the connection attempt stopped unexpectedly".to_string()
+                    ));
+                    break;
+                }
             }
+        }
+        let Some(outcome) = outcome else {
+            let changed = job.stage.is_some();
+            if let Some((name, key)) = progressed {
+                let stage = self.t(key);
+                let message = self.tf("connect.progress", &[("name", &name), ("stage", &stage)]);
+                self.report(message);
+            }
+            return changed;
         };
+        if let Some((name, key)) = progressed {
+            let stage = self.t(key);
+            let message = self.tf("connect.progress", &[("name", &name), ("stage", &stage)]);
+            self.report(message);
+        }
         let job = self.connect_job.take().expect("checked above");
         match outcome {
             Ok(backend) => {
@@ -267,7 +326,19 @@ pub struct ConnectJob {
     pub connection: rc_core::config::SavedConnection,
     /// Panel that will receive the connection, captured when it started.
     pub side: super::Side,
-    receiver: std::sync::mpsc::Receiver<Result<Box<dyn super::remote::RemoteBackend>, String>>,
+    /// Step the attempt has reached, so the status line can say what is happening.
+    pub stage: Option<rc_remote::ConnectStage>,
+    /// When the attempt started, for the "for 12 s" part of the status line.
+    pub started: std::time::Instant,
+    receiver: std::sync::mpsc::Receiver<ConnectEvent>,
+}
+
+/// What a connection worker reports.
+enum ConnectEvent {
+    /// A step was reached.
+    Stage(rc_remote::ConnectStage),
+    /// The attempt finished.
+    Done(Result<Box<dyn super::remote::RemoteBackend>, String>),
 }
 
 #[cfg(test)]
@@ -457,5 +528,42 @@ mod tests {
         ));
         model.cancel_connect();
         assert!(!model.is_connecting());
+    }
+}
+
+#[cfg(test)]
+mod stage_tests {
+    use rc_core::config::Settings;
+    use rc_core::location::Location;
+
+    fn model(dir: &std::path::Path) -> super::super::Model {
+        let mut model = super::super::Model::for_test(
+            Settings::default(),
+            Location::local(dir),
+            Location::local(dir),
+        );
+        model.config_dir_override = Some(dir.to_path_buf());
+        model
+    }
+
+    #[test]
+    fn every_connect_stage_has_a_sentence_in_both_languages() {
+        // The status line reads these while a connection is in progress; a missing key would show
+        // the key itself, which is exactly the silence the status line exists to avoid.
+        let dir = tempfile::tempdir().unwrap();
+        let model = model(dir.path());
+        for stage in rc_remote::ConnectStage::ALL {
+            let key = stage.key();
+            assert!(key.starts_with("connect.stage."), "{key}");
+        }
+        assert!(!model.t("session.connecting.short").is_empty());
+    }
+
+    #[test]
+    fn a_stage_is_reported_only_while_a_connection_is_running() {
+        let dir = tempfile::tempdir().unwrap();
+        let model = model(dir.path());
+        assert!(model.connect_stage().is_none());
+        assert!(model.connect_elapsed().is_none());
     }
 }

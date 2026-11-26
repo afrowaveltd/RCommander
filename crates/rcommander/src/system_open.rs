@@ -82,6 +82,19 @@ pub fn run_plan(plan: &Plan) -> Result<Started, String> {
     })
 }
 
+/// Play one of the short notification sounds, if this platform can.
+///
+/// A sound is a notification and never a result: every caller also writes to the status line, so a
+/// machine that cannot play it loses nothing. That is why a failure here is swallowed on purpose —
+/// a missing `paplay` must not turn a successful operation into an error dialog.
+pub fn play_sound(sound: rc_core::desktop::Sound) {
+    for plan in rc_core::desktop::sound_plan(sound, Platform::current()) {
+        if spawn(&plan).is_ok() {
+            return;
+        }
+    }
+}
+
 /// Open a file with the system's default action, reporting what happened.
 ///
 /// This is what Enter and a double-click do; F3 stays the built-in viewer, so a text file can

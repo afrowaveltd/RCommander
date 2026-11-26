@@ -91,7 +91,7 @@ supports three ways to prove who you are:
 | Authentication | What it needs |
 | --- | --- |
 | password | the password field, or a value already in the credential store |
-| key file | the path of the private key; a passphrase is asked for when the key is protected |
+| key file | the path of the private key; a passphrase is asked for when the key is protected. `~` is expanded, so `~/.ssh/id_ed25519` works |
 | ssh-agent | nothing but a running agent with at least one identity loaded |
 
 ### Host keys
@@ -106,6 +106,27 @@ The server's host key is checked on every connection and remembered in
 * **ignore** — no verification at all; use it only for a device that regenerates
   its key on every boot.
 
-A **changed** key is refused in every mode, with both keys named in the message: a
-changed host key is exactly what a man-in-the-middle looks like. If you know why
-the server's key changed, delete its line from `known_hosts` and connect again.
+A **changed** key is refused in every mode *except* `ignore`, with both keys named in
+the message: a changed host key is exactly what a man-in-the-middle looks like. If you
+know why the server's key changed, delete its line from `known_hosts` and connect
+again — or choose `ignore` for that one connection.
+
+### When a connection fails
+
+The status line narrates the attempt: *resolving the host name*, *opening the
+connection*, *exchanging keys*, *checking the server's identity*, *authenticating*,
+*reading the directory*. The step it stops at is the answer to "why did it fail":
+
+| It stopped at | What to look at |
+| --- | --- |
+| resolving | the host name, and whether DNS works at all |
+| opening | the port, a firewall, or the server not running |
+| exchanging keys | the server speaks something this build cannot: try another port, or check that it really is SSH and not FTP |
+| server identity | the host key: `known_hosts`, or the policy in the dialog |
+| authenticating | the user name, the password, the key file, or the agent |
+| reading the directory | the account may log in but not list that directory |
+
+Two failures are named precisely because they used to look alike: *the private key
+`…` does not exist* (with the path that was actually tried, after `~` expansion) and
+*the server rejected the key `…`*. Choosing *ignore* for the host key fixes neither —
+it is about the server's identity, not yours.

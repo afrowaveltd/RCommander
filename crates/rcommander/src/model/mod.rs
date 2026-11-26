@@ -6,6 +6,11 @@
 //! without a display.
 
 pub mod ai;
+/// Re-export of the sound kinds, so the model can name one without importing the whole desktop
+/// module at every call site.
+pub mod desktop_sound {
+    pub use rc_core::desktop::Sound;
+}
 pub mod chat;
 pub mod chatpane;
 pub mod commands;
@@ -512,6 +517,8 @@ pub struct Model {
     pub prompt_picker: prompts::PromptPicker,
     /// The prompt editor on the Prompts page (Phase 16.17b).
     pub prompt_editor: prompts::PromptEditor,
+    /// A message the user should not miss (error, finished work).
+    pub alert: Option<Alert>,
 }
 
 /// An open F3 viewer.
@@ -557,6 +564,26 @@ pub struct EditorState {
     pub binary: bool,
     /// Where the window sits: collapsed, maximized, pinned (Phase 14.9).
     pub chrome: crate::ui::workspace_window::Chrome,
+}
+
+/// A message the user should not miss.
+#[derive(Clone, Debug)]
+pub struct Alert {
+    pub text: String,
+    pub kind: AlertKind,
+    /// When it happened, so the view can fade it or keep it until the next action.
+    pub at: std::time::Instant,
+    /// Sound to play with it, when the settings allow it.
+    pub sound: Option<crate::model::desktop_sound::Sound>,
+}
+
+/// How serious an alert is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AlertKind {
+    /// Something finished.
+    Done,
+    /// Something went wrong.
+    Error,
 }
 
 /// The in-app help window.
@@ -635,6 +662,7 @@ impl Model {
             prompts_loaded: false,
             prompt_picker: prompts::PromptPicker::default(),
             prompt_editor: prompts::PromptEditor::default(),
+            alert: None,
             keymap,
             settings,
             strings,
@@ -905,7 +933,36 @@ impl Model {
     pub fn report_error(&mut self, error: impl std::fmt::Display) {
         let text = error.to_string();
         self.last_error = Some(text.clone());
-        self.status = text;
+        self.status = text.clone();
+        // An error is also an *alert*: it stays visible until something else happens, and it is
+        // the one kind of message the user may also want to hear.
+        self.alert = Some(Alert {
+            text,
+            kind: AlertKind::Error,
+            at: std::time::Instant::now(),
+            sound: Some(crate::model::desktop_sound::Sound::Problem),
+        });
+    }
+
+    /// Announce a finished operation that the user was waiting for.
+    pub fn report_done(
+        &mut self,
+        text: impl Into<String>,
+        sound: Option<crate::model::desktop_sound::Sound>,
+    ) {
+        let text = text.into();
+        self.status = text.clone();
+        self.alert = Some(Alert {
+            text,
+            kind: AlertKind::Done,
+            at: std::time::Instant::now(),
+            sound,
+        });
+    }
+
+    /// Take the pending alert, if one is worth showing or playing.
+    pub fn take_alert(&mut self) -> Option<Alert> {
+        self.alert.take()
     }
 
     /// Directory holding per-user files: settings, hotlist, known hosts.
@@ -923,8 +980,15 @@ impl Model {
         self.settings_dirty = true;
     }
 
+    /// True while a search is running, so the status line can say so.
+    pub fn is_searching(&self) -> bool {
+        self.search_job.is_some()
+    }
+
     pub fn report(&mut self, text: impl Into<String>) {
         self.status = text.into();
+        // A plain message replaces an older alert: the newest thing said is the one that matters.
+        self.alert = None;
     }
 }
 
