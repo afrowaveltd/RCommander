@@ -64,6 +64,7 @@ authors = ["RCommander contributors"]
 "cmd.attributes" = "Change attributes"
 "cmd.properties" = "Properties"
 "cmd.quit" = "Quit"
+"cmd.not_available_here" = "This place does not support {cmd}; open a folder to use it"
 "cmd.refresh" = "Refresh"
 "cmd.select_all" = "Select all"
 "cmd.deselect_all" = "Deselect all"

@@ -3210,3 +3210,93 @@ fn the_agent_panel_lists_the_remote_tools_with_a_trust_switch_each() {
             .mcp_tool_allowed("photo-craft", "delete_document")
     );
 }
+
+/// A plugin source that shows a ticket desk, with its own columns and one verb.
+struct TicketDesk;
+
+impl rcommander::model::sources::PanelSource for TicketDesk {
+    fn id(&self) -> &str {
+        "tickets"
+    }
+    fn title(&self) -> &str {
+        "Ticket desk"
+    }
+    fn list(&self, _path: &str) -> rc_core::error::CoreResult<Vec<rc_core::entry::Entry>> {
+        Ok(vec![rc_core::entry::Entry::new(
+            "Printer on fire",
+            std::path::PathBuf::from("t/17"),
+            rc_core::entry::EntryKind::File,
+            0,
+        )])
+    }
+    fn columns(&self) -> Vec<rcommander::model::sources::SourceColumn> {
+        vec![
+            rcommander::model::sources::SourceColumn::new("subject", "Subject", 240.0),
+            rcommander::model::sources::SourceColumn::new("age", "Age", 60.0).numeric(),
+        ]
+    }
+    fn cell(&self, entry: &rc_core::entry::Entry, column: &str) -> String {
+        match column {
+            "subject" => entry.name.clone(),
+            "age" => "3d".to_string(),
+            _ => String::new(),
+        }
+    }
+    fn actions(
+        &self,
+        _entry: &rc_core::entry::Entry,
+    ) -> Vec<rcommander::model::sources::SourceMenuAction> {
+        vec![rcommander::model::sources::SourceMenuAction::new(
+            "Reply", "reply",
+        )]
+    }
+}
+
+#[test]
+fn a_plugin_source_panel_draws_its_own_columns_and_hides_file_operations() {
+    let (left, right) = fixture();
+    let mut app = app(left.path(), right.path());
+    app.model.sources.register(Box::new(TicketDesk));
+    let mut harness = harness(app);
+    assert!(
+        harness
+            .state_mut()
+            .model
+            .open_in(
+                rcommander::model::Side::Left,
+                Location::plugin("tickets", "")
+            )
+            .is_ok()
+    );
+    harness.run();
+    // The source's headers are drawn, the file columns are not.
+    assert!(
+        harness.root().query_all_by_label("Subject").count() > 0,
+        "the declared header is drawn"
+    );
+    // Only the right panel, which is still a directory, keeps the configured headers: a source
+    // replaces the columns of its own panel and of no other.
+    assert_eq!(
+        harness.root().query_all_by_label("col.size").count(),
+        1,
+        "a ticket desk has no size column, the other panel still does"
+    );
+    // The row itself is exposed with its source-provided name.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("Printer on fire")
+            .count()
+            > 0
+    );
+    // Delete is refused: the place never declared it, and no dialog pretends otherwise.
+    let outcome = harness.state_mut().execute("cm_Delete");
+    assert!(
+        matches!(outcome, rcommander::model::CommandOutcome::Failed(_)),
+        "{outcome:?}"
+    );
+    assert!(
+        !harness.state().model.has_dialog(),
+        "a refused operation opens nothing"
+    );
+}

@@ -103,3 +103,31 @@ file name and not an instruction.
 ## Right-click menus
 
 TBD
+
+## Panels that are not directories
+
+A panel does not have to show a file system. A plugin can provide a **source** — a mail inbox, a
+photo catalogue, a list of tickets — and the panel draws it the same way it draws a folder, because
+all it ever asks is *what is in this location* and *what does this row do*.
+
+What changes is what the source declares:
+
+| The source declares | What you see |
+| --- | --- |
+| **columns** | its own headers (*Subject, Priority, Age*), replacing the configured file columns in that panel only. The other panel keeps its own |
+| **row verbs** | extra entries at the bottom of the right-click menu — *Reply*, *Develop*, *Assign to me*. The source performs them; RCommander does not guess what they mean |
+| **capabilities** | which file operations make sense here. This is the important one |
+
+Capabilities are answered in the negative: a source that does not say it supports deletion
+**cannot have its rows deleted**, and the function key is drawn as unavailable rather than greyed
+in secret. No dialog opens, no approval is requested, and nothing pretends the operation nearly
+worked. Copy, move, create, delete, rename and view are declared one by one; a source that declares
+none of them is a listing you can read and nothing else.
+
+That is not a permission — it is the shape of the place. Even where a source *does* declare
+deletion, the policy, the approval dialog and the audit log decide exactly as they do for a local
+file.
+
+A panel whose source cannot be reached says so in the panel. It never shows an empty list, because
+"the server did not answer" and "this folder is empty" must never look the same.
+

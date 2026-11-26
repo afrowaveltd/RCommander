@@ -998,6 +998,13 @@ impl RCommanderApp {
                     PanelAction::Volume(root) => {
                         self.model.open_volume(side, &root);
                     }
+                    PanelAction::SourceCommand(command) => {
+                        if let CommandOutcome::Failed(message) =
+                            self.model.run_source_command(side, &command)
+                        {
+                            self.model.report_error(message);
+                        }
+                    }
                     PanelAction::ContextMenu => {}
                 }
             }
@@ -1056,6 +1063,13 @@ impl RCommanderApp {
                 PanelAction::Enter => self.enter_pressed(),
                 PanelAction::Volume(root) => {
                     self.model.open_volume(side, &root);
+                }
+                PanelAction::SourceCommand(command) => {
+                    if let CommandOutcome::Failed(message) =
+                        self.model.run_source_command(side, &command)
+                    {
+                        self.model.report_error(message);
+                    }
                 }
                 PanelAction::ContextMenu => {}
             }
@@ -1209,6 +1223,15 @@ impl RCommanderApp {
             .iter()
             .map(|key| (key.shortcut(), self.model.t(key.label_key)))
             .collect();
+        // A key whose operation this place does not support stays visible but inert, so the
+        // layout does not move and the user can see that the key exists — it just has nothing
+        // to do here.
+        let side = self.model.focus;
+        let available: Vec<bool> = keys
+            .iter()
+            .map(|key| self.model.allows(side, key.command))
+            .collect();
+        let unavailable_hint = self.model.t("cmd.not_available_here");
         let modifier_names: Vec<String> = [
             "key.modifier.shift",
             "key.modifier.ctrl",
@@ -1227,8 +1250,14 @@ impl RCommanderApp {
                 ui.separator();
                 for (index, key) in keys.iter().enumerate() {
                     let (shortcut, label) = &labels[index];
-                    if ui.small_button(format!("{shortcut} {label}")).clicked() {
-                        command = Some(key.command.to_string());
+                    let button = egui::Button::new(format!("{shortcut} {label}")).small();
+                    let response = ui.add_enabled(available[index], button);
+                    if available[index] {
+                        if response.clicked() {
+                            command = Some(key.command.to_string());
+                        }
+                    } else {
+                        response.on_disabled_hover_text(unavailable_hint.replace("{cmd}", label));
                     }
                 }
             });

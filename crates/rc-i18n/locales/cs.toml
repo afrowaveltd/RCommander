@@ -60,6 +60,7 @@ authors = ["RCommander contributors"]
 "cmd.attributes" = "Změnit atributy"
 "cmd.properties" = "Vlastnosti"
 "cmd.quit" = "Ukončit"
+"cmd.not_available_here" = "Tady {cmd} nefunguje; otevřete složku, kde to jde"
 "cmd.refresh" = "Obnovit"
 "cmd.select_all" = "Vybrat vše"
 "cmd.deselect_all" = "Odznačit vše"

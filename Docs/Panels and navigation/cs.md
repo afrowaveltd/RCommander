@@ -98,3 +98,28 @@ Kontextová nabídka přidává akce, které se od správce souborů čekají:
 Nic nejde přes příkazovou řádku shellu, takže soubor jménem `; rm -rf ~` je název
 souboru a ne instrukce.
 
+## Panely, které nejsou adresáře
+
+Panel nemusí zobrazovat souborový systém. Plugin může poskytnout **zdroj** — poštovní schránku,
+katalog fotografií, seznam ticketů — a panel ho vykreslí stejně jako složku, protože se pořád ptá
+jen na dvě věci: *co v tomto umístění je* a *co udělá tento řádek*.
+
+Mění se to, co zdroj deklaruje:
+
+| Zdroj deklaruje | Co uvidíte |
+| --- | --- |
+| **sloupce** | vlastní hlavičky (*Předmět, Priorita, Stáří*), které v tomto panelu nahradí nastavené sloupce souborů. Druhý panel si nechá svoje |
+| **akce řádku** | další položky dole v místní nabídce — *Odpovědět*, *Vyvolat*, *Přiřadit mně*. Provádí je zdroj; RCommander nehádá, co znamenají |
+| **schopnosti** | které souborové operace tu mají smysl. To je ta důležitá část |
+
+Schopnosti se odpovídají záporně: zdroj, který neřekne, že podporuje mazání, **nemůže mít smazané
+řádky**, a funkční klávesa se vykreslí jako nedostupná, místo aby se potichu tvářila, že jde
+použít. Neotevře se žádný dialog, nic se neschvaluje a nic nepředstírá, že to skoro vyšlo.
+Kopírování, přesun, vytvoření, smazání, přejmenování a zobrazení se deklarují jednotlivě; zdroj,
+který nedeklaruje nic, je seznam, který si můžete jen přečíst.
+
+To není oprávnění — je to podoba místa. I tam, kde zdroj mazání *deklaruje*, rozhoduje politika,
+schvalovací dialog a audit stejně jako u místního souboru.
+
+Panel, jehož zdroj je nedostupný, to napíše do panelu. Nikdy neukáže prázdný seznam, protože
+„server neodpověděl" a „tato složka je prázdná" nesmí vypadat stejně.

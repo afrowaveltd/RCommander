@@ -1,6 +1,7 @@
 //! Rendering and mouse handling of one file panel.
 
 use crate::icons::Icon;
+use crate::model::columns::PanelColumn;
 use crate::model::{Model, Side, ViewMode};
 use crate::theme::{Palette, RowStyle};
 use crate::ui::thumbs::ThumbnailCache;
@@ -12,6 +13,8 @@ use rc_core::entry::Entry;
 pub enum PanelAction {
     /// Run an internal command (e.g. after a header click).
     Command(String),
+    /// Run a verb the plugin source of this panel offered; the source interprets it.
+    SourceCommand(String),
     /// Preview the file (F3 semantics).
     OpenFile(std::path::PathBuf),
     /// Open with the platform's default action (double-click, Enter).
@@ -49,45 +52,6 @@ pub fn row_background(
         Some(palette.row_alternate)
     } else {
         None
-    }
-}
-
-/// Text of one configured column for an entry.
-fn column_text(id: &str, entry: &Entry, display: &rc_core::config::Display) -> String {
-    match id {
-        "name" => format!(
-            "{} {}",
-            crate::icons::Icon::for_entry(entry.kind, &entry.name).glyph(),
-            entry.name
-        ),
-        "ext" => entry.extension(),
-        "size" => {
-            if entry.is_dir() {
-                "<DIR>".to_string()
-            } else if display.show_size_in_bytes {
-                rc_core::format::format_thousands(entry.size)
-            } else {
-                rc_core::format::format_size_bytes(entry.size)
-            }
-        }
-        "date" => rc_core::format::format_datetime(entry.mtime),
-        "attrs" => entry.attr_string(),
-        "comment" => entry
-            .link_target
-            .as_ref()
-            .map(|t| t.to_string_lossy().to_string())
-            .unwrap_or_default(),
-        "mode" => entry
-            .attrs
-            .unix_mode
-            .map(rc_core::entry::unix_mode_string)
-            .unwrap_or_default(),
-        "link" => entry
-            .link_target
-            .as_ref()
-            .map(|t| t.to_string_lossy().to_string())
-            .unwrap_or_default(),
-        _ => String::new(),
     }
 }
 
@@ -413,12 +377,53 @@ fn path_row(
     }
 }
 
-/// Width of the flexible (name) column, shared by the header and the rows so the
+/// Width of the flexible (first) column, shared by the header and the rows so the
 /// captions always sit over their content.
-fn name_column_width(specs: &[rc_core::config::ColumnSpec], width: f32) -> f32 {
+fn name_column_width(specs: &[PanelColumn], width: f32) -> f32 {
     const MARGIN: f32 = 4.0;
     let fixed: f32 = specs.iter().skip(1).map(|c| c.width.max(20.0)).sum();
     (width - fixed - 2.0 * MARGIN).max(40.0)
+}
+
+/// The width of every column, in order: the first one takes what the others leave.
+fn column_widths(columns: &[PanelColumn], width: f32) -> Vec<f32> {
+    let flex = name_column_width(columns, width);
+    columns
+        .iter()
+        .enumerate()
+        .map(|(index, column)| {
+            if index == 0 {
+                flex
+            } else {
+                column.width.max(20.0)
+            }
+        })
+        .collect()
+}
+
+/// Which sort field a configured column stands for, if any.
+fn sort_field_for(id: &str) -> Option<rc_core::sorting::SortField> {
+    Some(match id {
+        "ext" => rc_core::sorting::SortField::Extension,
+        "size" => rc_core::sorting::SortField::Size,
+        "date" => rc_core::sorting::SortField::ModifiedTime,
+        "name" => rc_core::sorting::SortField::Name,
+        _ => return None,
+    })
+}
+
+/// The command a column header click runs.
+///
+/// Empty for a column the panel cannot sort by — `attrs`, `comment`, `mode`, `link`. A header
+/// that sorts by some *other* field would be a lie, so it is not a button at all.
+fn sort_command_for(id: &str) -> &'static str {
+    match id {
+        "name" => "cm_SrcByName",
+        "ext" => "cm_SrcByExt",
+        "size" => "cm_SrcBySize",
+        "date" => "cm_SrcByDateTime",
+        _ => "",
+    }
 }
 
 fn list_header(
@@ -442,49 +447,27 @@ fn list_header(
     let painter = ui.painter();
     painter.rect_filled(rect, 0, header_bg);
     let font_id = FontId::proportional(model.settings.display.font_size - 1.0);
-    // Column headers follow `settings.display.columns`, so hiding, adding and
-    // reordering columns also changes the header row.
-    let specs = model.settings.display.columns.clone();
-    let flex = name_column_width(&specs, rect.width());
-    let columns: Vec<(
-        String,
-        f32,
-        Option<rc_core::sorting::SortField>,
-        &'static str,
-    )> = specs
-        .iter()
-        .enumerate()
-        .map(|(index, spec)| {
-            let width = if index == 0 {
-                flex
-            } else {
-                spec.width.max(20.0)
-            };
-            let label = spec
-                .label_key()
-                .map(|key| model.t(key))
-                .unwrap_or_else(|| spec.id.clone());
-            let (field, command) = match spec.id.as_str() {
-                "ext" => (Some(rc_core::sorting::SortField::Extension), "cm_SrcByExt"),
-                "size" => (Some(rc_core::sorting::SortField::Size), "cm_SrcBySize"),
-                "date" => (
-                    Some(rc_core::sorting::SortField::ModifiedTime),
-                    "cm_SrcByDateTime",
-                ),
-                _ => (None, "cm_SrcByName"),
-            };
-            (label, width, field, command)
-        })
-        .collect();
+    // Column headers follow `settings.display.columns` for a local directory, and the
+    // source's own declaration for a plugin source — so hiding, adding and reordering
+    // columns changes the header row, and a mail list never shows a "Size" header.
+    let columns = model.columns(side);
+    let widths = column_widths(&columns, rect.width());
     let mut x = rect.left() + 4.0;
-    for (index, (key, width, field, command)) in columns.iter().enumerate() {
-        let column_width = *width;
-        let mut label = key.clone();
-        if let Some(field) = field
-            && spec.field == *field
+    for (index, column) in columns.iter().enumerate() {
+        let column_width = widths[index];
+        let mut label = column.label.clone();
+        // Sorting is the panel's own business, so a source's columns do not offer it.
+        if column.sortable
+            && let Some(field) = sort_field_for(&column.id)
+            && spec.field == field
         {
             label.push_str(if spec.reversed { " v" } else { " ^" });
         }
+        let command = if column.sortable {
+            sort_command_for(&column.id)
+        } else {
+            ""
+        };
         let column_rect = Rect::from_min_size(
             egui::pos2(x, rect.top()),
             Vec2::new(column_width, rect.height()),
@@ -496,14 +479,30 @@ fn list_header(
             font_id.clone(),
             palette.foreground,
         );
+        // Every header gets a name, sortable or not: a caption a screen reader cannot see is a
+        // caption that does not exist. Only the ones that sort are buttons.
+        let sortable = !command.is_empty();
         let hit = ui.interact(
             column_rect,
             ui.scope_id().with(("hdr", side, index)),
-            Sense::click(),
+            if sortable {
+                Sense::click()
+            } else {
+                Sense::hover()
+            },
         );
-        // Column headers are buttons (clicking sorts), so they get a name.
-        hit.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
-        if hit.clicked() {
+        hit.widget_info(|| {
+            egui::WidgetInfo::labeled(
+                if sortable {
+                    egui::Role::Button
+                } else {
+                    egui::Role::Label
+                },
+                true,
+                &label,
+            )
+        });
+        if sortable && hit.clicked() {
             actions.push(PanelAction::Command(command.to_string()));
         }
         x += column_width;
@@ -531,10 +530,12 @@ fn file_list(
     // file-type colour, which is what a developer wants to see first.
     let git_status = model.panel(side).git_status.clone();
     let error = model.panel(side).error.clone();
-    let display = model.settings.display.clone();
+    // One resolution per frame: the columns do not change between rows.
+    let columns = model.columns(side);
     let font_id = font(model);
     let mut clicked: Option<(usize, ClickKind)> = None;
     let mut menu_command: Option<String> = None;
+    let mut source_command: Option<String> = None;
 
     let scroll = egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -573,8 +574,18 @@ fn file_list(
                 } else {
                     git_colour.unwrap_or_else(|| style.color(palette))
                 };
+                let cell_texts = model.cells_with(side, entry, &columns);
                 draw_row(
-                    painter, rect, entry, view_mode, &font_id, color, palette, rtl, &display,
+                    painter,
+                    rect,
+                    entry,
+                    view_mode,
+                    &font_id,
+                    color,
+                    palette,
+                    rtl,
+                    &columns,
+                    &cell_texts,
                 );
             }
             if response.clicked() {
@@ -595,7 +606,9 @@ fn file_list(
                 clicked = Some((index, ClickKind::ContextMenu));
             }
             // Explorer-style menu on the row, with our own commands on top of the usual
-            // file operations.
+            // file operations, and the source's own verbs on top of those — a mail row offers
+            // "Reply", a document row "Export", and neither is something the panel could invent.
+            let verbs = model.sources.actions(model.panel(side).location(), entry);
             response.context_menu(|ui| {
                 ui.set_min_width(230.0);
                 for item in row_menu_items(model) {
@@ -603,9 +616,23 @@ fn file_list(
                         ui.separator();
                         continue;
                     }
+                    // An operation this place does not allow is not shown as a greyed button:
+                    // a menu entry that cannot work is worse than no entry at all.
+                    if !item.separator && !model.allows(side, &item.command) {
+                        continue;
+                    }
                     if menu_entry(ui, item.icon, &item.label) {
                         menu_command = Some(item.command);
                         ui.close();
+                    }
+                }
+                if !verbs.is_empty() {
+                    ui.separator();
+                    for verb in &verbs {
+                        if ui.button(&verb.label).clicked() {
+                            source_command = Some(verb.command.clone());
+                            ui.close();
+                        }
                     }
                 }
             });
@@ -649,6 +676,9 @@ fn file_list(
     }
     if let Some(command) = menu_command {
         actions.push(PanelAction::Command(command));
+    }
+    if let Some(command) = source_command {
+        actions.push(PanelAction::SourceCommand(command));
     }
     if let Some(error) = error {
         ui.separator();
@@ -1124,7 +1154,8 @@ fn draw_row(
     color: Color32,
     palette: &Palette,
     rtl: bool,
-    display: &rc_core::config::Display,
+    columns: &[PanelColumn],
+    cell_texts: &[String],
 ) {
     let y = rect.center().y;
     let ctrl_y = rect.top() + rect.height() / 2.0 - 2.0;
@@ -1157,22 +1188,18 @@ fn draw_row(
     }
 
     let margin = 4.0;
-    // The columns come from the configuration, so the full view is user-defined.
-    let specs = &display.columns;
-    let flex = name_column_width(specs, rect.width());
-    let mut cells: Vec<(String, f32, Align2)> = Vec::with_capacity(specs.len());
-    for (index, spec) in specs.iter().enumerate() {
-        let width = if index == 0 {
-            flex
-        } else {
-            spec.width.max(20.0)
-        };
-        let align = if spec.id == "size" {
+    // The columns and their text come from the model, which knows whether this panel is a
+    // directory or a plugin source.
+    let widths = column_widths(columns, rect.width());
+    let mut cells: Vec<(String, f32, Align2)> = Vec::with_capacity(columns.len());
+    for (index, column) in columns.iter().enumerate() {
+        let align = if column.numeric {
             Align2::RIGHT_CENTER
         } else {
             Align2::LEFT_CENTER
         };
-        cells.push((column_text(&spec.id, entry, display), width, align));
+        let text = cell_texts.get(index).cloned().unwrap_or_default();
+        cells.push((text, widths[index], align));
     }
     let count = cells.len();
     let order: Vec<usize> = if rtl {
@@ -1197,7 +1224,7 @@ fn draw_row(
             x += width;
             (a, *align)
         };
-        let muted = specs.get(index).map(|s| s.id == "attrs").unwrap_or(false);
+        let muted = columns.get(index).map(|c| c.id == "attrs").unwrap_or(false);
         let shown = elide(text, width, font.size);
         painter.text(
             anchor_x,
@@ -1333,13 +1360,44 @@ mod menu_tests {
     #[test]
     fn the_header_and_the_rows_share_one_column_layout() {
         let specs = rc_core::config::Settings::default().display.columns;
-        // The flexible name column is the same for both, so captions sit over their data.
+        let columns: Vec<PanelColumn> = specs
+            .iter()
+            .map(|spec| PanelColumn::configured(spec, spec.id.clone()))
+            .collect();
+        // The flexible first column is the same for both, so captions sit over their data.
         let width = 600.0;
-        let flex = name_column_width(&specs, width);
-        let fixed: f32 = specs.iter().skip(1).map(|c| c.width.max(20.0)).sum();
-        assert!((flex + fixed + 8.0 - width).abs() < 0.01, "flex {flex}");
+        let widths = column_widths(&columns, width);
+        assert_eq!(widths.len(), columns.len());
+        let total: f32 = widths.iter().sum();
+        assert!((total + 8.0 - width).abs() < 0.01, "total {total}");
         // A very narrow panel still leaves a usable name column.
-        assert!(name_column_width(&specs, 120.0) >= 40.0);
+        assert!(name_column_width(&columns, 120.0) >= 40.0);
+        let narrow = column_widths(&columns, 60.0);
+        assert!(narrow[0] >= 40.0, "the name column keeps a floor");
+    }
+
+    #[test]
+    fn a_source_column_is_not_sortable_but_a_configured_one_is() {
+        let spec = rc_core::config::ColumnSpec::new("date", 90.0);
+        assert!(PanelColumn::configured(&spec, "Date".into()).sortable);
+        let declared = crate::model::sources::SourceColumn::new("priority", "Priority", 80.0);
+        assert!(!PanelColumn::declared(&declared).sortable);
+        // Numeric alignment is carried through from the source's declaration.
+        let numeric = crate::model::sources::SourceColumn::new("age", "Age", 60.0).numeric();
+        assert!(PanelColumn::declared(&numeric).numeric);
+    }
+
+    #[test]
+    fn every_configured_column_has_a_sort_field_and_command() {
+        for spec in rc_core::config::Settings::default().display.columns {
+            let field = sort_field_for(&spec.id);
+            let command = sort_command_for(&spec.id);
+            // A column that cannot sort must not offer a sort command either.
+            assert_eq!(field.is_some(), !command.is_empty(), "{}", spec.id);
+            if field.is_some() {
+                assert!(command.starts_with("cm_SrcBy"), "{}", spec.id);
+            }
+        }
     }
 
     #[test]

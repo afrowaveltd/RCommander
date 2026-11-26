@@ -14,6 +14,7 @@ pub mod desktop_sound {
 }
 pub mod chat;
 pub mod chatpane;
+pub mod columns;
 pub mod commands;
 pub mod dialogs;
 pub mod fonts;
@@ -28,6 +29,7 @@ pub mod sessions;
 pub mod sources;
 pub mod surfaces;
 pub mod workspacereview;
+use sources::{SourceAction, SourceMenuAction};
 pub use surfaces::{FnKey, Surface};
 pub mod themes;
 
@@ -862,6 +864,12 @@ impl Model {
         let Some(entry) = self.active().current().cloned() else {
             return CommandOutcome::None;
         };
+        // A plugin source answers this question itself: its rows are not always paths, and
+        // "open" may mean "go deeper", "show that in the other panel" or "send it".
+        if self.active().location().is_plugin() {
+            let side = self.focus;
+            return self.open_source_entry(side, &entry);
+        }
         if entry.is_dir() {
             let location = match self.active().location().child(&entry.name) {
                 Some(l) => l,
@@ -882,6 +890,66 @@ impl Model {
         // A plain file: Enter and a double-click mean "do what the system would do", which is what
         // the user expects from a file manager. The built-in viewer stays behind F3.
         CommandOutcome::OpenExternally(entry.path)
+    }
+
+    /// Ask the source what opening one of its rows means, and do it.
+    ///
+    /// The three answers are all the panel can express: go deeper in this panel, show it in the
+    /// *other* panel (the preview pairing — a photo, a message body), or run a verb the source
+    /// owns. Nothing here is a permission; a source verb that changes something still has to get
+    /// through whatever the source itself requires.
+    pub fn open_source_entry(&mut self, side: Side, entry: &Entry) -> CommandOutcome {
+        let location = self.panel(side).location().clone();
+        let Some(source) = self.sources.source_of(&location) else {
+            return CommandOutcome::Failed(format!("no plugin provides “{}”", location.display()));
+        };
+        // Resolve the answer before touching the model: the source borrow ends here.
+        let answer = source.open(entry);
+        match answer {
+            Ok(SourceAction::Into(target)) => match self.open_in(side, target) {
+                Ok(()) => CommandOutcome::Ok,
+                Err(error) => CommandOutcome::Failed(error.to_string()),
+            },
+            Ok(SourceAction::Preview(target)) => {
+                let other = side.other();
+                match self.open_in(other, target) {
+                    Ok(()) => {
+                        self.focus = other;
+                        CommandOutcome::Ok
+                    }
+                    Err(error) => CommandOutcome::Failed(error.to_string()),
+                }
+            }
+            Ok(SourceAction::Command(command)) => self.run_source_command(side, &command),
+            Err(error) => CommandOutcome::Failed(error.to_string()),
+        }
+    }
+
+    /// Run a verb the source offered in its row menu.
+    ///
+    /// The listing is re-read afterwards, because a verb like "mark as read" or "file this
+    /// elsewhere" changes what the source shows — and a panel that keeps showing the old rows
+    /// would be lying about the result.
+    pub fn run_source_command(&mut self, side: Side, command: &str) -> CommandOutcome {
+        let location = self.panel(side).location().clone();
+        match self.sources.run(&location, command) {
+            Ok(()) => {
+                if let Err(error) = self.open_in(side, location) {
+                    return CommandOutcome::Failed(error.to_string());
+                }
+                CommandOutcome::Ok
+            }
+            Err(error) => CommandOutcome::Failed(error.to_string()),
+        }
+    }
+
+    /// The source verbs the row under the cursor offers, if the panel is a plugin source.
+    pub fn source_actions(&self, side: Side) -> Vec<SourceMenuAction> {
+        let Some(entry) = self.panel(side).current() else {
+            return Vec::new();
+        };
+        let location = self.panel(side).location();
+        self.sources.actions(location, entry)
     }
 
     /// Re-read both panels.

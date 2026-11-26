@@ -155,6 +155,16 @@ impl Model {
         if let Some(side) = forced_side {
             self.focus = side;
         }
+        // A place that does not allow an operation refuses it here, before anything is
+        // staged, recorded or asked about. A plugin source that never declared support for
+        // deletion cannot have its rows deleted however the command arrives — function key,
+        // menu, script or MCP tool — and no approval dialog pretends otherwise.
+        if !self.allows(self.focus, &normalized) {
+            let command = normalized.clone();
+            return CommandOutcome::Failed(
+                self.t("cmd.not_available_here").replace("{cmd}", &command),
+            );
+        }
         // Numbered families: `cm_ActivateTab3`, `cm_SortByCol2`, `cm_ViewMode4`.
         if let Some(number) = trailing_number(&normalized) {
             if normalized.starts_with("cm_activatetab")
