@@ -1345,21 +1345,59 @@ The rules that do **not** move:
 4. **`plugins.call` with trust switches and on-demand activation.**
 5. **The URL installer and the web index**, once the transport question below is settled.
 
-#### Open questions for the owner
+#### Policy layers: global, user, session (decided 2026-11)
 
-- **TLS**: this workspace has no TLS stack today (`rc-agent` speaks plain `http://` only, and says so).
-  Downloading a plugin from a website needs one. Three options: add a `rustls`-based client (a real
-  dependency, but self-contained and the same on Windows, Linux and Android), shell out to
-  `curl`/`wget`/`Invoke-WebRequest` (no new dependency, but three code paths and a program that may
-  not exist), or keep the URL installer to `http://` on the local network and let the website be
-  fetched by the browser. My recommendation is the first, when the website exists.
-- **Signatures**: a community plugin index invites supply-chain questions. Cheapest honest option:
-  the index publishes a SHA-256 per plugin, the installer shows what it got and refuses a mismatch —
-  and says plainly that this proves integrity against a corrupt download, not authorship.
-- **May an agent install?** My answer is no, for the reason above. It may propose.
-- **Where does "off by default, activated on demand" apply?** I would allow on-demand activation only
-  for plugins whose declared capabilities are read-only; a plugin that can delete stays off until a
-  human turns it on.
+"May an agent install a plugin" is not one question with one answer, and it should not become one
+global switch. Every operation a model can attempt is decided by **three layers**, and the same three
+answer every future question of the same shape — zones, remote servers, MCP tools:
+
+| Layer | Where it lives | Who sets it | What it means |
+| --- | --- | --- | --- |
+| **Global** | shipped defaults, plus the deployment's own file | the product, the administrator | the opinion of the installation: what is *ever* possible here |
+| **User** | the per-user settings | the human in front of this machine, once | what this person allows in general |
+| **Session** | memory, this run of the application | the human, in the moment | a grant or a refusal that dies with the session |
+
+The resolver, in one sentence: **restriction is additive, permission needs every layer to agree.**
+
+- Any layer saying **deny** wins. A user cannot override the global "never", and a session cannot
+  override the user's "never" — otherwise the more specific layer becomes the way to bypass the more
+  careful one.
+- The effective verb is the **most restrictive** of global and user. Session may raise `ask` to
+  `allow` **for its own lifetime only**, which is what makes "let it do this now" a real answer
+  without it becoming a new default. That grant is recorded with its layer in the audit trail.
+- Every layer's contribution is named in the approval dialog: *"the global policy asks, and this
+  session allowed it"* — the human is told which layer made the difference, because an informed
+  decision needs to know what it is overriding.
+
+Three verbs, the same three the approval model already uses: `deny` / `ask` / `allow`. The starting
+point for a fresh installation is `ask` everywhere a model could act, and `deny` for anything that
+would let it widen its own sandbox.
+
+What this means for plugins specifically, so the table is not just theory:
+
+| Operation | Global default | User may set | Session may grant |
+| --- | --- | --- | --- |
+| list the catalogue (`plugins.list`) | allow | deny | — |
+| call a read-only plugin action | ask | allow, deny | allow |
+| call a destructive action | ask (typed confirmation) | deny; allow needs the typed word | — |
+| install a plugin | **ask: the model proposes, the human clicks** | allow "install read-only plugins" | — |
+| switch a plugin on | **deny** (the switch is the human's) | — | — |
+
+The row that stays fixed is the last two in spirit: **a model never flips the on/off switch, and never
+installs code without a click.** Not because a layer forbids it today, but because an agent that can
+install is an agent that can widen its own sandbox, and a layered policy that permitted it would be
+putting a lock on a door that still has to be opened by the thing behind it. This is recorded here so
+that a future contributor sees it was a decision, not an oversight.
+
+#### Settled: transport and integrity
+
+- **HTTPS**: add a `rustls`-based client (with `rustls-platform-verifier` or the webpki roots), so the
+  URL installer is self-contained and behaves the same on Linux, Windows and later Android. No
+  shelling out to `curl` and no three code paths.
+- **Integrity**: the index publishes a **SHA-256** per plugin; the installer shows what it actually
+  got, refuses a mismatch, and says plainly that this proves the download arrived intact — not who
+  wrote it. Authorship stays unsolved until signing is worth its cost, and the wording must not
+  pretend otherwise.
 
 ### Universal panels: "the Commander can command anything"
 
