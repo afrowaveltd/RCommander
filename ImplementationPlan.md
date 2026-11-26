@@ -1159,6 +1159,43 @@ contract instead.
 | 18.5 | Example plugins and docs | at least one working example (a JSON-over-HTTP web API browser) and a developer guide describing the protocol, versioning and permissions | the example runs against a local fixture server; the guide is bilingual |
 | 18.6 | Evidence-based binary review | built-in deterministic `rc-core::binary_review` plus optional separately approved Ghidra/REA analyzer adapter; annotated PE/ELF/Mach-O report | fixtures include benign and suspicious-looking samples, corruption, truncation, packing/entropy hints and false positives; no execution, silent upload or unsupported "clean" verdict |
 
+### The Craft suite: the reference ecosystem
+
+The panel owner has the whole ArtCraft family installed and every one of them speaks MCP. That makes
+them the *reference ecosystem* for 18.2b: a set of real applications, each with a different shape of
+work, that the declarative source can be measured against. If a manifest can describe all of these
+without code, the abstraction is right; if it needs a special case for each, it is not.
+
+| Application | What it gives us | What it needs from RCommander |
+| --- | --- | --- |
+| **LightCraft** (photo catalogue), **PhotoCraft** (Photoshop) | a browsable library with thumbnails; generate or retouch into the panel | read-only listing + small artifacts; the *result* is a file in a panel, reviewed like any other change |
+| **MailCraft** | message list + body (the list-and-detail example), draft and send | `list`/`get` are reads; `send_mail` is **destructive** and asks; never auto-approve a send |
+| **DeckCraft** (presentations), **DesignCraft** (typesetting and publication) | "make me a deck about X" → slides; a designed page set | `publish` is `Operation::Publish` — the policy already has that operation, and it is the one thing here that leaves the machine |
+| **GridCraft** (spreadsheet) | a data table as a panel; the agent reads rows, proposes formulas | editing cells is mutating; a sheet is not a file system, so copy/move/delete are **absent** from its panel |
+| **PDFCraft** (Acrobat), **CraftAnything** (an agent like this one) | document operations; and for CraftAnything, a *peer agent* rather than a source | PDF edits come back as files; CraftAnything is better reached as another model/agent endpoint (16.22–16.26), not as a panel |
+| **MaterialCraft** (procedural materials), **SolidCraft** (parametric CAD), **CADCraft** (drafting) | generate an asset from parameters; export a model | heavy compute on the other side: progress, cancellation and a size cap matter more than latency |
+| **AniCraft** (2D vector animation), **EffectCraft** (motion graphics), **FilmCraft** (video) | render motion; the agent assembles a scene | the expensive end: rendering minutes of video must be a budgeted, cancellable job whose output lands as an artifact, never as a synchronous tool call |
+
+Four things this table makes obvious, and they are what the first manifests should encode:
+
+1. **Every one of them is a different kind of source with the same shape**: a list tool, a read tool,
+   a click action, and a set of tools whose danger the catalogue already understands. Each gets its
+   own scheme (`mailcraft://`, `deckcraft://`, …) and nothing else changes.
+2. **The dangerous operations are the interesting ones**: send, publish, render, overwrite. They map
+   onto `publish`, `network`, `execute` and `write` in the policy, so the approval dialog and the
+   audit log already have the vocabulary — which is why this architecture was worth building first.
+3. **Heavy work needs the job machinery we already have**: the transfer manager's progress and
+   cancellation, not a blocking call. A tool that returns "rendering, 40 %" and a panel that shows it
+   is the shape.
+4. **The artifact is the handoff.** Whatever these applications produce arrives as a file. It lands
+   in the panel or in a workspace, it goes through the review from 16.4, and only then is anything
+   published. The ecosystem therefore needs *no new safety concept* — it needs the ones we have,
+   applied consistently.
+
+Order of implementation follows risk and value: LightCraft/PhotoCraft (listing and small artifacts)
+first, then MailCraft (the destructive-tool story), then DeckCraft/DesignCraft (documents and
+publishing), and the render-heavy trio last, when budgets and cancellable jobs exist.
+
 ### Universal panels: "the Commander can command anything"
 
 The panel owner's example is the whole argument. A **MailCraft** plugin puts the message list in the
