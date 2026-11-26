@@ -182,7 +182,11 @@ impl RCommanderApp {
             .unwrap_or_else(|| Location::local("/"));
         let left = left.unwrap_or_else(|| home.clone());
         let right = right.unwrap_or(home);
-        let model = Model::boot(settings, strings, left, right);
+        let mut model = Model::boot(settings, strings, left, right);
+        // A manifest that does not parse is reported on the status line and skipped; the rest of
+        // the application does not depend on any plugin being there.
+        let summary = model.load_plugins();
+        model.report(summary);
         RCommanderApp::new(model)
     }
 

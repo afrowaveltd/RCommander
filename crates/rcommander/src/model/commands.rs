@@ -196,6 +196,12 @@ impl Model {
                 self.refresh_active();
                 CommandOutcome::Ok
             }
+            // Plugins are data: re-reading the manifest directory is the whole reload.
+            "cm_reloadplugins" => {
+                let summary = self.load_plugins();
+                self.report(summary);
+                CommandOutcome::Ok
+            }
             "cm_goback" => self.go_back(),
             "cm_goforward" => self.go_forward(),
             "cm_opendirinotherpanel" => self.open_cursor_in_other_panel(),

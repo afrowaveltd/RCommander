@@ -1,0 +1,46 @@
+# An example RCommander plugin: every note in a folder of Markdown files, as a panel.
+#
+# Copy this folder to <config>/plugins/notes and it appears as a source you can open with
+# Ctrl+L or `cm_GoToLocation` as `notes://`. Nothing needs to be compiled.
+#
+# The folder name and the id must agree: the id is the URL scheme, and a copied folder that
+# claimed another plugin's scheme could answer in its place.
+
+[plugin]
+id = "notes"
+name = "Notes"
+version = "1.0"
+description = "Every Markdown note in a folder, as a two-column panel"
+
+[source]
+name = "Notes"
+# Every argv is a fixed array. The only substitution in the whole manifest is {path}, below.
+# `./list.sh` is relative to this folder, which RCommander makes the working directory.
+list = ["./list.sh"]
+open = ["./open.sh", "{path}"]
+# Which JSON field identifies a row; it is what {path} receives when one is opened.
+key = "path"
+
+[[source.columns]]
+id = "title"
+label = "Note"
+field = "title"
+width = 300
+
+[[source.columns]]
+id = "words"
+label = "Words"
+field = "words"
+width = 70
+numeric = true
+
+[[source.columns]]
+id = "modified"
+label = "Modified"
+field = "modified"
+width = 120
+
+[source.capabilities]
+# Notes are a place to read and open. There is no delete, move, create or rename: those keys are
+# drawn unavailable, and no dialog pretends they might work.
+allow = ["view"]

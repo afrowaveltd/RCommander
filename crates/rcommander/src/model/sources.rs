@@ -193,6 +193,9 @@ pub enum SourceAction {
     Preview(Location),
     /// Ask the application to run a command.
     Command(String),
+    /// The source already did it — it opened its own window, sent its own request, printed its
+    /// own output. There is nothing left for the panel to do, and nothing to report.
+    Done,
 }
 
 /// One plugin-provided source of listings.

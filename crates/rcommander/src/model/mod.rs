@@ -20,6 +20,7 @@ pub mod dialogs;
 pub mod fonts;
 pub mod git;
 pub mod mcptools;
+pub mod plugins;
 pub mod policy;
 pub mod prompts;
 pub mod remote;
@@ -554,6 +555,10 @@ pub struct Model {
     pub agent_workspace: Option<AgentWorkspaceState>,
     /// Plugin-provided panel sources (Phase 18.2a). One location variant, many sources.
     pub sources: sources::SourceRegistry,
+    /// Manifests the last scan loaded, as `(id, title)`.
+    pub plugins_loaded: Vec<(String, String)>,
+    /// Manifests the last scan refused, with the reason, for the status line and diagnostics.
+    pub plugin_problems: Vec<rc_core::plugin::PluginProblem>,
 }
 
 /// An open F3 viewer.
@@ -711,6 +716,8 @@ impl Model {
             alert: None,
             agent_workspace: None,
             sources: sources::SourceRegistry::new(),
+            plugins_loaded: Vec::new(),
+            plugin_problems: Vec::new(),
             keymap,
             settings,
             strings,
@@ -921,6 +928,7 @@ impl Model {
                 }
             }
             Ok(SourceAction::Command(command)) => self.run_source_command(side, &command),
+            Ok(SourceAction::Done) => CommandOutcome::Ok,
             Err(error) => CommandOutcome::Failed(error.to_string()),
         }
     }

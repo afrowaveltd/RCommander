@@ -1196,6 +1196,61 @@ Order of implementation follows risk and value: LightCraft/PhotoCraft (listing a
 first, then MailCraft (the destructive-tool story), then DeckCraft/DesignCraft (documents and
 publishing), and the render-heavy trio last, when budgets and cancellable jobs exist.
 
+### A manifest that describes a source (18.1 + 18.2b, the declarative tier)
+
+The first tier of that list is a TOML file and no code at all. It is small enough to describe exactly,
+so that the MCP backend can be added later without changing the shape:
+
+```toml
+[plugin]
+id = "notes"                                   # must equal the directory name
+name = "Notes"
+version = "1.0"
+description = "Every note as a folder of plain files"
+
+[source]
+name = "Notes"                                 # the path bar's label
+list = ["notes-index", "--json"]               # argv, no shell, output is a JSON array
+open = ["notes-open", "{path}"]                # optional; {path} is the row's key
+key = "id"                                     # which JSON field identifies a row
+
+[[source.columns]]
+id = "title"      # the first column is the row's name
+label = "Title"
+field = "title"
+width = 280
+
+[[source.columns]]
+id = "words"
+label = "Words"
+field = "word_count"
+width = 70
+numeric = true
+
+[source.capabilities]
+allow = ["view"]                               # nothing else is possible here
+```
+
+What the manifest **cannot** do is the point. It cannot name an operation the place does not have
+(the list is validated against the six that exist), it cannot write, and it cannot make a row exist
+that the `list` command did not print. Every argv is a fixed array with one substitution, so a note
+titled `; rm -rf ~` is a note and not an instruction. `list` output that is not a JSON array of
+objects is an error naming what arrived, not an empty panel.
+
+Three rules that come from the existing design rather than from plugins:
+
+- **A broken plugin is reported and skipped, never fatal** — the same contract themes have
+  (`theme_problems()`), so a typo in a community manifest cannot stop the application.
+- **Capabilities default to nothing.** `allow = []` or a missing table means a listing you can read;
+  the function keys are drawn unavailable and the command gate refuses, exactly as for a compiled-in
+  source.
+- **The manifest is data the user installed, not data the network sent.** A remote party can influence
+  which *rows* appear; it can never influence which *argv* runs.
+
+Deliberately later: the `mcp` backend (the same manifest, with `list` naming a tool and
+`columns[].field` naming the JSON key), declared row verbs, sorting inside a source, and writes.
+Nothing above changes when they arrive.
+
 ### Universal panels: "the Commander can command anything"
 
 The panel owner's example is the whole argument. A **MailCraft** plugin puts the message list in the

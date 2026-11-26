@@ -34,6 +34,7 @@ pub mod location;
 pub mod mask;
 pub mod mcptools;
 pub mod ops;
+pub mod plugin;
 pub mod policy;
 pub mod prompt;
 pub mod quicksearch;
