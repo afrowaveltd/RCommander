@@ -456,6 +456,8 @@ authors = ["RCommander contributors"]
 "ftp.sessions.deleted" = "Session “{name}” deleted"
 "session.unknown" = "No session named “{name}”"
 "session.needs_password" = "“{name}” needs its password"
+"session.password_title" = "Saved connection password"
+"session.password_required" = "Enter the password for this connection."
 "session.connected" = "Connected: {name}"
 
 "session.connecting" = "Connecting to {name}…"
