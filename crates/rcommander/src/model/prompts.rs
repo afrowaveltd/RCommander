@@ -83,16 +83,38 @@ impl Model {
         let search = self.prompt_picker.search.clone();
         let pinned = self.settings.prompts.pinned.clone();
         let recent = self.prompt_picker.recent.clone();
-        let catalogue = self.prompts();
-        let mut entries: Vec<Entry> = catalogue
-            .search(&search)
-            .into_iter()
-            .filter(|entry| category.is_none_or(|wanted| entry.category == wanted))
-            .cloned()
-            .collect();
-        if entries.is_empty() && !search.trim().is_empty() {
-            // Fall back to the whole catalogue so a typo does not look like an empty catalogue.
-            entries = catalogue.entries().to_vec();
+        let mut entries: Vec<Entry> = self.prompts().entries().to_vec();
+        // Localize only display copies of built-in metadata. User prompts,
+        // editable originals, identifiers and submitted prompt text stay intact.
+        let needle = search.trim().to_lowercase();
+        let mut matches = Vec::new();
+        for entry in &mut entries {
+            let original_matches = entry.prompt.title.to_lowercase().contains(&needle)
+                || entry.prompt.about.to_lowercase().contains(&needle)
+                || entry.prompt.text.to_lowercase().contains(&needle)
+                || entry.prompt.id.to_lowercase().contains(&needle);
+            if entry.builtin {
+                let prefix = format!("prompt.catalogue.{}", entry.prompt.id.replace('-', "_"));
+                let title_key = format!("{prefix}.title");
+                let about_key = format!("{prefix}.about");
+                let title = self.t(&title_key);
+                let about = self.t(&about_key);
+                if title != title_key {
+                    entry.prompt.title = title;
+                }
+                if about != about_key {
+                    entry.prompt.about = about;
+                }
+            }
+            if category.is_none_or(|wanted| entry.category == wanted)
+                && (original_matches || entry.prompt.title.to_lowercase().contains(&needle)
+                    || entry.prompt.about.to_lowercase().contains(&needle))
+            {
+                matches.push(entry.clone());
+            }
+        }
+        if !matches.is_empty() || needle.is_empty() {
+            entries = matches;
         }
         entries.sort_by_key(|entry| {
             let id = entry.prompt.id.as_str();
