@@ -495,6 +495,56 @@ mod tests {
     use super::*;
 
     #[test]
+    fn srt_preview_preserves_identifiers_timestamps_and_multiline_text() {
+        let input = "1\r\n00:00:01,000 --> 00:00:03,250\r\nPříliš žluťoučký\r\nkůň\r\n\r\n7\r\n00:00:04,000 --> 00:00:05,000\r\n<i>Hello</i>";
+        let Some(DataPreview::Table { rows, limited }) = DataPreview::parse("srt", "", input, false) else {
+            panic!("subtitle table expected");
+        };
+        assert!(!limited);
+        assert_eq!(rows, vec![
+            vec!["1", "00:00:01,000", "00:00:03,250", "Příliš žluťoučký\nkůň"],
+            vec!["7", "00:00:04,000", "00:00:05,000", "<i>Hello</i>"],
+        ]);
+    }
+
+    #[test]
+    fn webvtt_handles_named_cues_settings_notes_and_short_timestamps() {
+        let input = "WEBVTT - Lesson\nLanguage: en\n\nNOTE teacher note\nignore me\n\nSTYLE\n::cue { color: red }\n\nintro\n00:01.000 --> 00:02.500 align:start\nHello\n\n00:03.000 --> 00:04.000\nWorld";
+        let Some(DataPreview::Table { rows, limited }) = DataPreview::parse("vtt", "", input, false) else {
+            panic!("WebVTT table expected");
+        };
+        assert!(!limited);
+        assert_eq!(rows, vec![
+            vec!["intro", "00:01.000", "00:02.500", "Hello"],
+            vec!["", "00:03.000", "00:04.000", "World"],
+        ]);
+    }
+
+    #[test]
+    fn subtitles_reject_invalid_timestamps_and_omit_truncated_cues() {
+        for input in [
+            "1\n00:00:02,000 --> 00:00:01,000\nWrong",
+            "1\n00:00:60,000 --> 00:01:01,000\nWrong",
+            "1\n00:00:01.000 --> 00:00:02,000\nWrong",
+            "one\n00:00:01,000 --> 00:00:02,000\nWrong",
+        ] {
+            assert!(matches!(DataPreview::parse("srt", "", input, false), Some(DataPreview::Unavailable)));
+        }
+        assert!(matches!(DataPreview::parse("vtt", "", "not WEBVTT\n\n00:01.000 --> 00:02.000\nText", false), Some(DataPreview::Unavailable)));
+        let input = "1\n00:00:01,000 --> 00:00:02,000\nComplete\n\n2\n00:00:03,000 --> 00:00:04,000\nPartial\n";
+        let (rows, limited) = subtitle_rows(input, false, true).unwrap();
+        assert!(limited);
+        assert_eq!(rows.len(), 1);
+        let (rows, limited) = subtitle_rows("1\n00:00:01,000 --> 00:00:02,000\nComplete\n\n", false, true).unwrap();
+        assert!(limited);
+        assert_eq!(rows.len(), 1);
+        let input = "1\n00:00:01,000 --> 00:00:02,000\nText\n\n".repeat(MAX_ROWS + 1);
+        let (rows, limited) = subtitle_rows(&input, false, false).unwrap();
+        assert!(limited);
+        assert_eq!(rows.len(), MAX_ROWS);
+    }
+
+    #[test]
     fn csv_preserves_first_record_quotes_unicode_and_multiline_fields() {
         let (rows, limited) = table("name,value\r\n\"žluťoučký, kůň\",\"a\"\"b\nc\"\r\nx,", ',', false).unwrap();
         assert!(!limited);
