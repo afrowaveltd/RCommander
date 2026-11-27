@@ -5,11 +5,12 @@
 RCommander is a from-scratch implementation of the classic *commander* workflow —
 two directory panels side by side, driven by function keys, with a built-in
 previewer, editor, search, archive support, FTP, synchronisation, multi-rename
-and a keyboard map you can rewrite. **Linux** has a verified desktop run,
-**Windows** has a linked GUI executable, and **Android** has a checked build
-target but no verified APK yet. It speaks **MCP** (Model Context Protocol) in
-both directions, and
-ships with **English** and **Czech** — with help and language packs that are plain
+and a keyboard map you can rewrite. **Linux** has recorded desktop verification,
+**Windows** has portable MSVC test releases, and **Android** has historical
+compile checks but no verified APK yet. RCommander also includes Git panels,
+streaming model chat, reviewed workspace copies and declarative plugin sources.
+It speaks **MCP** (Model Context Protocol) as a stdio server and a stdio/HTTP
+client, and ships with **English** and **Czech** — with help and language packs that are plain
 text files you can extend without recompiling anything.
 
 > **Independent project.** RCommander is an independent, clean-room
@@ -26,6 +27,7 @@ text files you can extend without recompiling anything.
 
 - [Features](#features)
 - [Screens and workflow](#screens-and-workflow)
+- [Project status and downloads](#project-status-and-downloads)
 - [Building](#building)
 - [Running](#running)
 - [Testing](#testing)
@@ -52,12 +54,16 @@ text files you can extend without recompiling anything.
 | **Previewer (F3)** | images as images, text with encoding detection, RTL aware, **integrated hex dump** for unknown binaries, byte and pixel budgets for huge files |
 | **Editor (F4)** | internal editor with encoding- and line-ending-preserving saves |
 | **Search** | mask + content + regular-expression search on a worker thread, live results, click to navigate, result limit and cancellation |
-| **Archives** | enter ZIP/TAR/TAR.GZ/TAR.BZ2/TAR.XZ/TAR.ZST like directories; pack and unpack atomically; integrity test |
+| **Archives** | browse/extract ZIP, TAR and compressed TAR variants, single-file GZ/BZ2/XZ/ZST and 7Z; create ZIP/TAR.GZ atomically; integrity test. RAR/CAB detection only; encrypted creation and disk-image browsing planned |
 | **FTP / SFTP** | remote panels: `Ctrl+F` connects and turns a panel into the server (`Ctrl+Shift+F` disconnects); passive/active FTP, MLSD with LIST fallback, download/upload of marked entries, cancellable recursive transfers; FTPS/SFTP behind cargo features |
 | **Compare / synchronise** | `Shift+F2` compares the panels and marks the differences; the dialog copies both directions with dry run and newer-wins rules |
 | **Multi-rename** | placeholder language (`[N]`, `[E]`, `[C]`, `[P]`, `[T1]`, date parts), live preview, search & replace |
 | **File utilities** | split/combine, checksums (CRC32/MD5/SHA1/SHA256) with verification in md5sum *and* SFV formats, compare by content, duplicate finder, MIME/UUE/XXE encode & decode, saved selections |
 | **Automation** | 594-entry internal command catalogue (`cm_*`), command line, **configurable button bar with an editor**, **MCP server and client** |
+| **Git** | repository panels, branch/tag/commit browsing, revision copy-out, branch switching, stage/commit, clone and remote operations; credential/live acceptance remains partial |
+| **Agent workspace** | streaming chat, prompt catalogue/editor, copy-based file handoff, reviewed diffs/hunks and backup-backed apply; autonomous model-to-tool execution is not complete |
+| **Plugins** | TOML-defined command and MCP table sources, registry and enable/disable manager; not a sandbox for untrusted code |
+| **Credentials** | encrypted portable vault for saved credentials; agent-specific wallets and task-scoped brokerage are planned |
 | **Localisation** | TOML language packs (English + Czech included), RTL layouts, per-topic help in any language |
 
 ### Efficiency by design
@@ -65,7 +71,7 @@ text files you can extend without recompiling anything.
 - **Streaming, not slurping** — copies use a bounded buffer, previews read only
   what they show, images decode under a pixel budget.
 - **Background work** — transfers run on worker threads with cancellable
-  progress; the UI never blocks.
+  progress; some operations still require responsiveness testing.
 - **Flat memory model** — a listing is a `Vec<Entry>`; no per-file heap chatter,
   no global state.
 - **No runtime dependencies on a browser engine** — egui renders directly, so
@@ -78,14 +84,35 @@ text files you can extend without recompiling anything.
 
 ---
 
+## Screens and workflow
+
+Start with the two file panels. Use the drive selectors or path bars to navigate,
+F3 to preview, F4 to edit, F5 to copy, and Alt+F5 / Alt+F6 to pack / unpack.
+The top-level Agent and Git menus collect their related actions. The configurable
+toolbar and surface-aware function-key bar expose shortcuts for the active view.
+See [in-app documentation](Docs/) for specific workflows.
+
+## Project status and downloads
+
+- [Windows portable test releases](https://github.com/afrowaveltd/RCommander/releases):
+  download the complete ZIP, extract it and run `rcommander.exe`. The package is
+  unsigned and subject to local endpoint security policies.
+- [Build and test runs](https://github.com/afrowaveltd/RCommander/actions):
+  check the exact revision and outcome; an earlier green build does not verify
+  later commits.
+- [Implementation plan](ImplementationPlan.md) and
+  [implementation status](ImplementationStatus.md): scheduling, evidence and
+  remaining work. The project is under active development; not every planned
+  feature is implemented.
+
 ## Building
 
 ### Prerequisites
 
-- Rust **1.88+** (`rustup` recommended)
+- Current stable Rust (`rustup` recommended); **at least 1.93** for the archive crate. The workspace's older 1.88 declaration is not sufficient for the full application.
 - Linux: X11 or Wayland client libraries plus `libxkbcommon` (present on any
   desktop distribution)
-- Windows: nothing beyond the Rust MSVC toolchain
+- Windows: Rust MSVC toolchain, Visual Studio C++ build tools and OpenSSL for SFTP (the CI uses vcpkg's `x64-windows-static-md` triplet)
 - Android: Android SDK + NDK and `cargo-apk` (see below)
 
 ### Desktop
@@ -100,15 +127,16 @@ cargo build --release
 ### Windows
 
 ```bash
-cargo build --release --target x86_64-pc-windows-gnu   # with mingw-w64 installed
-# or on a Windows machine:
-cargo build --release
+# PowerShell on Windows, with vcpkg and the MSVC tools installed:
+vcpkg install openssl:x64-windows-static-md
+$env:VCPKG_ROOT = 'C:\vcpkg' # adjust to your installation
+$env:VCPKGRS_TRIPLET = 'x64-windows-static-md'
+cargo build --locked --release --target x86_64-pc-windows-msvc -p rcommander
 ```
 
-Both non-Linux targets are **compile-checked** in this repository
-(`cargo check --target x86_64-pc-windows-gnu --workspace` and
-`cargo check --target aarch64-linux-android -p rcommander`); producing the final
-artefacts needs the linkers below.
+The Windows portable workflow uses MSVC, runs targeted regressions and publishes
+a ZIP with runtime data. GNU Windows and Android compile checks are historical;
+do not infer current parity from them.
 
 ### Android
 
@@ -123,8 +151,8 @@ export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/<version>
 cargo apk build --release --target aarch64-linux-android
 ```
 
-The desktop core (everything in `rc-core`) is platform-independent and fully
-tested on the host, so the Android build only adds the window/input shell.
+Much of the core is shared, but Android linking, packaging, permissions and
+device behaviour still need current verification. No verified APK is claimed.
 
 ---
 
@@ -137,7 +165,8 @@ rcommander mcp                   # run as an MCP server on stdio
 rcommander --help
 ```
 
-Settings, hotlist and history live in one human-editable file:
+Settings, hotlist and history live in a human-editable file. Saved secrets are
+separate from this file (the portable encrypted store is `secrets.enc`):
 
 - Linux: `~/.config/rcommander/settings.toml`
 - Windows: `%APPDATA%\RCommander\settings.toml`
@@ -263,8 +292,8 @@ model: pick one in *AI model…*, ask a question and the answer **streams** in w
 the model generates it. *Stop* keeps what already arrived, *New conversation*
 clears the transcript, and the transcript becomes the request history, so
 follow-up questions work. Ollama is the built-in provider
-(`[agent] provider_url`, default `http://127.0.0.1:11434`), so nothing leaves the
-machine; see `Docs/Agent chat/`.
+(`[agent] provider_url`, default `http://127.0.0.1:11434`), so requests stay local only if the configured provider and its model runtime
+are local; see `Docs/Agent chat/`.
 
 *Configuration ▸ Agent ▸ Chat in the other panel* (`cm_ChatPane`) puts the chat
 **in a panel** with the file list still on screen; the listing is never thrown
@@ -289,10 +318,18 @@ code blocks are syntax highlighted for Rust, C#, C/C++, Go, JavaScript/TypeScrip
 Python, SQL, TOML, JSON, HTML/XML, CSS, Markdown, POSIX shells, PowerShell and
 Windows batch.
 
-**Planned, not implemented:** tool calling from the chat, "process with agent",
-background images and window effects (Phase 14.8), reviewed file changes and
-agent-coordinated tool calls (Phase 16 of
-`ImplementationPlan.md`).
+**Implemented first slices:** right-click **Process with agent…** creates copies
+and a workspace manifest; **Send changes back…** supports reviewed diffs/hunks,
+stale-original checks and backup-backed apply. See [Workspaces](Docs/Workspaces/en.md).
+Markdown conversation import/export exists; durable task/session recovery is
+still planned. The current chat is not an autonomous tool executor.
+
+**Planned / incomplete:** model-originated tool calls, durable runtime and
+sessions, advanced visual effects, agent wallets with task-scoped credential
+brokerage ([#2](https://github.com/afrowaveltd/RCommander/issues/2)), expanded
+archive creation/encryption and read-only disk images
+([#1](https://github.com/afrowaveltd/RCommander/issues/1)). See the implementation
+status for verification evidence and remaining gaps.
 
 ---
 
@@ -309,10 +346,12 @@ crates/
   rc-remote/    FTP/SFTP client and connection manager
   rc-agent/     MCP server and client (JSON-RPC, stdio + HTTP)
   rc-llm/       language-model providers (Ollama first), streaming answers
-prompts/        built-in prompt catalogue, one TOML file per category
   rc-git/       Git repository access through libgit2
   rc-help/      Docs/ discovery and Markdown model for the help window
   rcommander/   the application: headless model + egui view
+prompts/        built-in prompt catalogue, one TOML file per category
+plugins/        bundled declarative plugin examples
+themes/         runtime themes
 locales/        runtime language packs (en.toml, cs.toml)
 Docs/           in-app help, one folder per topic, one file per language
 analysis/       reverse-engineering evidence for the reconstructed feature set

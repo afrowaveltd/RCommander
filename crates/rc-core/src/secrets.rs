@@ -21,6 +21,7 @@
 
 use crate::error::{CoreError, CoreResult};
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// File magic of the encrypted store.
@@ -136,16 +137,29 @@ impl EncryptedStore {
         })
     }
 
-    /// Encrypt the store and write it with owner-only permissions.
+    /// Encrypt, flush and atomically replace the vault in its own directory.
+    /// A failed write or replacement leaves the previous vault untouched.
+    /// Unix permissions are restricted before publication; Windows inherits
+    /// the configuration directory ACL. Directory durability after power loss
+    /// is not guaranteed by this operation.
     pub fn save(&mut self, passphrase: &str) -> CoreResult<()> {
         let bytes = encrypt(&self.vault, passphrase)?;
-        if let Some(parent) = self.path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            std::fs::create_dir_all(parent).map_err(|e| CoreError::io(parent, e))?;
-        }
-        std::fs::write(&self.path, bytes).map_err(|e| CoreError::io(&self.path, e))?;
-        restrict_permissions(&self.path)?;
+        let parent = self
+            .path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        std::fs::create_dir_all(parent).map_err(|e| CoreError::io(parent, e))?;
+        let mut temp =
+            tempfile::NamedTempFile::new_in(parent).map_err(|e| CoreError::io(parent, e))?;
+        restrict_permissions(temp.path())?;
+        temp.write_all(&bytes)
+            .map_err(|e| CoreError::io(&self.path, e))?;
+        temp.as_file()
+            .sync_all()
+            .map_err(|e| CoreError::io(&self.path, e))?;
+        temp.persist(&self.path)
+            .map_err(|e| CoreError::io(&self.path, e.error))?;
         self.dirty = false;
         Ok(())
     }
@@ -471,6 +485,44 @@ mod tests {
         );
         assert!(!EncryptedStore::new(dir.path().join("missing.enc")).exists());
         assert!(EncryptedStore::load(dir.path().join("missing.enc"), "x").is_err());
+    }
+
+    #[test]
+    fn a_failed_save_preserves_the_previous_vault() {
+        let dir = dir();
+        let path = dir.path().join("secrets.enc");
+        let mut store = EncryptedStore::new(&path);
+        store.insert("account", "original");
+        store.save("passphrase").unwrap();
+        let before = std::fs::read(&path).unwrap();
+
+        store.insert("account", "replacement");
+        assert!(store.save("").is_err());
+        assert!(store.is_dirty());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        let loaded = EncryptedStore::load(&path, "passphrase").unwrap();
+        assert_eq!(loaded.get_secret("account"), Some("original"));
+
+        store.save("passphrase").unwrap();
+        assert!(!store.is_dirty());
+        let loaded = EncryptedStore::load(&path, "passphrase").unwrap();
+        assert_eq!(loaded.get_secret("account"), Some("replacement"));
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn failed_vault_replacement_leaves_no_temporary_file() {
+        let dir = dir();
+        let path = dir.path().join("secrets.enc");
+        std::fs::create_dir(&path).unwrap();
+        std::fs::write(path.join("keep"), b"untouched").unwrap();
+        let mut store = EncryptedStore::new(&path);
+        store.insert("account", "value");
+
+        assert!(store.save("passphrase").is_err());
+        assert!(store.is_dirty());
+        assert_eq!(std::fs::read(path.join("keep")).unwrap(), b"untouched");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
     #[test]

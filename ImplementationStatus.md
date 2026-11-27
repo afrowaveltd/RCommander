@@ -22,13 +22,13 @@ cargo test --workspace
 | 2 | `rc-core` engine | **done** |
 | 3 | Localisation (`rc-i18n`) | **done** |
 | 4 | Previewer engine (`rc-viewer`) | **done** |
-| 5 | Archive engine (`rc-archive`) | **done** |
+| 5 | Archive engine (`rc-archive`) | **baseline done; extensions pending** — 5.5–5.6 / issue #1 |
 | 6 | Help system (`rc-help`, `Docs/`) | **done** |
 | 7 | Remote file systems (`rc-remote`) | **partial** — FTP/SFTP panels and saved sessions implemented with recorded live SFTP verification; interactive prompt for missing credentials remains unfinished |
 | 8 | MCP integration (`rc-agent`) | **done** — server + client tested, host bridge wired, `rcommander mcp` subcommand, and an agent panel in the UI for connecting to external servers and running their tools |
 | 9 | Application model | **done** — including background job control (start, poll, cancel, aggregate progress) |
 | 10 | egui user interface | **partial** — dual panels, thumbnails, dialogs, configurable button bar, editor/viewer/help, Git UI and background jobs are reported working; inline tree, search result views and thumbnail controls still need refinement |
-| 11 | Platforms | **partial** — historical live Linux and Windows checks; Windows MSVC portable build #6 succeeded at 67e8570; current Android APK unverified |
+| 11 | Platforms | **partial** — historical live Linux and Windows checks; Windows MSVC portable build #7 succeeded at 351baeaa; Linux UI regression #1 succeeded at 482618a; #8 is a separate revision; current Android APK unverified |
 | 12 | Verification | **partial/current evidence required** — historical implemented-scope tests green; latest Windows targeted suite/release green, no new full same-revision workspace test/Clippy/format evidence |
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
@@ -1469,6 +1469,33 @@ and lightweight inline numeric powers. Regression fixtures and Windows/Linux CI 
 Verification pending; do not mark done until
 CI and real platform smoke tests. Unlabelled Linux mounts remain accessible
 through ordinary path navigation; full TeX is not claimed.
+
+## Handoff — wallet hardening and baseline documentation (2026-11-27)
+
+- [Windows #7](https://github.com/afrowaveltd/RCommander/actions/runs/45974063106)
+  succeeded at `351baeaa`; [Linux UI #1](https://github.com/afrowaveltd/RCommander/actions/runs/45974295709)
+  succeeded at `482618a`. These are targeted suites, not full current verification.
+- Commit [75889f7](https://github.com/afrowaveltd/RCommander/commit/75889f76045858e14d65aed5c3ad957de9f92a16)
+  redacts MemoryStore Debug and invalid TOML diagnostics, and checks every
+  Windows regression exit code. Windows [#8](https://github.com/afrowaveltd/RCommander/actions/runs/45986044750)
+  was in progress when this handoff was written. It does not include subsequent changes.
+- 13.4a **implemented in source, verification pending**: encrypted vault save now
+  uses a same-directory private temporary file, writes and syncs ciphertext,
+  then replaces the destination. Failed encryption or publication keeps the
+  dirty state; regressions cover preserving the previous vault and cleaning up
+  a failed replacement. The envelope is unchanged. Windows uses inherited ACLs;
+  no directory fsync/power-loss guarantee or full memory zeroization is claimed.
+  No Rust toolchain available in the editing environment; run
+  `cargo test --locked -p rc-core --lib secrets::tests`, `cargo fmt --all --check`
+  and the platform CI on the new revision. Do not mark 13.4a done until verified.
+- README updated against source, documented features and historical CI evidence.
+- 5.5–5.6 [issue #1](https://github.com/afrowaveltd/RCommander/issues/1) and
+  16.0i [issue #2](https://github.com/afrowaveltd/RCommander/issues/2) now have
+  stable plan references. They remain pending; do not infer implementation from
+  the issue specifications. Reuse existing policy/secret abstractions.
+- Next: verify 13.4a; continue stage A missing-secret SFTP prompt and UI checks,
+  then stage B typed authorization/custodian contracts. Independently ready
+  archive capability work can proceed without blocking normal file management.
 
 ## Next steps (dependency-ordered)
 
