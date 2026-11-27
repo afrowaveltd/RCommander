@@ -11,6 +11,7 @@ picks the best representation:
 | Markdown | rendered with the shared chat/help renderer; Source shows original text |
 | CSV / TSV | numbered records in a table, no assumed header |
 | JSON / TOML | expandable normalized value tree |
+| JSON Lines / NDJSON | expandable records in original line order, with physical line numbers |
 | INI / CFG / CONF | section and key/value tree for the common `key=value` dialect; duplicates retained |
 | XML | expandable element/attribute/text tree; DTD and custom entities not supported |
 | HTML / SVG | source or XML structure only; visual rendering is not yet available |
@@ -107,7 +108,7 @@ licenses and platform packaging before enabling either backend.
 
 ## Modes
 
-Choose **Preview**, **Source**, **Hex**, or **Image** on the toolbar. Markdown is cached and bounded; large documents show a limited-preview notice. Links show their destination without launching it. INI previews preserve section and assignment order, including duplicate names; interpolation and includes are never evaluated. Non-assignment dialects, invalid or oversized input fall back to Source. Comments and original whitespace remain available in Source mode. F4 edits the original source with lexical syntax colours.
+Choose **Preview**, **Source**, **Hex**, or **Image** on the toolbar. Markdown is cached and bounded; large documents show a limited-preview notice. Links show their destination without launching it. INI previews preserve section and assignment order, including duplicate names; interpolation and includes are never evaluated. Non-assignment dialects, invalid or oversized input fall back to Source. Comments and original whitespace remain available in Source mode. JSON Lines previews ignore blank lines, display at most 128 records within the shared 256 KiB/1024-node budget, and omit a potentially incomplete final line when input is truncated. Malformed complete records encountered during parsing fall back to Source. F4 edits the original source with lexical syntax colours.
 
 ### The hex dump
 
