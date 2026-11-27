@@ -1877,6 +1877,13 @@ cargo clippy --workspace --all-targets      # no warnings
 cargo fmt --all --check                     # clean
 ```
 
+CI at `e4fc718`: Linux UI regressions
+[46051401158](https://github.com/afrowaveltd/RCommander/actions/runs/46051401158)
+and Wallet regressions
+[46051401220](https://github.com/afrowaveltd/RCommander/actions/runs/46051401220)
+both completed successfully; the provider-registry slice before it is green in
+[46051073794](https://github.com/afrowaveltd/RCommander/actions/runs/46051073794).
+
 Still open: the app does not use the dispatcher yet — the chat pane still takes
 the legacy single-provider path, so the UI creates no ledger, calls no
 `admission::admit` and resolves no connection; the settings UI has no registry
