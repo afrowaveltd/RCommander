@@ -724,14 +724,31 @@ runtime; resume after restart, avoid retry storms. Test with synthetic
 provider messages, same-name unrelated models, ambiguous times, two accounts
 with separate/shared quotas, and fallback budget exhaustion.
 
-First slice: persisted metadata and structural validation only. Next:
-provider registry, discovery provenance, usage ledger and admission control,
-then deterministic router and localized wizard. Test local defaults,
-shared quotas, multiple periods, unknown metadata, insufficient context,
-concurrent reservations, exhausted hourly allowance with wait/fallback,
-cross-provider privacy refusal, and quota rollover. Preserve existing
-single-model settings and behavior until a user enables the new routing.
-No new numbered phase.
+Slices delivered so far, each headless and offline-tested:
+
+1. persisted metadata and structural validation in `rc_core::model_catalog`
+   (price class 0–5, equivalence groups, temporary-fallback preferences);
+2. typed, bounded provider rate-limit evidence in `rc_llm` (status, numeric
+   `Retry-After`, untrusted body sample kept separate from model output);
+3. the durable token ledger and admission control in `rc_core::quota` and
+   `rc_core::admission`: reservations taken before dispatch, reconciliation
+   against reported usage with missing usage charged in full, crash
+   reconciliation of reported dispatch intent rather than silent release,
+   rolling/calendar/provider-defined windows, per-scope waits taken from
+   provider answers, and a pure admit/refuse verdict that carries its reason.
+   Unknown remaining allowance is refused, never treated as unlimited.
+
+Remaining before the router: the provider/connection registry with discovery
+provenance (a catalogue `connection_id` still resolves to nothing a runtime
+can dial), real quota enforcement wired into dispatch, then the deterministic
+router and the localized wizard. Test local defaults, shared quotas, multiple
+periods, unknown metadata, insufficient context, concurrent reservations,
+exhausted hourly allowance with wait/fallback, cross-provider privacy refusal,
+and quota rollover: the offline parts are covered by the two new modules, while
+wait/fallback routing, dispatch-time enforcement and cross-provider privacy
+refusal at the transport layer are still open. Preserve existing single-model
+settings and behavior until a user enables the new routing. No new numbered
+phase.
 
 ### The "process with agent" handoff (16.10a) and the prompt manager (16.16–16.17)
 

@@ -9,6 +9,7 @@
 //! async runtime or network dependency so that it can be reused by the desktop
 //! app, the Android front-end and the MCP server.
 
+pub mod admission;
 pub mod audit;
 pub mod branch;
 pub mod checksum;
@@ -39,6 +40,7 @@ pub mod plugin;
 pub mod policy;
 pub mod prompt;
 pub mod quicksearch;
+pub mod quota;
 pub mod secrets;
 pub mod selection;
 pub mod sessions;

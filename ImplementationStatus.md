@@ -29,11 +29,11 @@ cargo test --workspace
 | 9 | Application model | **done** — including background job control (start, poll, cancel, aggregate progress) |
 | 10 | egui user interface | **partial** — dual panels, thumbnails, dialogs, configurable button bar, editor/viewer/help, Git UI and background jobs are reported working; inline tree, search result views and thumbnail controls still need refinement |
 | 11 | Platforms | **partial** — historical live Linux and Windows checks; Windows MSVC portable build #7 succeeded at 351baeaa; Linux UI regression #1 succeeded at 482618a; #8 is a separate revision; current Android APK unverified |
-| 12 | Verification | **partial/current evidence required** — historical implemented-scope tests green; latest Windows targeted suite/release green, no new full same-revision workspace test/Clippy/format evidence |
+| 12 | Verification | **partial** — Linux: `cargo test --workspace --all-targets` 1687 passed / 0 failed / 2 ignored, `cargo clippy --workspace --all-targets` and `cargo fmt --all --check` clean, `cargo build --release --workspace` green (2026-11-27, local, newly available toolchain; the previously failing `connecting_runs_in_the_background_and_reports_the_failure` is fixed and now registered in CI). Windows/Android and live-server acceptance still need their own evidence |
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model-to-MCP calls, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
+| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue plus durable token ledger and admission control (`model_catalog`, `quota`, `admission`) recorded; model-to-MCP calls, provider registry/discovery, dispatch-time quota enforcement and the routing wizard, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **partial** — shared rendering/highlighter and language extensions recorded; annotations, remaining consumer migration and TUI coverage need verification |
 | 17 | Rich document previewer | **partial** — Markdown/code/hex views; annotations, PDF/Office, binary inspection and viewer integration pending |
 | 18 | Plugin architecture | **partial** — location/registry, table capabilities, TOML command/MCP sources and on/off manager implemented; manifest verbs, renderers, isolation, installer, agent catalogue/calls and Workshop pending |
@@ -1713,6 +1713,68 @@ extension, wired into Linux CI. No new dependencies. No live provider calls,
 actual fallback, token ledger, reset scheduler or automatic switching;
 no local toolchain, new CI pending. Plan specifies explicit authorization,
 local interpretation with validation, checkpoints and cost-conserving fallback.
+
+## Handoff — token quota ledger and admission control (2026-11-27)
+
+Two new headless modules in `rc-core`, plus the first full local quality
+evidence this repository has had (a Rust toolchain is now available on the
+development machine, which the previous handoffs did not have).
+
+- `rc_core::quota` — the durable token ledger Phase 16.20 asked for. A request
+  reserves *estimated input plus maximum output* before dispatch, so two
+  concurrent jobs cannot spend one allowance. `settle` reconciles reported
+  usage and charges the whole reservation when the provider reports nothing;
+  `release` only succeeds for a request that was never dispatched. A crash
+  leaves reservations behind, and `reconcile_orphans` charges the ones whose
+  dispatch intent was recorded and releases the ones that never left, once each
+  — running it twice charges nothing extra. Windows are rolling (hour/day/week,
+  thirty-day rolling month), calendar (UTC, weeks from Monday) or
+  provider-defined; a provider-defined window whose reset was never observed
+  reports *unknown*, and unknown is refused rather than treated as unlimited.
+  Provider answers are stored as per-scope waits: a numeric `Retry-After` is a
+  delay, a 429 without one blocks only for a documented back-off constant, a
+  later wait never shortens an earlier one, and no provider text is parsed.
+  The file is written atomically (temp file, flush, sync, rename) with a version
+  field, so a newer file is refused instead of guessed at; history older than a
+  rolled window is pruned, except for provider-owned windows, where pruning
+  would hand an allowance back.
+- `rc_core::admission` — the pure admit/refuse verdict in the order a person
+  would ask: unknown or disabled model, missing capability, remote data without
+  the owner's egress authorization, context window smaller than prompt plus
+  output reserve, model/quota wait, known allowance smaller than the
+  reservation, unknown allowance. It returns a `Grant` with the connection,
+  provider model name, tokens to reserve and the earliest known rollover, or a
+  `Refusal` whose message names the limit. It reserves nothing and calls
+  nothing, so a refusal costs no provider request; `explain_skips` gives a
+  router the "why not this candidate" list without duplicating the logic.
+
+Also in this slice: the stale UI regression
+`connecting_runs_in_the_background_and_reports_the_failure` failed at
+`df7dbe9` (the credential gate added in `46bb86f`/`cac4b5c` made the connect
+dialog stay open, and the test still expected the dialog to close); it now
+types a password, keeps its original intent (background attempt plus failure
+reported in the window), and is registered in the Linux workflow. Four
+pre-existing Clippy warnings (`drive.rs`, `ui/app.rs`, `ui/workspace_window.rs`,
+`ui_smoke.rs`) were fixed, so the workspace is warning-free again.
+
+Evidence, Linux 2026-11-27 at this revision:
+
+```bash
+cargo test --workspace --all-targets          # 1687 passed, 0 failed, 2 ignored
+cargo clippy --workspace --all-targets        # no warnings
+cargo fmt --all --check                       # clean
+cargo build --release --workspace             # green
+cargo test --locked -p rc-core --lib quota::tests       # 23 passed
+cargo test --locked -p rc-core --lib admission::tests   # 9 passed
+```
+
+No new dependencies, no network, no live provider call, and no UI wiring yet:
+nothing in the app creates a ledger or calls `admit`, the legacy
+single-model path is unchanged, and `connection_id` still resolves to no
+dialable connection. Provider-reported counters, non-UTC provider time zones,
+`HTTP-date` retry headers, chunked error bodies and the deterministic router
+and localized wizard remain open. CI for this revision is not yet run; the
+workflow gained the two new module paths and the fixed regression.
 
 ## Next steps (dependency-ordered)
 
