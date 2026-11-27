@@ -12,6 +12,13 @@ use rc_core::quota::{LedgerError, QuotaLedger};
 use rc_llm::{ChatReply, ChatRequest, LlmError, Message, ProviderNotice};
 use std::collections::BTreeSet;
 
+/// Output reserve used when the catalogue does not state one for the model.
+///
+/// A reservation is estimated input plus *the whole possible output*, and a client that does not
+/// know the limit has to name something; this is the documented default rather than a promise
+/// about any provider.
+pub const DEFAULT_MAX_OUTPUT_TOKENS: u64 = 1024;
+
 /// One request for a model, before anything has been decided about it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DispatchRequest {
@@ -167,9 +174,48 @@ impl DispatchOutcome {
 /// A trait rather than a concrete provider, so the whole path — refusal, reservation, crash
 /// reconciliation, rate-limit handling — is testable without a socket, and so a future transport
 /// (a different provider family, an external runtime) plugs in here.
-pub trait Backend {
+pub trait Backend: Send + Sync {
     /// Ask `resolved` for an answer. The provider model name is already in `request`.
     fn chat(&self, resolved: &ResolvedModel, request: &ChatRequest) -> Result<ChatReply, LlmError>;
+
+    /// Ask for an answer and hand every piece of it to `on_event` as it arrives.
+    ///
+    /// The default falls back to [`Self::chat`] and reports the whole answer as one chunk, so a
+    /// backend that cannot stream still works — the caller just sees one big update. A cancelled
+    /// `control` must stop the work and report a failure: the request is already on the wire, so
+    /// the dispatcher charges it as it would charge any failure.
+    fn chat_stream(
+        &self,
+        resolved: &ResolvedModel,
+        request: &ChatRequest,
+        control: &rc_llm::StreamControl,
+        on_event: &mut dyn FnMut(rc_llm::StreamEvent<'_>),
+    ) -> Result<ChatReply, LlmError> {
+        if control.is_cancelled() {
+            return Err(LlmError::new("request cancelled"));
+        }
+        let reply = self.chat(resolved, request)?;
+        on_event(rc_llm::StreamEvent::Activity);
+        on_event(rc_llm::StreamEvent::Text(&reply.content));
+        Ok(reply)
+    }
+}
+
+/// A backend shared by several workers: the app keeps one handle and hands clones to threads.
+impl Backend for std::sync::Arc<dyn Backend> {
+    fn chat(&self, resolved: &ResolvedModel, request: &ChatRequest) -> Result<ChatReply, LlmError> {
+        (**self).chat(resolved, request)
+    }
+
+    fn chat_stream(
+        &self,
+        resolved: &ResolvedModel,
+        request: &ChatRequest,
+        control: &rc_llm::StreamControl,
+        on_event: &mut dyn FnMut(rc_llm::StreamEvent<'_>),
+    ) -> Result<ChatReply, LlmError> {
+        (**self).chat_stream(resolved, request, control, on_event)
+    }
 }
 
 /// The real backend: the plain-HTTP client from `rc-llm`, chosen by the connection's kind.
@@ -201,6 +247,17 @@ impl Backend for LlmBackend {
     fn chat(&self, resolved: &ResolvedModel, request: &ChatRequest) -> Result<ChatReply, LlmError> {
         self.provider(resolved).chat(request)
     }
+
+    fn chat_stream(
+        &self,
+        resolved: &ResolvedModel,
+        request: &ChatRequest,
+        control: &rc_llm::StreamControl,
+        on_event: &mut dyn FnMut(rc_llm::StreamEvent<'_>),
+    ) -> Result<ChatReply, LlmError> {
+        self.provider(resolved)
+            .chat_stream_controlled(request, control, on_event)
+    }
 }
 
 /// Runs one request through resolve → admit → reserve → persist → call → reconcile.
@@ -229,6 +286,41 @@ impl<B: Backend> Dispatcher<B> {
         ledger: &mut QuotaLedger,
         request: &DispatchRequest,
         now: i64,
+    ) -> DispatchOutcome {
+        self.run(catalog, ledger, request, now, &mut |resolved, chat| {
+            self.backend.chat(resolved, chat)
+        })
+    }
+
+    /// Dispatch one request and forward the answer as it arrives.
+    ///
+    /// Everything except the transport is identical to [`Self::dispatch`]: the same admission, the
+    /// same reservation, the same conservative reconciliation. A cancelled stream is a failure for
+    /// accounting purposes, because the request was already on the wire and may have produced
+    /// output the provider will still bill.
+    pub fn dispatch_stream(
+        &self,
+        catalog: &ModelCatalog,
+        ledger: &mut QuotaLedger,
+        request: &DispatchRequest,
+        control: &rc_llm::StreamControl,
+        on_event: &mut dyn FnMut(rc_llm::StreamEvent<'_>),
+        now: i64,
+    ) -> DispatchOutcome {
+        let backend = &self.backend;
+        self.run(catalog, ledger, request, now, &mut |resolved, chat| {
+            backend.chat_stream(resolved, chat, control, on_event)
+        })
+    }
+
+    /// The shared path: resolve, admit, reserve, persist, call, reconcile.
+    fn run(
+        &self,
+        catalog: &ModelCatalog,
+        ledger: &mut QuotaLedger,
+        request: &DispatchRequest,
+        now: i64,
+        call: &mut dyn FnMut(&ResolvedModel, &ChatRequest) -> Result<ChatReply, LlmError>,
     ) -> DispatchOutcome {
         let resolved = match providers::resolve(catalog, &request.model_id) {
             Ok(resolved) => resolved,
@@ -266,7 +358,7 @@ impl<B: Backend> Dispatcher<B> {
         if let Some(temperature) = request.temperature {
             chat = chat.temperature(temperature);
         }
-        match self.backend.chat(&resolved, &chat) {
+        match call(&resolved, &chat) {
             Ok(reply) => {
                 // Verified metadata only: both counts, or none.
                 let reported = match (reply.prompt_tokens, reply.answer_tokens) {

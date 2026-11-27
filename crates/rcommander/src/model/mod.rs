@@ -509,6 +509,15 @@ pub struct Model {
     pub ai_models: ai::AiModelCache,
     /// Provider override (tests, future provider selection).
     pub ai_provider: Option<std::sync::Arc<dyn rc_llm::Provider>>,
+    /// Transport override for routed chat (tests); the real one is `LlmBackend`.
+    pub ai_backend: Option<std::sync::Arc<dyn rc_runtime::Backend>>,
+    /// The durable token ledger, loaded from this profile's catalogue on first use.
+    ///
+    /// Shared with the worker thread that dispatches a chat request, so the reservation is taken
+    /// and reconciled exactly where the request runs.
+    pub quota_ledger: Option<std::sync::Arc<std::sync::Mutex<rc_core::quota::QuotaLedger>>>,
+    /// Why the ledger could not be loaded, so a broken profile is reported instead of ignored.
+    pub quota_ledger_error: Option<String>,
     /// The last answer of a model test, so the dialog can show it.
     pub last_ai_reply: Option<ai::AiTestResult>,
     /// A model test running on a worker thread.
@@ -713,6 +722,9 @@ impl Model {
             sessions_store: rc_core::sessions::SessionStore::new(),
             sessions_dirty: false,
             connect_job: None,
+            ai_backend: None,
+            quota_ledger: None,
+            quota_ledger_error: None,
             git_config: None,
             ai_models: ai::AiModelCache::default(),
             ai_provider: None,
@@ -1126,6 +1138,46 @@ impl Model {
         self.config_dir_override
             .clone()
             .unwrap_or_else(rc_core::config::config_dir)
+    }
+
+    /// True when the owner configured model routing, so a chat request must be admitted first.
+    ///
+    /// An installation that has not migrated declares no connections and keeps the legacy
+    /// single-provider path, exactly as before this feature existed.
+    pub fn routing_enabled(&self) -> bool {
+        !self.settings.agent.model_catalog.connections.is_empty()
+    }
+
+    /// The durable token ledger for this profile, loaded once and shared with workers.
+    ///
+    /// `Ok(None)` means routing is not enabled. `Err` means the owner enabled routing but the
+    /// ledger cannot be read: the chat then refuses to send rather than spending unaccounted
+    /// tokens, because an unusable ledger is not the same as no budget.
+    pub fn quota_ledger(
+        &mut self,
+    ) -> Result<Option<std::sync::Arc<std::sync::Mutex<rc_core::quota::QuotaLedger>>>, String> {
+        if let Some(ledger) = &self.quota_ledger {
+            return Ok(Some(ledger.clone()));
+        }
+        if !self.routing_enabled() {
+            return Ok(None);
+        }
+        if let Some(error) = &self.quota_ledger_error {
+            return Err(error.clone());
+        }
+        let directory = self.config_dir();
+        match rc_core::quota::QuotaLedger::load_in(&directory, &self.settings.agent.model_catalog) {
+            Ok(ledger) => {
+                let shared = std::sync::Arc::new(std::sync::Mutex::new(ledger));
+                self.quota_ledger = Some(shared.clone());
+                Ok(Some(shared))
+            }
+            Err(error) => {
+                let message = format!("{}: {error}", directory.display());
+                self.quota_ledger_error = Some(message.clone());
+                Err(message)
+            }
+        }
     }
 
     /// Remember that the settings changed; the view layer persists them.

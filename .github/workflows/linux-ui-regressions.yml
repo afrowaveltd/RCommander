@@ -72,6 +72,7 @@ jobs:
       - name: Model and headless UI regressions
         run: |
           cargo test --locked -p rcommander --lib model::sessions::tests
+          cargo test --locked -p rcommander --lib model::chat::tests
           cargo test --locked -p rcommander --lib model::remote::tests
           cargo test --locked -p rcommander --lib model::surfaces::tests
           cargo test --locked -p rcommander --test ui_smoke document_surfaces_can_share_the_two_panels_without_losing_editor_text

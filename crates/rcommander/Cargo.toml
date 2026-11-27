@@ -21,6 +21,7 @@ rc-viewer = { path = "../rc-viewer" }
 rc-archive = { path = "../rc-archive" }
 rc-help = { path = "../rc-help" }
 rc-llm = { path = "../rc-llm" }
+rc-runtime = { path = "../rc-runtime" }
 rc-agent = { path = "../rc-agent" }
 rc-git = { path = "../rc-git" }
 rc-remote = { path = "../rc-remote", features = ["sftp"] }

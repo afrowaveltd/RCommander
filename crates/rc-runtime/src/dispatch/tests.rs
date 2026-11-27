@@ -10,15 +10,17 @@ use rc_core::model_catalog::{
 };
 use rc_core::providers::ProviderConnection;
 use rc_core::quota::{QuotaLedger, Remaining};
-use std::cell::RefCell;
+use std::sync::Mutex;
 
 /// 2026-11-27T12:00:00Z, so nothing depends on the wall clock.
 const NOON: i64 = 1_795_780_800;
 
 /// A backend that answers once and records what it was asked.
 struct FakeBackend {
-    reply: RefCell<Option<Result<ChatReply, LlmError>>>,
-    calls: RefCell<Vec<(String, String, String)>>,
+    reply: Mutex<Option<Result<ChatReply, LlmError>>>,
+    calls: Mutex<Vec<(String, String, String)>>,
+    /// Pieces handed out by `chat_stream` before the answer itself arrives.
+    chunks: Vec<String>,
 }
 
 impl FakeBackend {
@@ -50,28 +52,54 @@ impl FakeBackend {
 
     fn with(reply: Result<ChatReply, LlmError>) -> FakeBackend {
         FakeBackend {
-            reply: RefCell::new(Some(reply)),
-            calls: RefCell::new(Vec::new()),
+            reply: Mutex::new(Some(reply)),
+            calls: Mutex::new(Vec::new()),
+            chunks: Vec::new(),
+        }
+    }
+
+    /// An answer that arrives in pieces, like a streaming provider.
+    fn streaming(chunks: &[&str], prompt_tokens: u64, answer_tokens: u64) -> FakeBackend {
+        FakeBackend {
+            chunks: chunks.iter().map(|chunk| (*chunk).to_string()).collect(),
+            ..FakeBackend::answering(prompt_tokens, answer_tokens)
         }
     }
 
     fn call_count(&self) -> usize {
-        self.calls.borrow().len()
+        self.calls.lock().unwrap().len()
     }
 }
 
 impl Backend for FakeBackend {
     fn chat(&self, resolved: &ResolvedModel, request: &ChatRequest) -> Result<ChatReply, LlmError> {
-        self.calls.borrow_mut().push((
+        self.calls.lock().unwrap().push((
             resolved.connection_id.clone(),
             resolved.provider_model.clone(),
             request.model.clone(),
         ));
-        match self.reply.borrow_mut().take() {
+        match self.reply.lock().unwrap().take() {
             Some(reply) => reply,
             // A second call in one test means the dispatcher dialed twice; fail loudly.
             None => Err(LlmError::new("the fake backend was asked twice")),
         }
+    }
+
+    fn chat_stream(
+        &self,
+        resolved: &ResolvedModel,
+        request: &ChatRequest,
+        control: &rc_llm::StreamControl,
+        on_event: &mut dyn FnMut(rc_llm::StreamEvent<'_>),
+    ) -> Result<ChatReply, LlmError> {
+        if control.is_cancelled() {
+            return Err(LlmError::new("request cancelled"));
+        }
+        for chunk in &self.chunks {
+            on_event(rc_llm::StreamEvent::Activity);
+            on_event(rc_llm::StreamEvent::Text(chunk));
+        }
+        self.chat(resolved, request)
     }
 }
 
@@ -398,6 +426,70 @@ fn two_models_sharing_one_account_cannot_overspend_the_same_pool() {
         }
     );
     assert_eq!(second.backend().call_count(), 0);
+}
+
+#[test]
+fn a_streamed_answer_is_forwarded_in_order_and_charged_once() {
+    let catalog = catalog(true, 1_000);
+    let dir = tempfile::tempdir().unwrap();
+    let mut ledger = ledger(&dir, &catalog);
+    let dispatcher = Dispatcher::new(FakeBackend::streaming(&["an", "swer"], 300, 120));
+    let control = rc_llm::StreamControl::default();
+    let mut seen: Vec<String> = Vec::new();
+    let mut chunks = 0;
+    let outcome = dispatcher.dispatch_stream(
+        &catalog,
+        &mut ledger,
+        &request("tiny"),
+        &control,
+        &mut |event| match event {
+            rc_llm::StreamEvent::Text(text) => {
+                chunks += 1;
+                seen.push(text.to_string());
+            }
+            rc_llm::StreamEvent::Activity | rc_llm::StreamEvent::LoadDuration(_) => {}
+        },
+        NOON,
+    );
+    assert_eq!(seen, vec!["an".to_string(), "swer".to_string()]);
+    assert_eq!(chunks, 2, "each piece reaches the caller as it arrives");
+    let DispatchOutcome::Answered {
+        content, receipt, ..
+    } = outcome
+    else {
+        panic!("a streamed answer still answers, got {outcome:?}");
+    };
+    assert_eq!(content, "answer");
+    assert_eq!(receipt.charged, Some(420));
+    assert_eq!(remaining(&reopened(&dir, &catalog)), 580);
+}
+
+#[test]
+fn a_cancelled_stream_is_charged_because_the_request_was_already_sent() {
+    let catalog = catalog(true, 1_000);
+    let dir = tempfile::tempdir().unwrap();
+    let mut ledger = ledger(&dir, &catalog);
+    let dispatcher = Dispatcher::new(FakeBackend::streaming(&["half"], 300, 120));
+    let control = rc_llm::StreamControl::default();
+    control.cancel();
+    let outcome = dispatcher.dispatch_stream(
+        &catalog,
+        &mut ledger,
+        &request("tiny"),
+        &control,
+        &mut |_| {},
+        NOON,
+    );
+    let DispatchOutcome::Failed { error, receipt, .. } = outcome else {
+        panic!("a cancelled request is a failure, got {outcome:?}");
+    };
+    assert!(error.contains("cancelled"), "message: {error}");
+    assert_eq!(
+        receipt.charged,
+        Some(150),
+        "the request was on the wire, so the allowance is not silently returned"
+    );
+    assert_eq!(dispatcher.backend().call_count(), 0, "nothing was streamed");
 }
 
 #[test]

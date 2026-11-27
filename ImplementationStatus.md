@@ -33,7 +33,7 @@ cargo test --workspace
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`) and the headless dispatch vertical (`rc-runtime`) recorded; model-to-MCP calls, the app using the dispatcher, registry migration UI and the routing wizard, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
+| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`), the headless dispatch vertical (`rc-runtime`) and **routed chat with a metered receipt** recorded; model-to-MCP calls, registry/egress settings UI and the routing wizard, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **partial** — shared rendering/highlighter and language extensions recorded; annotations, remaining consumer migration and TUI coverage need verification |
 | 17 | Rich document previewer | **partial** — Markdown/code/hex views; annotations, PDF/Office, binary inspection and viewer integration pending |
 | 18 | Plugin architecture | **partial** — location/registry, table capabilities, TOML command/MCP sources and on/off manager implemented; manifest verbs, renderers, isolation, installer, agent catalogue/calls and Workshop pending |
@@ -1889,6 +1889,61 @@ the legacy single-provider path, so the UI creates no ledger, calls no
 `admission::admit` and resolves no connection; the settings UI has no registry
 editor; provider-reported counters, capability probes, the deterministic router
 and the localized wizard remain planned. `rc-llm` still speaks plain HTTP only.
+
+## Handoff — routed chat with a metered receipt (2026-11-27)
+
+Sixth slice of Phase 16.20: the chat pane now spends through the ledger. Until
+this slice the dispatcher was capability without a consumer; now a request from
+the agent panel (or the chat command) is resolved, admitted, reserved, streamed
+and reconciled, and the status line says what it cost.
+
+- **The switch is the registry.** `Model::routing_enabled()` is true only when
+  the catalogue declares connections. An installation that declares none keeps
+  the legacy single-provider path unchanged, which is what the existing chat
+  tests still exercise; nothing about a default profile moved.
+- **The routed path** loads the profile's ledger (`quota-ledger.toml` beside
+  `settings.toml`) once, shares it with the worker thread, and runs
+  `Dispatcher::dispatch_stream`: resolve the catalogue model into a dialable
+  connection, admit against capability/egress/context/quota, reserve the
+  estimate plus the whole output reserve, persist the dispatch intent, stream
+  the answer into the transcript, then reconcile. `Backend::chat_stream` keeps
+  the incremental transcript, so metering did not cost the streaming behaviour.
+- **Refusals are explained, not guessed at.** `ChatRoutingFailure` carries the
+  typed reason from the worker thread to the UI thread, which turns it into a
+  sentence in the reader's language: unauthorized egress, exhausted quota,
+  rate-limit wait, inadequate context, missing capability, switched-off model,
+  unreadable ledger. Eighteen new keys were added to `locales/en.toml` and
+  `locales/cs.toml` (and the `crates/rc-i18n/locales` copies, which are now
+  byte-identical again).
+- **What it costs is visible.** A successful routed answer reports
+  `{model} answered via {connection} · {tokens} tokens charged`, or the
+  reservation-charged variant when the provider reported no usage, and the
+  session keeps the `Receipt`.
+- **Two safety behaviours worth naming.** A ledger that cannot be read stops the
+  chat instead of sending unmetered (`routing_enabled` + failed load is an
+  error, not a silent fallback), and egress needs `Agent.allow_remote_models`
+  (off by default), so a catalogue entry counts as remote until its owner marks
+  it local.
+- **The estimate is documented, not implied.** `estimate_prompt_tokens` is four
+  characters per token, never zero; the output reserve is the model's
+  `max_output_tokens` or `rc_runtime::dispatch::DEFAULT_MAX_OUTPUT_TOKENS`
+  (1 024). Both are estimates that the provider's own counts reconcile.
+
+Evidence, Linux 2026-11-27 at this revision:
+
+```bash
+cargo test --workspace --all-targets                       # 1720 passed, 0 failed, 2 ignored
+cargo test --locked -p rcommander --lib model::chat::tests  # 12 passed
+cargo test --locked -p rc-runtime                           # 12 passed
+cargo clippy --workspace --all-targets                     # no warnings
+cargo fmt --all --check                                    # clean
+```
+
+Still open: the catalogue and `allow_remote_models` are edited by hand (no
+settings UI, no discovery button in the model picker), provider-reported
+counters and capability probes are not modelled, HTTP-date `Retry-After` and
+chunked error bodies are unparsed, and the deterministic router and localized
+wizard remain planned. No Windows/Android run at this revision.
 
 ## Next steps (dependency-ordered)
 

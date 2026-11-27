@@ -1019,6 +1019,13 @@ pub struct Agent {
         skip_serializing_if = "crate::model_catalog::ModelCatalog::is_empty"
     )]
     pub model_catalog: crate::model_catalog::ModelCatalog,
+    /// Whether a request's data may be sent to a provider this device does not host.
+    ///
+    /// Off by default: a catalogue model counts as remote until its owner marks it local, and a
+    /// remote model is never used without this explicit authorization. Even when it is on, the
+    /// model still has to be admitted against the rest of the catalogue.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub allow_remote_models: bool,
     /// What we remember about each connected MCP server and its tools (Phase 16.37).
     ///
     /// Kept in the settings file so a second connection does not ask the same questions again.
@@ -1070,6 +1077,7 @@ impl Default for Agent {
             response_wait_seconds: 120,
             model_load_seconds: BTreeMap::new(),
             model_catalog: crate::model_catalog::ModelCatalog::default(),
+            allow_remote_models: false,
             mcp_servers: Vec::new(),
             preapproved: Vec::new(),
         }

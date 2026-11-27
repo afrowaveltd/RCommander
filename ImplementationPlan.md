@@ -763,10 +763,25 @@ Slices delivered so far, each headless and offline-tested:
    `rc-runtime` (the Phase 25.5 boundary, started as one vertical instead of a
    rewrite).
 
-Remaining before the router: the app does not use the dispatcher yet (chat
-still takes the legacy single-provider path, so no ledger is created and
-`admit` is not called from the UI), provider-registry migration in the
-settings UI, then the deterministic router and the localized wizard. Test local defaults, shared quotas, multiple
+6. the chat pane goes through the dispatcher when routing is enabled. The
+   catalogue's `connections` are the switch: an installation that declares none
+   keeps the legacy single-provider path exactly as before, while one that
+   declares them gets resolve → admit → reserve → persist → stream → reconcile,
+   with the ledger loaded from the profile's own directory and shared with the
+   worker thread. A refused request stops before the backend and the transcript
+   says why in the reader's language; an exhausted pool refuses without sending;
+   an unreadable ledger stops the chat instead of spending unaccounted tokens;
+   and a successful answer reports its provenance and cost in the status line.
+   Streaming is preserved end to end — `Backend::chat_stream` keeps the
+   incremental transcript. The estimate is documented as four characters per
+   token with the model's `max_output_tokens` (or a named default) as the
+   output reserve, and egress needs `Agent.allow_remote_models`, which is off
+   by default.
+
+Remaining before the router: provider-registry migration in the settings UI
+(the catalogue is still edited by hand, and `allow_remote_models` has no
+control yet), provider-reported counters and capability probes, then the
+deterministic router and the localized wizard. Test local defaults, shared quotas, multiple
 periods, unknown metadata, insufficient context, concurrent reservations,
 exhausted hourly allowance with wait/fallback, cross-provider privacy refusal,
 and quota rollover: the offline parts are covered by the two new modules, while

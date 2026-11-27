@@ -9,7 +9,9 @@
 //! through the policy layer (16.0) by way of an MCP tool.
 
 use super::{CommandOutcome, Model};
+use rc_core::admission::Refusal;
 use rc_llm::{ChatReply, ChatRequest, Message, StreamControl, StreamEvent};
+use rc_runtime::{DispatchOutcome, DispatchRequest, Dispatcher, Receipt};
 use std::time::{Duration, Instant};
 
 /// One line of the transcript.
@@ -70,6 +72,8 @@ pub struct ChatSession {
     job: Option<ChatJob>,
     /// Model the transcript belongs to, so a model switch is visible.
     pub model: String,
+    /// What the last routed answer cost and which connection produced it (Phase 16.20).
+    pub last_receipt: Option<Receipt>,
     /// Counter behind [`ChatLine::seq`].
     next_seq: u64,
 }
@@ -112,6 +116,46 @@ impl std::fmt::Debug for ChatSession {
     }
 }
 
+// A per-process counter for routed request ids, so a receipt names one attempt. The id ends up in
+// the ledger, so it has to be unique without a random source.
+thread_local! {
+    static NEXT_REQUEST: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// The catalogue entry whose provider model the chat is configured with.
+///
+/// Matched by provider model name, which is what the settings and the picker hold; an enabled
+/// entry wins over a switched-off one, so re-enabling a model takes effect without editing a
+/// second field.
+fn routed_catalogue_model<'a>(
+    catalogue: &'a rc_core::model_catalog::ModelCatalog,
+    model: &str,
+) -> Option<&'a rc_core::model_catalog::ModelProfile> {
+    let mut matches = catalogue
+        .models
+        .iter()
+        .filter(|entry| entry.model_id == model);
+    let first = matches.next()?;
+    let enabled = std::iter::once(first)
+        .chain(matches)
+        .find(|entry| entry.enabled);
+    enabled.or(Some(first))
+}
+
+/// A token estimate for a prompt.
+///
+/// There is no tokenizer here and there will not be one per provider, so the estimate is the
+/// documented rule of four characters per token, rounded up and never zero. It is an estimate:
+/// the ledger reserves it plus the whole output reserve, and the provider's own count reconciles
+/// the reservation afterwards.
+pub fn estimate_prompt_tokens(messages: &[Message]) -> u64 {
+    let characters: u64 = messages
+        .iter()
+        .map(|message| message.content.chars().count() as u64)
+        .sum();
+    characters.div_ceil(4).max(1)
+}
+
 /// One answer being streamed.
 struct ChatJob {
     receiver: std::sync::mpsc::Receiver<ChatEvent>,
@@ -149,12 +193,30 @@ pub struct ChatWaiting {
     pub ask: bool,
 }
 
+/// Why a routed request never produced an answer.
+///
+/// Kept as data until the UI thread turns it into a sentence, because the sentence has to be in
+/// the reader's language and the worker thread has no translator.
+#[derive(Clone, Debug)]
+pub enum ChatRoutingFailure {
+    Refused(Refusal),
+    Unresolvable(rc_core::providers::ResolveError),
+    NotReserved(rc_core::quota::LedgerError),
+    NotPersisted(String),
+    RateLimited { until: i64, now: i64 },
+    Failed(String),
+}
+
 /// What the worker sends back.
 enum ChatEvent {
     Probe(Option<bool>),
     Activity,
     LoadDuration(Duration),
     Chunk(String),
+    /// What the routed request cost, before the answer itself completes.
+    Receipt(Box<Receipt>),
+    /// A routed request that was stopped before it could answer.
+    RoutingFailed(Box<ChatRoutingFailure>),
     Done(Box<ChatReply>),
     Failed(String),
 }
@@ -221,12 +283,6 @@ impl Model {
                 return CommandOutcome::Failed(message);
             }
         };
-        let Some(provider) = self.ai_provider() else {
-            let message = self.t("ai.provider.unknown");
-            self.report_error(&message);
-            return CommandOutcome::Failed(message);
-        };
-
         // The transcript becomes the request history: everything said so far.
         let mut messages: Vec<Message> = Vec::new();
         let system = if self.chat_session.system.trim().is_empty() {
@@ -252,61 +308,91 @@ impl Model {
         self.chat_session.input.clear();
         self.chat_session.model = model.clone();
 
-        let request = ChatRequest::new(model.clone(), messages);
         let (sender, receiver) = std::sync::mpsc::channel();
         let control = StreamControl::default();
         let worker_control = control.clone();
-        let estimate_key = format!("{}|{}|{}", provider.kind(), provider.base_url(), model);
+        let started = Instant::now();
+        let routed = self.routing_enabled();
+        // The estimate is only a courtesy for the "loading a cold model" line; a routed request
+        // keys it by the connection it will actually use.
+        let estimate_key = match self.routed_estimate_key(&model) {
+            Some(key) if routed => key,
+            _ => {
+                let provider = self.ai_provider();
+                let (kind, base_url) = match &provider {
+                    Some(provider) => (provider.kind(), provider.base_url().to_string()),
+                    None => ("ollama", self.settings.agent.provider_url.clone()),
+                };
+                format!("{kind}|{base_url}|{model}")
+            }
+        };
         let estimate = self
             .settings
             .agent
             .model_load_seconds
             .get(&estimate_key)
             .copied();
-        let started = Instant::now();
-        std::thread::spawn(move || {
-            let initial = provider.model_loaded(&model).ok().flatten();
-            let _ = sender.send(ChatEvent::Probe(initial));
-            if worker_control.is_cancelled() {
-                return;
+        if routed {
+            if let Err(message) =
+                self.spawn_routed_chat(model.clone(), messages.clone(), &control, &sender)
+            {
+                self.abort_chat_request(&message);
+                return CommandOutcome::Failed(message);
             }
-            // Only a provider that can actually answer the question is polled: a provider that
-            // returns `None` would otherwise have a thread asking it every five seconds for an
-            // answer it has already said it does not have.
-            if initial.is_some() {
-                let probe_provider = provider.clone();
-                let probe_control = worker_control.clone();
-                let probe_sender = sender.clone();
-                std::thread::spawn(move || {
-                    // A budget, so a server that stops answering cannot leave a thread polling
-                    // forever: five minutes of five-second probes covers any load worth waiting
-                    // for, and the request itself is cancelled long before that matters.
-                    for _ in 0..60 {
-                        std::thread::sleep(Duration::from_secs(5));
-                        if probe_control.is_cancelled() {
-                            break;
-                        }
-                        let loaded = probe_provider.model_loaded(&model).ok().flatten();
-                        if probe_sender.send(ChatEvent::Probe(loaded)).is_err() {
-                            break;
-                        }
-                    }
-                });
-            }
-            let result = provider.chat_stream_controlled(&request, &worker_control, &mut |event| {
-                let event = match event {
-                    StreamEvent::Activity => ChatEvent::Activity,
-                    StreamEvent::Text(text) => ChatEvent::Chunk(text.to_string()),
-                    StreamEvent::LoadDuration(duration) => ChatEvent::LoadDuration(duration),
-                };
-                let _ = sender.send(event);
-            });
-            let _ = match result {
-                Ok(reply) => sender.send(ChatEvent::Done(Box::new(reply))),
-                Err(error) => sender.send(ChatEvent::Failed(error.to_string())),
+        } else {
+            let provider_message = self.t("ai.provider.unknown");
+            let Some(provider) = self.ai_provider() else {
+                self.abort_chat_request(&provider_message);
+                return CommandOutcome::Failed(provider_message);
             };
-            worker_control.cancel();
-        });
+            let request = ChatRequest::new(model.clone(), messages);
+            std::thread::spawn(move || {
+                let initial = provider.model_loaded(&model).ok().flatten();
+                let _ = sender.send(ChatEvent::Probe(initial));
+                if worker_control.is_cancelled() {
+                    return;
+                }
+                // Only a provider that can actually answer the question is polled: a provider that
+                // returns `None` would otherwise have a thread asking it every five seconds for an
+                // answer it has already said it does not have.
+                if initial.is_some() {
+                    let probe_provider = provider.clone();
+                    let probe_control = worker_control.clone();
+                    let probe_sender = sender.clone();
+                    std::thread::spawn(move || {
+                        // A budget, so a server that stops answering cannot leave a thread polling
+                        // forever: five minutes of five-second probes covers any load worth waiting
+                        // for, and the request itself is cancelled long before that matters.
+                        for _ in 0..60 {
+                            std::thread::sleep(Duration::from_secs(5));
+                            if probe_control.is_cancelled() {
+                                break;
+                            }
+                            let loaded = probe_provider.model_loaded(&model).ok().flatten();
+                            if probe_sender.send(ChatEvent::Probe(loaded)).is_err() {
+                                break;
+                            }
+                        }
+                    });
+                }
+                let result =
+                    provider.chat_stream_controlled(&request, &worker_control, &mut |event| {
+                        let event = match event {
+                            StreamEvent::Activity => ChatEvent::Activity,
+                            StreamEvent::Text(text) => ChatEvent::Chunk(text.to_string()),
+                            StreamEvent::LoadDuration(duration) => {
+                                ChatEvent::LoadDuration(duration)
+                            }
+                        };
+                        let _ = sender.send(event);
+                    });
+                let _ = match result {
+                    Ok(reply) => sender.send(ChatEvent::Done(Box::new(reply))),
+                    Err(error) => sender.send(ChatEvent::Failed(error.to_string())),
+                };
+                worker_control.cancel();
+            });
+        }
         self.chat_session.job = Some(ChatJob {
             receiver,
             control,
@@ -322,6 +408,274 @@ impl Model {
             estimate,
         });
         CommandOutcome::Ok
+    }
+
+    /// Mark the pending answer line as stopped and report why nothing will arrive.
+    fn abort_chat_request(&mut self, message: &str) {
+        if let Some(line) = self.chat_session.lines.last_mut()
+            && line.streaming
+        {
+            line.streaming = false;
+            if line.text.is_empty() {
+                line.text = format!("⚠ {message}");
+            }
+        }
+        self.report_error(message.to_string());
+    }
+
+    /// The load-time cache key a routed request would use, when the catalogue can say.
+    fn routed_estimate_key(&self, model: &str) -> Option<String> {
+        let catalogue = &self.settings.agent.model_catalog;
+        let entry = routed_catalogue_model(catalogue, model)?;
+        let connection = catalogue
+            .connections
+            .iter()
+            .find(|connection| connection.id == entry.connection_id)?;
+        Some(format!(
+            "{}|{}|{}",
+            connection.kind, connection.base_url, entry.model_id
+        ))
+    }
+
+    /// Start a routed answer: the catalogue decides the connection, admission decides whether it
+    /// may run, the ledger reserves the allowance, and only then does the request leave.
+    fn spawn_routed_chat(
+        &mut self,
+        model: String,
+        messages: Vec<Message>,
+        control: &StreamControl,
+        sender: &std::sync::mpsc::Sender<ChatEvent>,
+    ) -> Result<(), String> {
+        let catalogue = self.settings.agent.model_catalog.clone();
+        let entry = routed_catalogue_model(&catalogue, &model)
+            .ok_or_else(|| self.tf("ai.route.no_model", &[("model", &model)]))?;
+        let ledger = match self.quota_ledger()? {
+            Some(ledger) => ledger,
+            // `routing_enabled()` was true a moment ago, so this is a contradiction worth naming
+            // rather than silently falling back to unmetered sending.
+            None => return Err(self.t("ai.ledger.unavailable")),
+        };
+        let backend: std::sync::Arc<dyn rc_runtime::Backend> =
+            self.ai_backend.clone().unwrap_or_else(|| {
+                std::sync::Arc::new(rc_runtime::LlmBackend {
+                    timeout: Some(Duration::from_secs(
+                        self.settings.agent.response_wait_seconds.clamp(3, 3600),
+                    )),
+                })
+            });
+        let allow_remote = self.settings.agent.allow_remote_models;
+        let max_output = entry
+            .max_output_tokens
+            .unwrap_or(rc_runtime::dispatch::DEFAULT_MAX_OUTPUT_TOKENS);
+        let prompt_tokens = estimate_prompt_tokens(&messages);
+        let request_id = format!(
+            "chat-{}-{}",
+            std::process::id(),
+            NEXT_REQUEST.with(|next| {
+                let value = next.get() + 1;
+                next.set(value);
+                value
+            })
+        );
+        let dispatch_request = DispatchRequest {
+            request_id,
+            model_id: entry.id.clone(),
+            messages,
+            prompt_tokens,
+            max_output_tokens: max_output,
+            temperature: None,
+            task: "chat".into(),
+            requires: [rc_core::model_catalog::Capability::Text]
+                .into_iter()
+                .collect(),
+            allow_remote,
+        };
+        let worker_control = control.clone();
+        let worker_sender = sender.clone();
+        std::thread::spawn(move || {
+            let dispatcher = Dispatcher::new(backend);
+            let mut guard = match ledger.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            let now = chrono::Local::now().timestamp();
+            let outcome = dispatcher.dispatch_stream(
+                &catalogue,
+                &mut guard,
+                &dispatch_request,
+                &worker_control,
+                &mut |event| {
+                    let event = match event {
+                        StreamEvent::Activity => ChatEvent::Activity,
+                        StreamEvent::Text(text) => ChatEvent::Chunk(text.to_string()),
+                        StreamEvent::LoadDuration(duration) => ChatEvent::LoadDuration(duration),
+                    };
+                    let _ = worker_sender.send(event);
+                },
+                now,
+            );
+            drop(guard);
+            match outcome {
+                DispatchOutcome::Answered {
+                    content,
+                    reply_model,
+                    receipt,
+                } => {
+                    let _ = worker_sender.send(ChatEvent::Receipt(Box::new(receipt)));
+                    let reply = ChatReply {
+                        content,
+                        model: reply_model,
+                        done_reason: None,
+                        prompt_tokens: None,
+                        answer_tokens: None,
+                    };
+                    let _ = worker_sender.send(ChatEvent::Done(Box::new(reply)));
+                }
+                DispatchOutcome::RateLimited {
+                    until,
+                    notice,
+                    receipt,
+                    ..
+                } => {
+                    let _ = worker_sender.send(ChatEvent::Receipt(Box::new(receipt)));
+                    let announced = notice
+                        .retry_after_seconds
+                        .and_then(|seconds| i64::try_from(seconds).ok())
+                        .unwrap_or(0);
+                    let wait = ChatRoutingFailure::RateLimited {
+                        until,
+                        now: now + announced,
+                    };
+                    let _ = worker_sender.send(ChatEvent::RoutingFailed(Box::new(wait)));
+                }
+                DispatchOutcome::Refused { refusal } => {
+                    let _ = worker_sender.send(ChatEvent::RoutingFailed(Box::new(
+                        ChatRoutingFailure::Refused(refusal),
+                    )));
+                }
+                DispatchOutcome::Unresolvable { error } => {
+                    let _ = worker_sender.send(ChatEvent::RoutingFailed(Box::new(
+                        ChatRoutingFailure::Unresolvable(error),
+                    )));
+                }
+                DispatchOutcome::NotReserved { error } => {
+                    let _ = worker_sender.send(ChatEvent::RoutingFailed(Box::new(
+                        ChatRoutingFailure::NotReserved(error),
+                    )));
+                }
+                DispatchOutcome::NotPersisted { error } => {
+                    let _ = worker_sender.send(ChatEvent::RoutingFailed(Box::new(
+                        ChatRoutingFailure::NotPersisted(error),
+                    )));
+                }
+                DispatchOutcome::Failed { error, receipt, .. } => {
+                    let _ = worker_sender.send(ChatEvent::Receipt(Box::new(receipt)));
+                    let _ = worker_sender.send(ChatEvent::RoutingFailed(Box::new(
+                        ChatRoutingFailure::Failed(error),
+                    )));
+                }
+            }
+            worker_control.cancel();
+        });
+        Ok(())
+    }
+
+    /// A localized sentence for a refusal, so the reason reaches the reader in their language.
+    pub fn refusal_message(&self, refusal: &Refusal) -> String {
+        let now = chrono::Local::now().timestamp();
+        match refusal {
+            Refusal::RemoteNotAuthorized => self.t("ai.refusal.remote"),
+            Refusal::UnknownModel(id) => self.tf("ai.refusal.unknown_model", &[("model", id)]),
+            Refusal::Disabled(id) => self.tf("ai.refusal.disabled", &[("model", id)]),
+            Refusal::MissingCapability(capability) => self.tf(
+                "ai.refusal.capability",
+                &[("capability", &format!("{capability:?}"))],
+            ),
+            Refusal::ContextTooSmall { needed, available } => self.tf(
+                "ai.refusal.context",
+                &[
+                    ("needed", &needed.to_string()),
+                    ("available", &available.to_string()),
+                ],
+            ),
+            Refusal::ModelWaiting { until } => {
+                let seconds = (until - now).max(0).to_string();
+                self.tf("ai.refusal.waiting", &[("seconds", &seconds)])
+            }
+            Refusal::QuotaWaiting { quota_id, until } => {
+                let seconds = (until - now).max(0).to_string();
+                self.tf(
+                    "ai.refusal.quota_waiting",
+                    &[("quota", quota_id), ("seconds", &seconds)],
+                )
+            }
+            Refusal::QuotaExceeded {
+                quota_id,
+                remaining,
+                wanted,
+            } => self.tf(
+                "ai.refusal.quota",
+                &[
+                    ("quota", quota_id),
+                    ("remaining", &remaining.to_string()),
+                    ("wanted", &wanted.to_string()),
+                ],
+            ),
+            Refusal::UnknownRemaining { quota_id, .. } => {
+                self.tf("ai.refusal.unknown_quota", &[("quota", quota_id)])
+            }
+        }
+    }
+
+    /// A localized sentence for a routed request that never produced an answer.
+    pub fn routing_failure_message(&self, failure: &ChatRoutingFailure) -> String {
+        match failure {
+            ChatRoutingFailure::Refused(refusal) => {
+                let reason = self.refusal_message(refusal);
+                self.tf("ai.route.refused", &[("reason", &reason)])
+            }
+            ChatRoutingFailure::Unresolvable(error) => {
+                self.tf("ai.route.unresolvable", &[("reason", &error.to_string())])
+            }
+            ChatRoutingFailure::NotReserved(error) => {
+                let reason = error.to_string();
+                self.tf("ai.route.refused", &[("reason", &reason)])
+            }
+            ChatRoutingFailure::NotPersisted(error) => {
+                self.tf("ai.route.not_persisted", &[("reason", error)])
+            }
+            ChatRoutingFailure::RateLimited { until, now } => {
+                let seconds = (until - now).max(0).to_string();
+                self.tf("ai.route.rate_limited", &[("seconds", &seconds)])
+            }
+            ChatRoutingFailure::Failed(error) => {
+                let reason = error.to_string();
+                self.tf("ai.route.failed", &[("reason", &reason)])
+            }
+        }
+    }
+
+    /// The sentence describing what a routed answer cost, for the status line.
+    fn metered_note(&self, receipt: &Receipt) -> String {
+        let tokens = receipt.charged.unwrap_or(0).to_string();
+        if receipt.usage_missing {
+            return self.tf(
+                "ai.chat.metered_reserved",
+                &[
+                    ("model", &receipt.provider_model),
+                    ("connection", &receipt.connection_id),
+                    ("tokens", &tokens),
+                ],
+            );
+        }
+        self.tf(
+            "ai.chat.metered",
+            &[
+                ("model", &receipt.provider_model),
+                ("connection", &receipt.connection_id),
+                ("tokens", &tokens),
+            ],
+        )
     }
 
     /// Take whatever the model has produced so far; returns true when the transcript changed.
@@ -383,6 +737,23 @@ impl Model {
                     finished = true;
                     done = true;
                 }
+                Ok(ChatEvent::Receipt(receipt)) => {
+                    self.chat_session.last_receipt = Some(*receipt);
+                }
+                Ok(ChatEvent::RoutingFailed(routing_failure)) => {
+                    let message = self.routing_failure_message(&routing_failure);
+                    if let Some(line) = self.chat_session.lines.last_mut()
+                        && line.streaming
+                    {
+                        line.streaming = false;
+                        if line.text.is_empty() {
+                            line.text = format!("⚠ {message}");
+                        }
+                    }
+                    failure = Some(message);
+                    changed = true;
+                    finished = true;
+                }
                 Ok(ChatEvent::Failed(message)) => {
                     if let Some(line) = self.chat_session.lines.last_mut()
                         && line.streaming
@@ -409,7 +780,10 @@ impl Model {
                 self.report_error(message);
             } else if done {
                 let model = self.chat_session.model.clone();
-                let text = self.tf("ai.chat.finished", &[("model", &model)]);
+                let text = match self.chat_session.last_receipt.clone() {
+                    Some(receipt) => self.metered_note(&receipt),
+                    None => self.tf("ai.chat.finished", &[("model", &model)]),
+                };
                 self.report_done(text, Some(crate::model::desktop_sound::Sound::Done));
             }
         } else {
@@ -739,6 +1113,103 @@ mod tests {
         (model, seen)
     }
 
+    /// A backend for the routed path that records every request it is given.
+    struct RoutedBackend {
+        content: String,
+        calls: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl rc_runtime::Backend for RoutedBackend {
+        fn chat(
+            &self,
+            _resolved: &rc_core::providers::ResolvedModel,
+            request: &ChatRequest,
+        ) -> Result<ChatReply, LlmError> {
+            self.calls.lock().unwrap().push(
+                request
+                    .messages
+                    .last()
+                    .map(|m| m.content.clone())
+                    .unwrap_or_default(),
+            );
+            Ok(ChatReply {
+                content: self.content.clone(),
+                model: request.model.clone(),
+                done_reason: Some("stop".into()),
+                prompt_tokens: Some(300),
+                answer_tokens: Some(120),
+            })
+        }
+    }
+
+    /// A model with routing switched on: one local or remote model drawing on one hourly pool.
+    fn routed_model(local: bool, pool: u64) -> (Model, Arc<Mutex<Vec<String>>>, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        // The real English pack, so the assertions read the sentences a person would see rather
+        // than translation keys.
+        let locale_dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../rc-i18n/locales");
+        let strings = crate::i18n::TranslatorStrings::discover(&locale_dir, "en");
+        let mut model = Model::boot(
+            Settings::default(),
+            Box::new(strings),
+            Location::local(dir.path()),
+            Location::local(dir.path()),
+        );
+        model.config_dir_override = Some(dir.path().to_path_buf());
+        model.settings.agent.model = "tiny:1b".to_string();
+        model.settings.agent.model_catalog = rc_core::model_catalog::ModelCatalog {
+            connections: vec![rc_core::providers::ProviderConnection {
+                id: "default".into(),
+                kind: rc_core::providers::ProviderKind::Ollama,
+                base_url: "http://127.0.0.1:11434".into(),
+                account: None,
+                enabled: true,
+            }],
+            quotas: vec![rc_core::model_catalog::TokenQuota {
+                id: "pool".into(),
+                tokens: pool,
+                period: rc_core::model_catalog::QuotaPeriod::Hour,
+                window: rc_core::model_catalog::QuotaWindow::Rolling,
+            }],
+            models: vec![rc_core::model_catalog::ModelProfile {
+                id: "tiny".into(),
+                connection_id: "default".into(),
+                model_id: "tiny:1b".into(),
+                enabled: true,
+                local,
+                context_tokens: Some(8_192),
+                // A modest output reserve, so the reservation fits the pool in the tests.
+                max_output_tokens: Some(256),
+                capabilities: [rc_core::model_catalog::Capability::Text]
+                    .into_iter()
+                    .collect(),
+                quota_ids: vec!["pool".into()],
+                ..rc_core::model_catalog::ModelProfile::default()
+            }],
+            ..rc_core::model_catalog::ModelCatalog::default()
+        };
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        model.ai_backend = Some(Arc::new(RoutedBackend {
+            content: "routed answer".into(),
+            calls: calls.clone(),
+        }));
+        (model, calls, dir)
+    }
+
+    /// The charge booked against the pool, read back from the ledger file.
+    fn booked(model: &Model) -> u64 {
+        let ledger = rc_core::quota::QuotaLedger::load_in(
+            model.config_dir(),
+            &model.settings.agent.model_catalog,
+        )
+        .expect("the ledger was written");
+        match ledger.remaining("pool", chrono::Local::now().timestamp()) {
+            rc_core::quota::Remaining::Known { tokens, .. } => tokens,
+            other => panic!("the pool should have a known remainder, got {other:?}"),
+        }
+    }
+
     fn settle(model: &mut Model) {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         while std::time::Instant::now() < deadline && model.chat_is_running() {
@@ -746,6 +1217,132 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
         model.poll_chat();
+    }
+
+    #[test]
+    fn a_routed_chat_is_admitted_charged_and_reports_its_provenance() {
+        use super::*;
+        let (mut model, calls, _dir) = routed_model(true, 1_000);
+        model.chat_session.input = "hello".into();
+        assert!(
+            matches!(model.chat_send(), CommandOutcome::Ok),
+            "a local model within the pool is dispatched"
+        );
+        settle(&mut model);
+        assert_eq!(calls.lock().unwrap().len(), 1, "the backend was asked once");
+        let answer = model
+            .chat_session
+            .lines
+            .iter()
+            .rev()
+            .find(|line| matches!(line.speaker, Speaker::Model))
+            .map(|line| line.text.clone())
+            .unwrap_or_default();
+        assert_eq!(answer, "routed answer");
+        let receipt = model
+            .chat_session
+            .last_receipt
+            .clone()
+            .expect("a routed answer carries a receipt");
+        assert_eq!(receipt.connection_id, "default");
+        assert_eq!(receipt.provider_model, "tiny:1b");
+        assert_eq!(
+            receipt.charged,
+            Some(420),
+            "the provider's own counts are booked"
+        );
+        assert!(!receipt.remote);
+        assert_eq!(model.last_error, None, "nothing went wrong");
+        assert!(
+            model.status.contains("420"),
+            "the status line says what it cost: {}",
+            model.status
+        );
+        assert_eq!(
+            booked(&model),
+            580,
+            "the pool lost exactly the answer's cost"
+        );
+    }
+
+    #[test]
+    fn a_remote_model_without_permission_is_refused_and_never_reaches_a_backend() {
+        let (mut model, calls, _dir) = routed_model(false, 1_000);
+        model.chat_session.input = "hello".into();
+        model.chat_send();
+        settle(&mut model);
+        assert_eq!(
+            calls.lock().unwrap().len(),
+            0,
+            "unauthorized egress must not become a request"
+        );
+        let error = model.last_error.clone().unwrap_or_default();
+        assert!(
+            error.contains("remote provider"),
+            "the refusal says why: {error}"
+        );
+        let line = model
+            .chat_session
+            .lines
+            .last()
+            .map(|line| line.text.clone())
+            .unwrap_or_default();
+        assert!(line.contains("⚠"), "the transcript shows the stop: {line}");
+        assert_eq!(booked(&model), 1_000, "a refusal costs no allowance");
+    }
+
+    #[test]
+    fn an_exhausted_pool_refuses_the_chat_before_the_backend() {
+        // The reservation is the estimate plus the whole output reserve (1 024 tokens by default),
+        // so a ten-token pool can never hold it.
+        let (mut model, calls, _dir) = routed_model(true, 10);
+        model.chat_session.input = "hello".into();
+        model.chat_send();
+        settle(&mut model);
+        assert_eq!(calls.lock().unwrap().len(), 0);
+        let error = model.last_error.clone().unwrap_or_default();
+        assert!(
+            error.contains("pool"),
+            "the refusal names the pool: {error}"
+        );
+    }
+
+    #[test]
+    fn a_ledger_that_cannot_be_read_stops_the_chat_instead_of_sending() {
+        use super::*;
+        let (mut model, calls, dir) = routed_model(true, 1_000);
+        // A ledger written by a newer build: it must not be guessed at.
+        std::fs::write(
+            dir.path().join(rc_core::quota::LEDGER_FILE),
+            "version = 99\n",
+        )
+        .unwrap();
+        model.chat_session.input = "hello".into();
+        let outcome = model.chat_send();
+        assert!(matches!(outcome, CommandOutcome::Failed(_)));
+        assert_eq!(calls.lock().unwrap().len(), 0, "nothing is sent unmetered");
+        let error = model.last_error.clone().unwrap_or_default();
+        assert!(
+            error.contains("newer ledger"),
+            "the reason is the ledger: {error}"
+        );
+    }
+
+    #[test]
+    fn a_prompt_estimate_is_four_characters_per_token_and_never_zero() {
+        use super::*;
+        assert_eq!(estimate_prompt_tokens(&[Message::user("12345")]), 2);
+        assert_eq!(estimate_prompt_tokens(&[Message::user("1234")]), 1);
+        assert_eq!(
+            estimate_prompt_tokens(&[]),
+            1,
+            "a request always costs something"
+        );
+        assert_eq!(
+            estimate_prompt_tokens(&[Message::user("abcd"), Message::user("efgh")]),
+            2,
+            "every message in the history counts"
+        );
     }
 
     #[test]
