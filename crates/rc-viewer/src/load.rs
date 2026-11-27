@@ -291,6 +291,29 @@ mod tests {
     }
 
     #[test]
+    fn netpbm_and_farbfeld_reach_the_visual_viewer() {
+        let opts = ViewerOptions::default();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let pnm = b"P6\n1 1\n255\n\xff\x00\x00";
+        let mut ff = b"farbfeld".to_vec();
+        ff.extend_from_slice(&1u32.to_be_bytes());
+        ff.extend_from_slice(&1u32.to_be_bytes());
+        for channel in [u16::MAX, 0, 0, u16::MAX] {
+            ff.extend_from_slice(&channel.to_be_bytes());
+        }
+        for (name, bytes) in [("sample.ppm", &pnm[..]), ("sample.ff", ff.as_slice())] {
+            let path = dir.path().join(name);
+            std::fs::write(&path, bytes).expect("fixture");
+            for loaded in [load(&path, &opts).expect("load"), open_bytes(name, bytes, &opts)] {
+                assert_eq!(loaded.format.kind, ContentKind::Image);
+                let ViewerContent::Image(image) = loaded.content else { panic!("visual preview expected") };
+                assert_eq!((image.width, image.height), (1, 1));
+                assert_eq!(image.rgba, vec![255, 0, 0, 255]);
+            }
+        }
+    }
+
+    #[test]
     fn load_dispatches_each_kind_of_file() {
         let dir = tempfile::tempdir().expect("tempdir");
         let opts = ViewerOptions::default();
