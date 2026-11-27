@@ -2172,6 +2172,56 @@ secrets; chat retention/purge must not delete active operational ledger or
 required recovery evidence. No-kept-chat mode still needs explicit consent
 to durable minimum operational records for resumable tasks.
 
+#### Immediate durable persistence (owner requirement)
+
+Persist **every operational state transition and completed unit immediately**,
+not every N steps, on a timer, at the end of a task or when the GUI closes.
+The task ledger is the source of truth, not a delayed snapshot of memory.
+Commit intent, attempt ID, claim and Running/Sending before dispatch;
+commit each actual result, receipt, artifact reference, validated cursor,
+failure, retry, delegation/acknowledgement, decision, relevant budget update
+and status transition as soon as available. Atomically update the current
+state and its ordered event in one short transaction. Never dispatch dependent
+work, acknowledge durable completion to a caller, or report Done to the UI
+before the corresponding commit succeeds. No in-memory-only interval between
+completed units. Independent workers may compute concurrently, but the
+single logical writer acknowledges each unit's own durable commit; no batch
+of completed units waits for an arbitrary count or periodic flush.
+
+Use SQLite WAL with synchronous=FULL for the operational ledger on supported
+local storage (or an explicitly verified equivalent durability contract);
+a WAL commit is sufficient, no need to checkpoint the WAL after each step.
+Do not use synchronous=OFF/NORMAL for the power-loss durability requirement.
+Distinguish commit durability from checkpoint/compaction and full workspace
+snapshots. For file artifacts flush completed output to durable storage,
+verify hash/size, atomically promote and persist required directory metadata
+where supported, then commit the receipt/reference; recover staged or
+promoted orphan files by stable unit ID and hash after a crash. Do not
+claim atomicity between filesystem, external service and SQLite. Power-loss
+guarantees depend on OS/filesystem/device honoring flushes; document actual
+platform support and degraded storage. If durable commit fails (disk full,
+I/O error, database unavailable), stop admission and dependent dispatch,
+retain available evidence, report persistence failure and enter recovery
+where needed. Never advance the durable cursor or mark work Done falsely.
+
+For frame processing, frame N's verified file and ledger completion must be
+durable before the next unit is dispatched in that sequential stream. Crash
+recovery uses the last committed individual unit plus evidence of any
+in-flight unit, not a coarse checkpoint from hundreds of frames ago.
+Authoritative progress derives from committed state; transient telemetry
+(e.g. rendering progress or live token animation) can be coalesced but must
+not represent a completed step or replace its durable state. Operational
+events are separate from optional chat retention.
+
+Tests must inject interruption between every intent/dispatch, artifact
+flush/promotion, receipt and database commit boundary; reopen the ledger
+after each completed unit without graceful shutdown and assert its exact
+durable status, cursor, artifact and event sequence. Simulate a failed
+commit and prove no dependent dispatch or false completion. Test WAL
+recovery, stale in-flight claims and reconciliation of external effects.
+Process-kill fixtures are not proof of physical power-loss durability;
+verify supported storage assumptions separately.
+
 #### Safe units of work and hibernation protocol
 
 A unit is the smallest meaningful, verifiable restart point supported by
@@ -2266,9 +2316,9 @@ completed rooms according to policy.
 | # | Step | Output | DoD |
 | --- | --- | --- | --- |
 | 25.5 | Headless runtime extraction and client boundary | UI-independent scheduler/broker/worker lifecycle, versioned local command/event API, GUI client and headless test client | no GUI dependency in runtime crate, existing model/MCP regressions, no window tick needed, detach/reattach while job completes, one authority and authenticated IPC |
-| 25.6 | Durable task graph and step/attempt ledger | versioned to-do graph, stable IDs, transactional state machine, durable claims/receipts and SQLite room/task board | illegal transitions refused, every action maps to a step, crash injection before/after intent and completion, parent only done after verified children, no double claims, exact progress |
-| 25.7 | Safe-point and drain protocol | adapter checkpoint contract, unit granularity, freeze admission, flush and suspend/resume | video frame fixture finishes current frame only, file/DB units settle, no next dispatch/delegate during drain, pending approval preserved, interrupted drain never labeled suspended |
-| 25.8 | External effect reconciliation | durable outbox/intents, idempotency/receipt query, typed recovery state and adapter capability matrix | mock mail Pending/Sending/Sent/Done, forced crash before/after remote acceptance and receipt, recover from authoritative evidence, no duplicate mail/push/commit, non-queryable effect blocked and surfaced, no false exactly-once claim |
+| 25.6 | Durable task graph and step/attempt ledger | versioned to-do graph, stable IDs, transactional state machine, immediate durable commit per transition/unit, durable claims/receipts and SQLite room/task board | illegal transitions refused, every action maps to a step, crash injection before/after intent and completion, parent only done after verified children, no double claims, exact progress; kill/reopen after each unit, failed commit prevents dependent dispatch, verify WAL/FULL configuration |
+| 25.7 | Safe-point and drain protocol | adapter checkpoint contract, unit granularity, freeze admission, flush and suspend/resume | video frame fixture commits every completed frame immediately and drains current frame only, file/DB units settle, no next dispatch/delegate during drain, pending approval preserved, interrupted drain never labeled suspended |
+| 25.8 | External effect reconciliation | durable outbox/intents, idempotency/receipt query, typed recovery state and adapter capability matrix | mock mail Pending/Sending/Sent/Done, durable intent before dispatch, immediate receipt commit, forced crash before/after remote acceptance and receipt, recover from authoritative evidence, no duplicate mail/push/commit, non-queryable effect blocked and surfaced, no false exactly-once claim |
 | 25.9 | Desktop/background lifecycle and notifications | user-mode runtime, close choices, tray/notification and status, optional login/resume, stop/revoke | Windows/Linux real close/reopen, normal reboot/resume, forced kill recovery, no GUI loop dependency, no duplicate daemon, portable no unapproved autostart, unsupported tray fallback |
 | 25.10 | Integrated runtime acceptance | SQLite meeting rooms, resource custodian delegation, external/native agents and GUI/TUI-compatible clients share ledger | translator -> custodian -> reviewer handoff with durable receipts; crash/restart midway; budget/revocation, safe stop with client absent, exact remaining work; optional external runtime unsupported checkpoint displayed |
 

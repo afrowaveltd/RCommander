@@ -1435,6 +1435,11 @@ effect intent/receipt/reconciliation, optional background/tray and restart,
 integrated acceptance. Define early in B, deliver in D before external
 runtimes/teams. Normal hibernation requires settled verified units;
 abrupt interruption is recovery-required, never a fictitious Done.
+Owner requires immediate durable commit of every operational transition,
+receipt and completed unit (25.6–8), not periodic batched checkpoints.
+SQLite WAL/FULL or verified equivalent, artifact flush and commit-before-
+dependent-dispatch, crash-boundary and failed-commit tests are specified;
+physical power-loss durability depends on supported storage flush semantics.
 SMTP acceptance and local receipt cannot be assumed atomic; queryable
 external evidence/idempotency or explicit blocked recovery is required.
 No source changes or new runtime tests in this documentation update.
