@@ -33,7 +33,7 @@ cargo test --workspace
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue plus durable token ledger and admission control (`model_catalog`, `quota`, `admission`) recorded; model-to-MCP calls, provider registry/discovery, dispatch-time quota enforcement and the routing wizard, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
+| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control and provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`) recorded; model-to-MCP calls, dispatch-time quota enforcement, registry migration UI and the routing wizard, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **partial** — shared rendering/highlighter and language extensions recorded; annotations, remaining consumer migration and TUI coverage need verification |
 | 17 | Rich document previewer | **partial** — Markdown/code/hex views; annotations, PDF/Office, binary inspection and viewer integration pending |
 | 18 | Plugin architecture | **partial** — location/registry, table capabilities, TOML command/MCP sources and on/off manager implemented; manifest verbs, renderers, isolation, installer, agent catalogue/calls and Workshop pending |
@@ -1775,6 +1775,64 @@ dialable connection. Provider-reported counters, non-UTC provider time zones,
 `HTTP-date` retry headers, chunked error bodies and the deterministic router
 and localized wizard remain open. CI for this revision is not yet run; the
 workflow gained the two new module paths and the fixed regression.
+
+## Handoff — provider connections, discovery provenance and resolution (2026-11-27)
+
+Fourth slice of Phase 16.20, and the first one that fills the gap the previous
+handoff named: a catalogue `connection_id` now resolves to something a
+transport can actually dial.
+
+- `rc_core::providers` holds `ProviderConnection` — a stable id, the provider
+  kind, a base URL and an optional owner account label, never a secret — plus
+  `resolve`, which turns a catalogue model into the connection, the trimmed base
+  URL, the provider-side model name, its locality and its quota ids, or refuses
+  with the reason (unknown model, unknown connection, switched-off model or
+  connection, unusable base URL). `ModelCatalog::with_legacy_connection`
+  migrates the installation's single `provider_kind`/`provider_url` pair into
+  one connection named `default`, and refuses a kind with no adapter.
+- Base URLs are validated before they can be stored: `https` is refused with
+  "the remote provider client is not built yet", credentials embedded in a URL
+  are refused ("use the credential wallet"), so are query strings, fragments,
+  whitespace, port 0, incomplete IPv6 literals and padded ids. The host is a
+  hint only: `looks_local()` recognises loopback so a first-run wizard can
+  pre-select "this machine", but locality stays the owner's decision and is
+  never written from an address.
+- `observe` records discovery. A new model arrives **switched off**, with
+  `local = false`, no price class and no quotas; an existing model only has its
+  `ObservedMetadata` refreshed (timestamp, advertised capabilities, verbatim
+  unmapped names, parameters, size). Owner fields — enabled, local, price,
+  quotas, equivalence group, routes — are never touched, a model the provider
+  stops listing is reported as `missing` instead of deleted, and a second run
+  with the same answer changes nothing. `ModelProfile::effective_capabilities`
+  unions the owner's set with the advertised one, and admission now uses it:
+  a provider's statement about its own interface may satisfy a workload, while
+  price, locality and quota remain owner-only.
+- Catalogue validation grew with the registry: duplicate connection ids,
+  invalid base URLs and — once a registry exists — models pointing at a
+  connection that is not there. An installation that has not migrated declares
+  no connections and keeps validating, so nothing changes for existing users.
+
+Evidence, Linux 2026-11-27 at this revision:
+
+```bash
+cargo test --workspace --all-targets          # 1702 passed, 0 failed, 2 ignored
+cargo clippy --workspace --all-targets        # no warnings
+cargo fmt --all --check                       # clean
+cargo test --locked -p rc-core --lib providers::tests   # 11 passed
+```
+
+The previous slice is green in CI: Linux UI regressions
+[46050675443](https://github.com/afrowaveltd/RCommander/actions/runs/46050675443)
+and Wallet regressions
+[46050675442](https://github.com/afrowaveltd/RCommander/actions/runs/46050675442)
+both completed successfully at `7e49c36`.
+
+Still open in this area: nothing in the app creates a ledger, calls `admit` or
+resolves a connection yet, so the legacy single-provider chat path is unchanged;
+`rc-llm` still implements plain HTTP only, so an `https` connection cannot be
+used even when configured; no discovery run has been wired to the model picker;
+capability probes, provider-reported counters and the deterministic router and
+localized wizard remain planned.
 
 ## Next steps (dependency-ordered)
 

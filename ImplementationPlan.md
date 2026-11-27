@@ -737,11 +737,21 @@ Slices delivered so far, each headless and offline-tested:
    rolling/calendar/provider-defined windows, per-scope waits taken from
    provider answers, and a pure admit/refuse verdict that carries its reason.
    Unknown remaining allowance is refused, never treated as unlimited.
+4. the connection registry, discovery provenance and resolution in
+   `rc_core::providers`: a stable connection id that the catalogue, the ledger
+   and the wallet share, a validated base URL (no credentials inside it, no
+   scheme the shipped transport cannot dial), `resolve` turning a catalogue
+   model into a dialable connection plus provider-side name, and `observe`
+   recording what a provider advertised as dated evidence beside the owner's
+   decisions — new models arrive switched off, locality, price, quotas and
+   equivalence are never inferred, and an unrecognised capability name is kept
+   verbatim. Advertised interface features may satisfy a workload's
+   requirement; a provider's statement about its own interface is evidence,
+   not a grant.
 
-Remaining before the router: the provider/connection registry with discovery
-provenance (a catalogue `connection_id` still resolves to nothing a runtime
-can dial), real quota enforcement wired into dispatch, then the deterministic
-router and the localized wizard. Test local defaults, shared quotas, multiple
+Remaining before the router: real quota enforcement wired into dispatch (the
+app does not create a ledger or call `admit` yet), provider-registry migration
+in the settings UI, then the deterministic router and the localized wizard. Test local defaults, shared quotas, multiple
 periods, unknown metadata, insufficient context, concurrent reservations,
 exhausted hourly allowance with wait/fallback, cross-provider privacy refusal,
 and quota rollover: the offline parts are covered by the two new modules, while

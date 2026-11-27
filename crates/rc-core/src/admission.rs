@@ -208,10 +208,14 @@ pub fn admit(
     if !model.enabled {
         return Admission::Refused(Refusal::Disabled(model.id.clone()));
     }
+    // Capabilities come from the owner *and* from what the provider advertised about its own
+    // interface: a provider's statement about a feature is evidence, while price, locality and
+    // quota are not (see `ModelProfile::effective_capabilities`).
+    let offered = model.effective_capabilities();
     if let Some(missing) = requirement
         .requires
         .iter()
-        .find(|capability| !model.capabilities.contains(capability))
+        .find(|capability| !offered.contains(capability))
     {
         return Admission::Refused(Refusal::MissingCapability(*missing));
     }
@@ -314,6 +318,7 @@ mod tests {
 
     fn catalog() -> ModelCatalog {
         ModelCatalog {
+            connections: Vec::new(),
             quotas: vec![TokenQuota {
                 id: "shared".into(),
                 tokens: 1_000,
@@ -591,6 +596,39 @@ mod tests {
                 ("nope".to_string(), Refusal::UnknownModel("nope".into())),
             ],
             "the admitted candidate is not a skip"
+        );
+    }
+
+    #[test]
+    fn an_advertised_capability_counts_as_evidence_for_admission() {
+        let mut catalog = catalog();
+        // The local model declares text and coding, and the provider adds tool calling.
+        catalog.models[0].observed = Some(crate::model_catalog::ObservedMetadata {
+            observed_at: NOON,
+            capabilities: [Capability::ToolCalling].into_iter().collect(),
+            ..crate::model_catalog::ObservedMetadata::default()
+        });
+        let ledger = ledger(&catalog);
+        let mut tools = Requirement::text("local", 10, 10);
+        tools.requires = [Capability::ToolCalling].into_iter().collect();
+        assert!(
+            admit(&catalog, &ledger, &tools, NOON).is_admitted(),
+            "a provider-advertised interface feature may satisfy a workload"
+        );
+        // Evidence never becomes a price or a locality: the model keeps the price class and the
+        // locality the owner set, and the advertised features live beside them.
+        assert!(catalog.models[0].local);
+        assert_eq!(catalog.models[0].price_class, Some(0));
+        assert!(
+            catalog.models[0].advertises(Capability::ToolCalling),
+            "the provider's statement is kept as dated evidence"
+        );
+        // A capability nobody advertised is still missing.
+        let mut vision = Requirement::text("local", 10, 10);
+        vision.requires = [Capability::ImageInput].into_iter().collect();
+        assert_eq!(
+            admit(&catalog, &ledger, &vision, NOON),
+            Admission::Refused(Refusal::MissingCapability(Capability::ImageInput))
         );
     }
 
