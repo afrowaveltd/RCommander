@@ -38,6 +38,17 @@ impl DataPreview {
                     Err(()) => Self::Unavailable,
                 })
             }
+            "srt" | "vtt" => {
+                let mut end = text.len().min(INPUT_LIMIT);
+                while !text.is_char_boundary(end) {
+                    end -= 1;
+                }
+                let partial = truncated || end < text.len();
+                Some(match subtitle_rows(&text[..end], hint == "vtt", partial) {
+                    Ok((rows, limited)) => Self::Table { rows, limited },
+                    Err(()) => Self::Unavailable,
+                })
+            }
             "jsonl" => {
                 let mut end = text.len().min(INPUT_LIMIT);
                 while !text.is_char_boundary(end) {
@@ -217,6 +228,122 @@ fn table(text: &str, delimiter: char, partial: bool) -> Result<(Vec<Vec<String>>
         }
     }
     Ok((rows, limited))
+}
+
+/// Display subtitle cues in source order, with identifier, start, end and
+/// payload. Cue markup is literal text; styling and positioning are not run.
+/// A truncated cue is omitted unless a complete blank separator precedes it.
+fn subtitle_rows(text: &str, vtt: bool, partial: bool) -> Result<(Vec<Vec<String>>, bool), ()> {
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+    let text = if partial {
+        text.rfind('\n').map_or("", |end| &text[..=end])
+    } else {
+        text
+    };
+    let mut lines = text.lines();
+    if vtt {
+        let header = lines.next().ok_or(())?;
+        if header != "WEBVTT" && !header.starts_with("WEBVTT ") && !header.starts_with("WEBVTT\t") {
+            return Err(());
+        }
+        // Header metadata is not cue text.
+        for line in lines.by_ref() {
+            if line.trim().is_empty() {
+                break;
+            }
+            if line.contains("-->") {
+                return Err(());
+            }
+        }
+    }
+
+    let mut rows = Vec::new();
+    let mut block = Vec::new();
+    let mut limited = partial;
+    for line in lines.chain((!partial).then_some("")) {
+        if !line.trim().is_empty() {
+            block.push(line);
+            continue;
+        }
+        if block.is_empty() {
+            continue;
+        }
+        let first = block[0].trim();
+        if vtt && (first == "NOTE" || first.starts_with("NOTE ") || first.starts_with("NOTE\t")
+            || first == "STYLE" || first == "REGION")
+        {
+            block.clear();
+            continue;
+        }
+        if rows.len() == MAX_ROWS {
+            limited = true;
+            break;
+        }
+        rows.push(subtitle_cue(&block, vtt, &mut limited)?);
+        block.clear();
+    }
+    Ok((rows, limited))
+}
+
+fn subtitle_cue(block: &[&str], vtt: bool, limited: &mut bool) -> Result<Vec<String>, ()> {
+    let first = block.first().ok_or(())?.trim();
+    let (id, timing_index) = if vtt && first.contains("-->") {
+        ("", 0)
+    } else {
+        if !vtt && (first.is_empty() || !first.bytes().all(|byte| byte.is_ascii_digit())) {
+            return Err(());
+        }
+        (first, 1)
+    };
+    let timing = block.get(timing_index).ok_or(())?;
+    let mut fields = timing.split_whitespace();
+    let start = fields.next().ok_or(())?;
+    if fields.next() != Some("-->") {
+        return Err(());
+    }
+    let end = fields.next().ok_or(())?;
+    // WebVTT has optional positioning settings. They remain in Source mode.
+    // Nonstandard SRT timing extensions are not silently interpreted.
+    if !vtt && fields.next().is_some() {
+        return Err(());
+    }
+    if subtitle_timestamp(start, vtt).ok_or(())? >= subtitle_timestamp(end, vtt).ok_or(())? {
+        return Err(());
+    }
+    let payload = block.get(timing_index + 1..).ok_or(())?.join("\n");
+    Ok([id.to_owned(), start.to_owned(), end.to_owned(), payload]
+        .into_iter()
+        .map(|cell| shorten(cell, limited))
+        .collect())
+}
+
+/// Validate the timestamp, using checked arithmetic for untrusted hour values.
+/// WebVTT also permits MM:SS.mmm, whereas SRT requires HH:MM:SS,mmm.
+fn subtitle_timestamp(text: &str, vtt: bool) -> Option<u64> {
+    let (clock, millis) = text.split_once(if vtt { '.' } else { ',' })?;
+    if millis.len() != 3 || !millis.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let fields: Vec<&str> = clock.split(':').collect();
+    let (hours, minutes, seconds) = match fields.as_slice() {
+        [hours, minutes, seconds] if hours.len() >= 2 => (*hours, *minutes, *seconds),
+        [minutes, seconds] if vtt => ("0", *minutes, *seconds),
+        _ => return None,
+    };
+    if minutes.len() != 2 || seconds.len() != 2
+        || ![hours, minutes, seconds].iter().all(|value| value.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return None;
+    }
+    let hours: u64 = hours.parse().ok()?;
+    let minutes: u64 = minutes.parse().ok()?;
+    let seconds: u64 = seconds.parse().ok()?;
+    if minutes >= 60 || seconds >= 60 {
+        return None;
+    }
+    hours.checked_mul(3_600_000)?
+        .checked_add(minutes * 60_000 + seconds * 1_000)?
+        .checked_add(millis.parse().ok()?)
 }
 
 fn push_cell(row: &mut Vec<String>, cell: &mut String, limited: &mut bool) {
