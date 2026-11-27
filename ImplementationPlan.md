@@ -3330,6 +3330,15 @@ teaching prompts. The planner generates a reviewable curriculum from a goal
 and the universal lesson template; lessons are authored manually, with an
 agent, or automatically using one portable versioned course format. Learners
 can share complete reusable courses without their private learning history.
+Offer a default Learning directory in the user's home, with ordinary files
+for chapters, agent outputs, student work and results; all logical storage
+roots are configurable and use the existing provider-neutral Location and
+file-operation contracts. Local, mounted, remote and cloud locations are
+interchangeable when their capabilities support the required operations.
+Plan an optional shared Afrowave Cloud source plugin (Phase 18/27, reusing
+Phase 37 transport and Phase 35 transfer/sync): configurable Nextcloud/WebDAV
+candidate or other compatible backend, not a required educational service.
+Personal-record synchronization and public sharing remain separate choices.
 Illustration and demonstration tools are discovered from available capabilities
 (web, local assets, ASCII/SVG/HTML, ImageMagick, PhotoCraft or other MCP tools),
 with useful offline fallbacks. A configurable material-server URL or IP
