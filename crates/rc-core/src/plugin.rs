@@ -529,12 +529,11 @@ impl Discovery {
 /// A missing root is not an error: it just means no plugin is installed, which is the normal state
 /// of a fresh installation.
 pub fn discover_in(root: &Path) -> Discovery {
-    let mut discovery = Discovery {
-        directory: root.to_path_buf(),
-        ..Discovery::default()
-    };
     let Ok(entries) = std::fs::read_dir(root) else {
-        return discovery;
+        return Discovery {
+            directory: root.to_path_buf(),
+            ..Discovery::default()
+        };
     };
     let mut found: Vec<(PathBuf, String)> = Vec::new();
     for entry in entries.flatten() {
@@ -554,6 +553,16 @@ pub fn discover_in(root: &Path) -> Discovery {
             .unwrap_or_default();
         found.push((manifest_path, directory_name));
     }
+    discover_candidates(root, found)
+}
+
+// Separate directory enumeration from validation so duplicate IDs can be exercised
+// on any filesystem, including case-insensitive Windows volumes.
+fn discover_candidates(root: &Path, mut found: Vec<(PathBuf, String)>) -> Discovery {
+    let mut discovery = Discovery {
+        directory: root.to_path_buf(),
+        ..Discovery::default()
+    };
     found.sort();
     let mut ids: BTreeSet<String> = BTreeSet::new();
     for (path, directory_name) in found {
@@ -954,18 +963,29 @@ label = "Title"
 
     #[test]
     fn two_plugins_cannot_share_an_id() {
-        // Folders only differ in case, and the id check is case-insensitive, so both would claim
-        // the same scheme. The first one wins and the second is reported, never silently merged.
+        // Two distinct manifests claim the same scheme. Put them in different parent
+        // folders so this fixture also works on case-insensitive filesystems.
         let dir = tempfile::tempdir().unwrap();
-        for folder in ["notes", "NOTES"] {
-            let path = dir.path().join(folder);
-            std::fs::create_dir_all(&path).unwrap();
+        let first = dir.path().join("a").join("notes");
+        let second = dir.path().join("b").join("NOTES");
+        for path in [&first, &second] {
+            std::fs::create_dir_all(path).unwrap();
             std::fs::write(path.join("plugin.toml"), GOOD).unwrap();
         }
-        let discovery = discover_in(dir.path());
+        let second_manifest = second.join("plugin.toml");
+        // Reverse input order to verify that discovery's deterministic sort decides the winner.
+        let discovery = discover_candidates(
+            dir.path(),
+            vec![
+                (second_manifest.clone(), "NOTES".to_string()),
+                (first.join("plugin.toml"), "notes".to_string()),
+            ],
+        );
         assert_eq!(discovery.plugins.len(), 1);
         assert_eq!(discovery.plugins[0].plugin.id, "notes");
+        assert_eq!(discovery.plugins[0].directory, first);
         assert_eq!(discovery.problems.len(), 1);
+        assert_eq!(discovery.problems[0].path, second_manifest);
         assert_eq!(
             discovery.problems[0].reason,
             ManifestError::Duplicate("notes".to_string())
