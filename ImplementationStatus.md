@@ -5,7 +5,7 @@ for each claim. The steps refer to [`ImplementationPlan.md`](ImplementationPlan.
 A step is only marked *done* when its tests pass and the behaviour works end to
 end; anything else is marked *partial* or *pending* with the gap spelled out.
 
-Evidence command for every number below:
+Historical workspace evidence command (individual sections may name other commands; counts come from different revisions):
 
 ```bash
 cargo test --workspace
@@ -28,15 +28,15 @@ cargo test --workspace
 | 8 | MCP integration (`rc-agent`) | **done** — server + client tested, host bridge wired, `rcommander mcp` subcommand, and an agent panel in the UI for connecting to external servers and running their tools |
 | 9 | Application model | **done** — including background job control (start, poll, cancel, aggregate progress) |
 | 10 | egui user interface | **partial** — dual panels, thumbnails, dialogs, configurable button bar, editor/viewer/help, Git UI and background jobs are reported working; inline tree, search result views and thumbnail controls still need refinement |
-| 11 | Platforms | **partial** — Linux verified end to end (runs, renders); with mingw-w64 installed the **Windows release `.exe` links and is a GUI-subsystem binary** (`target/x86_64-pc-windows-gnu/release/rcommander.exe`, 15.8 MB); the Android APK still needs the SDK/NDK |
-| 12 | Verification | **done** for everything marked done above |
+| 11 | Platforms | **partial** — historical live Linux and Windows checks; Windows MSVC portable build #6 succeeded at 67e8570; current Android APK unverified |
+| 12 | Verification | **partial/current evidence required** — historical implemented-scope tests green; latest Windows targeted suite/release green, no new full same-revision workspace test/Clippy/format evidence |
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
-| 14 | Colour themes | **done** — TOML themes, theme editor, contrast checks and unified window styling; eight themes shipped |
+| 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **pending** — two-way chat/file panels, providers, reviewed edits, MCP/Git orchestration, editable prompt catalog, workload packs and reusable agent runtime (16.16–16.21); opt-in Agent Commons (16.22–16.26): automatic pseudonymous enrolment, text-only private temporary collaboration, agent-organised tags/taxonomy, controlled SQL gateway and reviewed Knowledge Pull Requests for the public catalogue, with contracts early; configurable multi-model teams, role assignments, delegation and budget-aware routing (16.27–16.30) planned; Phase 16.0 policy is a prerequisite to agent side-effects |
-| 17.0 | Shared Markdown, syntax highlighting and annotations | **pending** — common parser/tokenizer and rendering foundation before 17.1–17.2 |
-| 17 | Rich document previewer (PDF, Office, Markdown, code) | **pending** — planned in Phase 17 |
-| 18 | Plugin architecture (data sources and renderers) | **pending** — planned in Phase 18 |
+| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model-to-MCP calls, checklist, workload/runtime, durable sessions and teams/Commons open |
+| 17.0 | Shared Markdown, syntax highlighting and annotations | **partial** — shared rendering/highlighter and language extensions recorded; annotations, remaining consumer migration and TUI coverage need verification |
+| 17 | Rich document previewer | **partial** — Markdown/code/hex views; annotations, PDF/Office, binary inspection and viewer integration pending |
+| 18 | Plugin architecture | **partial** — location/registry, table capabilities, TOML command/MCP sources and on/off manager implemented; manifest verbs, renderers, isolation, installer, agent catalogue/calls and Workshop pending |
 | 19 | Integrated SSH terminal and PowerShell remoting | **pending** — SSH terminal (19.1–19.5), Windows WSMan/WinRM and optional PowerShell-over-SSH sessions, scoped agent execution and Windows diagnostic workloads (19.6–19.9); no RDP dependency |
 | 20 | Optional privileged system capabilities | **pending** — narrow helper, OS authentication, verified backup/restore and optional installation; not required for normal chat |
 | 21 | Portable host diagnostics, System Check and repair workloads | **pending** — read-only diagnostics, evidence-based approved repairs, preventive checks, portable technician mode, remote .NET/Apache deployment and optional diagnostic integrations |
@@ -55,6 +55,7 @@ cargo test --workspace
 | 34 | Directory Services and Identity | **pending** — AD/Samba/OpenLDAP panels, access diagnostics, reviewed object management and typed provisioning templates |
 | 35 | Backup, Synchronization and Recovery | **pending** — provider adapters, comparison/sync previews, verified backup and restore drills |
 | 36 | Developer Toolchain and Software Integrity | **pending** — SDK/toolchain inventory, optional LSP/DAP, dependency/license review, SBOM and artifact verification |
+| 37 | Research and Internet Workbench | **pending** — early shared HTTPS/proxy, GitHub/Learn/search adapters, staged downloads and cited evidence |
 
 
 ---
@@ -1366,36 +1367,39 @@ command either by its own name or through a family rule:
 
 ---
 
-## Known gaps that the next phases address
+## Current gaps and baseline reconciliation (2026-11-27)
 
-| Open gap / verification task | Plan or next action |
+Earlier detailed sections record historical evidence. This list supersedes
+their stale next-step notes; source presence alone is not end-to-end proof.
+
+| Remaining gap / verification task | Plan reference |
 | --- | --- |
-| Interactive SFTP password prompt when a saved secret is missing | Complete Phase 13 connection UX |
-| Confirm remote FTP transfers use the common background queue with cancellation and progress | Audit Phase 7/10 integration |
-| Inline directory tree, rich search results and thumbnail controls still simplified | Continue Phase 10 |
-| Explorer-style right-click integration and capability-aware RCommander submenu are planned | Phase 10.10: native shell actions where supported, internal fallback, explicit selection/pane targeting |
-| Test numbers recorded from inconsistent snapshots | Repeat workspace tests and document one same-run breakdown |
-| No complete agent chat/model/UnderstandMe/Git-watcher workflow | Phase 16, after Phase 16.0 policy for agent actions; establish editable prompt and declarative workload contracts early (16.16–16.21) |
-| "Process with agent" works end to end: copies, manifest, seeded chat, per-hunk review, JSON/TOML syntax checks, verified backup and audit. **Approved command checklists** are still open | The rest of Phase 16.4: per-project commands (`cargo check`, schema, formatter) run by the review with progress and cancellation |
-| Prompt catalogue, picker, editor, pins and recency are done (26 built-in prompts, copy/edit/reset, variables previewed); a **side-by-side diff of an edit** against the shipped text is still open | Phase 16.17d: the diff on the editor page, then 16.10a (process with agent) |
-| No shared agent workspace or public knowledge catalogue | Phase 16.22–16.26; early contracts, scoped text-only collaboration, expiry, tag-first classification, controlled SQL gateway, reviewed Knowledge Pull Requests, provenance and safe reuse |
-| A **model cannot use another application's MCP tools** (PhotoCraft's icon maker, MailCraft's mail), so the app can talk about other programs but not with them. Multi-model teams and agent memory are planned but not started | Phase 16.31–16.35 (planned and designed in the plan): capability discovery with a per-server trust level, tool calling through the policy layer, role-to-capability assignment with a supervisor that cannot approve its own writes, one SQLite store for conversations and a shared task board, and the protected/workshop switch with a typed confirmation |
-| No configurable multi-model team orchestration | Phase 16.27–16.30; define role assignments early with workload contracts, then bounded delegation, independent review, budgets, escalation and visible per-role activity; single-model mode stays available |
-| No persona catalogue or creative document/image workflows | Phase 24.1–24.6; optional personalities and team templates, image provider adapters, editable document sources, exact text layout and reviewed export, optional public gateway with separate privacy and cost controls |
-| No first-class database panels or administration | Phase 23; independent database providers, read-only browser and SQL editor first, reviewed mutations and administration later, native MongoDB document support (23.10) |
-| **Plugins are managed in the application**: a new *Plugins* page in the options dialog lists every installed plugin with its version, backend, provenance and — before it is switched on — what it may do (*read-only* or *can change things*), plus the manifests that failed to parse. The on/off switch unregisters the source immediately (no restart), keeps the plugin's files, and remembers the choice in the settings; the status line counts active and switched-off plugins apart. The installer, the plugin catalogue for agents and `plugins.call` are designed in the plan and not built yet | Phase 18.7 increments 2–5: install from a folder and an archive (staging, validation, backup, provenance), the `[plugin.agent]` catalogue and `plugins.list`, `plugins.call` with trust switches and on-demand activation, then the URL installer once the TLS question is settled |
-| **A plugin can be a TOML file and no code**, with two backends behind the same shape: `command` runs a program that prints a JSON array, `mcp` calls one tool on a server configured in the MCP panel (`structuredContent` or JSON text, `isError` becomes the panel's error). Columns, the capability gate and the panel are identical for both; capabilities default to nothing, an mcp source may not claim an operation its adapter cannot perform, and a manifest naming an unconfigured server is reported once at load. Manifests are read at start and by `cm_ReloadPlugins`, a broken one is reported and skipped, and an example ships in `plugins/examples/notes/` with a bilingual guide | Manifest-declared row verbs, sorting inside a source, and writing through the MCP backend |
-| A plugin source is a **table with actions**: it lists, declares its own columns and cell text, offers its own right-click verbs, pairs the other panel on click when it says so, and declares which file operations exist there — an undeclared operation is refused at the command gate before anything is staged, and the function key is drawn unavailable. What is still missing is `plugin.toml` discovery and the MCP-declared source that needs no code at all | The rest of Phase 18.2a–18.2b: manifest discovery, and the MCP-declared source driven by a manifest over tool schemas |
-| The **ArtCraft suite** (AniCraft, CADCraft, DeckCraft, DesignCraft, EffectCraft, FigCraft, FilmCraft, GridCraft, LightCraft, MailCraft, MaterialCraft, PDFCraft, PhotoCraft, SolidCraft, CraftAnything) all speak MCP and none of them can be used from RCommander yet | Phase 18.2b is designed against exactly this set — a table of what each application gives us and what it needs from us is in the plan. Order by risk and value: LightCraft/PhotoCraft first, then MailCraft (send is destructive), then DeckCraft/DesignCraft (publish), and the render-heavy trio last, when budgets and cancellable jobs exist |
-| Editor **annotations** (Phase 17.2) and the remaining previewer work are still open; the shared Markdown parser and the syntax highlighter are done | Phase 17.1–17.2 next |
-| The function key bar does not follow the **focused surface**, and there are no `Ctrl`/`Alt`/`Shift` variants, so the chat cannot offer "change model" or "export the conversation" from the keyboard | Phase 14.9 (planned): a per-surface command table in the model, modifier variants as first-class shortcuts, the chat's own row, and a `Ctrl+F1` cheat sheet sharing its data with the help topic |
-| The hex dump can be read and studied but not **annotated or analysed by the agent** | Phase 17.3 (planned): a selection range with byte grouping (u8/u16/u32/f32/UTF-8 runs), struct-layout hints for known formats, and an "ask the agent about this range" handoff that sends the bytes as data with the same approval rules as any other tool |
-| Themes are **flat colour tables**: no background images, per-element opacity, gradients, shadows, real window transparency or procedural animation. The Amber-theme-with-a-faint-dragon example from the panel owner is the design target | Phase 14.8 (planned and designed in the plan, with the API facts checked rather than assumed): images with placement/scale/opacity and a one-off CPU blur, chrome roles (frame colour and width, corner radius, shadow), independent opacities with a readability floor, real window transparency plus behind-window blur where the platform offers it, gradients and textures, and opt-in procedural animation that cannot run while the window is hidden. Every effect is off by default and has an "off" that restores today's look; contrast is measured against the pixels the text actually sits on |
-| No general data/render plugin framework or enforceable isolation for untrusted plugins | Phase 18; process separation alone is insufficient |
-| MCP HTTP server advertised in CLI help is not connected: `run_mcp` ignores `--http` arguments | Implement and secure server transport separately, or remove the unused CLI help flag; stdio server and MCP HTTP **client** are distinct |
-| Integrated SSH shell and Windows PowerShell remoting remain planned | Phase 19.1–19.9; secure per-host sessions, supported authentication, structured results and separately approved remote agent actions |
-| Optional privileged OS helper not implemented | Phase 20 (not required for ordinary AI chat) |
-| Portable host diagnosis/repair, System Check, before/after verification and remote deployment workflows are planned | Phase 21; read-only fixtures first, gated repairs only after policy and applicable OS/SSH capabilities |
+| Missing-secret SFTP prompt, FTP queue/cancel/progress, Git credential/live checks | 7, 13, 15 |
+| Inline tree, search, thumbnails and context menu target/native actions | 10/10.10 |
+| Same-revision full tests, Clippy/format, actual Android APK | 11/12 |
+| Surface F-keys and modifier row implemented; complete menu parity/cheat sheet | 14.9; 211be5f, eddb0d8 |
+| Advanced theme effects and performance | 14.8 |
+| Policy engine exists; ensure every tool/plugin/runtime uses it; zones and public egress | 16.0/16.11/16.35–37, 37.1 |
+| Chat/providers/reviewed copies implemented; model-originated MCP calls, command checklist, remaining pane/translation/developer workflows | 16.1–15, 16.31–32 |
+| Prompt catalogue/editor/pins implemented; edit diff, workload contracts/runtime/team coordination | 16.16–21, 16.27–30, 16.33 |
+| Markdown export/import implemented (622b949); durable SQLite sessions/lifecycle/restore planned (cae8d68/5f8388c docs only) | 16.34, 25, 32.2 |
+| Shared highlighter/Markdown recorded; annotations/script review, PDF/Office, binary ranges remaining | 17.0–17.6, 18.6 |
+| Universal location, manifest command/MCP sources and manager implemented; remaining row verbs, renderer, executable isolation, staged installer, agent catalogue/calls | 18.2a/b, 18.3–5, 18.7, 27 |
+| Craft model integration not yet demonstrated; configured MCP source is not model tool calling | 16.32, 18.5, 27.5 |
+| MCP HTTP server flag historically unwired; verify/remove or implement securely, separately from HTTP client | 8, stage B |
+| SSH/PowerShell, WSL, privileged helper, host diagnostics, VM/visual lab | 19–22, 28, 33 |
+| Directory, backup, network, database, developer and browser workbenches | 23, 29–30, 34–36 |
+| Research, private knowledge, workflows, external runtime, creative and Commons | 24–27, 31–32, 37, 16.22–30 |
+
+**Verified Windows baseline:** [build #6](https://github.com/afrowaveltd/RCommander/actions/runs/45960374534)
+on [67e8570](https://github.com/afrowaveltd/RCommander/commit/67e8570ca2bca4dd51fac33cbc8ed7d90347a4b1)
+completed successfully: targeted drive/chat/plugin/prompt/LLM regression
+tests, MSVC release, packaging, artifact upload and prerelease.
+[Windows test release #6](https://github.com/afrowaveltd/RCommander/releases/tag/windows-test-6)
+contains RCommander-Windows-x64.zip (8,762,178 bytes). Build #5 failed the
+duplicate-ID test on case-insensitive Windows; #6 uses distinct parents
+and the same duplicate validation path. No fresh Linux, actual desktop
+or Android verification is inferred.
 
 ## Phases 25–28 — planned extensions (2026-11-27)
 
@@ -1419,61 +1423,24 @@ actual OS, server and tool compatibility must be verified. The owner's
 Standard User / James Cooper example is a template test, not an actual
 directory mutation or a grant of privileges.
 
-## Next steps (in priority order)
+## Next steps (dependency-ordered)
 
-1. Finish interactive password prompting for SFTP sessions without saved secrets.
-2. Verify FTP transfers use the common background job queue, including cancel,
-   progress and disconnection handling.
-3. Complete practical Phase 10 UI gaps (inline tree, search presentation and
-   thumbnail controls), including the Phase 10.10 context menu and correct target dispatch.
-4. Re-run `cargo test --workspace`, Clippy and formatting in a healthy clean
-   checkout; record an auditable same-run test breakdown.
-5. Build Phase 17.0 as a single Markdown/highlighter/annotation foundation,
-   migrating existing `rc-help` consumers rather than duplicating parsers.
-6. Implement Phase 16.0 capability policy before agent-controlled file/process,
-   Git, network or MCP writes; then start Phase 16 chat and reviewed local
-   translation changes with mocked providers. Establish the prompt composition and
-   workload contracts early (16.16–16.18); build one reusable headless runtime,
-   then extend it with checkpointing, budget accounting and developer workflows.
-   Define the separate Agent Commons workspace/catalogue contracts in parallel
-   (16.22); use mocks first, with bounded cross-provider collaboration, expiry
-   and controlled promotion of sanitised results. External access requires consent
-   and policy enforcement.
-7. Continue Phase 17 previewers and Phase 18 plugin APIs; distinguish genuine
-   OS sandbox enforcement from out-of-process crash isolation.
-8. Add Phase 19 SSH terminal and Windows PowerShell remoting independently;
-   start with verified session contracts and read-only probes. Implement optional
-   Phase 20 privileged capabilities only for supported systems and approved operations.
-9. Start Phase 21 with read-only Windows/Linux System Check and fault-diagnostic
-   fixtures; add verified, approved repair and portable technician mode once
-   their prerequisites are satisfied. Remote deployment is a reference workload,
-   not a separate agent or privilege path.
-10. Keep Windows release checks, Android compile checks and an actual tested
-    Android APK as distinct milestones.
-11. Implement Phase 23 incrementally after relevant panel, credential and editor
-    foundations; SQLite/PostgreSQL browsing and SQL execution before write/DBA
-    features. Reuse logical query abstractions for Agent Commons without sharing
-    database administrator privileges.
+The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
+is the single scheduling source. Work on the first unverified gate and
+independent ready branches, not a numeric phase queue. Record exact
+commands, revision and platform evidence after each accepted slice.
 
-12. Define Phase 25 workspace storage/restore contracts with the current
-    SessionStore design and Phase 26 runtime contract with Phase 16.19;
-    first deliver native local workspace restore, then a pinned optional
-    SDK bridge with mocked protocol and opt-in live tests. Add independent
-    Git/release roles only through the existing policy and review gates.
-13. Extend Phase 18 with Phase 27 category contracts and read-only
-    discovery, then the reviewed Workshop after executable isolation.
-14. Phase 28: mock virtualization and read-only inventory before scoped
-    VM recovery, guest management and physical USB. Verify the selected
-    hypervisor and test-device boundaries before permitting live tests.
+1. A: baseline and core usability; recheck current tests.
+2. B: common authorization, model-to-tool broker, transport.
+3. C: early read-only research/GitHub/Learn/search and safe downloads.
+4. D: SessionStore, native workloads and workflow checkpoints.
+5. E: reference plugins, Discovery and visual foundations.
+6. F: external runtimes, roles, developer loop and workflow.
+7. G/H: remote/lab and reviewed AutoPlugin, API/browser acceptance.
+8. I/J: independent services and community/creative workflows.
+9. K: ongoing polish and explicitly scoped release.
 
-15. Define Phase 29 network/proxy and Phase 30 browser/API contracts,
-    Phase 31 local retrieval and Phase 32 workflow graphs alongside their
-    existing engine prerequisites; prioritize small local/read-only slices.
-16. Implement Phase 34 directory browsing and typed provisioning templates,
-    Phase 35 restore verification and Phase 36 toolchain/integrity adapters
-    incrementally; Phase 33 graphical control after remote/lab policy.
-    Keep all optional, independently verified, and individual-user scoped.
-
-These are planned priorities, not assertions of new implementation. Earlier
-per-phase narrative remains historical evidence; the summary and current gaps
-supersede obsolete "next" wording.
+Phase 37 is planned, not implemented. Research deliberately precedes
+advanced Workshop, not follows Phase 36. This review is documentation-only;
+no fresh tests were executed and no unsupported feature marked done.
+Historical detailed evidence remains above.
