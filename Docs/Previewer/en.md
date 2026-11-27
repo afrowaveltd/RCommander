@@ -12,6 +12,7 @@ picks the best representation:
 | CSV / TSV | numbered records in a table, no assumed header |
 | JSON / TOML | expandable normalized value tree |
 | JSON Lines / NDJSON | expandable records in original line order, with physical line numbers |
+| SubRip / WebVTT (`.srt`, `.vtt`) | timed cue table with identifiers, start/end times and multiline text |
 | INI / CFG / CONF | section and key/value tree for the common `key=value` dialect; duplicates retained |
 | XML | expandable element/attribute/text tree; DTD and custom entities not supported |
 | HTML / SVG | source or XML structure only; visual rendering is not yet available |
@@ -19,6 +20,17 @@ picks the best representation:
 | SQL scripts / dumps | source text; structured passive SQL preview planned |
 | SQL database connections | provider-specific schema and row browser planned (SQLite, PostgreSQL, MySQL/MariaDB, SQL Server) |
 | anything unknown or binary | integrated hex dump |
+
+## Subtitle previews
+
+SubRip (SRT) and WebVTT show cue IDs, original timestamps and selectable
+multiline text in file order, without requiring a media player. WebVTT
+headers, NOTE, STYLE and REGION blocks and positioning settings are not
+rendered; they remain available in Source mode. Cue markup is shown as
+literal text rather than executed or visually styled. The bounded preview
+shows up to 128 cues and 256 KiB of decoded input; incomplete trailing cues
+are omitted, and invalid complete cue timing falls back to Source. Source
+mode preserves all original subtitle data.
 
 ## Planned SQL previews
 
