@@ -1523,6 +1523,20 @@ through ordinary path navigation; full TeX is not claimed.
   headless connect outcome, cancellation and typed error propagation.
   Do not mark Phase 7 or 13 complete yet.
 
+## Handoff — collective collaboration / group chat (2026-11-27)
+
+Planned only. The owner approved group chat with multiple logical agents and
+the shared Collective Collaboration Principles prompt (critical, fair review,
+evidence over agreement, better solutions over ownership of ideas). The
+specification is in Phase 16.27–16.30 and cross-referenced by 25.6/25.10:
+discussion, independent review and collaborative task modes; bounded
+moderation, human intervention, dissent preservation, sequential same-model
+roles, per-destination disclosure, Task Scope and broker enforcement.
+No new top-level phase, no implementation or test claims. The existing
+dependency order and stage A/B work are unchanged. Implement the prompt as
+a versioned shared fragment and test coordination with mock providers before
+live model acceptance; do not give room messages or supervisor votes authority.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

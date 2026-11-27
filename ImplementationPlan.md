@@ -969,6 +969,90 @@ A model/provider change is a distinct data destination under the outbound policy
 Local-only and offline work must remain supported; unavailable optional roles
 degrade gracefully or pause with a clear explanation.
 
+#### Collective collaboration and group chat (owner decision, 2026-11-27)
+
+Expose the existing team coordinator and durable Meeting Rooms (25.6/25.10)
+through the chat UI; do not create a second orchestration or permissions system.
+The normal one-agent chat remains unchanged. Participants have stable agent
+identities, individual roles, model/provider assignments, private context and
+wallet/Task Scope references (16.0i). A room message is not a grant, and
+neither a moderator nor a unanimous vote can override broker policy.
+
+Room modes:
+
+- **Discussion:** propose and challenge solutions without mutations.
+- **Independent Review:** gather initial assessments independently before
+  revealing the other proposals, then compare evidence and revise.
+- **Collaborative Task:** agree on a plan, delegate scoped work, collect receipts,
+  resolve conflicts and review changes through the existing approval pipeline.
+
+The human can invite/remove participants, address a named agent or everyone
+(`@AgentName`, `@all`), pause, stop, change the task through the authorized
+scope-change path, and inspect proposals and unresolved objections. The UI
+identifies speakers, roles, actual model/provider, task status and evidence.
+Support deterministic turn-taking or an explicitly assigned supervisor/human
+moderator, a bounded number of rounds, time/token/cost limits and cancellation.
+Stop on adequate evidence and acceptance criteria, exhausted budget, unresolved
+blocker or human request; do not force agreement. A single local model can
+serve several independent role contexts sequentially; parallel models are
+optional, not required. Do not imply same-model roles are independent evidence.
+
+##### Shared system prompt — Collective Collaboration Principles
+
+Compose this common instruction into each participating agent's trusted
+system prompt, before its role-specific instructions. Version it as a shipped
+prompt fragment; neither room messages nor user-editable role prompts can
+weaken enforced authorization or disclosure boundaries.
+
+> You are a member of a collaborative team of AI agents. Your primary
+> objective is the quality, correctness, safety and usefulness of the
+> collective result.
+>
+> - Critically and fairly evaluate proposals made by other participants,
+>   including your own previous proposals.
+> - Actively look for errors, overlooked consequences, incorrect assumptions
+>   and opportunities for improvement.
+> - When you identify a problem, explain it clearly and propose a better
+>   solution whenever possible.
+> - Do not agree merely to maintain harmony.
+> - Do not disagree merely to appear independent.
+> - Accept a better proposal regardless of who introduced it.
+> - Distinguish verified facts from assumptions and speculation.
+> - Support important conclusions with evidence, measurements or tests.
+> - Acknowledge uncertainty and mistakes openly.
+> - Respect the assigned task scope and authorization boundaries.
+> - Preserve unresolved objections in the final report.
+> - Avoid repeating arguments that have already been addressed.
+> - Once a sufficiently good solution has been established, help conclude
+>   the discussion.
+>
+> There is no competition between participants. Nobody owns an idea, and
+> nobody loses when their proposal is replaced by a better one.
+>
+> The success of the team is your success.
+
+Evaluate proposals, not participants: correctness, security, performance,
+simplicity, maintainability, compatibility, evidence, cost and accessibility.
+Prefer reproducible evidence over majority votes or role seniority. A verified
+failing acceptance test blocks a claim of success even if every other agent
+agrees. Preserve minority objections and uncertainty in the synthesis; record
+what was verified, rejected, selected and why. Do not fabricate validation.
+The moderator may request targeted evidence, but cannot declare an unresolved
+security denial or failed test resolved. Avoid rewarding contrarianism,
+repetition or agreement as ends in themselves.
+
+**Acceptance:** mocked agents show a flawed majority proposal corrected by a
+minority's failing test; an agent revises its own proposal after evidence;
+independent first responses remain separate until review; unresolved
+objections survive synthesis; duplicate debate stops within budget; the
+human can interrupt and address a participant; same-model sequential roles
+work on a constrained host; switching to a remote provider requires approved
+disclosure; wallet values/private contexts and scope cannot leak via room
+messages or delegation; discussion/review cannot mutate resources; collaborative
+work uses existing claims, reviewed changes and receipts. Verify GUI and
+headless coordination against the same event contract, including restart
+and stop/revoke. No claim of real model quality from mocked tests alone.
+
 | # | Step | Output | DoD |
 | --- | --- | --- | --- |
 | 16.27 | Role registry and team profiles | configurable role-to-model/provider assignments, custom role prompts, capability requests, workload defaults and single-model fallback | mocked providers demonstrate multiple models, same model in several roles, overrides, missing capabilities and disabled/offline operation; no vendor-specific dependency |
@@ -2385,7 +2469,11 @@ agents, wake waiting delegates from persisted events. No permission
 changes from room messages, no infinite debate loops. Rooms and task
 board reference one journal, not competing queues. Separate transcript
 retention from operational records; owner can inspect/export/clear
-completed rooms according to policy.
+completed rooms according to policy. The user-facing group chat, shared
+Collective Collaboration Principles and review/discussion/task modes are
+specified in 16.27–16.30; reuse these durable threads and the same scheduler,
+permission broker and budget accounting. A transcript must not become an
+alternative operational ledger.
 
 | # | Step | Output | DoD |
 | --- | --- | --- | --- |
