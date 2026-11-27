@@ -3323,9 +3323,18 @@ A teacher-led, prompt-first plugin reusing Phases 16.16–21 (prompt packs),
 37.1/37.5 (material retrieval) and 17/30 (shared renderers and WebView).
 Universal lesson stages: theory and illustration, practical demonstration
 where useful, student practice and assessment, and teacher-led review.
-The teacher remains the collaborating client throughout. A configurable
-material-server URL or IP provides categorized, versioned source files and
-assets through a dedicated capability. The basic lesson template does not
+The teacher remains the collaborating client throughout, or the learner
+can direct a self-study session. An adaptive, time-flexible entry assessment
+produces a private, editable knowledge profile for the course planner and
+teaching prompts. The planner generates a reviewable curriculum from a goal
+and the universal lesson template; lessons are authored manually, with an
+agent, or automatically using one portable versioned course format. Learners
+can share complete reusable courses without their private learning history.
+Illustration and demonstration tools are discovered from available capabilities
+(web, local assets, ASCII/SVG/HTML, ImageMagick, PhotoCraft or other MCP tools),
+with useful offline fallbacks. A configurable material-server URL or IP
+provides categorized, versioned source files and assets through a dedicated
+capability. The basic lesson template does not
 depend on a browser, external model or complete plugin workshop; interactive
 web demonstrations can follow once the relevant capabilities exist.
 
