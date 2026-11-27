@@ -326,6 +326,37 @@ mod tests {
     }
 
     #[test]
+    fn netpbm_images_decode_to_actual_pixels() {
+        for (bytes, expected) in [
+            (&b"P1\n2 1\n0 1\n"[..], vec![255, 255, 255, 255, 0, 0, 0, 255]),
+            (&b"P5\n2 1\n255\n\x00\xff"[..], vec![0, 0, 0, 255, 255, 255, 255, 255]),
+            (&b"P6\n2 1\n255\n\xff\x00\x00\x00\xff\x00"[..], vec![255, 0, 0, 255, 0, 255, 0, 255]),
+            (&b"P7\nWIDTH 1\nHEIGHT 1\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n\xff\x00\x00\xff"[..], vec![255, 0, 0, 255]),
+        ] {
+            let doc = decode_image_bytes(bytes, "", 40_000_000).expect("Netpbm decode");
+            assert_eq!(doc.format_hint, "pnm");
+            assert_eq!(doc.rgba, expected);
+        }
+        assert!(decode_image_bytes(b"P6\n100000 100000\n255\n", "", 40_000_000).is_err());
+    }
+
+    #[test]
+    fn farbfeld_decodes_16_bit_channels_and_rejects_truncation() {
+        let mut bytes = b"farbfeld".to_vec();
+        bytes.extend_from_slice(&1u32.to_be_bytes());
+        bytes.extend_from_slice(&1u32.to_be_bytes());
+        for channel in [u16::MAX, 0, 0, u16::MAX] {
+            bytes.extend_from_slice(&channel.to_be_bytes());
+        }
+        let doc = decode_image_bytes(&bytes, "", 40_000_000).expect("farbfeld decode");
+        assert_eq!(doc.format_hint, "farbfeld");
+        assert_eq!((doc.width, doc.height), (1, 1));
+        assert_eq!(doc.rgba, vec![255, 0, 0, 255]);
+        bytes.pop();
+        assert!(decode_image_bytes(&bytes, "", 40_000_000).is_err());
+    }
+
+    #[test]
     fn jpeg_round_trips() {
         let bytes = encoded(8, 8, ImageFormat::Jpeg);
         let doc = decode_image_bytes(&bytes, "jpeg", 40_000_000).expect("decode");
