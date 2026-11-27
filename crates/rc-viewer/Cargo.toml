@@ -17,6 +17,8 @@ image = { version = "0.25", default-features = false, features = [
     "webp",
     "ico",
     "tiff",
+    "pnm",
+    "ff",
 ] }
 encoding_rs = "0.8"
 chardetng = "1.0"
