@@ -215,6 +215,9 @@ authors = ["RCommander contributors"]
 
 # Prohlížeč -----------------------------------------------------------------
 "viewer.text" = "Text"
+"viewer.subtitle.id" = "ID titulku"
+"viewer.subtitle.start" = "Začátek"
+"viewer.subtitle.end" = "Konec"
 "viewer.hex" = "Hex"
 "viewer.image" = "Obrázek"
 "viewer.media" = "Multimédia"
