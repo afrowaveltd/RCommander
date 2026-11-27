@@ -125,10 +125,11 @@ fn decode(bytes: &[u8], format_hint: &str, max_pixels: u64) -> Result<ImageDocum
         });
     }
     // Cheap header probe: dimensions only, no pixel data.
-    let (width, height) = ImageReader::new(std::io::Cursor::new(bytes))
+    let probe = ImageReader::new(std::io::Cursor::new(bytes))
         .with_guessed_format()
-        .map_err(|e| ImageError::Decode(e.to_string()))?
-        .into_dimensions()
+        .map_err(|e| ImageError::Decode(e.to_string()))?;
+    let high_depth = matches!(probe.format(), Some(ImageFormat::Pnm | ImageFormat::Farbfeld));
+    let (width, height) = probe.into_dimensions()
         .map_err(|e| ImageError::Decode(e.to_string()))?;
     if width == 0 || height == 0 {
         return Err(ImageError::Decode(
@@ -137,7 +138,8 @@ fn decode(bytes: &[u8], format_hint: &str, max_pixels: u64) -> Result<ImageDocum
     }
 
     let pixels = width as u64 * height as u64;
-    let needed = pixels.saturating_mul(4);
+    // PNM and Farbfeld can decode to 16-bit channels before RGBA8 conversion.
+    let needed = pixels.saturating_mul(if high_depth { 8 } else { 4 });
     if needed > MAX_DECODED_BYTES {
         // Refuse before touching pixel memory: this is the decompression-bomb guard.
         return Err(ImageError::TooLargeToDecode {
@@ -209,6 +211,8 @@ fn format_name(format: ImageFormat) -> Option<&'static str> {
         ImageFormat::WebP => "webp",
         ImageFormat::Tiff => "tiff",
         ImageFormat::Ico => "ico",
+        ImageFormat::Pnm => "pnm",
+        ImageFormat::Farbfeld => "farbfeld",
         _ => return None,
     })
 }
