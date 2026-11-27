@@ -2194,6 +2194,14 @@ for actions already applied. Added geometry/key-policy unit regressions and
 a headless keyboard confirmation/cancellation test. No local Rust toolchain;
 CI and real desktop layout verification pending.
 
+## Handoff — settings compile correction (2026-11-27)
+
+Owner's local Linux build identified E0277 in settings_body: egui 0.37
+requires AsIdSalt rather than Hash alone. All three callers supply strings,
+so the helper now accepts &str. Replaced deprecated Id::new with Id::unique
+for the stable settings window identities. No layout or keyboard semantics
+changed. Local build not independently run; CI verification pending.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

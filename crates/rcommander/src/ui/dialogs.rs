@@ -38,7 +38,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
             _ => "settings_view_modes",
         };
         window = window
-            .id(egui::Id::new(id))
+            .id(egui::Id::unique(id))
             .fixed_size(settings_size(ctx.content_rect().size()));
     } else {
         window = window.resizable(true).default_width(460.0);
@@ -2588,7 +2588,7 @@ impl SettingsKeys {
     }
 }
 
-fn settings_body(ui: &mut egui::Ui, id: impl std::hash::Hash, content: impl FnOnce(&mut egui::Ui)) {
+fn settings_body(ui: &mut egui::Ui, id: &str, content: impl FnOnce(&mut egui::Ui)) {
     let footer = ui.spacing().interact_size.y + 3.0 * ui.spacing().item_spacing.y + 8.0;
     let height = (ui.available_height() - footer).max(1.0);
     let width = ui.available_width();
