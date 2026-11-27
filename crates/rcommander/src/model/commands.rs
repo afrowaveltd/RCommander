@@ -976,6 +976,7 @@ impl Model {
         let path = path.into();
         self.viewer = Some(crate::model::ViewerState {
             path: path.to_string_lossy().to_string(),
+            wraps: true,
             hex_bytes: self.settings.lister.hex_bytes_per_line,
             encoding: self.settings.lister.encoding.clone(),
             title: path

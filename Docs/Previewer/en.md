@@ -8,13 +8,14 @@ picks the best representation:
 | --- | --- |
 | images (PNG, JPEG, GIF, BMP, WebP) | decoded and scaled to fit the window |
 | text (any encoding) | decoded with automatic encoding detection, RTL aware |
-| HTML, Markdown, JSON, XML, CSV | as text, with the format named in the status bar |
+| Markdown | rendered with the shared chat/help renderer; Source shows original text |
+| HTML, JSON, XML, CSV | source text; a dedicated renderer is not yet available |
 | archives, executables, databases, media | described in the status bar; bytes available in hex |
 | anything unknown or binary | integrated hex dump |
 
 ## Modes
 
-`T` text, `H` hex, `I` image, `A` automatic.
+Choose **Preview**, **Source**, **Hex**, or **Image** on the toolbar. Markdown is cached and bounded; large documents show a limited-preview notice. Links show their destination without launching it. F4 edits the original source with lexical syntax colours.
 
 ### The hex dump
 

@@ -2202,6 +2202,26 @@ so the helper now accepts &str. Replaced deprecated Id::new with Id::unique
 for the stable settings window identities. No layout or keyboard semantics
 changed. Local build not independently run; CI verification pending.
 
+## Handoff — rendered F3 Markdown and F4 syntax colours (2026-11-27)
+
+Owner verified the corrected settings dialogs locally; Linux CI
+[46071555013](https://github.com/afrowaveltd/RCommander/actions/runs/46071555013)
+passed. F3 Auto and Quick View now share the cached rc-help Markdown model
+and existing chat renderer; Source stays available. Rendering is bounded
+to a 256 KiB input prefix and 2048 blocks (32 in Quick View), visibly
+labelled when limited; document links show their destination without
+opening it. Other actual image/text renderers remain, known unrenderable
+containers explicitly show metadata, and Hex can load actual bytes on
+demand instead of reloading the original automatic representation.
+F4 and F3 Source share rc-core lexical syntax highlighting; source
+layout preserves the exact buffer, including CRLF and missing final
+newline. F4 can turn colours off and respects editor font/wrap settings.
+Large sources over 256 KiB remain plain to limit highlighting overhead.
+HTML/SVG/PDF/office/media/CSV renderers are not implemented by this slice;
+no HTML execution, no external process or network preview. Added source
+layout and GUI Markdown regressions, EN/CS strings, docs and CI coverage.
+No local compilation; new CI and desktop verification pending.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

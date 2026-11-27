@@ -8,13 +8,14 @@ zobrazení:
 | --- | --- |
 | obrázky (PNG, JPEG, GIF, BMP, WebP) | dekóduje se a zmenší do okna |
 | text (libovolné kódování) | dekóduje se s automatickou detekcí kódování, ohled na RTL |
-| HTML, Markdown, JSON, XML, CSV | jako text, formát je uveden ve stavovém řádku |
+| Markdown | vykreslený společným rendererem chatu a nápovědy; Zdroj ukáže původní text |
+| HTML, JSON, XML, CSV | zdrojový text; vlastní renderer zatím není k dispozici |
 | archivy, spustitelné soubory, databáze, média | popis ve stavovém řádku, data dostupná v hexu |
 | cokoli neznámého či binárního | integrovaný hexdump |
 
 ## Režimy
 
-`T` text, `H` hex, `I` obrázek, `A` automaticky.
+Na liště zvolte **Náhled**, **Zdroj**, **Hex** nebo **Obrázek**. Markdown se parsuje jednou a rozsáhlé dokumenty mají označený omezený náhled. Odkazy zobrazí svůj cíl bez jeho otevření. F4 upravuje původní zdroj se zvýrazněním syntaxe.
 
 ### Hexdump
 

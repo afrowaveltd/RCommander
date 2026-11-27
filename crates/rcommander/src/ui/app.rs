@@ -1099,7 +1099,10 @@ impl RCommanderApp {
                         .color(palette.hidden),
                 );
                 self.quick_viewer.ensure_texture(ui.ctx());
-                let Some(loaded) = self.quick_viewer.loaded.clone() else {
+                if self.quick_viewer.markdown_preview(ui, &palette, &self.model, true) {
+                    return;
+                }
+                let Some(loaded) = self.quick_viewer.loaded.as_ref() else {
                     ui.label(
                         egui::RichText::new(self.model.t("panel.empty")).color(palette.hidden),
                     );
@@ -1153,14 +1156,8 @@ impl RCommanderApp {
                                 );
                             });
                     }
-                    other => {
-                        ui.label(
-                            egui::RichText::new(rc_viewer::describe(&rc_viewer::LoadedViewer {
-                                format: loaded.format.clone(),
-                                content: other.clone(),
-                            }))
-                            .color(palette.hidden),
-                        );
+                    _ => {
+                        ui.label(egui::RichText::new(rc_viewer::describe(loaded)).color(palette.hidden));
                     }
                 }
             });

@@ -834,3 +834,11 @@ authors = ["RCommander contributors"]
 "document.floating" = "Floating window"
 "editor.discard_changes" = "Discard changes"
 "editor.discard_prompt" = "There are unsaved changes. Save them or explicitly discard them."
+
+"viewer.mode.auto" = "Preview"
+"viewer.mode.source" = "Source"
+"viewer.preview.limited" = "Limited document preview. More text is available in F3 Source mode."
+"viewer.preview.link" = "Link destination:"
+"viewer.preview.unsupported" = "No rendered preview is available for this format yet."
+"viewer.preview.mode_unavailable" = "This mode is not available for this file."
+"editor.highlight" = "Syntax highlighting"

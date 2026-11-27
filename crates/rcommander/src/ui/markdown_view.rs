@@ -189,6 +189,43 @@ pub fn code_layout(language: &str, lines: &[String], palette: &Palette) -> egui:
     job
 }
 
+/// Layout for an editable or read-only source buffer. Never insert a language label,
+/// normalize line endings, or add a final newline: egui cursor positions must
+/// refer to exactly the original text. The size limit keeps large logs cheap.
+pub fn source_layout(
+    path: &str, text: &str, palette: &Palette, font: egui::FontId, highlight: bool,
+) -> egui::text::LayoutJob {
+    let language = if path.to_ascii_lowercase().ends_with(".mdown")
+        || path.to_ascii_lowercase().ends_with(".mkd")
+        || path.to_ascii_lowercase().ends_with(".mkdn")
+    { "markdown" } else { path };
+    let mut highlighter = rc_core::syntax::Highlighter::new(language);
+    let mut job = egui::text::LayoutJob::default();
+    let format = |color| egui::TextFormat {
+        font_id: font.clone(), color, ..Default::default()
+    };
+    if !highlight || text.len() > 256 * 1024
+        || highlighter.language() == rc_core::syntax::Language::Plain
+    {
+        job.append(text, 0.0, format(palette.foreground));
+        return job;
+    }
+    for line in text.split_inclusive('\n') {
+        let body = line.strip_suffix('\n').unwrap_or(line);
+        for span in highlighter.line(body) {
+            let color = span.kind.role_name()
+                .and_then(rc_core::theme::Role::from_name)
+                .map(|role| palette.role(role))
+                .unwrap_or(palette.foreground);
+            job.append(&span.text, 0.0, format(color));
+        }
+        if line.ends_with('\n') {
+            job.append("\n", 0.0, format(palette.foreground));
+        }
+    }
+    job
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,6 +233,21 @@ mod tests {
 
     fn spans(text: &str) -> Vec<Span> {
         vec![Span::Text(text.to_string())]
+    }
+
+    #[test]
+    fn source_layout_preserves_buffer_and_highlights_known_languages() {
+        let palette = Palette::light();
+        let text = "int main() {\r\n/* žluťoučký\r\ncomment */ return 42; }";
+        let font = egui::FontId::monospace(13.0);
+        let job = source_layout("main.c", text, &palette, font.clone(), true);
+        assert_eq!(job.text, text);
+        assert!(job.sections.iter().any(|s| s.format.color == palette.code_keyword));
+        assert!(job.sections.iter().any(|s| s.format.color == palette.code_comment));
+        assert!(job.sections.iter().any(|s| s.format.color == palette.code_number));
+        let plain = source_layout("file.txt", text, &palette, font, true);
+        assert_eq!(plain.text, text);
+        assert_eq!(plain.sections.len(), 1);
     }
 
     #[test]

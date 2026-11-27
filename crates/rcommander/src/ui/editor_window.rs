@@ -18,7 +18,7 @@
 use crate::model::Model;
 use crate::theme::Palette;
 use crate::ui::workspace_window::ChromeAction;
-use egui::{Context, TextStyle};
+use egui::Context;
 
 /// Editor working state kept by the view layer.
 #[derive(Default)]
@@ -28,6 +28,8 @@ pub struct EditorUi {
     pub suggested_copy: Option<std::path::PathBuf>,
     /// Why the last save did not work, if it did not.
     pub save_error: Option<String>,
+    /// Optional lexical highlighting; enabled by default.
+    pub disable_highlight: bool,
 }
 
 /// Draw the editor window; returns true when it should be closed.
@@ -91,6 +93,9 @@ fn render(
             if ui.button(model.t("dialog.config.cancel")).clicked() {
                 close_requested = true;
             }
+            let mut highlight = !ui_state.disable_highlight;
+            ui.checkbox(&mut highlight, model.t("editor.highlight"));
+            ui_state.disable_highlight = !highlight;
             if state.modified {
                 ui.label(egui::RichText::new(model.t("editor.modified")).color(palette.readonly));
             }
@@ -151,18 +156,30 @@ fn render(
         ui.separator();
         // The text fills what the window has left, so a maximized editor is a usable editor.
         let viewport = ui.available_size().max(egui::vec2(1.0, 1.0));
-        egui::ScrollArea::vertical()
+        egui::ScrollArea::both()
             .id_salt("document_editor")
             .max_width(viewport.x)
             .max_height(viewport.y)
             .auto_shrink([false, false])
             .show(ui, |ui| {
+                let font = egui::FontId::monospace(model.settings.editor.font_size);
+                let path = state.path.as_str();
+                let highlight = !ui_state.disable_highlight;
+                let wraps = model.settings.editor.word_wrap;
+                let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, width: f32| {
+                    let mut job = crate::ui::markdown_view::source_layout(
+                        path, buffer.as_str(), palette, font.clone(), highlight,
+                    );
+                    job.wrap.max_width = if wraps { width } else { f32::INFINITY };
+                    ui.fonts_mut(|fonts| fonts.layout_job(job))
+                };
                 let response = ui.add(
                     egui::TextEdit::multiline(&mut state.text)
-                        .font(TextStyle::Monospace)
+                        .font(font.clone())
                         .desired_width((viewport.x - 20.0).max(1.0))
                         .desired_rows(1)
-                        .lock_focus(true),
+                        .lock_focus(true)
+                        .layouter(&mut layouter),
                 );
                 if response.changed() {
                     state.modified = true;

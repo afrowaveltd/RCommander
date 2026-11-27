@@ -31,6 +31,8 @@ on:
       - "crates/rcommander/src/ui/app.rs"
       - "crates/rcommander/src/ui/editor_window.rs"
       - "crates/rcommander/src/ui/viewer_window.rs"
+      - "crates/rcommander/src/ui/markdown_view.rs"
+      - "crates/rc-viewer/src/**"
       - "crates/rcommander/src/ui/workspace_window.rs"
       - "crates/rcommander/src/model/surfaces.rs"
       - "crates/rcommander/src/model/mod.rs"
@@ -94,3 +96,6 @@ jobs:
           cargo test --locked -p rcommander --lib settings_geometry_is_bounded_by_the_viewport
           cargo test --locked -p rcommander --lib settings_keys_respect_focus_popups_and_cancel_priority
           cargo test --locked -p rcommander --test ui_smoke settings_keyboard_confirm_and_cancel_the_draft
+          cargo test --locked -p rcommander --lib source_layout_preserves_buffer_and_highlights_known_languages
+          cargo test --locked -p rcommander --lib ui::viewer_window
+          cargo test --locked -p rcommander --test ui_smoke markdown_f3_defaults_to_rendered_content_and_keeps_source_available

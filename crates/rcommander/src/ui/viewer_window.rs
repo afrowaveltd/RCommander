@@ -15,15 +15,33 @@ pub struct ViewerUi {
     pub image_texture: Option<egui::TextureHandle>,
     pub error: Option<String>,
     pub options: ViewerOptions,
+    markdown: Option<Vec<rc_help::Block>>,
+    markdown_limited: bool,
+    hex: Option<Result<rc_viewer::HexDocument, String>>,
+    link_target: Option<String>,
 }
 
 impl ViewerUi {
     /// Load `path` into the viewer, honouring the options.
     pub fn load(&mut self, path: &std::path::Path) -> bool {
         self.image_texture = None;
+        self.markdown = None;
+        self.markdown_limited = false;
+        self.hex = None;
+        self.link_target = None;
         match rc_viewer::load(path, &self.options) {
             Ok(loaded) => {
                 self.error = None;
+                if loaded.format.format_hint == "markdown"
+                    && let ViewerContent::Text(text) = &loaded.content
+                {
+                    let mut end = text.text.len().min(256 * 1024);
+                    while !text.text.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    self.markdown_limited = end < text.text.len() || text.truncated;
+                    self.markdown = Some(rc_help::parse_markdown(&text.text[..end]));
+                }
                 self.loaded = Some(loaded);
                 true
             }
@@ -33,6 +51,35 @@ impl ViewerUi {
                 false
             }
         }
+    }
+
+    /// Reuse the chat/help renderer. Links are displayed, never opened automatically.
+    pub fn markdown_preview(
+        &mut self, ui: &mut egui::Ui, palette: &Palette, model: &Model, compact: bool,
+    ) -> bool {
+        let Some(blocks) = &self.markdown else { return false };
+        let limit = if compact { 32 } else { 2048 };
+        if self.markdown_limited || blocks.len() > limit {
+            ui.label(model.t("viewer.preview.limited"));
+        }
+        let viewport = ui.available_size().max(egui::vec2(1.0, 1.0));
+        egui::ScrollArea::both()
+            .id_salt("document_markdown")
+            .max_width(viewport.x)
+            .max_height(viewport.y)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.set_max_width((viewport.x - 20.0).max(1.0));
+                crate::ui::markdown_view::render_blocks(
+                    ui, &blocks[..blocks.len().min(limit)], palette, &mut self.link_target,
+                );
+                if let Some(target) = &self.link_target {
+                    ui.separator();
+                    ui.label(model.t("viewer.preview.link"));
+                    ui.add(egui::Label::new(target.as_str()).selectable(true));
+                }
+            });
+        true
     }
 
     /// Build a GPU texture for the decoded image, once.
@@ -97,15 +144,13 @@ fn render(
         );
         ui.horizontal_wrapped(|ui| {
             for (label, mode) in [
-                ("A", ViewerMode::Auto),
-                ("T", ViewerMode::Text),
-                ("H", ViewerMode::Hex),
-                ("I", ViewerMode::Image),
+                ("viewer.mode.auto", ViewerMode::Auto),
+                ("viewer.mode.source", ViewerMode::Text),
+                ("viewer.mode.hex", ViewerMode::Hex),
+                ("viewer.mode.image", ViewerMode::Image),
             ] {
-                if ui.selectable_label(state.mode == mode, label).clicked() {
+                if ui.selectable_label(state.mode == mode, model.t(label)).clicked() {
                     state.mode = mode;
-                    let path = std::path::PathBuf::from(&state.path);
-                    let _ = ui_state.load(&path);
                 }
             }
             ui.separator();
@@ -121,18 +166,45 @@ fn render(
         });
         ui.separator();
         ui_state.ensure_texture(ctx);
+        if state.mode == ViewerMode::Auto && ui_state.markdown_preview(ui, palette, model, false) {
+            return;
+        }
         let mode = effective_mode(state.mode, ui_state);
+        if mode == ViewerMode::Hex && ui_state.loaded.is_some() {
+            if let Some(LoadedViewer { content: ViewerContent::Hex(doc), .. }) = &ui_state.loaded {
+                show_hex(ui, &mut state, doc, palette);
+            } else {
+                let options = ui_state.options;
+                let dump = ui_state.hex.get_or_insert_with(|| {
+                    rc_viewer::load_hex(std::path::Path::new(&state.path), &options)
+                        .map_err(|e| e.to_string())
+                });
+                match dump {
+                    Ok(doc) => show_hex(ui, &mut state, doc, palette),
+                    Err(error) => { ui.label(error.as_str()); }
+                }
+            }
+            return;
+        }
         match (&ui_state.loaded, mode) {
-            (Some(_loaded), ViewerMode::Image) => show_image(ui, &mut state, ui_state),
-            (Some(loaded), ViewerMode::Hex) => show_hex(ui, &mut state, loaded, palette),
-            (Some(loaded), _) => show_text(ui, &mut state, loaded, palette),
+            (Some(LoadedViewer { content: ViewerContent::Image(_), .. }), ViewerMode::Image) => {
+                show_image(ui, &mut state, ui_state);
+            }
+            (Some(loaded), ViewerMode::Text) if matches!(&loaded.content, ViewerContent::Text(_)) => {
+                show_text(ui, &mut state, loaded, palette);
+            }
+            (Some(loaded), ViewerMode::Auto) => {
+                ui.label(rc_viewer::describe(loaded));
+                if !matches!(&loaded.content, ViewerContent::Empty) {
+                    ui.label(model.t("viewer.preview.unsupported"));
+                }
+            }
+            (Some(loaded), _) => {
+                ui.label(rc_viewer::describe(loaded));
+                ui.label(model.t("viewer.preview.mode_unavailable"));
+            }
             (None, _) => {
-                ui.label(
-                    ui_state
-                        .error
-                        .clone()
-                        .unwrap_or_else(|| model.t("panel.empty")),
-                );
+                ui.label(ui_state.error.clone().unwrap_or_else(|| model.t("panel.empty")));
             }
         }
     };
@@ -159,7 +231,8 @@ fn effective_mode(mode: ViewerMode, ui_state: &ViewerUi) -> ViewerMode {
         Some(ViewerContent::Image(_)) => ViewerMode::Image,
         Some(ViewerContent::Hex(_)) => ViewerMode::Hex,
         Some(ViewerContent::Text(_)) => ViewerMode::Text,
-        _ => ViewerMode::Hex,
+        Some(_) => ViewerMode::Auto,
+        None => ViewerMode::Hex,
     }
 }
 
@@ -197,11 +270,22 @@ fn show_text(
             // A borrowed str is a read-only TextBuffer: selection and copying
             // remain available without allocating a mutable clone every frame.
             let mut read_only = text.text.as_str();
+            let font = TextStyle::Monospace.resolve(ui.style());
+            let wraps = state.wraps;
+            let path = state.path.as_str();
+            let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, width: f32| {
+                let mut job = crate::ui::markdown_view::source_layout(
+                    path, buffer.as_str(), palette, font.clone(), true,
+                );
+                job.wrap.max_width = if wraps { width } else { f32::INFINITY };
+                ui.fonts_mut(|fonts| fonts.layout_job(job))
+            };
             ui.add(
                 egui::TextEdit::multiline(&mut read_only)
                     .font(TextStyle::Monospace)
                     .desired_width((viewport.x - 20.0).max(1.0))
-                    .desired_rows(1),
+                    .desired_rows(1)
+                    .layouter(&mut layouter),
             );
         });
 }
@@ -221,17 +305,9 @@ fn show_text(
 fn show_hex(
     ui: &mut egui::Ui,
     state: &mut crate::model::ViewerState,
-    loaded: &LoadedViewer,
+    doc: &rc_viewer::HexDocument,
     palette: &Palette,
 ) {
-    let doc = match &loaded.content {
-        ViewerContent::Hex(doc) => doc,
-        ViewerContent::Binary(binary) => &binary.head_hex,
-        _ => {
-            ui.label(rc_viewer::describe(loaded));
-            return;
-        }
-    };
     // The slider edits a request; the dump is rebuilt when it differs from what is on screen.
     let mut width = state.hex_bytes.clamp(1, 64);
     ui.horizontal_wrapped(|ui| {

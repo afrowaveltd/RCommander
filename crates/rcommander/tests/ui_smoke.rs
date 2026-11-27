@@ -3654,3 +3654,18 @@ fn settings_keyboard_confirm_and_cancel_the_draft() {
         assert_eq!(harness.state().model.settings.display.show_hidden, expected);
     }
 }
+
+#[test]
+fn markdown_f3_defaults_to_rendered_content_and_keeps_source_available() {
+    let (left, right) = fixture();
+    let path = left.path().join("preview.md");
+    write(&path, "# Preview title\n\n**bold content**\n");
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.state_mut().open_viewer(path);
+    harness.run();
+    assert!(harness.root().query_all_by_label("Preview title").count() > 0);
+    assert!(harness.root().query_all_by_label("bold content").count() > 0);
+    harness.state_mut().model.viewer.as_mut().unwrap().mode = rcommander::model::ViewerMode::Text;
+    harness.run();
+    assert!(harness.root().query_all_by_label("bold content").count() == 0);
+}

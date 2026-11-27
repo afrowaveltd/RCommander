@@ -830,3 +830,11 @@ authors = ["RCommander contributors"]
 "document.floating" = "Plovoucí okno"
 "editor.discard_changes" = "Zahodit změny"
 "editor.discard_prompt" = "Soubor obsahuje neuložené změny. Uložte je, nebo je výslovně zahoďte."
+
+"viewer.mode.auto" = "Náhled"
+"viewer.mode.source" = "Zdroj"
+"viewer.preview.limited" = "Omezený náhled dokumentu. Další text je dostupný ve zdrojovém režimu F3."
+"viewer.preview.link" = "Cíl odkazu:"
+"viewer.preview.unsupported" = "Pro tento formát zatím není dostupný vykreslený náhled."
+"viewer.preview.mode_unavailable" = "Tento režim není pro daný soubor dostupný."
+"editor.highlight" = "Zvýraznění syntaxe"
