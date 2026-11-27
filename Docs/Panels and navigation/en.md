@@ -151,3 +151,13 @@ file.
 A panel whose source cannot be reached says so in the panel. It never shows an empty list, because
 "the server did not answer" and "this folder is empty" must never look the same.
 
+
+## Automatic row and header sizing
+
+File-list rows and column headers grow automatically to fit the measured
+font and glyph overhang, in both LTR and RTL. The configured row height
+is a minimum; headers have an 18-point minimum, and text has 6 points
+of total vertical padding. Virtual scrolling uses one measured height
+per panel based on representative text and localized column captions.
+Long captions in narrow columns remain clipped horizontally, with
+the full caption available on hover.
