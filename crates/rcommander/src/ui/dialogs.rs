@@ -458,6 +458,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::Decode(_) => "cmd.decode",
         Dialog::SaveSelection(_) => "cmd.save_selection",
         Dialog::LoadSelection(_) => "cmd.restore_selection",
+        Dialog::FtpConnect(state) if state.password_session.is_some() => "session.password_title",
         Dialog::FtpConnect(_) => "ftp.connect",
         Dialog::Synchronize(_) => "cmd.sync_dirs",
         Dialog::About => "cmd.about",
@@ -2823,6 +2824,9 @@ fn options(
 }
 
 fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> DialogAction {
+    if state.password_session.is_some() {
+        return ftp_password(ui, model, state);
+    }
     // Switching the protocol moves the port to that protocol's default, but only
     // while the shown port is still a default itself.
     let mut protocol_choice: Option<&'static str> = None;
@@ -2963,41 +2967,78 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
     if !state.status.is_empty() {
         ui.label(&state.status);
     }
+    ftp_submit(ui, model, state)
+}
+
+fn ftp_password(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> DialogAction {
+    ui.label(egui::RichText::new(&state.session_name).strong());
+    ui.label(state.summary());
+    ui.label(model.t("ftp.password"));
+    let response = ui.add(
+        egui::TextEdit::singleline(&mut state.connection.password)
+            .password(true)
+            .hint_text(model.t("ftp.password_hint"))
+            .desired_width(260.0),
+    );
+    ui.checkbox(&mut state.save_password, model.t("ftp.remember_password"));
+    if !state.status.is_empty() {
+        ui.label(&state.status);
+    }
+    // A single secret field should allow keyboard submission as well.
+    let enter = response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
+    let escape = ui.input(|input| input.key_pressed(egui::Key::Escape));
+    let (ok, cancel) = buttons(ui, model);
+    if cancel || escape {
+        state.connection.password.clear();
+        return DialogAction::Close;
+    }
+    if ok || enter {
+        return ftp_start(model, state);
+    }
+    DialogAction::None
+}
+
+fn ftp_submit(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> DialogAction {
     let (ok, cancel) = buttons(ui, model);
     if cancel {
         return DialogAction::Close;
     }
     if ok {
-        if let Err(message) = state.validate() {
-            state.status = message.clone();
-            model.report_error(message);
-            return DialogAction::None;
-        }
-        let connection = state.connection.clone();
-        let name = if state.session_name.trim().is_empty() {
-            connection.host.clone()
-        } else {
-            state.session_name.trim().to_string()
-        };
-        let session = rc_core::sessions::Session::from_connection(name, &connection);
-        // Remembering the password is opt-in.
-        match model.start_connect_with_remember(&connection, &session, state.save_password) {
-            crate::model::CommandOutcome::Ok => {
-                // The attempt runs in the background: the dialog closes now and
-                // the panel fills in when `poll_connect` reports the result.
-                model.close_dialogs();
-                return DialogAction::Close;
-            }
-            crate::model::CommandOutcome::Failed(message) => {
-                // Keep the dialog open so the password can be corrected.
-                state.status = message.clone();
-                model.report_error(message);
-                return DialogAction::None;
-            }
-            _ => return DialogAction::None,
-        }
+        return ftp_start(model, state);
     }
     DialogAction::None
+}
+
+fn ftp_start(model: &mut Model, state: &mut FtpConnectState) -> DialogAction {
+    if let Err(message) = state.validate() {
+        let message = if message == "session.password_required" {
+            model.t(&message)
+        } else {
+            message
+        };
+        state.status = message.clone();
+        model.report_error(message);
+        return DialogAction::None;
+    }
+    let mut connection = state.connection_for_connect();
+    let session = state.profile_for_connect();
+    let outcome = model.start_connect_with_remember(&connection, &session, state.save_password);
+    connection.password.clear();
+    connection.key_passphrase.clear();
+    match outcome {
+        crate::model::CommandOutcome::Ok => {
+            state.connection.password.clear();
+            state.connection.key_passphrase.clear();
+            model.close_dialogs();
+            DialogAction::Close
+        }
+        crate::model::CommandOutcome::Failed(message) => {
+            state.status = message.clone();
+            model.report_error(message);
+            DialogAction::None
+        }
+        _ => DialogAction::None,
+    }
 }
 
 /// The saved-session list inside the connect dialog: load, save, delete and
