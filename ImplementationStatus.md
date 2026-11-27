@@ -2222,6 +2222,23 @@ no HTML execution, no external process or network preview. Added source
 layout and GUI Markdown regressions, EN/CS strings, docs and CI coverage.
 No local compilation; new CI and desktop verification pending.
 
+## Handoff — passive structured data previews (2026-11-27)
+
+F3 Auto and Quick View now render CSV/TSV records and expandable JSON/TOML
+trees. Existing serde_json and toml dependencies, original MIT project
+code for delimited records; no dependency or lockfile change. CSV handles
+quoted delimiters, doubled quotes, CRLF, multiline fields and UTF-8, does
+not assume a header, and never displays a partial final record. Limits:
+256 KiB input, 128 rows, 24 columns, 256 characters per cell/key/value,
+1024 tree nodes and depth 16; compact preview tighter. Limits explicitly
+reported. Invalid/incomplete structured data falls back to source. JSON
+and TOML are normalized value views, not lossless syntax trees (duplicate
+JSON keys may collapse; comments, order and TOML datetime representation
+may change). F3 Source remains available. No content execution, external
+fetch, or new codecs. Added parser tests and CSV GUI smoke test.
+Previous Markdown CI still running when this slice began; new CI pending.
+No local Rust toolchain.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

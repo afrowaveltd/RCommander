@@ -32,6 +32,7 @@ on:
       - "crates/rcommander/src/ui/editor_window.rs"
       - "crates/rcommander/src/ui/viewer_window.rs"
       - "crates/rcommander/src/ui/markdown_view.rs"
+      - "crates/rcommander/src/ui/data_preview.rs"
       - "crates/rc-viewer/src/**"
       - "crates/rcommander/src/ui/workspace_window.rs"
       - "crates/rcommander/src/model/surfaces.rs"
@@ -99,3 +100,5 @@ jobs:
           cargo test --locked -p rcommander --lib source_layout_preserves_buffer_and_highlights_known_languages
           cargo test --locked -p rcommander --lib ui::viewer_window
           cargo test --locked -p rcommander --test ui_smoke markdown_f3_defaults_to_rendered_content_and_keeps_source_available
+          cargo test --locked -p rcommander --lib ui::data_preview::tests
+          cargo test --locked -p rcommander --test ui_smoke csv_f3_displays_records_as_separate_cells

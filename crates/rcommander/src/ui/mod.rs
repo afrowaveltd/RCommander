@@ -4,6 +4,7 @@ pub mod agent_panel;
 pub mod app;
 pub mod chat_window;
 pub mod dialogs;
+mod data_preview;
 pub mod editor_window;
 pub mod help_window;
 pub mod markdown_view;

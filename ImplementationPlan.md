@@ -190,6 +190,25 @@ Headless and fully testable; the UI is only a view over it.
 | 10.8 | Agent panel | integration | MCP server toggle, client connections, tool calls |
 | 10.9 | UI tests | `tests/ui_*.rs` with `egui_kittest` | toolbar interactions produce the expected model state |
 
+### Preview format expansion (6 / 10.4)
+
+Prefer a passive, bounded renderer for each format, with original Source
+and actual Hex retained. Unknown/unsupported formats must not pretend to
+render. Implemented slices: Markdown, CSV/TSV, JSON/TOML value trees and
+existing image formats. Next: XML with a mature non-resolving parser
+(quick-xml MIT is a candidate); static SVG (resvg MIT OR Apache-2.0 is a
+candidate); spreadsheet cell previews, PDF page rasterization, office
+document text/layout, and audio/video with explicitly supported codecs.
+Assess exact dependency versions, transitive licenses and notice obligations
+before adding them; distinguish library copyright licenses from patents,
+codec distribution rights and document/embedded resource rights. Preserve
+MIT licensing of our own code; do not bundle incompatible components or
+proprietary SDKs by default. Optional independently installed providers
+need separate licensing and security review. Never run macros, scripts,
+embedded programs, formula evaluation, or fetch external resources in F3.
+Apply input/decompression/pixel/depth/time budgets; use safe static
+fixtures and regressions. Candidate libraries are not yet integrated.
+
 ### Phase 10.10 — Native context menus and contextual actions
 
 Right-click selects the item under the pointer (preserving an existing multi-selection

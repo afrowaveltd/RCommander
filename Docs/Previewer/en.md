@@ -9,7 +9,9 @@ picks the best representation:
 | images (PNG, JPEG, GIF, BMP, WebP) | decoded and scaled to fit the window |
 | text (any encoding) | decoded with automatic encoding detection, RTL aware |
 | Markdown | rendered with the shared chat/help renderer; Source shows original text |
-| HTML, JSON, XML, CSV | source text; a dedicated renderer is not yet available |
+| CSV / TSV | numbered records in a table, no assumed header |
+| JSON / TOML | expandable normalized value tree |
+| HTML / XML | source text; a dedicated renderer is not yet available |
 | archives, executables, databases, media | described in the status bar; bytes available in hex |
 | anything unknown or binary | integrated hex dump |
 

@@ -1099,7 +1099,9 @@ impl RCommanderApp {
                         .color(palette.hidden),
                 );
                 self.quick_viewer.ensure_texture(ui.ctx());
-                if self.quick_viewer.markdown_preview(ui, &palette, &self.model, true) {
+                if self.quick_viewer.markdown_preview(ui, &palette, &self.model, true)
+                    || self.quick_viewer.data_preview(ui, &self.model, true)
+                {
                     return;
                 }
                 let Some(loaded) = self.quick_viewer.loaded.as_ref() else {

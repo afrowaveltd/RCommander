@@ -9,7 +9,9 @@ zobrazení:
 | obrázky (PNG, JPEG, GIF, BMP, WebP) | dekóduje se a zmenší do okna |
 | text (libovolné kódování) | dekóduje se s automatickou detekcí kódování, ohled na RTL |
 | Markdown | vykreslený společným rendererem chatu a nápovědy; Zdroj ukáže původní text |
-| HTML, JSON, XML, CSV | zdrojový text; vlastní renderer zatím není k dispozici |
+| CSV / TSV | číslované záznamy v tabulce, bez předpokládané hlavičky |
+| JSON / TOML | rozbalovací strom normalizovaných hodnot |
+| HTML / XML | zdrojový text; vlastní renderer zatím není k dispozici |
 | archivy, spustitelné soubory, databáze, média | popis ve stavovém řádku, data dostupná v hexu |
 | cokoli neznámého či binárního | integrovaný hexdump |
 

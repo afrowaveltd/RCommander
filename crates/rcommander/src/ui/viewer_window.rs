@@ -16,6 +16,7 @@ pub struct ViewerUi {
     pub error: Option<String>,
     pub options: ViewerOptions,
     markdown: Option<Vec<rc_help::Block>>,
+    data: Option<super::data_preview::DataPreview>,
     markdown_limited: bool,
     hex: Option<Result<rc_viewer::HexDocument, String>>,
     link_target: Option<String>,
@@ -26,6 +27,7 @@ impl ViewerUi {
     pub fn load(&mut self, path: &std::path::Path) -> bool {
         self.image_texture = None;
         self.markdown = None;
+        self.data = None;
         self.markdown_limited = false;
         self.hex = None;
         self.link_target = None;
@@ -41,6 +43,11 @@ impl ViewerUi {
                     }
                     self.markdown_limited = end < text.text.len() || text.truncated;
                     self.markdown = Some(rc_help::parse_markdown(&text.text[..end]));
+                }
+                if let ViewerContent::Text(text) = &loaded.content {
+                    self.data = super::data_preview::DataPreview::parse(
+                        &loaded.format.format_hint, &loaded.format.mime, &text.text, text.truncated,
+                    );
                 }
                 self.loaded = Some(loaded);
                 true
@@ -80,6 +87,10 @@ impl ViewerUi {
                 }
             });
         true
+    }
+
+    pub fn data_preview(&self, ui: &mut egui::Ui, model: &Model, compact: bool) -> bool {
+        self.data.as_ref().is_some_and(|data| data.render(ui, model, compact))
     }
 
     /// Build a GPU texture for the decoded image, once.
@@ -166,7 +177,10 @@ fn render(
         });
         ui.separator();
         ui_state.ensure_texture(ctx);
-        if state.mode == ViewerMode::Auto && ui_state.markdown_preview(ui, palette, model, false) {
+        if state.mode == ViewerMode::Auto
+            && (ui_state.markdown_preview(ui, palette, model, false)
+                || ui_state.data_preview(ui, model, false))
+        {
             return;
         }
         let mode = effective_mode(state.mode, ui_state);

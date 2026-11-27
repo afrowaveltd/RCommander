@@ -3669,3 +3669,16 @@ fn markdown_f3_defaults_to_rendered_content_and_keeps_source_available() {
     harness.run();
     assert!(harness.root().query_all_by_label("bold content").count() == 0);
 }
+
+#[test]
+fn csv_f3_displays_records_as_separate_cells() {
+    let (left, right) = fixture();
+    let path = left.path().join("preview.csv");
+    write(&path, "city,value\nPrague,42\n");
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.state_mut().open_viewer(path);
+    harness.run();
+    assert!(harness.root().query_all_by_label("city").count() > 0);
+    assert!(harness.root().query_all_by_label("Prague").count() > 0);
+    assert!(harness.root().query_all_by_label("42").count() > 0);
+}

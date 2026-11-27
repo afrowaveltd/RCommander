@@ -842,3 +842,6 @@ authors = ["RCommander contributors"]
 "viewer.preview.unsupported" = "No rendered preview is available for this format yet."
 "viewer.preview.mode_unavailable" = "This mode is not available for this file."
 "editor.highlight" = "Syntax highlighting"
+
+"viewer.data.unavailable" = "Data is invalid or too large for structured preview. Showing source."
+"viewer.data.normalized" = "Normalized value tree; exact syntax is available in Source mode."
