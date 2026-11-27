@@ -778,9 +778,19 @@ Slices delivered so far, each headless and offline-tested:
    output reserve, and egress needs `Agent.allow_remote_models`, which is off
    by default.
 
-Remaining before the router: provider-registry migration in the settings UI
-(the catalogue is still edited by hand, and `allow_remote_models` has no
-control yet), provider-reported counters and capability probes, then the
+7. the registry reaches the interface: an options page ("Models and
+   routing") that adds, edits and removes a connection, shows the egress
+   switch, runs discovery per connection and lists what the catalogue holds.
+   The page edits the dialog's draft, so a cancelled options dialog changes
+   nothing about the profile; discovery reports what it added, refreshed and
+   no longer sees, names any capability it could not map, and says out loud
+   that new models arrive switched off. A failed listing is a failed listing,
+   not an empty catalogue, and a profile that would not validate is refused
+   before it is stored.
+
+Remaining before the router: the model rows stay read-only (enabling a model,
+setting a price class or a quota is still a catalogue-file edit, and the page
+says so), provider-reported counters and capability probes, then the
 deterministic router and the localized wizard. Test local defaults, shared quotas, multiple
 periods, unknown metadata, insufficient context, concurrent reservations,
 exhausted hourly allowance with wait/fallback, cross-provider privacy refusal,

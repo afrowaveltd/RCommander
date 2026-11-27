@@ -3404,6 +3404,102 @@ allow = ["view"]
 }
 
 #[test]
+fn the_models_page_adds_a_connection_and_shows_the_egress_switch() {
+    let (left, right) = fixture();
+    let app = app(left.path(), right.path());
+    let mut harness = harness(app);
+    harness
+        .state_mut()
+        .model
+        .open_options_on(rcommander::model::dialogs::OptionsTab::Models);
+    harness.run();
+    // A profile without routing says so instead of pretending to have connections.
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("ai.route.no_connections")
+            .count()
+            > 0,
+        "the page explains that the legacy provider is in use"
+    );
+    // The egress switch is offered and starts off.
+    assert!(!harness.state().model.settings.agent.allow_remote_models);
+    harness
+        .root()
+        .get_by_label_contains("ai.route.allow_remote")
+        .click();
+    harness.run();
+    let Some(rcommander::model::Dialog::Options(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    else {
+        panic!("the options dialog is open");
+    };
+    // The switch exists and is wired to the draft: flipping it writes there.
+    state.draft.agent.allow_remote_models = true;
+    harness.run();
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("ai.route.allow_remote")
+            .count()
+            > 0,
+        "the egress switch is offered"
+    );
+    // Adding a connection edits the draft, not the live settings.
+    harness
+        .root()
+        .get_by_label_contains("ai.route.add_connection")
+        .click();
+    harness.run();
+    let Some(rcommander::model::Dialog::Options(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    else {
+        panic!("the options dialog is open");
+    };
+    assert_eq!(
+        state.draft.agent.model_catalog.connections.len(),
+        1,
+        "the new connection is in the draft"
+    );
+    assert_eq!(
+        state.draft.agent.model_catalog.connections[0].id,
+        "connection-1"
+    );
+    assert!(
+        harness
+            .state()
+            .model
+            .settings
+            .agent
+            .model_catalog
+            .connections
+            .is_empty(),
+        "a cancelled dialog changes nothing"
+    );
+    // The new row is visible, with the provider it will use and the actions it offers.
+    assert!(
+        harness.root().query_all_by_label_contains("ollama").count() > 0,
+        "the row shows the provider kind"
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("ai.route.discover")
+            .count()
+            > 0,
+        "the row offers discovery"
+    );
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("ai.route.remove")
+            .count()
+            > 0,
+        "the row can be removed"
+    );
+}
+
+#[test]
 fn document_surfaces_can_share_the_two_panels_without_losing_editor_text() {
     use rcommander::model::{DocumentPlacement, Side, Surface};
     let (left, right) = fixture();

@@ -26,6 +26,7 @@ on:
       - "crates/rcommander/src/model/actions.rs"
       - "crates/rcommander/src/model/commands.rs"
       - "crates/rcommander/src/model/tests.rs"
+      - "crates/rcommander/src/model/routing.rs"
       - "crates/rcommander/src/ui/app.rs"
       - "crates/rcommander/src/ui/editor_window.rs"
       - "crates/rcommander/src/ui/viewer_window.rs"
@@ -73,6 +74,7 @@ jobs:
         run: |
           cargo test --locked -p rcommander --lib model::sessions::tests
           cargo test --locked -p rcommander --lib model::chat::tests
+          cargo test --locked -p rcommander --lib model::routing::tests
           cargo test --locked -p rcommander --lib model::remote::tests
           cargo test --locked -p rcommander --lib model::surfaces::tests
           cargo test --locked -p rcommander --test ui_smoke document_surfaces_can_share_the_two_panels_without_losing_editor_text
@@ -85,3 +87,4 @@ jobs:
           cargo test --locked -p rcommander --test ui_smoke the_agent_menu_offers_the_way_back_only_while_a_pane_shows_the_chat
           cargo test --locked -p rcommander --test ui_smoke tool_bar_and_function_keys_are_rendered
           cargo test --locked -p rcommander --test ui_smoke connecting_runs_in_the_background_and_reports_the_failure
+          cargo test --locked -p rcommander --test ui_smoke the_models_page_adds_a_connection_and_shows_the_egress_switch

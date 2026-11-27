@@ -33,7 +33,7 @@ cargo test --workspace
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`), the headless dispatch vertical (`rc-runtime`) and **routed chat with a metered receipt** recorded; model-to-MCP calls, registry/egress settings UI and the routing wizard, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
+| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`), the headless dispatch vertical (`rc-runtime`), routed chat with a metered receipt and a **Models and routing settings page with per-connection discovery** recorded; model-to-MCP calls, editable prices/quotas in the page, the deterministic router and wizard, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **partial** — shared rendering/highlighter and language extensions recorded; annotations, remaining consumer migration and TUI coverage need verification |
 | 17 | Rich document previewer | **partial** — Markdown/code/hex views; annotations, PDF/Office, binary inspection and viewer integration pending |
 | 18 | Plugin architecture | **partial** — location/registry, table capabilities, TOML command/MCP sources and on/off manager implemented; manifest verbs, renderers, isolation, installer, agent catalogue/calls and Workshop pending |
@@ -1950,6 +1950,60 @@ settings UI, no discovery button in the model picker), provider-reported
 counters and capability probes are not modelled, HTTP-date `Retry-After` and
 chunked error bodies are unparsed, and the deterministic router and localized
 wizard remain planned. No Windows/Android run at this revision.
+
+## Handoff — the registry reaches the interface (2026-11-27)
+
+Seventh slice of Phase 16.20: the catalogue is no longer a file someone has to
+edit by hand before routing can be switched on.
+
+- **New options page** `OptionsTab::Models` ("Models and routing"): the egress
+  switch, a connection list (enable, id, kind, base URL, account, Discover,
+  Remove), an "Add connection" button, a live summary line, the validation
+  state, and a read-only list of the catalogue models with their locality,
+  price class and how many advertised features were recorded.
+- **The page edits the dialog's draft**, like every other page, so a cancelled
+  options dialog changes nothing. Discovery therefore runs against the draft
+  (`discover_connection_in`) and its sentence lands in the page
+  (`OptionsState::routing_status`), while the command path
+  (`Model::discover_models`) keeps working on live settings for tools and
+  tests.
+- **Discovery is honest about what it did**: it reports added/refreshed/missing
+  counts, names every capability it could not map, and says that new models
+  arrive switched off. A provider that does not answer changes nothing — a
+  failed list is not an empty catalogue — and a catalogue that would not
+  validate is refused before it is stored (`providers::observe` never leaves an
+  unsaveable profile behind).
+- **Model rows are deliberately read-only.** Enabling a model, choosing a price
+  class or attaching a quota stays a catalogue-file edit; the page shows the
+  state and the comment in the code says why, because a checkbox that enabled a
+  model without showing its quotas would promise something the page cannot keep.
+  That is the honest boundary of this slice.
+- **Provider construction** moved next to the transport: `LlmBackend::
+  provider_for_connection` builds a client from a configured connection (kind +
+  base URL), so listing and answering cannot disagree, and the app's
+  `provider_for_connection` refuses a URL the transport cannot dial (https,
+  embedded credentials) before a socket is opened. Tests inject the transport
+  through the existing `ai_provider` override.
+
+Added: 25 locale keys per pack (`dialog.config.models`, the page labels, the
+discovery sentences), and both locale copies are byte-identical again.
+
+Evidence, Linux 2026-11-27 at this revision:
+
+```bash
+cargo test --workspace --all-targets                        # 1728 passed, 0 failed, 2 ignored
+cargo test --locked -p rcommander --lib model::routing::tests # 7 passed
+cargo test --locked -p rcommander --test ui_smoke the_models_page_adds_a_connection_and_shows_the_egress_switch  # 1 passed
+cargo clippy --workspace --all-targets                      # no warnings
+cargo fmt --all --check                                     # clean
+```
+
+Still open: prices, quotas and the enabled flag are catalogue-file edits (no
+page control yet), discovery is synchronous on the UI thread with a 5 s
+timeout (fine for a loopback server, a candidate for a worker thread when a
+remote connection arrives), provider-reported counters and capability probes
+are unmodelled, and the deterministic router and localized wizard remain
+planned.
 
 ## Next steps (dependency-ordered)
 

@@ -241,6 +241,25 @@ impl LlmBackend {
             }
         }
     }
+
+    /// Build the provider for a configured connection, before any model is chosen.
+    ///
+    /// Discovery needs a server, not a model, and this is the same construction [`Self::provider`]
+    /// uses, so a connection cannot behave one way while listing and another way while answering.
+    pub fn provider_for_connection(
+        &self,
+        connection: &rc_core::providers::ProviderConnection,
+    ) -> Box<dyn rc_llm::Provider> {
+        match connection.kind {
+            ProviderKind::Ollama => {
+                let provider = rc_llm::OllamaProvider::new(connection.base_url.clone());
+                match self.timeout {
+                    Some(timeout) => Box::new(provider.with_timeout(timeout)),
+                    None => Box::new(provider),
+                }
+            }
+        }
+    }
 }
 
 impl Backend for LlmBackend {

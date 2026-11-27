@@ -1594,6 +1594,181 @@ fn prompts_page(ui: &mut egui::Ui, model: &mut Model) {
 /// The page answers the three questions a user actually has, in that order: *what did I install*,
 /// *what is it allowed to do*, and *is it running*. Switching one off is immediate — the source is
 /// unregistered, so its panels and its capabilities disappear rather than waiting for a restart.
+/// The model registry page: connections, egress and what was discovered (Phase 16.20).
+///
+/// Everything here edits the dialog's draft, so a cancelled options dialog changes nothing. The
+/// models themselves stay read-only: price, locality and quotas are owner decisions that the
+/// catalogue file owns today, and a page that half-edited them would be worse than none.
+fn models_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) {
+    let palette = crate::theme::Palette::for_model(model);
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .id_salt("models_page_scroll")
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new(model.catalogue_summary_for(&state.draft.agent.model_catalog))
+                    .small()
+                    .color(palette.hidden),
+            );
+            ui.add_space(6.0);
+            let mut allow_remote = state.draft.agent.allow_remote_models;
+            if ui
+                .checkbox(&mut allow_remote, model.t("ai.route.allow_remote"))
+                .changed()
+            {
+                state.draft.agent.allow_remote_models = allow_remote;
+            }
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new(model.t("ai.route.connections"))
+                    .strong()
+                    .color(palette.accent),
+            );
+            if state.draft.agent.model_catalog.connections.is_empty() {
+                ui.label(
+                    egui::RichText::new(model.t("ai.route.no_connections"))
+                        .small()
+                        .color(palette.hidden),
+                );
+            }
+            // Collected first: the rows need the model for translations while the draft is
+            // borrowed mutably for the text fields.
+            let labels = [
+                model.t("ai.route.enabled"),
+                model.t("ai.route.id"),
+                model.t("ai.route.base_url"),
+                model.t("ai.route.account"),
+                model.t("ai.route.discover"),
+                model.t("ai.route.remove"),
+            ];
+            let mut remove: Option<String> = None;
+            let mut discover: Option<String> = None;
+            let mut add = false;
+            for index in 0..state.draft.agent.model_catalog.connections.len() {
+                let connection = &mut state.draft.agent.model_catalog.connections[index];
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut connection.enabled, &labels[0]);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut connection.id)
+                            .hint_text(&labels[1])
+                            .desired_width(110.0)
+                            .id_salt(format!("conn-id-{index}")),
+                    );
+                    ui.label(egui::RichText::new(connection.kind.label()).small());
+                    ui.add(
+                        egui::TextEdit::singleline(&mut connection.base_url)
+                            .hint_text(&labels[2])
+                            .desired_width(220.0)
+                            .id_salt(format!("conn-url-{index}")),
+                    );
+                    let mut account = connection.account.clone().unwrap_or_default();
+                    if ui
+                        .add(
+                            egui::TextEdit::singleline(&mut account)
+                                .hint_text(&labels[3])
+                                .desired_width(90.0)
+                                .id_salt(format!("conn-account-{index}")),
+                        )
+                        .changed()
+                    {
+                        connection.account = Some(account).filter(|text| !text.trim().is_empty());
+                    }
+                    if ui.small_button(&labels[4]).clicked() {
+                        discover = Some(connection.id.clone());
+                    }
+                    if ui.small_button(&labels[5]).clicked() {
+                        remove = Some(connection.id.clone());
+                    }
+                });
+            }
+            if ui.button(model.t("ai.route.add_connection")).clicked() {
+                add = true;
+            }
+            if add {
+                let connection = model.new_connection_for(&state.draft.agent.model_catalog);
+                match model.add_connection_to(&mut state.draft.agent.model_catalog, connection) {
+                    Ok(()) => state.routing_status.clear(),
+                    Err(message) => state.routing_status = message,
+                }
+            }
+            if let Some(id) = remove {
+                Model::remove_connection_from(&mut state.draft.agent.model_catalog, &id);
+                state.routing_status.clear();
+            }
+            if let Some(id) = discover {
+                match model.discover_connection_in(&mut state.draft.agent.model_catalog, &id) {
+                    Ok(note) => state.routing_status = note,
+                    Err(message) => state.routing_status = message,
+                }
+            }
+            if !state.routing_status.is_empty() {
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new(&state.routing_status)
+                        .small()
+                        .color(palette.accent),
+                );
+            }
+            if let Some(issue) = state.draft.agent.model_catalog.validate().err() {
+                let reason = format!("{issue:?}");
+                let text = model.tf("ai.route.issue", &[("reason", &reason)]);
+                ui.label(egui::RichText::new(text).small().color(palette.warning));
+            }
+            ui.add_space(10.0);
+            ui.label(
+                egui::RichText::new(model.t("ai.route.models_heading"))
+                    .strong()
+                    .color(palette.accent),
+            );
+            if state.draft.agent.model_catalog.models.is_empty() {
+                ui.label(
+                    egui::RichText::new(model.t("ai.route.no_models"))
+                        .small()
+                        .color(palette.hidden),
+                );
+            }
+            for entry in &state.draft.agent.model_catalog.models {
+                let locality = if entry.local {
+                    model.t("ai.route.local")
+                } else {
+                    model.t("ai.route.remote")
+                };
+                let price = match entry.price_class {
+                    Some(price) => price.to_string(),
+                    None => model.t("ai.route.unpriced"),
+                };
+                let features = entry
+                    .observed
+                    .as_ref()
+                    .map(|observed| observed.capabilities.len() + observed.unmapped.len())
+                    .unwrap_or(0)
+                    .to_string();
+                let state_text = model.tf(
+                    "ai.route.model_state",
+                    &[
+                        ("locality", &locality),
+                        ("price", &price),
+                        ("features", &features),
+                    ],
+                );
+                // Read-only on purpose: enabled, price, locality and quotas are owner decisions
+                // that the catalogue file owns, and enabling a model here without showing its
+                // quotas would be a promise this page cannot keep.
+                let marker = if entry.enabled { "on" } else { "off" };
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(marker).small());
+                    ui.label(&entry.id);
+                    ui.label(egui::RichText::new(&entry.model_id).monospace().small());
+                    ui.label(
+                        egui::RichText::new(state_text)
+                            .small()
+                            .color(palette.hidden),
+                    );
+                });
+            }
+        });
+}
+
 fn plugins_page(ui: &mut egui::Ui, model: &mut Model) {
     let palette = crate::theme::Palette::for_model(model);
     let mut toggle: Option<(String, bool)> = None;
@@ -2105,6 +2280,9 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
         }
         OptionsTab::Plugins => {
             plugins_page(ui, model);
+        }
+        OptionsTab::Models => {
+            models_page(ui, model, state);
         }
         OptionsTab::Dangerous => {
             dangerous_page(ui, model, state);

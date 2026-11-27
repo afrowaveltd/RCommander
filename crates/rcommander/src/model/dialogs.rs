@@ -352,13 +352,15 @@ pub enum OptionsTab {
     Prompts,
     /// Installed plugins: which are on, what they may do, where they came from (Phase 18.7).
     Plugins,
+    /// Model connections, egress and what discovery found (Phase 16.20).
+    Models,
     Shortcuts,
     /// Factory resets; the page warns loudly because nothing here can be undone.
     Dangerous,
 }
 
 impl OptionsTab {
-    pub fn all() -> [OptionsTab; 13] {
+    pub fn all() -> [OptionsTab; 14] {
         [
             OptionsTab::Display,
             OptionsTab::Language,
@@ -371,6 +373,7 @@ impl OptionsTab {
             OptionsTab::Security,
             OptionsTab::Prompts,
             OptionsTab::Plugins,
+            OptionsTab::Models,
             OptionsTab::Shortcuts,
             OptionsTab::Dangerous,
         ]
@@ -389,6 +392,7 @@ impl OptionsTab {
             OptionsTab::Security => "dialog.config.security",
             OptionsTab::Prompts => "dialog.config.prompts",
             OptionsTab::Plugins => "dialog.config.plugins",
+            OptionsTab::Models => "dialog.config.models",
             OptionsTab::Shortcuts => "dialog.config.shortcuts",
             OptionsTab::Dangerous => "dialog.config.dangerous",
         }
@@ -1754,6 +1758,8 @@ pub struct OptionsState {
     pub theme_name: String,
     /// Result of the last theme action.
     pub theme_status: String,
+    /// Result of the last model-routing action (discovery, a refused edit).
+    pub routing_status: String,
 }
 
 impl OptionsState {
@@ -1774,6 +1780,7 @@ impl OptionsState {
             theme_edit: theme_edit(settings),
             theme_name: settings.colors.theme.clone(),
             theme_status: String::new(),
+            routing_status: String::new(),
         }
     }
 
@@ -2047,7 +2054,7 @@ mod tests {
             o.draft.shortcuts.get("f9").map(|s| s.as_str()),
             Some("cm_Test")
         );
-        assert_eq!(OptionsTab::all().len(), 13, "a new page must be counted");
+        assert_eq!(OptionsTab::all().len(), 14, "a new page must be counted");
         assert!(
             OptionsTab::all().contains(&OptionsTab::Security),
             "the security page is reachable"
@@ -2055,6 +2062,10 @@ mod tests {
         assert!(
             OptionsTab::all().contains(&OptionsTab::Plugins),
             "the plugin manager is reachable"
+        );
+        assert!(
+            OptionsTab::all().contains(&OptionsTab::Models),
+            "the model registry is reachable"
         );
         assert!(OptionsTab::Language.key().starts_with("dialog.config."));
         // The reset page has to stay last: it is the one nobody opens by accident.

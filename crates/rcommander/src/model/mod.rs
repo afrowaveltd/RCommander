@@ -26,6 +26,7 @@ pub mod policy;
 pub mod prompts;
 pub mod remote;
 pub mod reset;
+pub mod routing;
 pub mod search;
 pub mod sessions;
 pub mod sources;
