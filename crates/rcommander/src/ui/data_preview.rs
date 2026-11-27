@@ -38,6 +38,17 @@ impl DataPreview {
                     Err(()) => Self::Unavailable,
                 })
             }
+            "jsonl" => {
+                let mut end = text.len().min(INPUT_LIMIT);
+                while !text.is_char_boundary(end) {
+                    end -= 1;
+                }
+                let partial = truncated || end < text.len();
+                Some(match json_lines_tree(&text[..end], partial) {
+                    Ok((root, limited)) => Self::Tree { root, limited },
+                    Err(()) => Self::Unavailable,
+                })
+            }
             "ini" => {
                 if truncated || text.len() > INPUT_LIMIT {
                     return Some(Self::Unavailable);
@@ -261,6 +272,40 @@ fn node(
         _ => shorten(value.to_string(), limited),
     };
     Node { name, value: description, children }
+}
+
+/// Each complete nonblank line is an independent JSON value. Preserve its
+/// physical line number, never interpret an incomplete tail as a record, and
+/// share a single node budget across the entire preview.
+fn json_lines_tree(text: &str, partial: bool) -> Result<(Node, bool), ()> {
+    let mut root = Node {
+        name: "records".into(),
+        value: String::new(),
+        children: Vec::new(),
+    };
+    let mut budget = MAX_NODES - 1;
+    let mut limited = partial;
+    for (index, line) in text.split_inclusive('\n').enumerate() {
+        if partial && !line.ends_with('\n') {
+            break;
+        }
+        if line.trim().is_empty() {
+            continue;
+        }
+        if root.children.len() == MAX_ROWS || budget == 0 {
+            limited = true;
+            break;
+        }
+        let value = serde_json::from_str::<serde_json::Value>(line).map_err(|_| ())?;
+        root.children.push(node(
+            format!("[{}]", index + 1),
+            &value,
+            1,
+            &mut budget,
+            &mut limited,
+        ));
+    }
+    Ok((root, limited))
 }
 
 /// A conservative INI preview: sections and assignments in source order,
