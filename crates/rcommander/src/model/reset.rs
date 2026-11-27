@@ -161,6 +161,8 @@ impl Model {
         }
         self.left.history.clear();
         self.right.history.clear();
+        self.left.clear_navigation_history();
+        self.right.clear_navigation_history();
         // A fresh tab bar is one tab on the current directory, which is exactly
         // what "forget my tabs" means.
         self.left.tabs = rc_core::tabs::TabBar::new(self.left.location().clone());
