@@ -476,7 +476,16 @@ fn padded_row_height(minimum: f32, text_height: f32) -> f32 {
 /// current language, rather than assuming that font size equals line height.
 fn measured_line_height(ui: &Ui, font: &FontId, sample: &str) -> f32 {
     let galley = ui.painter().layout_no_wrap(sample.to_owned(), font.clone(), Color32::WHITE);
-    galley.rect.height().max(galley.mesh_bounds.height()).max(font.size)
+    let mut height = galley.rect.height().max(font.size);
+    if galley.num_vertices > 0 {
+        // The painter centers the logical galley, but glyphs can extend beyond
+        // it asymmetrically (accents, descenders and fallback faces).
+        let center = galley.rect.center().y;
+        let extent = (center - galley.mesh_bounds.top())
+            .max(galley.mesh_bounds.bottom() - center);
+        height = height.max(2.0 * extent);
+    }
+    height
 }
 
 fn list_header(
@@ -500,7 +509,10 @@ fn list_header(
     let columns = model.columns(side);
     let header_text_height = columns.iter().fold(
         measured_line_height(ui, &font_id, "Ag 0123456789"),
-        |height, column| height.max(measured_line_height(ui, &font_id, &column.label)),
+        |height, column| {
+            // Include the possible sort indicator when measuring the header.
+            height.max(measured_line_height(ui, &font_id, &format!("{} ^v", column.label)))
+        },
     );
     let header_height = padded_row_height(18.0, header_text_height);
     let (rect, _response) = ui.allocate_exact_size(
@@ -566,6 +578,8 @@ fn list_header(
         if sortable && hit.clicked() {
             actions.push(PanelAction::Command(command.to_string()));
         }
+        // Narrow columns may still truncate horizontally; expose the full label.
+        hit.on_hover_text(&label);
     }
 }
 
