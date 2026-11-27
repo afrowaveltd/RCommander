@@ -1998,6 +1998,10 @@ cargo clippy --workspace --all-targets                      # no warnings
 cargo fmt --all --check                                     # clean
 ```
 
+CI at `beb7931`: Linux UI regressions
+[46055786888](https://github.com/afrowaveltd/RCommander/actions/runs/46055786888)
+completed successfully.
+
 Still open: prices, quotas and the enabled flag are catalogue-file edits (no
 page control yet), discovery is synchronous on the UI thread with a 5 s
 timeout (fine for a loopback server, a candidate for a worker thread when a
