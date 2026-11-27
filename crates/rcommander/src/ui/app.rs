@@ -74,6 +74,7 @@ fn icon_button_text(
     icon: crate::icons::Icon,
     caption: &str,
     font_size: f32,
+    text_font: egui::FontId,
     palette: &Palette,
 ) -> egui::WidgetText {
     let mut job = egui::text::LayoutJob::default();
@@ -91,7 +92,7 @@ fn icon_button_text(
         caption,
         (font_size * 0.45).max(4.0),
         egui::TextFormat {
-            font_id: egui::FontId::proportional(font_size),
+            font_id: text_font,
             color: palette.foreground,
             valign: egui::Align::Center,
             ..Default::default()
@@ -198,7 +199,8 @@ impl RCommanderApp {
     fn apply_theme(&mut self, ctx: &Context) {
         let theme_name = self.model.settings.colors.theme.clone();
         let font_size = self.model.settings.display.font_size;
-        let signature = theme::font_signature(&self.model.settings.fonts, font_size);
+        let rtl = self.model.direction().is_rtl();
+        let signature = format!("{}|rtl={rtl}", theme::font_signature(&self.model.settings.fonts, font_size));
         if self.fonts_installed
             && self.applied_theme == theme_name
             && self.font_signature == signature
@@ -219,6 +221,10 @@ impl RCommanderApp {
             theme::install_icon_font(ctx);
             (installed, failures)
         };
+        if rtl {
+            let discovered = self.model.font_choices();
+            theme::install_arabic_fallback(ctx, &discovered, &installed);
+        }
         theme::install_text_styles(ctx, &self.model.settings.fonts, font_size, &installed);
         ctx.set_visuals(theme::visuals(&self.palette, theme_name == "dark"));
         theme::install_menu_style(ctx);
@@ -803,7 +809,7 @@ impl RCommanderApp {
                     crate::icons::for_command(&button.command)
                 };
                 let label = match icon {
-                    Some(icon) => icon_button_text(icon, &caption, font_size, &palette),
+                    Some(icon) => icon_button_text(icon, &caption, font_size, ui.style().text_styles[&egui::TextStyle::Button].clone(), &palette),
                     None => egui::WidgetText::from(egui::RichText::new(&caption).size(font_size)),
                 };
                 let response = ui
@@ -1275,6 +1281,7 @@ impl RCommanderApp {
             })
             .collect();
         let unavailable_hint = self.model.t("cmd.not_available_here");
+        let rtl = self.model.direction().is_rtl();
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label(
@@ -1284,7 +1291,12 @@ impl RCommanderApp {
                 );
                 ui.separator();
                 for (shortcut, label, recipe, allowed, variant) in &rows {
-                    let mut text = format!("{shortcut} {label}");
+                    // Isolate the Latin shortcut from the surrounding Arabic caption.
+                    let mut text = if rtl {
+                        format!("\u{2066}{shortcut}\u{2069} {label}")
+                    } else {
+                        format!("{shortcut} {label}")
+                    };
                     if variant.is_some() {
                         // A caption that changed because of a held key says so, or it looks like
                         // the bar randomly renamed itself.
