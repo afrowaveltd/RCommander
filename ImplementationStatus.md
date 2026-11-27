@@ -1460,6 +1460,14 @@ actual OS, server and tool compatibility must be verified. The owner's
 Standard User / James Cooper example is a template test, not an actual
 directory mutation or a grant of privileges.
 
+## Phase 10.11 — practical UI feedback (2026-11-27)
+
+Implementation in progress. Linux labelled drive filtering and lightweight
+inline numeric powers submitted with regression fixtures. Menu and toolbar
+changes follow in this slice. Verification pending; do not mark done until
+CI and real platform smoke tests. Unlabelled Linux mounts remain accessible
+through ordinary path navigation; full TeX is not claimed.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

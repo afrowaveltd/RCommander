@@ -253,6 +253,9 @@ fn path_row(
                 format!("{} {root}", model.t("panel.drives"))
             };
             ui.menu_button(drive_caption, |ui| {
+                #[cfg(target_os = "linux")]
+                let volumes = rc_core::drive::pickable_volumes();
+                #[cfg(not(target_os = "linux"))]
                 let volumes = rc_core::drive::volumes();
                 if volumes.is_empty() {
                     ui.label(model.t("panel.no_drives"));

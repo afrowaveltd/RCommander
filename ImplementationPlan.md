@@ -24,7 +24,7 @@ Optional capabilities never become prerequisites for ordinary file management.
 
 | Stage | Remaining work / stable references | Depends on | Integrated exit gate |
 | --- | --- | --- | --- |
-| A — Baseline and usability | 7/13 missing-secret prompt and transfers; 10/10.10 tree/search/thumbnails/context menus; 11/12 current quality evidence; 14.9 menu coverage; 15 credential/live checks; verify existing 16/17/18 slices | existing 0–15 | two-pane use, saved connections, cancellation, release ZIP and evidence; Linux/Windows separately tested, Android check not APK |
+| A — Baseline and usability | 7/13 missing-secret prompt and transfers; 10/10.10–11 tree/search/thumbnails/context menus/toolbar/volume/math; 11/12 current quality evidence; 14.9 menu coverage; 15 credential/live checks; verify existing 16/17/18 slices | existing 0–15 | two-pane use, saved connections, cancellation, release ZIP and evidence; Linux/Windows separately tested, Android check not APK |
 | B — Shared policy and tools | finish 16.0 (including 16.0f–h resolution/custodian contracts)/16.3/16.11/16.12/16.31–32/16.35–37; 8 transport gaps; 18.2a/b/18.7 catalogue and calls; 16.9 jobs; 37.1 transport contract with 29.2; 25.5–6 headless runtime/ledger contracts and first event ownership slice | A baseline; contracts may start earlier | local model calls permitted MCP tool, denial performs no call, visible result/provenance, stdio and HTTP client checked separately, safe egress |
 | C — Research first | 37.1–6; early 15 remote Git reads; 29.1–2 read-only diagnostics/proxy; 17.0–2 source/annotation support as needed | B | human and local model find docs/repo, read exact ref, download inert artifact into scoped workspace with receipts; no browser needed |
 | D — Durable sessions and work | remaining 16.4/16.10 validation/context, 16.16–17 prompt diff, 16.18–21 native workloads/runtime; 16.34/25.1–10 unified SessionStore, runtime/ledger/drain/recovery/background; 32.1–2 workflow/checkpoints; 31.1/31.4–5 early text retrieval; 16.22 Commons contract | B; C for research-linked work | detach GUI, drain at safe unit, restart/resume verified steps without duplicate effects, reviewed developer task with approved checks, sources and cancellation |
@@ -218,6 +218,26 @@ DoD: headless tests cover target selection, marked/unmarked item behaviour, empt
 menus, capability filtering and dispatch to the originating pane; UI tests cover both
 pane sides and thumbnails; actual Windows desktop smoke tests cover Shell verbs,
 multi-selection and fallback. Test native integration separately from mock menus.
+
+### Phase 10.11 — Practical UI feedback (2026-11-27)
+
+Owner feedback: make both Linux drive selectors use the same short list
+of labelled disks; hide path-only names (starting with slash) and system
+mounts while retaining full inventory and ordinary path navigation. Windows
+drive letters and Android storage remain unchanged. Localize factory toolbar
+captions without rewriting user labels; put Agent and Git in their own menus,
+audit existing actions, and use an implemented-action catalogue for shortcuts.
+Provide + for function or current directory, edit/remove/reorder even factory
+buttons, persist active/personal layouts and restore defaults. Use existing
+icon glyphs initially; custom artwork and legacy external command semantics
+are separate follow-up. Support stream-safe inline math such as O(n²) without
+changing literal code, unsupported notation or raw conversation export.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 10.11.1 | Volume picker consistency | labelled Linux shortlist, both selectors, full inventory | pseudo-mount fixtures; Linux/Windows smoke and ordinary root/path access |
+| 10.11.2 | Menu and toolbar | localized captions, Agent/Git menus, shared action/directory shortcuts, saved personal/factory layouts | route, localization, add/edit/remove/reorder/reset/restore and persistence tests; real UI checks |
+| 10.11.3 | Inline math | lightweight numeric-power rendering, safe literal fallback | complete/incomplete expressions, currency, escape/code regressions; verify rendered fonts, richer TeX later |
 
 ## Phase 11 — Platforms and packaging
 

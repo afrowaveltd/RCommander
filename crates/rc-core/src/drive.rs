@@ -358,12 +358,27 @@ fn win_volume_label(root: &Path) -> String {
     String::from_utf16_lossy(&name[..len]).trim().to_string()
 }
 
+/// Linux's short drive list excludes system mounts and path-only labels.
+/// The complete mount inventory remains available for path resolution.
+#[cfg(any(target_os = "linux", test))]
+fn linux_pickable(volume: &Volume) -> bool {
+    if volume.kind == VolumeKind::Virtual || volume.root == Path::new("/") {
+        return false;
+    }
+    if volume.display_name().trim_start().starts_with('/') {
+        return false;
+    }
+    if volume.root.starts_with("/run") && !volume.root.starts_with("/run/media") {
+        return false;
+    }
+    !["/snap", "/var/snap", "/boot", "/proc", "/sys", "/dev"]
+        .iter()
+        .any(|prefix| volume.root.starts_with(*prefix))
+}
+
 /// The list shown in the panel's volume selector.
-///
-/// On Windows that is every drive letter; on Linux the *system* root and the virtual
-/// file systems (`tmpfs`, `overlay`, `snap` images and friends) are left out, because a
-/// selector full of `/snap/core22/1234` entries is useless. The root is still reachable
-/// by typing `/`, and `volumes()` (used by the drive bar) keeps everything.
+/// On Linux both drive menus use the same labelled-volume shortlist.
+/// Unlabelled mounts and the root remain accessible via ordinary paths.
 pub fn pickable_volumes() -> Vec<Volume> {
     volumes()
         .into_iter()
@@ -371,13 +386,12 @@ pub fn pickable_volumes() -> Vec<Volume> {
             if volume.kind == VolumeKind::Virtual {
                 return false;
             }
-            // The Linux root is the system volume; it stays in `volumes()` for the drive
-            // bar, but the selector is for the disks the user actually plugged in.
-            #[cfg(not(target_os = "windows"))]
+            #[cfg(target_os = "linux")]
             {
-                // The system volume and the places the distribution mounts its own
-                // machinery stay out of the selector: `/`, snap images, the ESP and the
-                // kernel pseudo file systems.
+                return linux_pickable(volume);
+            }
+            #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+            {
                 let root = volume.root.as_os_str().to_string_lossy();
                 if volume.kind == VolumeKind::Fixed && volume.root == Path::new("/") {
                     return false;
@@ -388,6 +402,7 @@ pub fn pickable_volumes() -> Vec<Volume> {
                     }
                 }
             }
+            #[cfg(not(target_os = "linux"))]
             true
         })
         .collect()
@@ -632,8 +647,28 @@ mod selector_tests {
             pickable.iter().all(|v| v.root != Path::new("/")),
             "the Linux root is the system volume"
         );
-        // Everything the picker hides is still available to the drive bar.
+        // Everything hidden from the picker stays in the complete mount inventory.
         assert!(volumes().len() >= pickable.len());
+    }
+
+    #[test]
+    fn linux_drive_picker_hides_system_and_path_only_labels() {
+        let candidates = [
+            Volume::new("/", "/", VolumeKind::Fixed),
+            Volume::new("/dev", "/dev", VolumeKind::Virtual),
+            Volume::new("/proc", "/proc", VolumeKind::Virtual),
+            Volume::new("/snap/core/1", "/snap/core/1", VolumeKind::Virtual),
+            Volume::new("/boot/efi", "EFI", VolumeKind::Fixed),
+            Volume::new("/run/user/1000", "/run/user/1000", VolumeKind::Unknown),
+            Volume::new("/mnt/unlabelled", "/mnt/unlabelled", VolumeKind::Removable),
+            Volume::new("/mnt/programming", "PROGRAMMING", VolumeKind::Fixed),
+            Volume::new("/media/ssd", "SSD_240GB", VolumeKind::Removable),
+            Volume::new("/run/media/user/DATA", "DATA", VolumeKind::Removable),
+        ];
+        let visible: Vec<_> = candidates.iter()
+            .filter(|v| linux_pickable(v))
+            .map(|v| v.label.as_str()).collect();
+        assert_eq!(visible, vec!["PROGRAMMING", "SSD_240GB", "DATA"]);
     }
 
     #[test]
