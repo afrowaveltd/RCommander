@@ -77,6 +77,16 @@ looking for.
 
 ## Right-click menu
 
+The list and thumbnail views share a menu. RCommander commands appear first,
+source-specific verbs follow, and the desktop actions for real local files
+appear at the bottom. Right-clicking an unmarked row selects that row rather
+than operating on unrelated marks; right-clicking a marked row preserves
+the marked selection. The parent row offers only parent navigation.
+The system file-manager action opens the current folder using the operating
+system's association. It is a fallback, not the complete native Explorer or
+Dolphin extension menu. Windows Shell handlers and KDE service-menu discovery
+are planned separately.
+
 Right-clicking a row selects it (as Explorer does) and opens a menu of the operations that
 matter there: *Open* for a directory, *View* and *Edit* for a file, then *Copy*, *Move*, *New
 folder*, *Rename*, *Delete* and *Attributes*, each with its keyboard shortcut next to the name —
