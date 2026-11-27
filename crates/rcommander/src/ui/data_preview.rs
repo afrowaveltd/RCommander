@@ -11,6 +11,7 @@ const MAX_DEPTH: usize = 16;
 #[derive(Debug)]
 pub(super) enum DataPreview {
     Table { rows: Vec<Vec<String>>, limited: bool },
+    Subtitles { rows: Vec<Vec<String>>, limited: bool },
     Tree { root: Node, limited: bool },
     Unavailable,
 }
@@ -45,7 +46,7 @@ impl DataPreview {
                 }
                 let partial = truncated || end < text.len();
                 Some(match subtitle_rows(&text[..end], hint == "vtt", partial) {
-                    Ok((rows, limited)) => Self::Table { rows, limited },
+                    Ok((rows, limited)) => Self::Subtitles { rows, limited },
                     Err(()) => Self::Unavailable,
                 })
             }
@@ -113,7 +114,7 @@ impl DataPreview {
                 ui.label(model.t("viewer.data.unavailable"));
                 false
             }
-            Self::Table { rows, limited } => {
+            Self::Table { rows, limited } | Self::Subtitles { rows, limited } => {
                 let row_limit = if compact { 12 } else { MAX_ROWS };
                 let col_limit = if compact { 8 } else { MAX_COLS };
                 if *limited || rows.len() > row_limit || rows.iter().any(|r| r.len() > col_limit) {
@@ -127,6 +128,13 @@ impl DataPreview {
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         egui::Grid::new("data_table").striped(true).show(ui, |ui| {
+                            if matches!(self, Self::Subtitles { .. }) {
+                                ui.label("#");
+                                for key in ["viewer.subtitle.id", "viewer.subtitle.start", "viewer.subtitle.end", "viewer.text"] {
+                                    ui.label(RichText::new(model.t(key)).strong());
+                                }
+                                ui.end_row();
+                            }
                             // CSV need not have a header. Number every record and
                             // never discard the first one by assuming it does.
                             for (index, row) in rows.iter().take(row_limit).enumerate() {
@@ -624,7 +632,7 @@ mod tests {
     #[test]
     fn srt_preview_preserves_identifiers_timestamps_and_multiline_text() {
         let input = "1\r\n00:00:01,000 --> 00:00:03,250\r\nPříliš žluťoučký\r\nkůň\r\n\r\n7\r\n00:00:04,000 --> 00:00:05,000\r\n<i>Hello</i>";
-        let Some(DataPreview::Table { rows, limited }) = DataPreview::parse("srt", "", input, false) else {
+        let Some(DataPreview::Subtitles { rows, limited }) = DataPreview::parse("srt", "", input, false) else {
             panic!("subtitle table expected");
         };
         assert!(!limited);
@@ -637,7 +645,7 @@ mod tests {
     #[test]
     fn webvtt_handles_named_cues_settings_notes_and_short_timestamps() {
         let input = "WEBVTT - Lesson\nLanguage: en\n\nNOTE teacher note\nignore me\n\nSTYLE\n::cue { color: red }\n\nintro\n00:01.000 --> 00:02.500 align:start\nHello\n\n00:03.000 --> 00:04.000\nWorld";
-        let Some(DataPreview::Table { rows, limited }) = DataPreview::parse("vtt", "", input, false) else {
+        let Some(DataPreview::Subtitles { rows, limited }) = DataPreview::parse("vtt", "", input, false) else {
             panic!("WebVTT table expected");
         };
         assert!(!limited);
