@@ -452,6 +452,8 @@ authors = ["RCommander contributors"]
 "ftp.sessions.deleted" = "Relace „{name}“ smazána"
 "session.unknown" = "Relace „{name}“ neexistuje"
 "session.needs_password" = "Relace „{name}“ potřebuje heslo"
+"session.password_title" = "Heslo uloženého připojení"
+"session.password_required" = "Zadejte heslo pro toto připojení."
 "session.connected" = "Připojeno: {name}"
 
 "session.connecting" = "Připojuji se k {name}…"
