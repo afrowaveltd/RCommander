@@ -228,6 +228,12 @@ impl Panel {
         if self.location() == target {
             return;
         }
+        // Remote locations are tied to a live session, not merely a path.
+        // Do not replay a stale remote identity via the current connection.
+        if self.location().is_remote() || target.is_remote() {
+            self.clear_navigation_history();
+            return;
+        }
         let previous = self.location().clone();
         self.back_locations.push(previous);
         if self.back_locations.len() > capacity.max(1) {
