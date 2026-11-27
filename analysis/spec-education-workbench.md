@@ -3,7 +3,9 @@
 Status: owner-requested design, 2026-11-27; not implemented.
 This is a reusable teaching workflow, not an independent LMS or a replacement
 for the teacher. The teacher is the agent's collaborating client throughout
-the lesson; the student participates under the teacher's guidance.
+the lesson when a human teacher is present. The same workflow also supports
+self-study with an AI tutor: the learner directs the course and can revise
+or pause it at any time. The course is not tied to a subject or model.
 
 ## Goals
 
@@ -18,6 +20,130 @@ the lesson; the student participates under the teacher's guidance.
 - Teacher chooses language, audience/level, scope, objectives, time budget
   and preferred illustration/practical/test formats. The agent proposes
   suitable defaults and revises them during the conversation.
+
+## Course planner and adaptive entry assessment (owner extension)
+
+A course is a reusable curriculum, composed of lessons following a versioned
+lesson template. Distinguish the course planner, diagnostic assessor, lesson
+author, and teaching agent. They are logical roles, not mandatory separate
+models. The planner can create or revise the editable course/lesson template
+for the human teacher. It consumes a goal such as "I want to learn advanced
+C programming for the Linux kernel", not an already enumerated syllabus.
+
+### Entry assessment
+
+1. Record the learner's goal, language, desired depth, available tools and
+   optional pacing/time preferences; ask only for missing relevant details.
+2. Build an adaptive diagnostic: start with broad prerequisite questions,
+   then use progressively targeted questions or practical tasks to identify
+   demonstrated competence, gaps and uncertainty. The learner/teacher can
+   pause, resume, shorten, extend or skip it. No fixed time or question count.
+3. Produce a structured, editable knowledge profile with topic/skill IDs,
+   evidence from answers or exercises, confidence, gaps and suggested
+   starting level. Distinguish untested skills from failed skills and
+   self-reported from demonstrated competence. Do not infer unrelated traits
+   or claim validated certification.
+4. Feed this profile into the course planner prompt and subsequent teaching
+   prompts as private context. The learner/teacher can correct the profile.
+   Update it from later lesson assessments, keeping the assessment history
+   separate from the reusable course. Keep personal answers and profile local
+   by default; remote model sharing follows existing egress settings.
+
+### Curriculum generation
+
+The planner receives the requested goal, knowledge profile, teacher/learner
+preferences, approved resources, available tool capabilities and the
+universal lesson template. Example editable prompt:
+
+> Create a course on {topic} using {lesson_template}. Adapt the depth,
+> prerequisites, sequence and exercises to {knowledge_profile} and
+> {learner_preferences}. Use only available tools and approved materials.
+> Identify knowledge gaps, learning objectives, dependencies, assessment
+> criteria and alternatives when a demonstration is unavailable. Return a
+> structured curriculum for review before generating all chapters.
+
+Produce ordered modules and lessons with stable IDs, prerequisite links,
+objectives, suggested duration (not mandatory), theory, illustration plan,
+practical tasks when relevant, assessments, rubrics and resource references.
+Allow branching, optional refresher lessons, topic skipping and later
+revision; preserve completed work when a curriculum is revised. A teacher
+or learner can approve/edit the plan and request any chapter on demand.
+The lesson teaching agent follows the existing lesson workflow and adapts
+explanation to the learner's current knowledge without rewriting the
+canonical shared course merely to personalize a session.
+
+The system is subject-agnostic: programming, philosophy, history,
+mathematics, languages, arts, and cultural or belief systems such as
+astrology. For empirical subjects distinguish supported evidence, uncertainty,
+interpretation and unsupported claims. Teach astrology as a historical,
+cultural or belief practice rather than presenting predictions as scientifically
+established. Subject-specific practical exercises are optional: philosophical
+argument analysis is a valid practice activity. For Linux kernel examples,
+prefer an authorized disposable VM or isolated build environment; real host
+kernel changes are not a default teaching operation.
+
+## Course authoring, packaging and sharing
+
+Support three authoring modes using the same course schema and editor:
+
+- Manual: human authors the plan, lessons, assets and assessments.
+- Assisted: human directs an agent to create or revise chapters, illustrations
+  and tests, reviewing individual changes and keeping manual edits.
+- Automatic: planner and author roles produce a complete course or selected
+  chapters, with explicit review/publication as separate actions.
+
+Proposed portable, provider-neutral package: an open directory of a versioned
+manifest, course metadata, lesson template/version, curriculum, Markdown
+lesson files, assessments, teacher-only keys (optional separate package),
+assets/examples, and license/provenance records. An optional archive is
+transport only; reuse the existing archive engine. Proposed layout:
+
+```text
+course/
+  manifest.json
+  curriculum.json
+  templates/lesson.md
+  lessons/001-introduction/lesson.md
+  lessons/001-introduction/exercises.md
+  lessons/001-introduction/assets/
+  assessments/
+  LICENSE
+```
+
+The manifest declares stable course/lesson IDs, schema version, language,
+author/attribution, license, objectives, prerequisites, dependencies and file
+hashes. Courses must remain readable without an AI provider. Preserve the
+source and generated output where appropriate, not just chat transcripts.
+Import/export and validate packages with the same format regardless of
+authoring mode. Do not silently execute imported course code, prompts or
+embedded tools. Use existing review, archive and broker mechanisms.
+
+A learner who finds a course useful can export/share the complete reusable
+course (including any assets whose licenses permit redistribution), subject
+to explicit user publication and attribution. Provide optional teacher-key
+export, excluding private progress, diagnostic answers, grades, conversations,
+credentials and model settings by default. Personalized progress is a
+separate local/session record; make any optional personal export explicit.
+Version or fork shared courses without overwriting originals; support manual
+or agent-assisted translation in a later slice. External copyrighted material
+may need a reference instead of bundling. No public service is required for
+local export/import; a community catalogue can be a later provider.
+
+## Illustration and demonstration capability discovery
+
+Choose tools from the existing capability catalogue rather than requiring a
+single illustration provider. Prefer an available, permitted suitable tool:
+web research and licensed/source-attributed images; material server assets;
+local Markdown tables, Unicode icons, ASCII diagrams, SVG or generated HTML;
+ImageMagick for composition/conversion where installed; PhotoCraft or another
+compatible MCP image/diagram application. Distinguish retrieving existing
+images from generating or transforming them. Without network or an image
+provider, teach with text, diagrams and local assets; do not claim unavailable
+illustrations were created. Keep illustrations editable/source-linked when
+possible, provide text alternatives, record provenance and use the same
+permission checks for tool execution and file access. Use F3, WebView,
+compiler, terminal, database and other approved panel capabilities for
+demonstrations; never require them when the topic or device does not need them.
 
 ## Universal lesson workflow
 
@@ -38,7 +164,8 @@ teacher's key are separate from student-facing files and previews.
 
 ## Teaching agent prompt pack
 
-Use small versioned, editable prompt templates: lesson planner, theory
+Use small versioned, editable prompt templates: diagnostic assessor, course
+planner, course/lesson template designer, chapter author, lesson planner, theory
 explainer, illustration planner, demonstration builder, exercise author,
 assessment author/reviewer, and review/adaptation. A coordinator selects the
 stage; a single model can run all roles for the MVP. Prompts consume topic,
@@ -103,16 +230,25 @@ renderers and report the limitation; do not require WebView for the MVP.
 
 ## Delivery and acceptance
 
-1. Declarative prompt pack and editable universal lesson template, with a
-   teacher-reviewed Markdown lesson and separate assessment key.
+1. Declarative prompt pack, editable universal lesson template, adaptive entry
+   assessment, knowledge profile and course planner; teacher-reviewed Markdown
+   chapters and separate assessment keys. Start with a simple portable course
+   directory and manual/assisted/automatic authoring using the same schema.
 2. Versioned material catalogue adapter and bounded download/cache tool,
    using existing transport and policy; fake server and offline tests.
 3. Teaching workflow state, teacher checkpoints, artifact links and
    resume/export; reuse panel context and existing F3/F4.
 4. Optional interactive demonstrations with browser/DOM, local compilers,
    data or other approved tools as they become available.
+5. Validated portable package import/export, versioning, offline reading and
+   explicit course sharing, with separate personal progress and attribution.
+   Test capability-based illustration selection and offline fallback.
 
-Tests: template variables and stage transitions, teacher interruption and
+Tests: adaptive diagnostic branching, pause/resume/skip, unknown vs failed
+skills, profile propagation and privacy, curriculum prerequisite validation,
+manual/assisted/automatic authoring round-trips, import/export excluding
+private state, missing-tool illustration fallbacks, and subject-agnostic lessons.
+Also test template variables and stage transitions, teacher interruption and
 revision, no answer-key disclosure to the student view, no fabricated
 practical stage, catalogue failure/offline fallback, malformed manifests,
 path escape and checksum mismatch, permission denial, and one complete
