@@ -520,12 +520,21 @@ fn structured_hint(name: &str, head: &[u8]) -> Option<(&'static str, &'static st
     {
         return Some(("html", "text/html"));
     }
+    // WEBVTT declares itself even without a filename extension.
+    let vtt = trimmed.strip_prefix(b"\xef\xbb\xbf").unwrap_or(trimmed);
+    if let Some(rest) = vtt.strip_prefix(b"WEBVTT")
+        && rest.first().is_none_or(|byte| byte.is_ascii_whitespace())
+    {
+        return Some(("vtt", "text/vtt"));
+    }
     let ext = extension(name)?;
     Some(match ext.as_str() {
         "html" | "htm" | "shtml" => ("html", "text/html"),
         "md" | "markdown" | "mdown" | "mkd" | "mkdn" => ("markdown", "text/markdown"),
         "json" => ("json", "application/json"),
         "jsonl" | "ndjson" => ("jsonl", "application/x-ndjson"),
+        "srt" => ("srt", "application/x-subrip"),
+        "vtt" => ("vtt", "text/vtt"),
         "csv" => ("csv", "text/csv"),
         "tsv" | "tab" => ("csv", "text/tab-separated-values"),
         "xml" | "xsl" | "xslt" | "xsd" | "svg" | "plist" | "xhtml" => ("xml", "application/xml"),
@@ -930,6 +939,10 @@ mod tests {
         assert_eq!(kind_of("data.json", b"{\"a\":1}").1, "json");
         assert_eq!(kind_of("events.JSONL", b"{}\n{}\n").1, "jsonl");
         assert_eq!(kind_of("events.ndjson", b"{}\n").2, "application/x-ndjson");
+        assert_eq!(kind_of("lesson.SRT", b"1\n00:00:01,000 --> 00:00:02,000\nHi").1, "srt");
+        assert_eq!(kind_of("lesson.vtt", b"WEBVTT\n\n").2, "text/vtt");
+        assert_eq!(kind_of("unnamed.txt", b"WEBVTT\n\n00:01.000 --> 00:02.000\nHi").1, "vtt");
+        assert_ne!(kind_of("notes.txt", b"WEBVTTish").1, "vtt");
         assert_eq!(kind_of("fake.jsonl", b"\x89PNG\r\n\x1a\n").0, ContentKind::Image);
         assert_eq!(kind_of("table.csv", b"a,b\n1,2\n").1, "csv");
         assert_eq!(kind_of("table.tsv", b"a\tb\n1\t2\n").1, "csv");
