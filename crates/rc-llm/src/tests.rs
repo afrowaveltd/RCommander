@@ -367,3 +367,32 @@ fn numeric_retry_after_is_preserved_for_both_chat_transports() {
         worker.join().unwrap();
     }
 }
+
+#[test]
+fn output_token_limit_is_sent_for_streamed_and_nonstreamed_requests() {
+    let request = ChatRequest::new("example", vec![Message::user("hello")])
+        .temperature(0.2)
+        .max_output_tokens(50);
+    for (body, streaming) in [(chat_body(&request), false), (chat_body_streaming(&request), true)] {
+        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(parsed["options"]["num_predict"], 50);
+        assert_eq!(parsed["stream"], streaming);
+        assert!(parsed["options"]["temperature"].is_number());
+    }
+    let only_limit = ChatRequest::new("example", vec![]).max_output_tokens(15);
+    let parsed: serde_json::Value = serde_json::from_str(&chat_body(&only_limit)).unwrap();
+    assert_eq!(parsed["options"]["num_predict"], 15);
+    let legacy = ChatRequest::new("example", vec![]);
+    let parsed: serde_json::Value = serde_json::from_str(&chat_body(&legacy)).unwrap();
+    assert!(parsed.get("options").is_none());
+}
+
+#[test]
+fn invalid_generation_limits_do_not_contact_the_provider() {
+    let provider = OllamaProvider::new("http://127.0.0.1:1");
+    for limit in [0, i32::MAX as u64 + 1] {
+        let request = ChatRequest::new("example", vec![]).max_output_tokens(limit);
+        assert!(provider.chat(&request).unwrap_err().to_string().contains("invalid output"));
+        assert!(provider.chat_stream(&request, &mut |_| {}).unwrap_err().to_string().contains("invalid output"));
+    }
+}

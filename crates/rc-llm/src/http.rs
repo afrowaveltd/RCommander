@@ -1,9 +1,8 @@
-//! Just enough HTTP/1.1 to talk to a local model server.
+//! Shared HTTP/1.1 transport for model adapters.
 //!
-//! Local providers (Ollama, LM Studio, vLLM) speak plain HTTP on the loopback interface, so a
-//! socket client is all that is needed — no TLS stack, no async runtime, no extra dependency in
-//! a project that has to build for Android as well. Remote HTTPS endpoints get their own client
-//! when the remote providers are added.
+//! Desktop HTTPS uses platform certificate and hostname verification. No redirects, implicit
+//! downgrade, authentication or proxy discovery. The application registry deliberately continues
+//! to gate HTTPS until its credential and egress contracts are ready. Android stays HTTP-only.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Shutdown, TcpStream, ToSocketAddrs};
@@ -56,42 +55,178 @@ pub struct Target {
     pub port: u16,
     /// Path prefix the base URL carried (usually empty).
     pub prefix: String,
+    tls: bool,
 }
 
 impl Target {
-    /// Parse `http://127.0.0.1:11434` (the scheme is optional; `https` is not supported yet).
+    /// Parse a base URL without credentials, query or fragment.
     pub fn parse(base_url: &str) -> Result<Target, HttpError> {
         let trimmed = base_url.trim().trim_end_matches('/');
-        let without_scheme = match trimmed.split_once("://") {
-            Some((scheme, rest)) => {
-                if scheme.eq_ignore_ascii_case("https") {
-                    return Err(HttpError::new(
-                        "https endpoints need the remote provider client, which is not built yet",
-                    ));
-                }
-                if !scheme.eq_ignore_ascii_case("http") {
-                    return Err(HttpError::new(format!("unsupported scheme “{scheme}”")));
-                }
-                rest
-            }
-            None => trimmed,
+        if trimmed.bytes().any(|b| !b.is_ascii_graphic())
+            || trimmed.contains(['\\', '?', '#'])
+        {
+            return Err(HttpError::new("invalid characters in provider base URL"));
+        }
+        let (tls, without_scheme) = match trimmed.split_once("://") {
+            Some((scheme, rest)) if scheme.eq_ignore_ascii_case("https") => (true, rest),
+            Some((scheme, rest)) if scheme.eq_ignore_ascii_case("http") => (false, rest),
+            Some(_) => return Err(HttpError::new("unsupported provider URL scheme")),
+            None => (false, trimmed),
         };
+        if tls && !cfg!(any(target_os = "linux", target_os = "windows", target_os = "macos")) {
+            return Err(HttpError::new("HTTPS is not supported on this platform"));
+        }
         let (authority, prefix) = match without_scheme.split_once('/') {
             Some((authority, rest)) => (authority, format!("/{rest}")),
             None => (without_scheme, String::new()),
         };
-        if authority.is_empty() {
-            return Err(HttpError::new("the base URL has no host"));
+        if authority.is_empty() || authority.contains('@') {
+            return Err(HttpError::new("missing host or credentials in provider URL"));
         }
-        let (host, port) = match authority.rsplit_once(':') {
-            Some((host, port)) => (
-                host.to_string(),
-                port.parse::<u16>()
-                    .map_err(|_| HttpError::new(format!("bad port “{port}”")))?,
-            ),
-            None => (authority.to_string(), 80),
+        let default_port = if tls { 443 } else { 80 };
+        let parse_port = |port: &str| {
+            port.parse::<u16>()
+                .ok()
+                .filter(|port| *port != 0)
+                .ok_or_else(|| HttpError::new("invalid provider port"))
         };
-        Ok(Target { host, port, prefix })
+        let (host, port) = if let Some(rest) = authority.strip_prefix('[') {
+            let (host, tail) = rest.split_once(']')
+                .ok_or_else(|| HttpError::new("invalid IPv6 authority"))?;
+            host.parse::<std::net::Ipv6Addr>()
+                .map_err(|_| HttpError::new("invalid IPv6 host"))?;
+            let port = if tail.is_empty() {
+                default_port
+            } else {
+                parse_port(tail.strip_prefix(':')
+                    .ok_or_else(|| HttpError::new("invalid IPv6 authority"))?)?
+            };
+            (host.to_owned(), port)
+        } else {
+            let (host, port) = match authority.split_once(':') {
+                Some((host, port)) => (host, parse_port(port)?),
+                None => (authority, default_port),
+            };
+            if host.is_empty() || !host.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-') {
+                return Err(HttpError::new("invalid provider host"));
+            }
+            (host.to_owned(), port)
+        };
+        Ok(Target { host, port, prefix, tls })
+    }
+
+    pub fn is_tls(&self) -> bool {
+        self.tls
+    }
+
+    fn authority(&self) -> String {
+        if self.host.contains(':') {
+            format!("[{}]:{}", self.host, self.port)
+        } else {
+            format!("{}:{}", self.host, self.port)
+        }
+    }
+
+    fn request_path(&self, path: &str) -> Result<String, HttpError> {
+        if !path.starts_with('/') || path.starts_with("//")
+            || path.bytes().any(|b| !b.is_ascii_graphic())
+            || path.contains(['\\', '#'])
+        {
+            return Err(HttpError::new("invalid provider request path"));
+        }
+        Ok(format!("{}{}", self.prefix, path))
+    }
+}
+
+/// A common byte stream; TLS never changes HTTP parsing or the provider protocol.
+enum Wire {
+    Plain(TcpStream),
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+    Tls(native_tls::TlsStream<TcpStream>),
+}
+
+impl Wire {
+    fn socket(&self) -> &TcpStream {
+        match self {
+            Self::Plain(stream) => stream,
+            #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+            Self::Tls(stream) => stream.get_ref(),
+        }
+    }
+}
+
+impl Read for Wire {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Plain(stream) => stream.read(buf),
+            #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+            Self::Tls(stream) => stream.read(buf),
+        }
+    }
+}
+
+impl Write for Wire {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Plain(stream) => stream.write(buf),
+            #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+            Self::Tls(stream) => stream.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Plain(stream) => stream.flush(),
+            #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+            Self::Tls(stream) => stream.flush(),
+        }
+    }
+}
+
+fn connect_socket(
+    target: &Target,
+    timeout: Duration,
+    control: Option<&StreamControl>,
+) -> Result<TcpStream, HttpError> {
+    let mut last_error = None;
+    for addr in (target.host.as_str(), target.port)
+        .to_socket_addrs()
+        .map_err(|e| HttpError::new(e.to_string()))?
+    {
+        if control.is_some_and(StreamControl::is_cancelled) {
+            return Err(HttpError::new("request cancelled"));
+        }
+        match TcpStream::connect_timeout(&addr, timeout) {
+            Ok(stream) => return Ok(stream),
+            Err(error) => last_error = Some(error),
+        }
+    }
+    Err(HttpError::new(format!(
+        "cannot reach {}: {} (is the server running?)",
+        target.authority(),
+        last_error.map(|e| e.to_string()).unwrap_or_else(|| "no address".into())
+    )))
+}
+
+fn open_wire(target: &Target, stream: TcpStream, timeout: Duration) -> Result<Wire, HttpError> {
+    stream.set_read_timeout(Some(timeout)).map_err(|e| HttpError::new(e.to_string()))?;
+    stream.set_write_timeout(Some(timeout)).map_err(|e| HttpError::new(e.to_string()))?;
+    if !target.tls {
+        return Ok(Wire::Plain(stream));
+    }
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+    {
+        let connector = native_tls::TlsConnector::builder()
+            .min_protocol_version(Some(native_tls::Protocol::Tlsv12))
+            .build()
+            .map_err(|e| HttpError::new(format!("TLS initialization failed: {e}")))?;
+        connector.connect(&target.host, stream)
+            .map(Wire::Tls)
+            .map_err(|e| HttpError::new(format!("TLS connection failed: {e}")))
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+    {
+        Err(HttpError::new("HTTPS is not supported on this platform"))
     }
 }
 
@@ -117,20 +252,9 @@ fn request(
     body: Option<&str>,
     timeout: Duration,
 ) -> Result<Response, HttpError> {
-    let address = format!("{}:{}", target.host, target.port);
-    let stream = TcpStream::connect(&address).map_err(|error| {
-        HttpError::new(format!(
-            "cannot reach {address}: {error} (is the server running?)"
-        ))
-    })?;
-    stream
-        .set_read_timeout(Some(timeout))
-        .map_err(|error| HttpError::new(error.to_string()))?;
-    stream
-        .set_write_timeout(Some(timeout))
-        .map_err(|error| HttpError::new(error.to_string()))?;
-    let mut stream = stream;
-    let full_path = format!("{}{}", target.prefix, path);
+    let full_path = target.request_path(path)?;
+    let address = target.authority();
+    let mut stream = open_wire(target, connect_socket(target, timeout, None)?, timeout)?;
     let mut head = format!(
         "{method} {full_path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nAccept: application/json\r\n"
     );
@@ -230,6 +354,9 @@ impl StreamControl {
         if self.is_cancelled() {
             return Err(HttpError::new("request cancelled"));
         }
+        if slot.is_some() {
+            return Err(HttpError::new("stream control already owns an active request"));
+        }
         *slot = Some(
             stream
                 .try_clone()
@@ -283,45 +410,14 @@ fn stream_impl(
     control: Option<&StreamControl>,
     on_line: &mut dyn FnMut(&str),
 ) -> Result<(), HttpError> {
-    let address = format!("{}:{}", target.host, target.port);
-    let mut connected = None;
-    let mut last_error = None;
-    for addr in address
-        .to_socket_addrs()
-        .map_err(|e| HttpError::new(e.to_string()))?
-    {
-        if control.is_some_and(StreamControl::is_cancelled) {
-            return Err(HttpError::new("request cancelled"));
-        }
-        match TcpStream::connect_timeout(&addr, timeout) {
-            Ok(stream) => {
-                connected = Some(stream);
-                break;
-            }
-            Err(error) => last_error = Some(error),
-        }
-    }
-    let stream = connected.ok_or_else(|| {
-        HttpError::new(format!(
-            "cannot reach {address}: {} (is the server running?)",
-            last_error
-                .map(|e| e.to_string())
-                .unwrap_or_else(|| "no address".into())
-        ))
-    })?;
-    let _guard = control.map(|c| c.attach(&stream)).transpose()?;
-    stream
-        .set_read_timeout(if control.is_some() {
-            None
-        } else {
-            Some(timeout)
-        })
+    let full_path = target.request_path(path)?;
+    let address = target.authority();
+    let socket = connect_socket(target, timeout, control)?;
+    // Attach the underlying socket before TLS so cancellation can interrupt a handshake too.
+    let _guard = control.map(|c| c.attach(&socket)).transpose()?;
+    let mut stream = open_wire(target, socket, timeout)?;
+    stream.socket().set_read_timeout(if control.is_some() { None } else { Some(timeout) })
         .map_err(|error| HttpError::new(error.to_string()))?;
-    stream
-        .set_write_timeout(Some(timeout))
-        .map_err(|error| HttpError::new(error.to_string()))?;
-    let mut stream = stream;
-    let full_path = format!("{}{}", target.prefix, path);
     let head = format!(
         "POST {full_path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nAccept: application/json\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
         body.len()
@@ -372,6 +468,7 @@ fn stream_impl(
         if !chunked
             && reader
                 .get_ref()
+                .socket()
                 .set_read_timeout(Some(timeout.min(Duration::from_secs(5))))
                 .is_ok()
         {
@@ -543,8 +640,50 @@ mod tests {
         assert_eq!(with_path.port, 8080);
         assert_eq!(with_path.prefix, "/v1");
         assert_eq!(Target::parse("example.com").unwrap().port, 80);
+        #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+        {
+            let tls = Target::parse("https://api.example.com/v1").unwrap();
+            assert!(tls.is_tls());
+            assert_eq!(tls.port, 443);
+            assert_eq!(tls.prefix, "/v1");
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
         assert!(Target::parse("https://api.example.com").is_err());
         assert!(Target::parse("").is_err());
         assert!(Target::parse("http://host:notaport").is_err());
+    }
+
+    #[test]
+    fn malformed_authorities_and_request_lines_are_refused() {
+        for url in ["http://user:secret@host", "http://host:0", "http://host/a?b",
+            "http://host/a#b", "http://host/a\r\nX:1", "http://[::1]bad", "http://::1"] {
+            assert!(Target::parse(url).is_err(), "{url}");
+        }
+        let target = Target::parse("http://[::1]:11434/v1").unwrap();
+        assert_eq!(target.host, "::1");
+        assert_eq!(target.authority(), "[::1]:11434");
+        assert_eq!(target.request_path("/models").unwrap(), "/v1/models");
+        for path in ["https://other", "//other", "/a\r\nX:1", "/a b"] {
+            assert!(target.request_path(path).is_err(), "{path}");
+        }
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+    #[test]
+    fn tls_failure_does_not_send_a_plaintext_http_request() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let worker = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut first = [0; 1];
+            socket.read_exact(&mut first).unwrap();
+            // A TLS handshake record, not the first byte of GET or POST.
+            assert_eq!(first[0], 0x16);
+            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+        });
+        let target = Target::parse(&format!("https://{addr}")).unwrap();
+        assert!(get(&target, "/api/tags", Duration::from_secs(5)).is_err());
+        worker.join().unwrap();
     }
 }

@@ -1489,6 +1489,21 @@ audit logs and a **Stop agent / revoke grants** action. Defaults are read-only
 and minimal. Do not treat injected instructions inside README, documents or
 tool responses as authorisation.
 
+### Shared transport preparation (16.2 / 16.20)
+
+First implementation slice: a shared plain/TLS byte stream beneath the existing
+HTTP/JSON provider methods, using the already locked native-tls package on
+Linux/Windows/macOS, normal certificate and hostname verification, TLS 1.2
+minimum, strict target/request-line validation, IPv6 authorities, connect
+timeouts and no downgrade. Preserve Android HTTP-only behavior. The application
+catalogue intentionally still refuses HTTPS until a verified authenticated
+adapter and endpoint/egress binding are integrated. Next verify trusted and
+untrusted certificate fixtures, then bounded framing, generic header/auth
+injection and SSE; no raw credential or unrestricted URL API for plugins.
+The dispatch output reservation must travel to the provider as its generation
+ceiling (Ollama num_predict), while accounting reconciles actual reported usage
+even if the provider exceeds it. Legacy unbudgeted chat is unchanged.
+
 ### Open model-provider ecosystem (16.2 / 16.12 / 18 / 27)
 
 Owner requirement: support as many local, self-hosted and cloud inference

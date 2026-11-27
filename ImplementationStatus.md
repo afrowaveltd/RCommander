@@ -2136,6 +2136,29 @@ Documentation only; no transport, registry or plugin implementation changed,
 no provider contacted and no new tests run. Avoid colliding with the other
 developer's ongoing implementation.
 
+## Handoff — shared HTTP/TLS foundation and generation ceiling (2026-11-27)
+
+Verified prior Linux CI [46060223039](https://github.com/afrowaveltd/RCommander/actions/runs/46060223039)
+at `b2f6230`. Review found dispatch reserved an output ceiling but never
+passed it to Ollama. Added optional `ChatRequest.max_output_tokens`, set by
+the dispatcher and serialized to `options.num_predict` for both Ollama modes;
+invalid zero/overflow limits are refused before the socket. Legacy chat is
+unchanged. Providers can still exceed or misreport usage; actual usage must
+be reconciled. Added serializer and fake-dispatch tests.
+
+Shared `rc-llm::http` transport now supports a desktop native-tls wire
+with normal certificate and hostname checks, TLS 1.2 minimum, common
+HTTP paths, connect timeout, IPv6 target parsing, strict URL/request-line
+checks and cancellation socket attachment before handshake. No plaintext
+downgrade; Android/other platforms remain HTTP-only. Reused native-tls
+0.2.18 already present in Cargo.lock, adding only the local rc-llm
+dependency edge. Added target and failed-handshake tests. The catalogue
+still rejects HTTPS intentionally: no cloud API authentication, successful
+certificate fixture or endpoint-bound credential/egress integration yet.
+No redirects, proxy support, generic headers, SSE or full bounded HTTP
+framing in this slice. No live provider called. No local Rust toolchain;
+CI and formatting verification pending.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

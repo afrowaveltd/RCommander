@@ -373,7 +373,8 @@ impl<B: Backend> Dispatcher<B> {
             let _ = ledger.abandon(&request.request_id);
             return DispatchOutcome::NotPersisted { error };
         }
-        let mut chat = ChatRequest::new(resolved.provider_model.clone(), request.messages.clone());
+        let mut chat = ChatRequest::new(resolved.provider_model.clone(), request.messages.clone())
+            .max_output_tokens(request.max_output_tokens);
         if let Some(temperature) = request.temperature {
             chat = chat.temperature(temperature);
         }

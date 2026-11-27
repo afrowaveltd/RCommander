@@ -233,6 +233,8 @@ pub struct ChatRequest {
     pub messages: Vec<Message>,
     /// Ask for a lower temperature for code work, higher for prose.
     pub temperature: Option<f32>,
+    /// Requested generation ceiling; None preserves legacy unbudgeted chat.
+    pub max_output_tokens: Option<u64>,
 }
 
 impl ChatRequest {
@@ -241,7 +243,13 @@ impl ChatRequest {
             model: model.into(),
             messages,
             temperature: None,
+            max_output_tokens: None,
         }
+    }
+
+    pub fn max_output_tokens(mut self, value: u64) -> Self {
+        self.max_output_tokens = Some(value);
+        self
     }
 
     pub fn temperature(mut self, value: f32) -> Self {
@@ -480,7 +488,19 @@ pub fn chat_body(request: &ChatRequest) -> String {
     if let Some(temperature) = request.temperature {
         body["options"] = serde_json::json!({ "temperature": temperature });
     }
+    if let Some(limit) = request.max_output_tokens {
+        body["options"]["num_predict"] = serde_json::json!(limit);
+    }
     body.to_string()
+}
+
+// Ollama's num_predict is a positive signed integer. In particular, do not let
+// zero or a wrapped negative value mean "generate without a limit".
+fn validate_output_limit(request: &ChatRequest) -> Result<(), LlmError> {
+    if request.max_output_tokens.is_some_and(|n| n == 0 || n > i32::MAX as u64) {
+        return Err(LlmError::new("invalid output token limit"));
+    }
+    Ok(())
 }
 
 impl Provider for OllamaProvider {
@@ -504,6 +524,7 @@ impl Provider for OllamaProvider {
     }
 
     fn chat(&self, request: &ChatRequest) -> Result<ChatReply, LlmError> {
+        validate_output_limit(request)?;
         let body = chat_body(request);
         let response = self.post("/api/chat", &body)?;
         if !response.is_success() {
@@ -569,6 +590,7 @@ impl OllamaProvider {
         control: Option<&StreamControl>,
         on_event: &mut dyn FnMut(StreamEvent<'_>),
     ) -> Result<ChatReply, LlmError> {
+        validate_output_limit(request)?;
         let body = chat_body_streaming(request);
         let target = self.target()?;
         let mut reply = ChatReply {

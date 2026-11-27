@@ -19,6 +19,7 @@ const NOON: i64 = 1_795_780_800;
 struct FakeBackend {
     reply: Mutex<Option<Result<ChatReply, LlmError>>>,
     calls: Mutex<Vec<(String, String, String)>>,
+    output_limits: Mutex<Vec<Option<u64>>>,
     /// Pieces handed out by `chat_stream` before the answer itself arrives.
     chunks: Vec<String>,
 }
@@ -54,6 +55,7 @@ impl FakeBackend {
         FakeBackend {
             reply: Mutex::new(Some(reply)),
             calls: Mutex::new(Vec::new()),
+            output_limits: Mutex::new(Vec::new()),
             chunks: Vec::new(),
         }
     }
@@ -73,6 +75,7 @@ impl FakeBackend {
 
 impl Backend for FakeBackend {
     fn chat(&self, resolved: &ResolvedModel, request: &ChatRequest) -> Result<ChatReply, LlmError> {
+        self.output_limits.lock().unwrap().push(request.max_output_tokens);
         self.calls.lock().unwrap().push((
             resolved.connection_id.clone(),
             resolved.provider_model.clone(),
@@ -499,4 +502,24 @@ fn the_real_backend_builds_the_provider_from_the_resolved_connection() {
     let provider = LlmBackend::default().provider(&resolved);
     assert_eq!(provider.kind(), "ollama");
     assert_eq!(provider.base_url(), "http://127.0.0.1:11434");
+}
+
+#[test]
+fn dispatch_passes_the_reserved_output_limit_to_the_backend() {
+    for streaming in [false, true] {
+        let catalog = catalog(true, 1000);
+        let dir = tempfile::tempdir().unwrap();
+        let mut ledger = ledger(&dir, &catalog);
+        let dispatcher = Dispatcher::new(FakeBackend::answering(100, 30));
+        let req = request("tiny");
+        let result = if streaming {
+            dispatcher.dispatch_stream(
+                &catalog, &mut ledger, &req, &rc_llm::StreamControl::default(), &mut |_| {}, NOON,
+            )
+        } else {
+            dispatcher.dispatch(&catalog, &mut ledger, &req, NOON)
+        };
+        assert!(matches!(result, DispatchOutcome::Answered { .. }));
+        assert_eq!(*dispatcher.backend().output_limits.lock().unwrap(), vec![Some(50)]);
+    }
 }
