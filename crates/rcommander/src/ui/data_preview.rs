@@ -494,6 +494,53 @@ mod tests {
     }
 
     #[test]
+    fn json_lines_preview_preserves_record_order_and_physical_line_numbers() {
+        let input = "{\"event\":\"start\"}\r\n\n[1,2]\nnull\n\"žluťoučký\"";
+        let Some(DataPreview::Tree { root, limited }) = DataPreview::parse("jsonl", "", input, false) else {
+            panic!("JSON Lines tree expected");
+        };
+        assert!(!limited);
+        assert_eq!(root.children.len(), 4);
+        assert_eq!(root.children[0].name, "[1]");
+        assert_eq!(root.children[0].children[0].name, "event");
+        assert_eq!(root.children[1].name, "[3]");
+        assert_eq!(root.children[2].value, "null");
+        assert_eq!(root.children[3].value, "\"žluťoučký\"");
+    }
+
+    #[test]
+    fn json_lines_drops_partial_tail_but_rejects_invalid_complete_records() {
+        let (root, limited) = json_lines_tree("{}\n{\"unfinished", true).unwrap();
+        assert!(limited);
+        assert_eq!(root.children.len(), 1);
+        assert!(json_lines_tree("{}\nnot json\n", true).is_err());
+        assert!(json_lines_tree("{}\n{", false).is_err());
+        assert!(matches!(DataPreview::parse("jsonl", "", "not json", false), Some(DataPreview::Unavailable)));
+        let (root, limited) = json_lines_tree("{}\n", true).unwrap();
+        assert!(limited);
+        assert_eq!(root.children.len(), 1);
+    }
+
+    #[test]
+    fn json_lines_limits_records_nodes_and_utf8_input() {
+        let input = "{}\n".repeat(MAX_ROWS + 1);
+        let (root, limited) = json_lines_tree(&input, false).unwrap();
+        assert!(limited);
+        assert_eq!(root.children.len(), MAX_ROWS);
+        let input = format!("[{}]\ntrue", "0,".repeat(MAX_NODES) + "0");
+        let (root, limited) = json_lines_tree(&input, false).unwrap();
+        assert!(limited);
+        assert_eq!(root.children.len(), 1);
+        assert_eq!(root.children[0].children.len(), MAX_NODES - 2);
+        let input = format!("{{}}\n\"{}\"", "ě".repeat(INPUT_LIMIT));
+        let Some(DataPreview::Tree { root, limited }) = DataPreview::parse("jsonl", "", &input, false) else {
+            panic!("bounded JSON Lines tree expected");
+        };
+        assert!(limited);
+        assert_eq!(root.children.len(), 1);
+    }
+
+    #[test]
     fn ini_preview_preserves_order_duplicates_and_literal_values() {
         let input = "global = first\n; comment\n[server]\nkey = žluťoučký\nkey=second=part # literal\n[server]\nempty=\npath=${HOME}/file\n";
         let Some(DataPreview::Tree { root, limited }) = DataPreview::parse("ini", "", input, false) else {
