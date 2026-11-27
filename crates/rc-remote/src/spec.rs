@@ -67,7 +67,7 @@ impl Protocol {
 /// thread; it is produced from [`rc_core::config::SavedConnection`] with
 /// [`ConnectionSpec::from_saved`] and written back with
 /// [`ConnectionSpec::to_saved`].
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ConnectionSpec {
     /// Display name of the saved connection.
     pub name: String,
@@ -100,7 +100,7 @@ pub struct ConnectionSpec {
 }
 
 /// Authentication method for SSH-based protocols.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub enum AuthMethod {
     /// Password from the credential store.
     #[default]
@@ -114,6 +114,40 @@ pub enum AuthMethod {
     },
     /// Delegate to a running `ssh-agent`.
     Agent,
+}
+
+impl std::fmt::Debug for ConnectionSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConnectionSpec")
+            .field("name", &self.name)
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("user", &self.user)
+            .field("password", &"[REDACTED]")
+            .field("protocol", &self.protocol)
+            .field("passive", &self.passive)
+            .field("encoding", &self.encoding)
+            .field("remote_dir", &self.remote_dir)
+            .field("timeout", &self.timeout)
+            .field("auth", &self.auth)
+            .field("host_key_policy", &self.host_key_policy)
+            .field("known_hosts_path", &self.known_hosts_path)
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for AuthMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Password => f.write_str("Password"),
+            Self::Agent => f.write_str("Agent"),
+            Self::KeyFile { path, .. } => f
+                .debug_struct("KeyFile")
+                .field("path", path)
+                .field("passphrase", &"[REDACTED]")
+                .finish(),
+        }
+    }
 }
 
 impl AuthMethod {
@@ -322,6 +356,30 @@ mod tests {
             timeout: DEFAULT_TIMEOUT,
             ..ConnectionSpec::default()
         }
+    }
+
+    #[test]
+    fn connection_debug_redacts_credentials() {
+        let mut connection = spec();
+        connection.password = "fixture-login-secret".into();
+        connection.auth = AuthMethod::KeyFile {
+            path: PathBuf::from("fixture-key"),
+            passphrase: Some("fixture-key-secret".into()),
+        };
+        for formatted in [
+            format!("{connection:?}"),
+            format!("{connection:#?}"),
+            format!("{:?}", connection.auth),
+            format!("{:#?}", connection.auth),
+        ] {
+            assert!(!formatted.contains("fixture-login-secret"));
+            assert!(!formatted.contains("fixture-key-secret"));
+            assert!(formatted.contains("[REDACTED]"));
+        }
+        let saved = connection.to_saved();
+        assert_eq!(saved.password, "fixture-login-secret");
+        assert_eq!(saved.key_passphrase, "fixture-key-secret");
+        assert!(format!("{connection:?}").contains("ftp.example.com"));
     }
 
     #[test]

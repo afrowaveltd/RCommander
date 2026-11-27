@@ -796,7 +796,7 @@ impl Default for Ftp {
 }
 
 /// One saved FTP/SFTP connection.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SavedConnection {
     pub name: String,
@@ -823,6 +823,29 @@ pub struct SavedConnection {
     pub local_dir: String,
     pub passive: bool,
     pub anonymous: bool,
+}
+
+// Saved profiles also carry transient credentials while connecting. Settings
+// and dialog Debug output must not expose either secret.
+impl std::fmt::Debug for SavedConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SavedConnection")
+            .field("name", &self.name)
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("user", &self.user)
+            .field("password", &"[REDACTED]")
+            .field("protocol", &self.protocol)
+            .field("auth_method", &self.auth_method)
+            .field("key_path", &self.key_path)
+            .field("key_passphrase", &"[REDACTED]")
+            .field("host_key_policy", &self.host_key_policy)
+            .field("remote_dir", &self.remote_dir)
+            .field("local_dir", &self.local_dir)
+            .field("passive", &self.passive)
+            .field("anonymous", &self.anonymous)
+            .finish()
+    }
 }
 
 impl SavedConnection {
@@ -1394,6 +1417,25 @@ mod tests {
         assert_eq!(back.display.view_modes, settings.display.view_modes);
         assert!(text.contains("comment"));
         assert!(text.contains("Shots"));
+    }
+
+    #[test]
+    fn saved_connection_debug_redacts_credentials() {
+        let connection = SavedConnection {
+            host: "example.test".into(),
+            user: "alice".into(),
+            password: "fixture-login-secret".into(),
+            key_passphrase: "fixture-key-secret".into(),
+            ..SavedConnection::default()
+        };
+        for formatted in [format!("{connection:?}"), format!("{connection:#?}")] {
+            assert!(!formatted.contains("fixture-login-secret"));
+            assert!(!formatted.contains("fixture-key-secret"));
+            assert!(formatted.contains("[REDACTED]"));
+            assert!(formatted.contains("example.test"));
+        }
+        assert_eq!(connection.password, "fixture-login-secret");
+        assert_eq!(connection.key_passphrase, "fixture-key-secret");
     }
 
     #[test]

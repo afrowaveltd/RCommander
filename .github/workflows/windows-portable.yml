@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install stable Rust (Windows MSVC)
         uses: dtolnay/rust-toolchain@stable
@@ -47,6 +47,20 @@ jobs:
         run: |
           cargo test --locked -p rc-core --lib secrets::tests
           if ($LASTEXITCODE -ne 0) { throw 'Wallet regression tests failed' }
+          cargo test --locked -p rc-core --lib saved_connection_debug_redacts_credentials
+          if ($LASTEXITCODE -ne 0) { throw 'Saved connection redaction test failed' }
+          cargo test --locked -p rc-remote --lib spec::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Remote specification tests failed' }
+          cargo test --locked -p rcommander --lib model::sessions::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Remote session tests failed' }
+          cargo test --locked -p rcommander --lib model::remote::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Remote panel tests failed' }
+          cargo test --locked -p rcommander --lib model::surfaces::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Surface tests failed' }
+          cargo test --locked -p rcommander --test ui_smoke document_surfaces_can_share_the_two_panels_without_losing_editor_text
+          if ($LASTEXITCODE -ne 0) { throw 'Document docking test failed' }
+          cargo test --locked -p rcommander --test ui_smoke f3_and_f4_open_the_expected_workspace_surface
+          if ($LASTEXITCODE -ne 0) { throw 'Document keyboard test failed' }
           cargo test --locked -p rc-core --lib windows_volumes_use_drive_letter_roots
           if ($LASTEXITCODE -ne 0) { throw 'Windows regression test failed' }
           cargo test --locked -p rc-core --lib linux_drive_picker_hides_system_and_path_only_labels

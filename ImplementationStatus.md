@@ -1599,6 +1599,29 @@ If repaint persists, investigate egui scroll layout rather than masking
 the failure. Windows real GUI acceptance still pending. Terminal is
 unchanged, planned in Phase 19.
 
+## Handoff — green document regression and credential diagnostics (2026-11-27)
+
+- Linux UI [#6](https://github.com/afrowaveltd/RCommander/actions/runs/46002635402)
+  passed at `c90225a`, including both document smoke tests, resize and F3/F4
+  dispatch. Prior repaint failure is no longer reproduced in that fixture.
+  Real desktop resizing, clipboard and Windows parity remain acceptance work.
+- The log reported 11 distinct unused workspace dependency declarations
+  (repeated by Cargo) and checkout v4's Node 20 deprecation. Removed only
+  unused entries from the root manifest after checking all member manifests;
+  actual crate dependencies and Cargo.lock are unchanged. Updated checkout
+  to v5 (action metadata specifies Node 24) in all three workflows.
+- Stage A/B, 13.4a: custom Debug for SavedConnection, ConnectionSpec and
+  AuthMethod redacts login passwords and private-key passphrases even when
+  formatted independently or via an enclosing Debug. Tests cover compact
+  and pretty formatting and verify original secret values remain usable.
+  This is a diagnostic boundary, not zeroization, a credential broker,
+  redaction of arbitrary user-provided strings or proof that all logging
+  paths are safe. Existing serialization and wire behavior unchanged.
+- Linux workflow runs core redaction and remote spec tests; Windows portable
+  workflow now includes those plus sessions, remote panels, surfaces and both
+  document smoke tests. Its update triggers a fresh portable build on main.
+  New revision verification pending. No local toolchain available here.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

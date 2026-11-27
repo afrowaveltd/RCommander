@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/linux-ui-regressions.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/rc-remote/src/spec.rs"
       - "crates/rc-core/src/drive.rs"
       - "crates/rc-core/src/config.rs"
       - "crates/rcommander/src/model/sessions.rs"
@@ -35,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Native build dependencies
@@ -44,6 +47,8 @@ jobs:
           sudo apt-get install -y pkg-config libssl-dev libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev libudev-dev
       - name: Volume picker, settings and Markdown
         run: |
+          cargo test --locked -p rc-core --lib saved_connection_debug_redacts_credentials
+          cargo test --locked -p rc-remote --lib spec::tests
           cargo test --locked -p rc-core --lib drive::
           cargo test --locked -p rc-core --lib the_button_bar_round_trips_through_toml
           cargo test --locked -p rc-help --lib inline_math
