@@ -38,6 +38,15 @@ impl DataPreview {
                     Err(()) => Self::Unavailable,
                 })
             }
+            "ini" => {
+                if truncated || text.len() > INPUT_LIMIT {
+                    return Some(Self::Unavailable);
+                }
+                Some(match ini_tree(text) {
+                    Ok((root, limited)) => Self::Tree { root, limited },
+                    Err(()) => Self::Unavailable,
+                })
+            }
             "xml" => {
                 if truncated || text.len() > INPUT_LIMIT {
                     return Some(Self::Unavailable);
@@ -254,6 +263,43 @@ fn node(
     Node { name, value: description, children }
 }
 
+/// A conservative INI preview: sections and assignments in source order,
+/// including duplicate names. No interpolation, includes or inline comment
+/// stripping. Unsupported dialect syntax falls back to the original source.
+fn ini_tree(text: &str) -> Result<(Node, bool), ()> {
+    let mut budget = MAX_NODES;
+    let mut limited = false;
+    let mut root = xml_node("root".into(), String::new(), &mut budget, &mut limited)?;
+    let mut section: Option<usize> = None;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with(';') || line.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('[') {
+            let name = line.strip_prefix('[').and_then(|s| s.strip_suffix(']')).ok_or(())?.trim();
+            if name.is_empty() || name.contains(['[', ']']) {
+                return Err(());
+            }
+            root.children.push(xml_node(format!("[{name}]"), String::new(), &mut budget, &mut limited)?);
+            section = Some(root.children.len() - 1);
+            continue;
+        }
+        let (key, value) = line.split_once('=').ok_or(())?;
+        let key = key.trim();
+        if key.is_empty() {
+            return Err(());
+        }
+        let entry = xml_node(key.to_owned(), value.trim().to_owned(), &mut budget, &mut limited)?;
+        if let Some(index) = section {
+            root.children[index].children.push(entry);
+        } else {
+            root.children.push(entry);
+        }
+    }
+    Ok((root, limited))
+}
+
 /// Build a display tree from XML events, preserving child order, qualified
 /// names, attributes and mixed content. This is not an XML schema validator.
 /// DTDs and custom entities are deliberately unsupported. No I/O resolver
@@ -445,6 +491,40 @@ mod tests {
         assert!(matches!(DataPreview::parse("json", "", "{", false), Some(DataPreview::Unavailable)));
         assert!(matches!(DataPreview::parse("json", "", "{}", true), Some(DataPreview::Unavailable)));
         assert!(DataPreview::parse("html", "", "<html>", false).is_none());
+    }
+
+    #[test]
+    fn ini_preview_preserves_order_duplicates_and_literal_values() {
+        let input = "global = first\n; comment\n[server]\nkey = žluťoučký\nkey=second=part # literal\n[server]\nempty=\npath=${HOME}/file\n";
+        let Some(DataPreview::Tree { root, limited }) = DataPreview::parse("ini", "", input, false) else {
+            panic!("INI tree expected");
+        };
+        assert!(!limited);
+        assert_eq!(root.children[0].name, "global");
+        assert_eq!(root.children[0].value, "first");
+        assert_eq!(root.children[1].name, "[server]");
+        assert_eq!(root.children[1].children[0].value, "žluťoučký");
+        assert_eq!(root.children[1].children[1].name, "key");
+        assert_eq!(root.children[1].children[1].value, "second=part # literal");
+        assert_eq!(root.children[2].name, "[server]");
+        assert_eq!(root.children[2].children[0].value, "");
+        assert_eq!(root.children[2].children[1].value, "${HOME}/file");
+    }
+
+    #[test]
+    fn ini_preview_falls_back_for_unsupported_or_oversized_input() {
+        for input in ["[bad", "[]", "=value", "include other.ini", "[a][b]", "key: value"] {
+            assert!(matches!(DataPreview::parse("ini", "", input, false), Some(DataPreview::Unavailable)));
+        }
+        let wide = "key=value\n".repeat(MAX_NODES);
+        assert!(matches!(DataPreview::parse("ini", "", &wide, false), Some(DataPreview::Unavailable)));
+        let large = "x".repeat(INPUT_LIMIT + 1);
+        assert!(matches!(DataPreview::parse("ini", "", &large, false), Some(DataPreview::Unavailable)));
+        assert!(matches!(DataPreview::parse("ini", "", "key=value", true), Some(DataPreview::Unavailable)));
+        let long = format!("key={}", "ě".repeat(300));
+        let (root, limited) = ini_tree(&long).unwrap();
+        assert!(limited);
+        assert!(root.children[0].value.ends_with('…'));
     }
 
     #[test]
