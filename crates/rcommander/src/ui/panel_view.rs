@@ -326,20 +326,34 @@ fn path_row(
         }
         // These are chronological visits, not filesystem parent/child.
         // Invoke against the owning panel, independently of current focus.
-        for (forward, arrow, shortcut) in [(false, "←", "Alt+Left"), (true, "→", "Alt+Right")] {
+        for (forward, arrow, label, shortcut) in [
+            (false, "←", "cmd.go_back", "Alt+Left"),
+            (true, "→", "cmd.go_forward", "Alt+Right"),
+        ] {
             let enabled = if forward {
                 model.panel(side).can_go_forward()
             } else {
                 model.panel(side).can_go_back()
             };
-            if ui.add_enabled(enabled, egui::Button::new(arrow))
-                .on_hover_text(shortcut)
-                .clicked()
+            let caption = model.t(label);
+            let response = ui.add_enabled(enabled, egui::Button::new(arrow))
+                .on_hover_text(format!("{caption} ({shortcut})"));
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, &caption));
+            if response.clicked()
+                && let crate::model::CommandOutcome::Failed(error) = model.go_history(side, forward)
             {
-                if let crate::model::CommandOutcome::Failed(error) = model.go_history(side, forward) {
-                    model.report_error(error);
-                }
+                model.report_error(error);
             }
+        }
+        // Respect the existing "show parent entry" option. If the user hides
+        // the row (or a provider does not supply it), retain a mouse-accessible
+        // parent action; there is no parent action at a real root.
+        if model.panel(side).location().parent().is_some()
+            && !model.panel(side).entries().iter().any(|entry| entry.name == "..")
+            && ui.small_button(model.t("cmd.up")).on_hover_text(model.t("cmd.go_up")).clicked()
+        {
+            model.focus = side;
+            actions.push(PanelAction::Command("cm_GoToParent".to_string()));
         }
         if ui
             .small_button(model.t("cmd.go_root"))
