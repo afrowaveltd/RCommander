@@ -2058,6 +2058,10 @@ cargo clippy --workspace --all-targets              # no warnings
 cargo fmt --all --check                             # clean
 ```
 
+CI at `435780e`: Linux UI regressions
+[46057144972](https://github.com/afrowaveltd/RCommander/actions/runs/46057144972)
+completed successfully.
+
 Still open: the routing wizard (a page that writes routes, prices and quotas),
 enforcement of `fallback_token_budget`, provider-reported counters, capability
 probes, and the `https` transport. The strategy of "local first, remote only
