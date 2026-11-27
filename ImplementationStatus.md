@@ -33,7 +33,7 @@ cargo test --workspace
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model-to-MCP calls, checklist, workload/runtime, durable sessions and teams/Commons open |
+| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model-to-MCP calls, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **partial** — shared rendering/highlighter and language extensions recorded; annotations, remaining consumer migration and TUI coverage need verification |
 | 17 | Rich document previewer | **partial** — Markdown/code/hex views; annotations, PDF/Office, binary inspection and viewer integration pending |
 | 18 | Plugin architecture | **partial** — location/registry, table capabilities, TOML command/MCP sources and on/off manager implemented; manifest verbs, renderers, isolation, installer, agent catalogue/calls and Workshop pending |
@@ -43,7 +43,7 @@ cargo test --workspace
 | 22 | Native WSL integration and cross-OS workspaces | **pending** — native filesystem/execution providers, mount-aware path mapping and cross-OS tests |
 | 23 | Database panels and administration (SQL and document stores) | **pending** — SQLite/PostgreSQL first, read-only browsing and SQL workspace, reviewed edits, comparison, transfers, backup/restore and AI DBA; SQL Server/MySQL/MariaDB and native MongoDB document provider (23.10) later |
 | 24 | Afrowave Personality Studio and creative agent teams | **pending** — editable persona packs independent of model/role/permissions, optional creative teams, local/remote image providers, structured document composition and export, and a separately deployable affordable-model public gateway; reuse Phase 16 and keep Agent Commons text-only |
-| 25 | Persistent Workspaces | **pending** — named project/panel/editor/tool/task checkpoints, local SessionStore, safe suspend/resume and portable exports |
+| 25 | Persistent Workspaces and durable runtime | **pending** — workspace/session restore, GUI-independent execution, durable to-do/step/attempt ledger, safe-unit drain, verified effect recovery, optional background/tray and restart |
 | 26 | External Agent Runtimes | **pending** — optional DeepSeek Harness SDK adapter, native chat, scoped MCP, independent Git/release roles and multi-runtime teams |
 | 27 | Capability Discovery and Plugin Workshop | **pending** — semantic category contracts, reusable panels, discovery across RC/Harness/MCP and independently reviewed plugin creation/activation |
 | 28 | Virtual Hardware Laboratory | **pending** — virtualization providers, independent host and guest controls, exclusive approved USB, driver test/recovery and lab workspaces |
@@ -1412,6 +1412,33 @@ duplicating them; Phase 28 reuses scoped remote management and adds a
 virtualization category plus guest/host isolation. Runtime, USB and
 hypervisor behavior require real integration tests before claiming support.
 
+## Runtime lifecycle and resource custodians — planned (2026-11-27)
+
+Source inspection at 5ec11f3 (not a new test run): rc-core has no GUI
+dependency; rcommander exposes headless Model and stdio MCP builds that
+model without a window. However RCommanderApp owns the model, its UI tick
+polls chat, and current chat/transfer workers use in-memory channels and
+thread handles. The application crate still depends on egui/eframe.
+Independent persistent runtime and TUI are not implemented. See
+[core manifest](crates/rc-core/Cargo.toml),
+[application manifest](crates/rcommander/Cargo.toml),
+[entry point](crates/rcommander/src/main.rs),
+[GUI tick](crates/rcommander/src/ui/app.rs),
+[chat jobs](crates/rcommander/src/model/chat.rs) and
+[transfer runner](crates/rcommander/src/ops_runner.rs).
+
+New 16.0f–h: authenticated caller/role/scope, typed denial and permitted
+resolution, resource custodians and correlated delegation, stop/revoke.
+New 25.5–10: headless runtime and authenticated client boundary, SQLite
+durable task/step/attempt ledger and meeting rooms, safe-point draining,
+effect intent/receipt/reconciliation, optional background/tray and restart,
+integrated acceptance. Define early in B, deliver in D before external
+runtimes/teams. Normal hibernation requires settled verified units;
+abrupt interruption is recovery-required, never a fictitious Done.
+SMTP acceptance and local receipt cannot be assumed atomic; queryable
+external evidence/idempotency or explicit blocked recovery is required.
+No source changes or new runtime tests in this documentation update.
+
 ## Phases 29–36 — planned workbench extensions (2026-11-27)
 
 All are planned, not implemented or tested. They extend existing engines
@@ -1431,16 +1458,16 @@ independent ready branches, not a numeric phase queue. Record exact
 commands, revision and platform evidence after each accepted slice.
 
 1. A: baseline and core usability; recheck current tests.
-2. B: common authorization, model-to-tool broker, transport.
+2. B: common authorization, typed resolution/custodian contracts, model-to-tool broker, early headless runtime/ledger boundary, transport.
 3. C: early read-only research/GitHub/Learn/search and safe downloads.
-4. D: SessionStore, native workloads and workflow checkpoints.
+4. D: SessionStore, durable native runtime/to-do ledger, safe-unit hibernation, verified effect recovery, background clients and workflow checkpoints.
 5. E: reference plugins, Discovery and visual foundations.
 6. F: external runtimes, roles, developer loop and workflow.
 7. G/H: remote/lab and reviewed AutoPlugin, API/browser acceptance.
 8. I/J: independent services and community/creative workflows.
 9. K: ongoing polish and explicitly scoped release.
 
-Phase 37 is planned, not implemented. Research deliberately precedes
-advanced Workshop, not follows Phase 36. This review is documentation-only;
+Phase 37 and the new 16.0f–h/25.5–10 steps are planned, not implemented.
+Research deliberately precedes advanced Workshop, not follows Phase 36. This review is documentation-only;
 no fresh tests were executed and no unsupported feature marked done.
 Historical detailed evidence remains above.

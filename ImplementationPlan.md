@@ -25,9 +25,9 @@ Optional capabilities never become prerequisites for ordinary file management.
 | Stage | Remaining work / stable references | Depends on | Integrated exit gate |
 | --- | --- | --- | --- |
 | A — Baseline and usability | 7/13 missing-secret prompt and transfers; 10/10.10 tree/search/thumbnails/context menus; 11/12 current quality evidence; 14.9 menu coverage; 15 credential/live checks; verify existing 16/17/18 slices | existing 0–15 | two-pane use, saved connections, cancellation, release ZIP and evidence; Linux/Windows separately tested, Android check not APK |
-| B — Shared policy and tools | finish 16.0/16.3/16.11/16.12/16.31–32/16.35–37; 8 transport gaps; 18.2a/b/18.7 catalogue and calls; 16.9 jobs; 37.1 transport contract with 29.2 | A baseline; contracts may start earlier | local model calls permitted MCP tool, denial performs no call, visible result/provenance, stdio and HTTP client checked separately, safe egress |
+| B — Shared policy and tools | finish 16.0 (including 16.0f–h resolution/custodian contracts)/16.3/16.11/16.12/16.31–32/16.35–37; 8 transport gaps; 18.2a/b/18.7 catalogue and calls; 16.9 jobs; 37.1 transport contract with 29.2; 25.5–6 headless runtime/ledger contracts and first event ownership slice | A baseline; contracts may start earlier | local model calls permitted MCP tool, denial performs no call, visible result/provenance, stdio and HTTP client checked separately, safe egress |
 | C — Research first | 37.1–6; early 15 remote Git reads; 29.1–2 read-only diagnostics/proxy; 17.0–2 source/annotation support as needed | B | human and local model find docs/repo, read exact ref, download inert artifact into scoped workspace with receipts; no browser needed |
-| D — Durable sessions and work | remaining 16.4/16.10 validation/context, 16.16–17 prompt diff, 16.18–21 native workloads/runtime; 16.34/25.1–4 unified SessionStore; 32.1–2 workflow/checkpoints; 31.1/31.4–5 early text retrieval; 16.22 Commons contract | B; C for research-linked work | resume named project/chat/checkpoint without replay, reviewed developer task with approved checks, sources and cancellation |
+| D — Durable sessions and work | remaining 16.4/16.10 validation/context, 16.16–17 prompt diff, 16.18–21 native workloads/runtime; 16.34/25.1–10 unified SessionStore, runtime/ledger/drain/recovery/background; 32.1–2 workflow/checkpoints; 31.1/31.4–5 early text retrieval; 16.22 Commons contract | B; C for research-linked work | detach GUI, drain at safe unit, restart/resume verified steps without duplicate effects, reviewed developer task with approved checks, sources and cancellation |
 | E — Plugins and Discovery | 18.1–5 remaining renderers/verbs/isolation; 18.7 staged installer including URL after C; 27.1–2 categories/discovery; 26.1 runtime contract; 16.27–30/16.33 role contracts; 17.3 PDF/17.4–6 previewers; 31.2 extraction as available | B–D interfaces; isolation before untrusted execution | discover read-only Craft tool, native panel and model use same capability, revoke; install reviewed inert package |
 | F — External agents and developer loop | 26.2–6 SDK/independent roles; 16.27–30/16.33 teams; 32.3/32.5 workflow editor/examples; 36.1/36.4–5 toolchain/integrity; 37.7 compiler test; remaining 16.5–8/16.13 translation/edit/scaffold/Git watch | C–E | native and optional external runtime research, build, test and independently review; Git/publish gated |
 | G — Remote and virtual lab | 19.1–9 SSH/PowerShell; 22.1–7 WSL; 20.1–5 optional helper; 21.1–2/21.5–6 read-only checks; 28.1–3 VM host/guest; 33.1–2 visual console; 17.3.1–3 binary analysis; 18.6 evidence review | B–E interfaces and isolation; 20 only where required | supported remote/WSL/VM targets tested; recover disposable guest through independent host channel, no automatic elevation |
@@ -49,14 +49,15 @@ installed runtimes and models. Do not remove tests to meet a size target.
 
 | Contract | Canonical owner and consumers |
 | --- | --- |
-| Policy, audit, transaction | 16.0/16.11/16.36–37; 20 optional elevation; all adapters |
+| Policy, audit, transaction | 16.0/16.0f–h/16.11/16.36–37; 20 optional elevation; all adapters |
 | Tool discovery and invocation | 8 MCP transport; 16.31–32/16.37 broker and trust; 18.7 catalogue; 27 category mapping |
 | Internet/artifact transport | 37.1/37.5; 29.2 probes, 30 API/browser, 18.7 URL installer and remote Git reuse compatible transport and policy |
-| Persistence | 25/16.34 SessionStore; 32 checkpoint references, 31 index; external runtime authoritative transcripts remain external |
-| Work execution | 16.18–21 native runtime, 26 external adapter, 16.27–30 teams, 32 workflow graph |
+| Persistence | 25/16.34 SessionStore and 25.6 durable task/attempt/receipt ledger; 32 checkpoint references, 31 index; external runtime authoritative transcripts remain external |
+| Work execution | 25.5–10 headless runtime and scheduler, 16.18–21 native workload/runtime contracts, 26 external adapter, 16.27–30 teams, 32 workflow graph |
 | Panels/rendering | 18 source/renderer, 17 shared text/extraction, 14.9 focus/menu |
 | Evidence and knowledge | 37 source receipts, 31 private index, 16.22–26 text-only Commons, 36 build/test provenance |
 | Plugin creation/distribution | 18.7 installer, 27 Workshop, 28 lab, 36 acceptance, distinct activation grant |
+| Resource ownership and recovery | 16.0f–h typed resolution/custodians, 25.6–8 durable ledger and receipts; domain services supply verified effects |
 
 Read-only work can start without privileged helper, browser, external
 runtime or full lab. Do not claim live compatibility from mocks. Stop a
@@ -492,6 +493,64 @@ tool window; it does **not** redefine MCP as a language-model API. An Ollama
 (or other LLM) connection supplies conversation/inference, whereas MCP tools
 supply explicit, permission-checked capabilities. A model endpoint alone is not
 an MCP server. RCommander should also remain fully usable without any AI.
+
+### Phase 16.0f–16.0h — Execution and Resolution Broker, resource custodians (planned)
+
+Use the existing policy engine as authority for every operation, not merely a
+prompt-level instruction. An authenticated runtime supplies immutable caller
+identity, task/step ID, role/domain, scope and grant references; a model's
+self-reported role or privilege in MCP arguments is never authority. Distinguish
+sandbox, folder, user and administrator scope, operation permissions, approval
+policy and network zone. Sandbox grants must be enforced by the available OS
+isolation or broker, and unsupported isolation stated honestly. Safe defaults,
+human-configurable grants within OS/deployment policy, no self-escalation.
+Emergency Stop/Revoke remains available in every profile, including headless
+operation; do not claim an already committed effect was reversed.
+
+Denial is a structured result, not abandonment of useful work. A versioned
+`DenialReason` enum (outside scope, insufficient privilege, capability
+missing/denied, approval required, zone denied, locked/unavailable resource,
+budget exceeded, policy violation) and separate `ResolutionKind` enum
+(alternative location, delegate, request scoped grant/elevation, ask user,
+change proposal, discover capability/plugin, bounded retry, stop) are
+serialized as stable machine-readable codes. The broker returns only viable
+options derived from current policy, with original target, exact denial,
+allowed alternative and required approvals. No silent redirection or success
+claim for a denied operation. Preserve work in approved staging and let the
+agent/user choose the alternative; no unbounded retry/delegation loops.
+
+A resource custodian is the designated owner of a logical resource and typed
+operation contract, not necessarily an LLM. Prefer deterministic services for
+validation, transactions, versioning, locking, backup and audit. The registry
+maps logical domain/resource IDs to custodians and supported operations;
+callers need not know physical paths, database schemas or credentials.
+Delegation requires both caller authority to request that precise operation
+on that resource and custodian authority to perform it for that task; no
+borrowing unrestricted credentials or bypassing an explicit deny. Carry
+original requester, chain, task/step, correlation ID, artifact hash,
+idempotency key and policy decision through the durable task journal (25.5–10).
+One designated mutable writer per resource or partition, with leases/fencing
+and transaction/optimistic version checks; shared read access per policy.
+Specialized custodians can hold distinct grants (not automatically bounded
+by the caller's filesystem path scope), but delegated intent and requester
+rights still constrain what they may do. A human can change grants through
+the same policy mechanism; agents cannot change their own policy.
+
+Reference: Translator in sandbox produces and validates a dictionary, then
+submits a typed project/language/version/artifact reference to the Afutrans
+custodian. The custodian checks schema, duplicates, caller operation grant,
+version/conflict, performs the permitted update, records receipt and audit.
+Translator never acquires storage write permission. Submit/replace/delete
+are distinct rights. If direct write denied, offer staged copy, valid
+custodian delegation or a user-authorized narrowly scoped grant. This
+pattern also applies to Git, mail, database, backup, build/release, plugins
+and directory services.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 16.0f | Typed execution and resolution contracts | authenticated request context, denial/recovery enums, policy-derived alternatives | spoofed role/scope refused, denied write has no effects, permitted staging succeeds, no unsafe alternative or implicit grant |
+| 16.0g | Resource custodian registry and delegation | logical resource ownership, typed calls, requester and custodian policy intersection, correlated receipt | sandbox translator submits via Afutrans fixture, delete refused independently, duplicate/stale version rejected, no confused-deputy bypass, bounded delegation |
+| 16.0h | Unified control and revocation | scoped grants, explicit one-shot elevation request, stop/drain/revoke through GUI/CLI/MCP/runtime | denied OS elevation stays denied, no new work after stop, scope changes never self-authorized, actual in-flight effects reported, no hidden execution path |
 
 ### The "process with agent" handoff (16.10a) and the prompt manager (16.16–16.17)
 
@@ -1997,9 +2056,10 @@ mandated by this plan.
 The owner wants to ask the agent to save the entire working environment at
 the end of a day, close RC, and continue from the same project the next
 morning. A chat transcript alone is not a workspace. Reuse the conversation
-SessionStore design under Phase 18 (bundled SQLite, optional explicitly
+SessionStore design in this phase (bundled SQLite, optional explicitly
 configured remote stores, migrations and retention), the Phase 16.19–16.20
 checkpoint/runtime contracts and the Phase 16.10 working-copy manifests.
+Phase 25.5–25.10 extends this with runtime independence and durable execution.
 Keep the native file manager usable without agents or external services.
 
 A named versioned workspace records project root and host identity, both
@@ -2016,9 +2076,10 @@ external runtime's authoritative history or copy all project files.
 Expose save/list/restore/rename/delete/clone/export/import/suspend/resume
 through the UI, command catalogue and scoped MCP tools (proposed names
 `workspace.save`, `workspace.restore`, `workspace.suspend`, `workspace.resume`).
-A save of live work records that work is still active; suspend stops new work,
-settles or cancels supported operations, flushes durable state and reports
-uncertain outcomes before marking a checkpoint suspended. Keep the last
+A save of live work records that work is still active; suspend follows the
+verified drain and safe-point protocol in 25.7–25.8. A checkpoint is marked
+suspended only after current units settle and durable receipts are verified;
+forced interruption instead enters explicit recovery. Keep the last
 valid generation on failed save, use a single mutable writer/lease, and
 recover explicitly after a crash. Restore UI state first without executing
 recorded actions. Before resuming, revalidate host, paths, original hashes,
@@ -2037,8 +2098,188 @@ restorable checkpoints from Markdown transcript exports.
 | 25.3 | Agent checkpoint | task board, runtime IDs, save/suspend/resume and visible status | mock jobs, restart, revoked grants, uncertain effects and no duplicate writes |
 | 25.4 | Commands and portability | UI/shortcuts/MCP, clone, export/import and restore preview | explicit cross-host remapping, unsupported runtime handling, no executable import or credential leakage |
 
-**Order:** define 25.1 alongside the ongoing SessionStore work; deliver
-25.2 before requiring any external runtime; integrate 25.3 with Phase 26.
+**Order:** define 25.1/25.5/25.6 alongside SessionStore and stage B broker;
+deliver native restore and durable execution before requiring external runtime;
+integrate 25.3 and 25.10 with Phase 26.
+
+### Phase 25.5–25.10 — Durable runtime, task ledger and safe hibernation (planned, 2026-11-27)
+
+The owner requires work to survive closing the GUI, long background runs and
+normal computer restart. Do not store only a transcript or an agent's
+description of progress. **Every accepted task has a durable, structured
+to-do plan and a precise execution ledger.** No "probably done" state. A
+normal graceful hibernation is permitted only at verified safe points;
+an ungraceful interruption must be identified, reconciled against evidence
+and prevented from silently replaying effects. No claim of omniscience
+about an arbitrary external system after power loss.
+
+#### Runtime boundary and frontends
+
+Source inspection at revision 5ec11f3: `crates/rc-core/Cargo.toml` has no
+egui dependency; `crates/rcommander/src/lib.rs` and `model/mod.rs`
+separate a headless model and view; `main.rs::build_headless_model`
+and `agent_host.rs::serve_stdio_with` already run MCP without a window.
+But `ui/app.rs::RCommanderApp` owns Model and its UI tick calls
+`model.poll_chat()`; `model/chat.rs` owns threaded chat jobs/channels,
+and `ops_runner.rs` has in-memory worker handles. The application crate
+still directly depends on egui/eframe. Headless capability is not a
+durable detached runtime. Reuse existing engine/model/tests, extract
+execution ownership and event polling, not a rewrite.
+
+Introduce one headless runtime/service boundary (candidate `rc-runtime`,
+final crate split decided after dependency audit), with no egui/eframe/TUI
+dependency. Runtime owns task scheduler, broker, tool adapters, custodian
+registry, agent rooms, journal, sessions, checkpoints and worker lifecycle.
+GUI owns presentation only; future TUI/CLI and MCP consume the same
+versioned local command/event API. A user-mode background process can
+continue when GUI detaches; same executable subcommand or separate small
+binary as packaging permits. Proposed `rcommander runtime`, `runtime status`,
+`runtime suspend`, `runtime resume`, `runtime stop`; API names are proposals.
+Single authority per user/profile/store, authenticated OS-local IPC
+(Unix socket or Windows named pipe with ACL, version handshake, no open
+network listener by default). Second launch attaches to existing runtime,
+does not start duplicate workers. Use leases and fencing; no two runtimes
+claim a task or resource, recover stale ownership safely. Retain ordinary
+standalone file-manager use with agents disabled.
+
+#### Durable to-do and operation journal
+
+Plan before executing: versioned task graph with stable task/step IDs,
+dependencies, role/custodian, typed input/output, resource target, validation
+criteria, safe-point policy, recovery contract and expected evidence.
+Long tasks can expand a child-step list incrementally, but persist each
+expansion before dispatch. Keep history and reasons for revisions, completed
+steps immutable, do not change done to pending to hide retries. Separate
+logical step state, attempt state, external operation state, and workspace
+lifecycle. Proposed step states: Pending, Ready, WaitingForApproval,
+Running, WaitingForDelegate, Checkpointing, Verifying, Done, Failed,
+Paused, Cancelled, Blocked. Per-attempt state machine with explicit
+transition validation and durable receipts. For non-idempotent effects
+record intent, dispatch/attempt ID, expected outcome, target/version and
+idempotency key **before** effect; record verified completion/receipt after.
+Pending is never dispatched; Running is not Done. A child step becomes Done
+only with its actual required evidence and artifact/receipt committed; a
+parent is Done only when all required child steps and checks succeed.
+Persist plan updates, ready queue, claims, progress cursor and final receipts
+transactionally in shared SQLite SessionStore; use WAL/durability settings
+appropriate for crash recovery, migrations, one logical writer, bounded
+transactions, artifact references/hash (large files remain outside DB).
+Commit artifact to staging, validate and atomic-promote where supported;
+journal and verify artifact reference before next dependent step. Track
+exact counts, not invented percentages. Record fail/retry attempts and
+correlated causal history; resume only remaining work. Never store raw
+secrets; chat retention/purge must not delete active operational ledger or
+required recovery evidence. No-kept-chat mode still needs explicit consent
+to durable minimum operational records for resumable tasks.
+
+#### Safe units of work and hibernation protocol
+
+A unit is the smallest meaningful, verifiable restart point supported by
+its adapter: a dictionary, an atomic file replacement, a DB transaction,
+a video frame or bounded batch, a build/test invocation, an external
+delivery receipt. Adapter declares safe-point/interruptibility, bounded
+timeout, checkpoint support, progress and recovery semantics (not all
+external harnesses can serialize arbitrary running state). Long tasks
+yield between units; stop scheduling new units on suspension, do not
+finish an entire film just to suspend. Example: frame 1042 out of 20,000
+is being colorized, finish/verify/persist frame 1042 and its source/model/
+settings hashes, then pause; after restart start at the first verified
+incomplete frame, not at the start of the film. Preserve original input
+and partial artifact isolation; a corrupt or missing completed frame
+requires repair, never count it as verified. Validate final assembly
+separately.
+
+Normal shutdown/hibernate: atomically transition runtime to Draining;
+stop admitting/dispatching new work, including delegates and triggers;
+wait for current bounded indivisible unit to settle/verify or safely
+cancel at supported checkpoint. Settle all children, persist receipts,
+flush journal and worker/cursor state, verify durable generation, release
+leases only after worker ownership is settled, mark Suspended only when
+no unaccounted in-flight effect remains. Quiescent pending approvals
+remain pending; no auto-approval. Report active noninterruptible unit
+and progress; user may wait, keep runtime running, cancel if safe, or
+choose explicit emergency stop. Never block forever; OS shutdown
+deadlines can be shorter than safe drain. Handle OS shutdown/sleep/
+logout notifications best effort, checkpoint continuously rather than
+trusting final signal. If interrupted by power loss, forced termination
+or timeout, follow recovery below, not false "hibernated successfully".
+
+#### External effects: exact local state and verified external outcome
+
+Mail example: Pending -> Sending -> Sent (acceptance by transport/provider
+with receipt, not proof of recipient delivery) -> Done after receipt and
+required checks durable. Graceful suspend waits for Sending to settle and
+records Sent/Done or proven failure before marking suspended; no new send.
+Use stable Message-ID/correlation ID, durable outbox, provider idempotency
+key where supported, queryable provider status or custodian receipt.
+SMTP acceptance and local SQLite commit are not one atomic transaction:
+a sudden power cut between remote accept and receipt can occur. A
+Message-ID alone does not guarantee deduplication. Do not invent Sent
+or retry blindly. Adapter recovery must reconcile with authoritative
+provider/remote log/receipt, hash/version or queryable operation ID and
+record proof of committed/not committed. Keep a precise local state such
+as RecoveryRequired with dispatch ID, attempted action, last durable event
+and missing evidence; no vague generic Unknown, no claim that it proves
+external success/failure. If authoritative verification is impossible,
+block that step and require explicit human resolution; label adapter
+non-resumable for that effect. Do not promise exactly-once for arbitrary
+SMTP, external commands or tools. Prefer transactional/idempotent custody
+contracts for unattended resumable workflows. Similar checks for Git ref
+update, database transaction, plugin install and privileged/remote actions.
+Record reconciliation outcome; never infer a remote effect from agent text.
+Runtime capability matrix must state recoverability; do not schedule
+non-recoverable effects as safely automatic if the required guarantees
+are unavailable.
+
+#### Background operation and human control
+
+Close behavior configurable: minimize/hide, detach GUI and keep runtime
+working, drain then hibernate, finish accepted tasks then exit, stop/cancel
+and exit. With work active show running task/step, remaining queue and
+current safe-point boundary; closing one client is not runtime termination.
+System tray/notification adapter opens existing runtime UI at task/workspace;
+show completion, failure, approval needed and recovery required. Native
+notification action and privacy-friendly text; fallback to CLI/status and
+durable event inbox when tray unsupported. Emergency Stop across GUI, TUI,
+CLI, tray and authenticated runtime control prevents new dispatch, cancels
+supported work, terminates managed process trees where safe, records effects
+that still need reconciliation; no guarantee remote effects can be undone.
+Revocation remains effective without GUI. Optional start on login, restore
+and resume separately selectable (off by default), visible and reversible,
+no mandatory service or silent startup registration for portable mode.
+After restart validate identity, targets, permissions, credentials, leases,
+artifact hashes, model/runtime versions, budgets and approvals; restore
+view first, resume only eligible steps. Do not run while host off. Test
+Windows and Linux separately; no assumption that every desktop supports
+tray or shutdown inhibition.
+
+Agent "meeting rooms" are durable per-task/workspace threads in SQLite:
+typed messages, sender/recipient, delegated step, artifact references,
+acknowledgement, task claims and result receipts; not permanent loaded
+models. Scheduler can unload idle models and run one or bounded multiple
+agents, wake waiting delegates from persisted events. No permission
+changes from room messages, no infinite debate loops. Rooms and task
+board reference one journal, not competing queues. Separate transcript
+retention from operational records; owner can inspect/export/clear
+completed rooms according to policy.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 25.5 | Headless runtime extraction and client boundary | UI-independent scheduler/broker/worker lifecycle, versioned local command/event API, GUI client and headless test client | no GUI dependency in runtime crate, existing model/MCP regressions, no window tick needed, detach/reattach while job completes, one authority and authenticated IPC |
+| 25.6 | Durable task graph and step/attempt ledger | versioned to-do graph, stable IDs, transactional state machine, durable claims/receipts and SQLite room/task board | illegal transitions refused, every action maps to a step, crash injection before/after intent and completion, parent only done after verified children, no double claims, exact progress |
+| 25.7 | Safe-point and drain protocol | adapter checkpoint contract, unit granularity, freeze admission, flush and suspend/resume | video frame fixture finishes current frame only, file/DB units settle, no next dispatch/delegate during drain, pending approval preserved, interrupted drain never labeled suspended |
+| 25.8 | External effect reconciliation | durable outbox/intents, idempotency/receipt query, typed recovery state and adapter capability matrix | mock mail Pending/Sending/Sent/Done, forced crash before/after remote acceptance and receipt, recover from authoritative evidence, no duplicate mail/push/commit, non-queryable effect blocked and surfaced, no false exactly-once claim |
+| 25.9 | Desktop/background lifecycle and notifications | user-mode runtime, close choices, tray/notification and status, optional login/resume, stop/revoke | Windows/Linux real close/reopen, normal reboot/resume, forced kill recovery, no GUI loop dependency, no duplicate daemon, portable no unapproved autostart, unsupported tray fallback |
+| 25.10 | Integrated runtime acceptance | SQLite meeting rooms, resource custodian delegation, external/native agents and GUI/TUI-compatible clients share ledger | translator -> custodian -> reviewer handoff with durable receipts; crash/restart midway; budget/revocation, safe stop with client absent, exact remaining work; optional external runtime unsupported checkpoint displayed |
+
+**Delivery order:** define 25.5/25.6 contracts and headless event ownership
+during stage B, before additional integrations (including Phase 37 tools).
+Deliver native durable tasks/hibernation in stage D before teams, external
+runtime or long-running media workflows. 25.8 receipt/recovery contract is
+mandatory before declaring an external mutation resumable; 25.9 desktop
+adapters and 25.10 acceptance follow the headless slice. TUI implementation
+is later; the runtime must be frontend-independent now. Phase 32 uses this
+same graph/journal/scheduler, not a second execution engine.
 
 ### Conversations as records: keeping chats, and switching between them (requested 2026-11)
 
@@ -2484,7 +2725,8 @@ themselves disclose content. No automatic promotion to Agent Commons.
 ## Phase 32 — Workflow Studio and repeatable personal tasks (planned)
 
 Extend Phase 16.18–16.20 workload contracts, Phase 16.28 coordination,
-Phase 25 checkpoints and Phase 26 external runtimes into a reusable,
+Phase 25 checkpoints, durable task ledger and independent runtime (25.5–25.10)
+and Phase 26 external runtimes into a reusable,
 versioned workflow graph, not a second agent engine. A user can design,
 save, clone, edit, inspect and rerun a workflow through native UI or
 headless execution. The graph may combine ordinary commands, approved
