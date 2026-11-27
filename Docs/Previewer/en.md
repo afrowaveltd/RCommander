@@ -25,13 +25,74 @@ The current egui/winit UI needs an explicit GTK/Wayland integration
 prototype before making this a default dependency. A static Rust HTML
 renderer may be evaluated if it supports the needed CSS subset.
 
-Treat every previewed file as untrusted. Default to passive rendering:
-no JavaScript, network requests, external navigation, downloads, host IPC,
-or unrestricted local-file access. Resource resolution must be explicitly
-restricted and tested, including CSS imports, frames, redirects and
-symlinks. If a backend cannot enforce these guarantees, keep Source mode
-as the fallback. Loading a file or switching panels must not launch a
-browser. Keep an explicit Source mode and bounded resource use.
+### WebView modes and settings (planned)
+
+The same backend should support a passive F3 preview, interactive local web
+development, and an explicitly selected browser mode with an address bar,
+navigation history, reload, and normal web capabilities where the platform
+engine supports them. Do not permanently disable ordinary browser features.
+New installations default to passive preview; users can change their defaults
+in Settings and override them per WebView session.
+
+Expose independent settings for page JavaScript, network access, local project
+resources, navigation/popups, cookies and persistent storage, downloads, and
+agent access. Offer three presets without hiding the individual controls:
+
+| Preset | Intended use | Default capabilities |
+| --- | --- | --- |
+| Passive preview | Untrusted files and routine F3 | No page scripts or network; inert document rendering |
+| Development | Local project and localhost testing | Page scripts and explicitly scoped project resources; network opt-in; agent access opt-in |
+| Browser | User-directed web browsing | Ordinary web JavaScript, network and navigation; normal browser permissions; agent access opt-in |
+
+These are proposed defaults, not hardcoded restrictions on user-selected
+browser functionality. Display the effective mode and permissions in the
+toolbar. Use separate browser storage profiles where supported; passive preview
+must not inherit authenticated browser sessions. Switching to a more capable
+mode must be explicit, and a page must not be able to grant itself permissions.
+
+Page scripts are distinct from privileged RCommander IPC and from agent tools.
+Never expose unrestricted filesystem, shell, credentials or agent execution
+to document scripts. Route such actions through the existing host-side
+authorization layer. Resource resolution must enforce the chosen scope,
+including CSS imports, frames, redirects and symlinks; downloads and
+device permissions follow user-controlled browser permissions. Keep explicit
+Source mode and bounded resource use. If a backend cannot enforce a selected
+policy, report the missing capability and fall back safely rather than silently
+granting access.
+
+### Agent integration and live web development (planned)
+
+Provide a platform-neutral WebView session interface so the AI toolkit and
+MCP tools can access an explicitly selected viewer session without relying
+on a platform-specific WebView implementation.
+
+- Read capabilities: current URL, title, visible text, bounded DOM snapshot,
+  selected element, computed CSS, viewport and screenshot; expose bounded
+  console diagnostics and network metadata where supported.
+- Interactive capabilities: click, type, scroll, navigate and reload within
+  the authorized session. Keep them distinct from read-only access.
+- Development capabilities: inspect the DOM, apply temporary CSS overrides,
+  edit a DOM element, and execute JavaScript when the user grants the
+  corresponding permission. Make unsupported engine capabilities explicit.
+- Live changes appear in the same visible viewer. Temporary CSS/DOM changes
+  are session-local; support undo/reset and a separate explicit action to
+  apply a reviewed patch to the original project files. Reuse the existing
+  editor/file tools for persistent modifications and reload after saving.
+- Expose per-session identifiers, capability discovery, scoped grants and
+  revocation. Invalidate document-scoped grants on cross-origin navigation;
+  do not share browser cookies, tokens, or other secrets with the model.
+  Treat DOM text, page logs and site instructions as untrusted data rather
+  than agent authorization. Sensitive submissions, downloads or changes
+  with external effects use the existing confirmation/authorization path.
+- Keep page JavaScript permission separate from agent script injection;
+  neither permission implies the other. A user can enable both for a
+  trusted development session. Record agent actions without logging secrets.
+
+Suggested first development loop: inspect an element, inspect computed style,
+apply a temporary CSS patch, display the result to the user, iterate, then
+save a reviewed stylesheet diff through the editor. The architecture should
+also work for a user-directed browser session, subject to its granted
+capabilities and the native engine's technical limits.
 
 For SVG, evaluate resvg/usvg (static rendering, MIT/Apache-2.0) with
 external resources disabled and a bounded raster size. Verify dependency
