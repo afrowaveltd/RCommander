@@ -1497,9 +1497,11 @@ Linux/Windows/macOS, normal certificate and hostname verification, TLS 1.2
 minimum, strict target/request-line validation, IPv6 authorities, connect
 timeouts and no downgrade. Preserve Android HTTP-only behavior. The application
 catalogue intentionally still refuses HTTPS until a verified authenticated
-adapter and endpoint/egress binding are integrated. Next verify trusted and
-untrusted certificate fixtures, then bounded framing, generic header/auth
-injection and SSE; no raw credential or unrestricted URL API for plugins.
+adapter and endpoint/egress binding are integrated. Bounded shared response framing is the second slice: preserve UTF-8 across
+chunks, respect Content-Length, reject conflicting/incomplete framing and
+retain bounded chunked error evidence. Verify trusted/untrusted certificate
+fixtures, absolute deadlines, generic header/auth injection and SSE next;
+no raw credential or unrestricted URL API for plugins.
 The dispatch output reservation must travel to the provider as its generation
 ceiling (Ollama num_predict), while accounting reconciles actual reported usage
 even if the provider exceeds it. Legacy unbudgeted chat is unchanged.

@@ -274,54 +274,33 @@ fn request(
             .map_err(|error| HttpError::new(error.to_string()))?;
     }
     let mut reader = BufReader::new(stream);
-    let mut status_line = String::new();
-    reader
-        .read_line(&mut status_line)
-        .map_err(|error| HttpError::new(error.to_string()))?;
-    let status = status_line
-        .split_whitespace()
-        .nth(1)
-        .and_then(|code| code.parse::<u16>().ok())
-        .ok_or_else(|| HttpError::new(format!("bad status line “{}”", status_line.trim())))?;
-    let mut content_length: Option<usize> = None;
-    let mut retry_after_seconds = None;
-    let mut chunked = false;
-    loop {
-        let mut line = String::new();
-        let read = reader
-            .read_line(&mut line)
-            .map_err(|error| HttpError::new(error.to_string()))?;
-        if read == 0 || line == "\r\n" || line == "\n" {
-            break;
-        }
-        let lower = line.to_ascii_lowercase();
-        if let Some(value) = lower.strip_prefix("content-length:") {
-            content_length = value.trim().parse().ok();
-        } else if let Some(value) = lower.strip_prefix("retry-after:") {
-            retry_after_seconds = value.trim().parse::<u64>().ok();
-        } else if lower.starts_with("transfer-encoding:") && lower.contains("chunked") {
-            chunked = true;
-        }
-    }
-    let body = if chunked {
-        read_chunked(&mut reader)?
-    } else if let Some(length) = content_length {
-        let mut buffer = vec![0u8; length];
-        reader
-            .read_exact(&mut buffer)
-            .map_err(|error| HttpError::new(error.to_string()))?;
-        String::from_utf8_lossy(&buffer).to_string()
+    let head = read_head(&mut reader)?;
+    let mut bytes = Vec::new();
+    if head.is_success() {
+        read_body(&mut reader, head.framing, MAX_BODY, false, &mut |part| {
+            bytes.extend_from_slice(part);
+            Ok(())
+        })?;
     } else {
-        let mut text = String::new();
+        // Retain the status and bounded evidence even if the error body is truncated.
         reader
-            .read_to_string(&mut text)
-            .map_err(|error| HttpError::new(error.to_string()))?;
-        text
-    };
+            .get_ref()
+            .socket()
+            .set_read_timeout(Some(timeout.min(Duration::from_secs(5))))
+            .map_err(|e| HttpError::new(e.to_string()))?;
+        let _ = read_body(&mut reader, head.framing, ERROR_SAMPLE, true, &mut |part| {
+            bytes.extend_from_slice(part);
+            Ok(())
+        });
+    }
     Ok(Response {
-        status,
-        body,
-        retry_after_seconds,
+        status: head.status,
+        body: if head.is_success() {
+            String::from_utf8(bytes).map_err(|_| HttpError::new("invalid UTF-8 response"))?
+        } else {
+            String::from_utf8_lossy(&bytes).into_owned()
+        },
+        retry_after_seconds: head.retry_after_seconds,
     })
 }
 
@@ -427,160 +406,267 @@ fn stream_impl(
         .and_then(|()| stream.write_all(body.as_bytes()))
         .map_err(|error| HttpError::new(error.to_string()))?;
     let mut reader = BufReader::new(stream);
-    let mut status_line = String::new();
-    reader
-        .read_line(&mut status_line)
-        .map_err(|error| HttpError::new(error.to_string()))?;
-    let status = status_line
-        .split_whitespace()
-        .nth(1)
-        .and_then(|code| code.parse::<u16>().ok())
-        .ok_or_else(|| HttpError::new(format!("bad status line “{}”", status_line.trim())))?;
-    let mut content_length: Option<usize> = None;
-    let mut retry_after_seconds = None;
-    let mut chunked = false;
-    loop {
-        let mut line = String::new();
-        if reader
-            .read_line(&mut line)
-            .map_err(|error| HttpError::new(error.to_string()))?
-            == 0
-        {
-            break;
-        }
-        if line.trim().is_empty() {
-            break;
-        }
-        let lower = line.to_ascii_lowercase();
-        if let Some(value) = lower.strip_prefix("content-length:") {
-            content_length = value.trim().parse().ok();
-        } else if let Some(value) = lower.strip_prefix("retry-after:") {
-            retry_after_seconds = value.trim().parse::<u64>().ok();
-        } else if lower.starts_with("transfer-encoding:") && lower.contains("chunked") {
-            chunked = true;
-        }
-    }
-    if !(200..300).contains(&status) {
-        // Error evidence is never forwarded as generated assistant text.
-        // Bound the body sample and deadline; chunked error bodies are not
-        // decoded by this slice. Keep status even if reading evidence fails.
+    let head = read_head(&mut reader)?;
+    if !head.is_success() {
+        // Error evidence must never become assistant output.
         let mut sample = Vec::new();
-        if !chunked
-            && reader
-                .get_ref()
-                .socket()
-                .set_read_timeout(Some(timeout.min(Duration::from_secs(5))))
-                .is_ok()
+        if reader
+            .get_ref()
+            .socket()
+            .set_read_timeout(Some(timeout.min(Duration::from_secs(5))))
+            .is_ok()
         {
-            let limit = content_length.unwrap_or(8192).min(8192);
-            let _ = reader.by_ref().take(limit as u64).read_to_end(&mut sample);
+            let _ = read_body(&mut reader, head.framing, ERROR_SAMPLE, true, &mut |part| {
+                sample.extend_from_slice(part);
+                Ok(())
+            });
         }
-        let mut error = HttpError::new(format!("the server answered {status} for {full_path}"));
+        let mut error = HttpError::new(format!("the server answered {} for {full_path}", head.status));
         error.notice = Some(crate::ProviderNotice::new(
-            status,
-            retry_after_seconds,
+            head.status,
+            head.retry_after_seconds,
             &String::from_utf8_lossy(&sample),
         ));
         return Err(error);
     }
-    if !chunked {
-        // A plain body: forward each line as it arrives.
-        let mut line = String::new();
-        while reader
-            .read_line(&mut line)
-            .map_err(|error| HttpError::new(error.to_string()))?
-            > 0
-        {
-            let trimmed = line.trim_end();
-            if !trimmed.is_empty() {
-                on_line(trimmed);
-            }
-            line.clear();
-        }
-        return Ok(());
-    }
-    stream_chunked(&mut reader, on_line)
+    read_stream(&mut reader, head.framing, on_line)
 }
 
-/// Read a chunked body incrementally, forwarding each completed line.
-fn stream_chunked(
-    reader: &mut impl BufRead,
-    on_line: &mut dyn FnMut(&str),
-) -> Result<(), HttpError> {
-    let mut pending = String::new();
+// Limits are transport safety ceilings, not model context or token limits.
+const MAX_HEAD: usize = 64 * 1024;
+const MAX_HEADER_LINE: usize = 8 * 1024;
+const MAX_BODY: usize = 64 * 1024 * 1024;
+const MAX_STREAM_LINE: usize = 1024 * 1024;
+const ERROR_SAMPLE: usize = 8192;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Framing {
+    Length(usize),
+    Chunked,
+    UntilEof,
+}
+
+struct Head {
+    status: u16,
+    retry_after_seconds: Option<u64>,
+    framing: Framing,
+}
+
+impl Head {
+    fn is_success(&self) -> bool {
+        (200..300).contains(&self.status)
+    }
+}
+
+/// Read a bounded CRLF-delimited protocol line without allocating attacker-selected sizes.
+fn protocol_line(reader: &mut impl BufRead) -> Result<Vec<u8>, HttpError> {
+    let mut line = Vec::new();
+    reader
+        .take((MAX_HEADER_LINE + 1) as u64)
+        .read_until(b'\n', &mut line)
+        .map_err(|e| HttpError::new(e.to_string()))?;
+    if line.len() > MAX_HEADER_LINE || !line.ends_with(b"\r\n") {
+        return Err(HttpError::new("oversized or incomplete HTTP protocol line"));
+    }
+    line.truncate(line.len() - 2);
+    Ok(line)
+}
+
+fn read_head(reader: &mut impl BufRead) -> Result<Head, HttpError> {
+    let line = protocol_line(reader)?;
+    let mut total = line.len() + 2;
+    let status_line = std::str::from_utf8(&line)
+        .map_err(|_| HttpError::new("invalid HTTP status line"))?;
+    let mut fields = status_line.split_whitespace();
+    if !matches!(fields.next(), Some("HTTP/1.0" | "HTTP/1.1")) {
+        return Err(HttpError::new("unsupported HTTP response version"));
+    }
+    let status = fields
+        .next()
+        .and_then(|code| code.parse::<u16>().ok())
+        .filter(|code| (200..600).contains(code))
+        .ok_or_else(|| HttpError::new("unsupported or invalid HTTP status"))?;
+    let mut length = None;
+    let mut chunked = false;
+    let mut retry_after_seconds = None;
     loop {
-        let mut size_line = String::new();
-        if reader
-            .read_line(&mut size_line)
-            .map_err(|error| HttpError::new(error.to_string()))?
-            == 0
-        {
+        let line = protocol_line(reader)?;
+        total += line.len() + 2;
+        if total > MAX_HEAD {
+            return Err(HttpError::new("HTTP response headers exceed limit"));
+        }
+        if line.is_empty() {
             break;
         }
-        let size_text = size_line.trim();
-        if size_text.is_empty() {
-            continue;
+        let line = std::str::from_utf8(&line)
+            .map_err(|_| HttpError::new("invalid HTTP header"))?;
+        let (name, value) = line
+            .split_once(':')
+            .ok_or_else(|| HttpError::new("malformed HTTP header"))?;
+        if name.is_empty() || name.bytes().any(|b| !b.is_ascii_graphic()) {
+            return Err(HttpError::new("invalid HTTP header name"));
         }
-        let size = usize::from_str_radix(size_text, 16)
-            .map_err(|_| HttpError::new(format!("bad chunk size “{size_text}”")))?;
-        if size == 0 {
-            break;
-        }
-        let mut buffer = vec![0u8; size];
-        reader
-            .read_exact(&mut buffer)
-            .map_err(|error| HttpError::new(error.to_string()))?;
-        // A trailing CRLF after every chunk.
-        let mut crlf = String::new();
-        let _ = reader.read_line(&mut crlf);
-        pending.push_str(&String::from_utf8_lossy(&buffer));
-        while let Some(index) = pending.find('\n') {
-            let line = pending[..index].trim_end().to_string();
-            pending.drain(..=index);
-            if !line.is_empty() {
-                on_line(&line);
+        let value = value.trim();
+        if name.eq_ignore_ascii_case("content-length") {
+            if length.is_some() || value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(HttpError::new("ambiguous or invalid Content-Length"));
             }
+            length = Some(value.parse::<usize>().map_err(|_| HttpError::new("invalid Content-Length"))?);
+        } else if name.eq_ignore_ascii_case("transfer-encoding") {
+            if chunked || !value.eq_ignore_ascii_case("chunked") {
+                return Err(HttpError::new("unsupported Transfer-Encoding"));
+            }
+            chunked = true;
+        } else if name.eq_ignore_ascii_case("retry-after") {
+            retry_after_seconds = value.parse::<u64>().ok();
+        } else if name.eq_ignore_ascii_case("content-encoding")
+            && !value.eq_ignore_ascii_case("identity")
+        {
+            return Err(HttpError::new("unsupported Content-Encoding"));
         }
     }
-    let rest = pending.trim_end();
-    if !rest.is_empty() {
-        on_line(rest);
+    if chunked && length.is_some() {
+        return Err(HttpError::new("conflicting HTTP body framing"));
+    }
+    let framing = if status == 204 || status == 304 {
+        Framing::Length(0)
+    } else if chunked {
+        Framing::Chunked
+    } else if let Some(length) = length {
+        Framing::Length(length)
+    } else {
+        Framing::UntilEof
+    };
+    Ok(Head { status, retry_after_seconds, framing })
+}
+
+/// Deliver decoded body bytes in small blocks. For an error sample, stop exactly at the
+/// sample limit without draining the rest. For successful responses, require complete framing.
+fn read_body(
+    reader: &mut impl BufRead,
+    framing: Framing,
+    limit: usize,
+    sample: bool,
+    emit: &mut dyn FnMut(&[u8]) -> Result<(), HttpError>,
+) -> Result<(), HttpError> {
+    let mut remaining = limit;
+    let mut buffer = [0_u8; 8192];
+    match framing {
+        Framing::Length(length) => {
+            if !sample && length > limit {
+                return Err(HttpError::new("HTTP response body exceeds limit"));
+            }
+            read_fixed(reader, length.min(limit), &mut buffer, emit)
+        }
+        Framing::UntilEof => loop {
+            if remaining == 0 {
+                if sample || reader.fill_buf().map_err(|e| HttpError::new(e.to_string()))?.is_empty() {
+                    return Ok(());
+                }
+                return Err(HttpError::new("HTTP response body exceeds limit"));
+            }
+            let size = remaining.min(buffer.len());
+            let n = reader.read(&mut buffer[..size]).map_err(|e| HttpError::new(e.to_string()))?;
+            if n == 0 {
+                return Ok(());
+            }
+            remaining -= n;
+            emit(&buffer[..n])?;
+        },
+        Framing::Chunked => loop {
+            if sample && remaining == 0 {
+                return Ok(());
+            }
+            let line = protocol_line(reader)?;
+            let size_text = std::str::from_utf8(&line)
+                .map_err(|_| HttpError::new("invalid HTTP chunk size"))?;
+            let size_text = size_text.split(';').next().unwrap_or_default();
+            if size_text.is_empty() || !size_text.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(HttpError::new("invalid HTTP chunk size"));
+            }
+            let size = usize::from_str_radix(size_text, 16)
+                .map_err(|_| HttpError::new("invalid HTTP chunk size"))?;
+            if size == 0 {
+                let mut trailers = 0;
+                loop {
+                    let line = protocol_line(reader)?;
+                    trailers += line.len() + 2;
+                    if trailers > MAX_HEAD {
+                        return Err(HttpError::new("HTTP trailers exceed limit"));
+                    }
+                    if line.is_empty() {
+                        return Ok(());
+                    }
+                }
+            }
+            if !sample && size > remaining {
+                return Err(HttpError::new("HTTP response body exceeds limit"));
+            }
+            let count = size.min(remaining);
+            read_fixed(reader, count, &mut buffer, emit)?;
+            remaining -= count;
+            if sample && remaining == 0 {
+                return Ok(());
+            }
+            let mut crlf = [0; 2];
+            reader.read_exact(&mut crlf).map_err(|e| HttpError::new(e.to_string()))?;
+            if crlf != *b"\r\n" {
+                return Err(HttpError::new("invalid HTTP chunk terminator"));
+            }
+        },
+    }
+}
+
+fn read_fixed(
+    reader: &mut impl Read,
+    mut count: usize,
+    buffer: &mut [u8],
+    emit: &mut dyn FnMut(&[u8]) -> Result<(), HttpError>,
+) -> Result<(), HttpError> {
+    while count > 0 {
+        let size = count.min(buffer.len());
+        let n = reader.read(&mut buffer[..size]).map_err(|e| HttpError::new(e.to_string()))?;
+        if n == 0 {
+            return Err(HttpError::new("truncated HTTP response body"));
+        }
+        emit(&buffer[..n])?;
+        count -= n;
     }
     Ok(())
 }
 
-/// Decode a `Transfer-Encoding: chunked` body.
-fn read_chunked(reader: &mut impl BufRead) -> Result<String, HttpError> {
-    let mut out = String::new();
-    loop {
-        let mut size_line = String::new();
-        if reader
-            .read_line(&mut size_line)
-            .map_err(|error| HttpError::new(error.to_string()))?
-            == 0
-        {
-            break;
+fn read_stream(
+    reader: &mut impl BufRead,
+    framing: Framing,
+    on_line: &mut dyn FnMut(&str),
+) -> Result<(), HttpError> {
+    let mut pending = Vec::new();
+    let mut deliver = |bytes: &[u8]| {
+        let line = std::str::from_utf8(bytes)
+            .map_err(|_| HttpError::new("invalid UTF-8 in model stream"))?
+            .trim_end();
+        if !line.is_empty() {
+            on_line(line);
         }
-        let size_text = size_line.trim();
-        let size = usize::from_str_radix(size_text, 16)
-            .map_err(|_| HttpError::new(format!("bad chunk size “{size_text}”")))?;
-        if size == 0 {
-            // Trailing headers, then the final empty line.
-            let mut trailer = String::new();
-            while reader.read_line(&mut trailer).unwrap_or(0) > 0 && trailer.trim() != "" {
-                trailer.clear();
+        Ok(())
+    };
+    read_body(reader, framing, MAX_BODY, false, &mut |part| {
+        for segment in part.split_inclusive(|byte| *byte == b'\n') {
+            if pending.len() + segment.len() > MAX_STREAM_LINE {
+                return Err(HttpError::new("model stream line exceeds limit"));
             }
-            break;
+            pending.extend_from_slice(segment);
+            if segment.ends_with(b"\n") {
+                deliver(&pending)?;
+                pending.clear();
+            }
         }
-        let mut buffer = vec![0u8; size];
-        reader
-            .read_exact(&mut buffer)
-            .map_err(|error| HttpError::new(error.to_string()))?;
-        out.push_str(&String::from_utf8_lossy(&buffer));
-        let mut crlf = String::new();
-        let _ = reader.read_line(&mut crlf);
+        Ok(())
+    })?;
+    if !pending.is_empty() {
+        deliver(&pending)?;
     }
-    Ok(out)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -685,5 +771,97 @@ mod tests {
         let target = Target::parse(&format!("https://{addr}")).unwrap();
         assert!(get(&target, "/api/tags", Duration::from_secs(5)).is_err());
         worker.join().unwrap();
+    }
+
+    #[test]
+    fn chunk_boundaries_preserve_utf8_and_extensions() {
+        let mut body = std::io::Cursor::new(b"2;test=yes\r\nA\xc5\r\n3\r\n\xbe!\n\r\n0\r\nX-End: yes\r\n\r\n");
+        let mut lines = Vec::new();
+        read_stream(&mut body, Framing::Chunked, &mut |line| lines.push(line.to_owned())).unwrap();
+        assert_eq!(lines, vec!["Až!"]);
+    }
+
+    #[test]
+    fn fixed_length_stream_stops_at_the_declared_boundary() {
+        let mut body = std::io::Cursor::new(b"ok\nextra");
+        let mut lines = Vec::new();
+        read_stream(&mut body, Framing::Length(3), &mut |line| lines.push(line.to_owned())).unwrap();
+        assert_eq!(lines, vec!["ok"]);
+        assert_eq!(body.position(), 3);
+    }
+
+    #[test]
+    fn broken_or_ambiguous_framing_is_refused() {
+        for head in [
+            "HTTP/1.1 200 OK\r\nContent-Length: 1\r\nContent-Length: 2\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Length: 1\r\nTransfer-Encoding: chunked\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Length: no\r\n\r\n",
+            "HTTP/1.1 200 OK\r\n",
+        ] {
+            assert!(read_head(&mut std::io::Cursor::new(head.as_bytes())).is_err());
+        }
+        for body in ["2\r\na", "1\r\naXX0\r\n\r\n", "1\r\na\r\n", "0\r\n"] {
+            assert!(read_stream(
+                &mut std::io::Cursor::new(body.as_bytes()),
+                Framing::Chunked,
+                &mut |_| {},
+            ).is_err());
+        }
+        assert!(read_stream(
+            &mut std::io::Cursor::new(b"a"),
+            Framing::Length(2),
+            &mut |_| {},
+        ).is_err());
+    }
+
+    #[test]
+    fn declared_sizes_and_unterminated_lines_are_bounded() {
+        let mut empty = std::io::Cursor::new(b"");
+        assert!(read_body(&mut empty, Framing::Length(100), 10, false, &mut |_| Ok(())).is_err());
+        let mut huge_chunk = std::io::Cursor::new(b"fffffff\r\n");
+        assert!(read_body(&mut huge_chunk, Framing::Chunked, 10, false, &mut |_| Ok(())).is_err());
+        let mut line = std::io::Cursor::new(vec![b'a'; MAX_STREAM_LINE + 1]);
+        assert!(read_stream(&mut line, Framing::UntilEof, &mut |_| {}).is_err());
+        let mut head = std::io::Cursor::new(vec![b'a'; MAX_HEADER_LINE + 1]);
+        assert!(read_head(&mut head).is_err());
+    }
+
+    #[test]
+    fn chunked_error_notice_is_decoded_and_never_streamed_as_assistant_text() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let worker = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut reader = BufReader::new(socket);
+            let mut line = String::new();
+            loop {
+                line.clear();
+                assert_ne!(reader.read_line(&mut line).unwrap(), 0);
+                if line == "\r\n" { break; }
+            }
+            let mut body = [0; 2];
+            reader.read_exact(&mut body).unwrap();
+            reader.get_mut().write_all(b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 300\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nwait\r\n0\r\n\r\n").unwrap();
+        });
+        let target = Target::parse(&format!("http://{addr}")).unwrap();
+        let mut lines = Vec::new();
+        let error = post_json_stream(&target, "/api/chat", "{}", Duration::from_secs(5), &mut |line| lines.push(line.to_owned())).unwrap_err();
+        assert!(lines.is_empty());
+        let notice = error.notice.unwrap();
+        assert_eq!(notice.retry_after_seconds, Some(300));
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn error_sample_stops_without_allocating_or_draining_the_advertised_chunk() {
+        let mut body = std::io::Cursor::new(b"fffffff\r\nwait");
+        let mut sample = Vec::new();
+        read_body(&mut body, Framing::Chunked, 4, true, &mut |part| {
+            sample.extend_from_slice(part);
+            Ok(())
+        }).unwrap();
+        assert_eq!(sample, b"wait");
     }
 }

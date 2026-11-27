@@ -2159,6 +2159,25 @@ No redirects, proxy support, generic headers, SSE or full bounded HTTP
 framing in this slice. No live provider called. No local Rust toolchain;
 CI and formatting verification pending.
 
+## Handoff — bounded shared HTTP response framing (2026-11-27)
+
+Previous transport revision `df37fdc` verified green: Linux UI regressions
+[46062874183](https://github.com/afrowaveltd/RCommander/actions/runs/46062874183)
+and Wallet regressions [46062874104](https://github.com/afrowaveltd/RCommander/actions/runs/46062874104).
+Owner reports live local 30B chat working. The current slice consolidates
+response header/body parsing for both HTTP and HTTPS, streaming and ordinary
+requests. Bounds: 8 KiB protocol line, 64 KiB headers/trailers, 64 MiB
+successful body, 1 MiB stream line, 8 KiB error sample. Chunk extensions,
+split UTF-8, exact Content-Length, chunk termination and bounded chunked
+error evidence are covered; conflicting framing and incomplete responses
+are rejected. No redirect/downgrade or new provider activation. Added six
+regressions. Deliberately prioritized framing before certificate fixtures
+because both future SSE and ordinary JSON need it. No local Rust toolchain;
+new CI pending. Remaining: trusted/untrusted certificate fixtures, absolute
+deadlines (existing read timeouts are inactivity timeouts), HTTP-date
+Retry-After, SSE, endpoint-bound auth, registry integration. Unsupported
+encodings and informational status responses fail closed.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
