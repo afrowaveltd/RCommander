@@ -33,6 +33,7 @@ pub mod listing;
 pub mod location;
 pub mod mask;
 pub mod mcptools;
+pub mod model_catalog;
 pub mod ops;
 pub mod plugin;
 pub mod policy;

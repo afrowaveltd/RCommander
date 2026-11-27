@@ -1014,6 +1014,9 @@ pub struct Agent {
     pub response_wait_seconds: u64,
     /// Last successful cold load duration by provider and model.
     pub model_load_seconds: BTreeMap<String, u64>,
+    /// Owner-defined metadata; legacy single-model execution remains unchanged.
+    #[serde(default, skip_serializing_if = "crate::model_catalog::ModelCatalog::is_empty")]
+    pub model_catalog: crate::model_catalog::ModelCatalog,
     /// What we remember about each connected MCP server and its tools (Phase 16.37).
     ///
     /// Kept in the settings file so a second connection does not ask the same questions again.
@@ -1064,6 +1067,7 @@ impl Default for Agent {
             model: String::new(),
             response_wait_seconds: 120,
             model_load_seconds: BTreeMap::new(),
+            model_catalog: crate::model_catalog::ModelCatalog::default(),
             mcp_servers: Vec::new(),
             preapproved: Vec::new(),
         }

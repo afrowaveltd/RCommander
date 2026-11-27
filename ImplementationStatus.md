@@ -1679,6 +1679,23 @@ remain configurable and have not been set on real infrastructure.
 Documentation-only change; no implementation, server connection, patch
 installation or new test execution in this slice.
 
+## Handoff — model catalogue foundation (2026-11-27)
+
+Owner requested capability-based downscaling, relative price 0–5, token
+allowances and a local-first interactive routing/fallback wizard. Added
+`rc_core::model_catalog` and optional `Agent.model_catalog` settings:
+model/connection IDs, enabled/local flags, price class, context/output
+limits, capabilities/specialties, shared quota references, ordered per-task
+preferences and wait/fallback/ask metadata. Structural validation rejects
+invalid prices/context, zero quotas, duplicate identities and dangling
+references. Four offline tests cover TOML round-trip, legacy defaults and
+validation; Linux CI includes the module. No new dependencies. This is
+metadata only: existing single-model behavior unchanged; no live routing,
+provider connection registry, real quota ledger, capability verification,
+reset scheduling or settings wizard yet. The plan specifies those steps,
+privacy/egress checks and deterministic automation before AI. CI pending;
+no local Rust toolchain.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

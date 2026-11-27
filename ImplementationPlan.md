@@ -653,6 +653,59 @@ reported, restart policy enforced, failed health gate halts rollout and
 notifications/receipts survive restart. This extends existing Phase 16,
 25, 32 and remote administration contracts; no new phase.
 
+### Model catalogue, capability downscaling and routing wizard (16.2 / 16.20 / 16.27)
+
+Prefer the least costly qualified executor: verified deterministic tool or
+workflow first, then configured local AI, then suitable remote AI. Model
+quality, capability, privacy and actual availability are independent of price.
+No mandatory AI for deterministic work. Suggest converting repeated validated
+tasks (e.g. monthly Excel consolidation) into a saved prompt, workflow, script
+or reviewed plugin; never silently install it. The owner controls activation.
+A three-repeat suggestion threshold is an editable heuristic, not a grant.
+
+Maintain stable connection/account IDs and model IDs, enabled state,
+user-defined relative price class 0 (local) through 5 (most expensive),
+effective context and maximum output, interface capabilities and specialties.
+Free remote models may be class 1 and still have strict quota. Price class
+is not a currency estimate; optional verified tariff data is separate.
+Discover provider-advertised metadata where supported, label provenance and
+unknowns, allow manual overrides and optional consented capability probes.
+Do not infer qualification from parameter count or model name. Distinguish
+vision input from image generation, coding skill from tool calling, and
+host-mediated file tools from native model capabilities.
+
+Allow multiple token limits per model, including shared subscription/account
+pools across models. User specifies period and rolling/calendar/provider reset
+semantics (timezone or provider reset when known), current external usage if
+needed and input/output accounting rules. A durable atomic ledger reserves
+estimated input plus maximum output before dispatch, reconciles reported
+usage and outstanding reservations, and handles concurrent jobs, restart,
+cancellation, missing usage and provider rate limits conservatively.
+Unknown remaining quota is not unlimited; never claim exact balances for
+usage outside RCommander unless the provider reports them.
+
+Wizard: discover configured connections and models, classify price and
+capabilities, set limits, then configure per-workload ordered model
+preferences and what to do when unavailable/exhausted (wait until known
+reset, next approved model, ask or stop). Default to configured local model
+for AI tasks; no external fallback without explicit authorization, even if
+free. Allow per-task override. Eligibility first checks capabilities,
+context including tools and output reserve, data/egress policy, availability
+and all budgets, then rank eligible models by owner preference and price.
+Show why a model was chosen/skipped, estimated reservation and expected
+reset; allow cancel and bounded waiting. Escalating model capability never
+escalates OS/tool/credential permissions. Do not send context to another
+provider unless allowed for that data and task.
+
+First slice: persisted metadata and structural validation only. Next:
+provider registry, discovery provenance, usage ledger and admission control,
+then deterministic router and localized wizard. Test local defaults,
+shared quotas, multiple periods, unknown metadata, insufficient context,
+concurrent reservations, exhausted hourly allowance with wait/fallback,
+cross-provider privacy refusal, and quota rollover. Preserve existing
+single-model settings and behavior until a user enables the new routing.
+No new numbered phase.
+
 ### The "process with agent" handoff (16.10a) and the prompt manager (16.16–16.17)
 
 Two features grow out of the same observation: an agent is only useful when the
