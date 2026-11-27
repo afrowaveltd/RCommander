@@ -420,6 +420,26 @@ fn column_widths(columns: &[PanelColumn], width: f32) -> Vec<f32> {
         .collect()
 }
 
+/// Map logical columns to physical cells once, in the same order for headers
+/// and rows. In RTL the first (name) column is the rightmost one.
+fn column_rects(columns: &[PanelColumn], rect: Rect, rtl: bool) -> Vec<Rect> {
+    let widths = column_widths(columns, rect.width());
+    let mut edge = if rtl { rect.right() - 4.0 } else { rect.left() + 4.0 };
+    widths.into_iter().map(|width| {
+        let (left, right) = if rtl {
+            let right = edge;
+            edge -= width;
+            (edge, right)
+        } else {
+            let left = edge;
+            edge += width;
+            (left, edge)
+        };
+        Rect::from_min_max(egui::pos2(left, rect.top()), egui::pos2(right, rect.bottom()))
+            .intersect(rect)
+    }).collect()
+}
+
 /// Which sort field a configured column stands for, if any.
 fn sort_field_for(id: &str) -> Option<rc_core::sorting::SortField> {
     Some(match id {
@@ -450,7 +470,7 @@ fn list_header(
     model: &mut Model,
     side: Side,
     palette: &Palette,
-    _rtl: bool,
+    rtl: bool,
     actions: &mut Vec<PanelAction>,
 ) {
     if model.panel(side).view_mode == ViewMode::Brief {
@@ -465,15 +485,18 @@ fn list_header(
         ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0), Sense::hover());
     let painter = ui.painter();
     painter.rect_filled(rect, 0, header_bg);
-    let font_id = FontId::proportional(model.settings.display.font_size - 1.0);
+    let mut font_id = ui.style().text_styles[&egui::TextStyle::Body].clone();
+    font_id.size = (model.settings.display.font_size - 1.0).max(8.0);
     // Column headers follow `settings.display.columns` for a local directory, and the
     // source's own declaration for a plugin source — so hiding, adding and reordering
     // columns changes the header row, and a mail list never shows a "Size" header.
     let columns = model.columns(side);
-    let widths = column_widths(&columns, rect.width());
-    let mut x = rect.left() + 4.0;
+    let cells = column_rects(&columns, rect, rtl);
     for (index, column) in columns.iter().enumerate() {
-        let column_width = widths[index];
+        let column_rect = cells[index];
+        if !column_rect.is_positive() {
+            continue;
+        }
         let mut label = column.label.clone();
         // Sorting is the panel's own business, so a source's columns do not offer it.
         if column.sortable
@@ -487,13 +510,14 @@ fn list_header(
         } else {
             ""
         };
-        let column_rect = Rect::from_min_size(
-            egui::pos2(x, rect.top()),
-            Vec2::new(column_width, rect.height()),
-        );
-        painter.text(
-            column_rect.left_top() + Vec2::new(2.0, 2.0),
-            Align2::LEFT_TOP,
+        let (anchor, align) = if rtl {
+            (column_rect.right_top() + Vec2::new(-2.0, 2.0), Align2::RIGHT_TOP)
+        } else {
+            (column_rect.left_top() + Vec2::new(2.0, 2.0), Align2::LEFT_TOP)
+        };
+        painter.with_clip_rect(column_rect.intersect(ui.clip_rect())).text(
+            anchor,
+            align,
             &label,
             font_id.clone(),
             palette.foreground,
@@ -524,7 +548,6 @@ fn list_header(
         if sortable && hit.clicked() {
             actions.push(PanelAction::Command(command.to_string()));
         }
-        x += column_width;
     }
 }
 
@@ -551,7 +574,8 @@ fn file_list(
     let error = model.panel(side).error.clone();
     // One resolution per frame: the columns do not change between rows.
     let columns = model.columns(side);
-    let font_id = font(model);
+    let mut font_id = ui.style().text_styles[&egui::TextStyle::Body].clone();
+    font_id.size = model.settings.display.font_size;
     let mut clicked: Option<(usize, ClickKind)> = None;
 
     let scroll = egui::ScrollArea::vertical()
@@ -1039,7 +1063,8 @@ fn thumbnail_grid(
     let cell_h = thumb + 42.0;
     let columns = ((ui.available_width() / cell_w).floor() as usize).max(1);
     let rows = entries.len().div_ceil(columns);
-    let caption_font = FontId::proportional(model.settings.display.font_size - 1.0);
+    let mut caption_font = ui.style().text_styles[&egui::TextStyle::Body].clone();
+    caption_font.size = (model.settings.display.font_size - 1.0).max(8.0);
     let icon_font = FontId::proportional(thumb * 0.45);
     let active = model.focus == side;
     let mut clicked: Option<(usize, ClickKind)> = None;
@@ -1248,51 +1273,25 @@ fn draw_row(
         return;
     }
 
-    let margin = 4.0;
-    // The columns and their text come from the model, which knows whether this panel is a
-    // directory or a plugin source.
-    let widths = column_widths(columns, rect.width());
-    let mut cells: Vec<(String, f32, Align2)> = Vec::with_capacity(columns.len());
-    for (index, column) in columns.iter().enumerate() {
-        let align = if column.numeric {
-            Align2::RIGHT_CENTER
+    for (index, (column, cell)) in columns.iter().zip(column_rects(columns, rect, rtl)).enumerate() {
+        if !cell.is_positive() {
+            continue;
+        }
+        let align = if column.numeric { Align2::RIGHT_CENTER } else { Align2::LEFT_CENTER };
+        let align = if rtl { flip_align(align) } else { align };
+        let anchor = if align.x() == egui::Align::RIGHT {
+            egui::pos2(cell.right() - 2.0, y)
         } else {
-            Align2::LEFT_CENTER
+            egui::pos2(cell.left() + 2.0, y)
         };
-        let text = cell_texts.get(index).cloned().unwrap_or_default();
-        cells.push((text, widths[index], align));
-    }
-    let count = cells.len();
-    let order: Vec<usize> = if rtl {
-        (0..count).rev().collect()
-    } else {
-        (0..count).collect()
-    };
-    let mut x = if rtl {
-        rect.right() - margin
-    } else {
-        rect.left() + margin
-    };
-    for index in order {
-        let (text, width, align) = &cells[index];
-        let width = *width;
-        let (anchor_x, text_align) = if rtl {
-            let a = egui::pos2(x - if index == 0 { 0.0 } else { width }, y);
-            x -= width;
-            (a, flip_align(*align))
-        } else {
-            let a = egui::pos2(x, y);
-            x += width;
-            (a, *align)
-        };
-        let muted = columns.get(index).map(|c| c.id == "attrs").unwrap_or(false);
-        let shown = elide(text, width, font.size);
-        painter.text(
-            anchor_x,
-            text_align,
+        let text = cell_texts.get(index).map(String::as_str).unwrap_or_default();
+        let shown = elide(text, (cell.width() - 4.0).max(0.0), font.size);
+        painter.with_clip_rect(cell.intersect(painter.clip_rect())).text(
+            anchor,
+            align,
             shown,
             font.clone(),
-            if muted { palette.hidden } else { color },
+            if column.id == "attrs" { palette.hidden } else { color },
         );
     }
 }
@@ -1385,6 +1384,25 @@ mod tests {
             row_background(1, false, false, true, &dark),
             Some(dark.row_alternate)
         );
+    }
+
+    #[test]
+    fn columns_share_mirrored_non_overlapping_geometry() {
+        let specs = rc_core::config::Settings::default().display.columns;
+        let columns: Vec<PanelColumn> = specs.iter()
+            .map(|spec| PanelColumn::configured(spec, spec.id.clone())).collect();
+        let rect = Rect::from_min_size(egui::pos2(10.0, 20.0), Vec2::new(600.0, 24.0));
+        let ltr = column_rects(&columns, rect, false);
+        let rtl = column_rects(&columns, rect, true);
+        assert!(ltr.len() > 1);
+        for (left, right) in ltr.iter().zip(&rtl) {
+            assert!((left.width() - right.width()).abs() < 0.01);
+            assert!((left.left() + right.right() - 2.0 * rect.center().x).abs() < 0.01);
+        }
+        for pair in rtl.windows(2) {
+            assert!(pair[0].left() >= pair[1].right());
+        }
+        assert!(rtl[0].right() > rtl[1].right());
     }
 
     #[test]
