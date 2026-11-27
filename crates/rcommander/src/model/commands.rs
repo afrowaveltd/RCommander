@@ -2468,7 +2468,10 @@ impl Model {
             return CommandOutcome::Failed(self.t("toolbar.directory_missing"));
         }
         let caption = path.file_name().unwrap_or(path.as_os_str()).to_string_lossy().into_owned();
-        let command = format!("rc_OpenDirectory:{}", path.display());
+        let Some(path_text) = path.to_str() else {
+            return CommandOutcome::Failed(self.t("toolbar.directory_missing"));
+        };
+        let command = format!("rc_OpenDirectory:{path_text}");
         self.settings.button_bar.add(rc_core::config::BarButton::new(caption, command));
         self.mark_settings_dirty();
         CommandOutcome::Ok

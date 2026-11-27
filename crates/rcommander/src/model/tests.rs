@@ -1387,6 +1387,20 @@ fn toolbar_directory_shortcut_preserves_case_and_uses_active_panel() {
     assert!(matches!(model.execute("rc_OpenDirectory:relative"), CommandOutcome::Failed(_)));
 }
 
+#[cfg(unix)]
+#[test]
+fn toolbar_directory_shortcut_refuses_a_lossy_non_utf8_path() {
+    use std::os::unix::ffi::OsStringExt;
+    let (left, _right, mut model) = fixture();
+    let unusual = left.path().join(std::ffi::OsString::from_vec(vec![b'd', 0xff]));
+    std::fs::create_dir(&unusual).unwrap();
+    model.open_in(Side::Left, Location::local(&unusual)).unwrap();
+    model.focus = Side::Left;
+    let before = model.settings.button_bar.buttons.len();
+    assert!(matches!(model.add_current_directory_button(), CommandOutcome::Failed(_)));
+    assert_eq!(model.settings.button_bar.buttons.len(), before);
+}
+
 // ---------------- drag & drop ----------------
 
 #[test]
