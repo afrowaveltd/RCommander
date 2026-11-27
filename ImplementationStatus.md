@@ -2281,6 +2281,22 @@ current main revision with `cargo test -p rc-viewer`,
 before marking the new slices done. Prior verified results are historical,
 not evidence for this revision.
 
+## Handoff — richer panel context menus (2026-11-28)
+
+Integrated directly in main; compilation and test verification pending.
+List and thumbnail views now share the row menu, using the clicked entry
+and panel, with parent-only navigation and selection handling. Corrected
+divider handling (a divider precedes an action rather than replacing it),
+Open/rename dispatch, expanded available archive, checksum, copy-name/path,
+comparison and properties actions, added directory/background actions and
+a bottom desktop section for local files only. Desktop fallback opens the
+folder in the platform manager and exposes existing open/default application,
+open-with, terminal and mail actions. EN/CS labels and menu regressions added.
+The actual installed Windows Shell extensions and Dolphin/KIO service
+menus are NOT integrated; Phase 10.10 remains partial. No local Cargo
+toolchain available; run model/UI tests and manually verify on Windows and
+Plasma before declaring done.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
