@@ -867,8 +867,8 @@ fn row_menu_items(model: &Model, side: Side, entry: &Entry) -> Vec<MenuItem> {
         false,
     );
     push(
-        labelled(model.t("cmd.rename"), "cm_Rename"),
-        "cm_Rename",
+        labelled(model.t("cmd.rename"), "cm_RenameOnly"),
+        "cm_RenameOnly",
         Some(Icon::Tags),
         false,
     );
@@ -983,7 +983,11 @@ fn show_row_context_menu(
             if menu_entry(ui, item.icon, &item.label) {
                 model.focus = side;
                 model.panel_mut(side).set_cursor(index);
-                actions.push(PanelAction::Command(item.command));
+                if item.command == "cm_Return" {
+                    actions.push(PanelAction::Enter);
+                } else {
+                    actions.push(PanelAction::Command(item.command));
+                }
                 ui.close();
             }
         }
@@ -1495,7 +1499,7 @@ mod menu_tests {
             "cm_Copy",
             "cm_RenMov",
             "cm_MkDir",
-            "cm_Rename",
+            "cm_RenameOnly",
             "cm_Delete",
             "cm_SetAttrib",
         ] {
