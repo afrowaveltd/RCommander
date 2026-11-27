@@ -324,21 +324,34 @@ fn path_row(
         if rtl {
             ui.allocate_space(Vec2::ZERO);
         }
-        // Explicit navigation: going up must not require knowing a shortcut.
-        if ui
-            .button(
-                egui::RichText::new(format!(
-                    "{} {}",
-                    crate::icons::Icon::Up.glyph(),
-                    model.t("cmd.up")
-                ))
-                .size(model.settings.display.font_size),
-            )
-            .on_hover_text(model.t("cmd.go_up"))
-            .clicked()
+        // These are chronological visits, not filesystem parent/child.
+        // Invoke against the owning panel, independently of current focus.
+        for (forward, arrow, label, shortcut) in [
+            (false, "←", "cmd.go_back", "Alt+Left"),
+            (true, "→", "cmd.go_forward", "Alt+Right"),
+        ] {
+            let enabled = if forward {
+                model.panel(side).can_go_forward()
+            } else {
+                model.panel(side).can_go_back()
+            };
+            let caption = model.t(label);
+            let response = ui.add_enabled(enabled, egui::Button::new(arrow))
+                .on_hover_text(format!("{caption} ({shortcut})"));
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, &caption));
+            if response.clicked()
+                && let crate::model::CommandOutcome::Failed(error) = model.go_history(side, forward)
+            {
+                model.report_error(error);
+            }
+        }
+        // Respect the existing "show parent entry" option. If the user hides
+        // the row (or a provider does not supply it), retain a mouse-accessible
+        // parent action; there is no parent action at a real root.
+        if model.panel(side).location().parent().is_some()
+            && !model.panel(side).entries().iter().any(|entry| entry.name == "..")
+            && ui.small_button(model.t("cmd.up")).on_hover_text(model.t("cmd.go_up")).clicked()
         {
-            // The button sits in *this* panel's header, so it belongs to this panel: a click both
-            // activates it and sends the command there. Anything else is the bug the user reported.
             model.focus = side;
             actions.push(PanelAction::Command("cm_GoToParent".to_string()));
         }
@@ -666,6 +679,7 @@ fn file_list(
                         actions.push(PanelAction::OpenExternal(path))
                     }
                     crate::model::CommandOutcome::Ok => {}
+                    crate::model::CommandOutcome::Failed(error) => model.report_error(error),
                     _ => {}
                 }
                 let _ = name;
@@ -1131,10 +1145,13 @@ fn thumbnail_grid(
         // mouse: the left panel stayed active forever.
         model.focus = side;
         model.panel_mut(side).set_cursor(index);
-        if kind == ClickKind::Open
-            && let crate::model::CommandOutcome::OpenFile(path) = model.enter()
-        {
-            actions.push(PanelAction::OpenFile(path));
+        if kind == ClickKind::Open {
+            match model.enter() {
+                crate::model::CommandOutcome::OpenFile(path) => actions.push(PanelAction::OpenFile(path)),
+                crate::model::CommandOutcome::OpenExternally(path) => actions.push(PanelAction::OpenExternal(path)),
+                crate::model::CommandOutcome::Failed(error) => model.report_error(error),
+                _ => {}
+            }
         }
     }
 }

@@ -755,37 +755,11 @@ impl Model {
     }
 
     fn go_back(&mut self) -> CommandOutcome {
-        let current = self.active().location().as_path().map(|p| p.to_path_buf());
-        let Some(current) = current else {
-            return CommandOutcome::None;
-        };
-        let target = self
-            .active()
-            .history
-            .previous(&current)
-            .map(|e| e.path.clone());
-        match target {
-            Some(path) => match self.navigate(Location::local(path)) {
-                Ok(()) => CommandOutcome::Ok,
-                Err(e) => CommandOutcome::Failed(e.to_string()),
-            },
-            None => CommandOutcome::None,
-        }
+        self.go_history(self.focus, false)
     }
 
     fn go_forward(&mut self) -> CommandOutcome {
-        let current = self.active().location().as_path().map(|p| p.to_path_buf());
-        let Some(current) = current else {
-            return CommandOutcome::None;
-        };
-        let target = self.active().history.next(&current).map(|e| e.path.clone());
-        match target {
-            Some(path) => match self.navigate(Location::local(path)) {
-                Ok(()) => CommandOutcome::Ok,
-                Err(e) => CommandOutcome::Failed(e.to_string()),
-            },
-            None => CommandOutcome::None,
-        }
+        self.go_history(self.focus, true)
     }
 
     fn open_cursor_in_other_panel(&mut self) -> CommandOutcome {

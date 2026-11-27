@@ -8,6 +8,16 @@ entries you have marked when a selection exists.
 
 ## Navigating
 
+Double-click the `..` row or select it and press Enter to go to the parent,
+with the cursor restored to the directory just left. The path bar now has
+independent chronological Back and Forward buttons for each panel; a new
+visit clears the forward branch, and unavailable directions are disabled.
+These are distinct from the recent-directory list. If the parent row is
+hidden by the existing display option, a parent button remains available
+when a parent exists. The chronological stacks are session-local; remote
+session navigation history is not yet supported, so connecting to a remote
+location clears these stacks instead of replaying an unverified connection.
+
 | Key | Action |
 | --- | --- |
 | `Enter` | open directory / archive under the cursor |
