@@ -205,8 +205,9 @@ Headless and fully testable; the UI is only a view over it.
 
 ### Preview format expansion (6 / 10.4)
 
-Prefer a passive, bounded renderer for each format, with original Source
-and actual Hex retained. Unknown/unsupported formats must not pretend to
+Prefer a passive, bounded renderer for each format by default, with original Source
+and actual Hex retained. Expose supported active features through explicit settings
+and scoped grants (including WebView development and browser modes). Unknown/unsupported formats must not pretend to
 render. Implemented slices: Markdown, CSV/TSV, JSON/TOML value trees and
 existing image formats, XML event trees (quick-xml 0.41.0 MIT, DTD/entity
 resolution disabled, upstream notice in Docs/ThirdParty). Next: static SVG
@@ -217,8 +218,10 @@ before adding them; distinguish library copyright licenses from patents,
 codec distribution rights and document/embedded resource rights. Preserve
 MIT licensing of our own code; do not bundle incompatible components or
 proprietary SDKs by default. Optional independently installed providers
-need separate licensing and security review. Never run macros, scripts,
-embedded programs, formula evaluation, or fetch external resources in F3.
+need separate licensing and security review. Do not run macros, scripts,
+embedded programs, formula evaluation, or fetch external resources in passive F3
+by default. Active capabilities require the relevant explicit user setting and
+policy authorization, with engine-specific security and technical limits.
 Apply input/decompression/pixel/depth/time budgets; use safe static
 fixtures and regressions. Candidate libraries are not yet integrated.
 
@@ -2378,6 +2381,19 @@ ordinary Windows/Linux file management unaffected when WSL is unavailable.
 This is a planned phase, not a claim of implemented support.
 
 ## Phase 23 — Database panels and administration (SQL and document stores) (requested 2026-11-25)
+
+Owner clarification (2026-11-27): expose **SQL**, not SQLite as the generic
+database preview category. Separate passive F3 preview of SQL script/dump
+files (dialect-aware source and, where verified, structured statements or
+schema summaries without execution) from browsing an actual database through
+the matching provider. SQLite database files are one concrete engine; a
+PostgreSQL/MySQL/SQL Server connection or dump requires its own supported
+adapter/format, not SQLite emulation. Reuse Phase 23 providers for schema and
+paginated row previews. Query execution and writes are explicit separate
+operations; do not run SQL merely by opening a file. Preserve native MongoDB
+document support. This clarification concerns preview and provider UX, not the
+existing default SQLite internal SessionStore.
+
 
 Treat a relational or document database as a first-class, capability-aware RCommander
 location, independently of Agent Commons. Provide a familiar two-pane browser
