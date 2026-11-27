@@ -2122,6 +2122,20 @@ capability probes are unmodelled; `https` has no transport yet; and the model
 rows cannot create or delete models by hand (discovery creates them, the owner
 classifies them). No live provider was contacted at this revision.
 
+## Handoff — open model-provider plugin ecosystem (2026-11-27)
+
+Owner requested independently installable AI adapters for local and cloud
+providers, including custom engines authored through the Plugin Developer.
+Current `rc-llm::Provider` and catalogue/registry are foundations, but
+`ProviderKind` is still a closed Ollama-only enum and HTTPS is not yet
+implemented. Plan now explicitly requires stable adapter IDs, backwards
+compatible settings, declarative/isolated adapters, trusted transport and
+credential injection, shared routing/accounting, owner exclusion policy,
+and a synthetic third-party adapter acceptance test without host rebuild.
+Documentation only; no transport, registry or plugin implementation changed,
+no provider contacted and no new tests run. Avoid colliding with the other
+developer's ongoing implementation.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

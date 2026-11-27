@@ -1489,6 +1489,67 @@ audit logs and a **Stop agent / revoke grants** action. Defaults are read-only
 and minimal. Do not treat injected instructions inside README, documents or
 tool responses as authorisation.
 
+### Open model-provider ecosystem (16.2 / 16.12 / 18 / 27)
+
+Owner requirement: support as many local, self-hosted and cloud inference
+APIs as practical, without requiring a new RCommander release for each
+provider. Ollama remains the first built-in reference. The closed
+`ProviderKind` enum is a transitional implementation, not the public
+extension contract. Migrate to stable, namespaced adapter IDs resolved by
+a runtime registry; preserve existing "ollama" settings and retain unknown
+or unavailable adapter configurations inertly with an actionable error.
+An unknown ID must never fall back to another adapter or endpoint.
+
+Provide a documented, versioned model-provider SDK/protocol independent
+of the application binary and provider vendor. Prefer declarative mappings
+for simple compatible APIs, and isolated executable adapters for distinct
+protocols. Reference adapters should cover OpenAI-compatible APIs (including
+self-hosted services and DeepSeek where supported), native OpenAI and
+Anthropic APIs, other cloud protocols and local inference engines as
+available. A generic compatible endpoint is not a promise of feature parity.
+Implement and test capabilities individually; unsupported features are
+reported. These examples are targets, not claims of existing support.
+
+A provider plugin declares adapter identity/version, protocol range,
+supported operations and configuration schema (endpoint, account, model,
+options and credential references), discovery and capability evidence,
+streaming/non-streaming inference, cancellation, structured errors and
+retry/reset information, usage/context/output limits and optional
+multimodal or tool-call support. Preserve unknown metadata and distinguish
+unsupported from unavailable. Normalize these into the existing catalogue,
+admission, quota ledger, router and runtime contracts; plugins do not own
+or bypass those controls. Multiple independent accounts and endpoints may
+share an adapter; equivalence remains an owner-verified model binding.
+
+Use host-controlled TLS, endpoint validation, authentication injection,
+credential sink binding, timeouts and bounded response handling for common
+HTTP adapters. An untrusted adapter never gets wallet-read authority or
+unrestricted network access; credentials remain in the trusted host or
+explicitly trusted sink, and redirects/endpoint changes cannot forward them
+silently. Isolate executable extensions with real OS/runtime enforcement.
+If an adapter's protocol cannot be supported safely by the broker, it is
+unavailable until a suitable trusted transport exists. Inference content
+and provider responses are untrusted data, never tool authorization.
+Provider installation and enabling, account binding, model selection,
+data egress and spending authorization remain distinct owner decisions.
+
+Allow user-controlled provider exclusion/allowlists for any reason,
+including cost, privacy or ethical preferences; no central moral ranking.
+Exclusions apply to discovery where configured, dispatch, retries, fallback
+and team delegation; no implicit alternate account or vendor. A new adapter
+is disabled until approved, and discovery cannot activate its models.
+
+Acceptance: independently package a synthetic "MyOwnSuperLLM" adapter,
+install it into an already-built RCommander without recompiling the host,
+configure two connections, discover models, route a permitted request,
+stream/cancel, account for reported usage, handle rate-limit evidence,
+reject unsupported operations, verify revocation and uninstall/disable
+without losing user settings. Exercise malicious manifests, incompatible
+versions, credential/egress refusal and adapter failure in isolated fixtures.
+The Plugin Developer (Phase 27) can create, test and package such an adapter
+using the published SDK; generated extensions follow the same review and
+activation gates. Reuse Phase 16/18/27; no new numbered phase.
+
 ### Desktop-first platform scope
 
 The advanced two-way agent workspace is primarily a **Linux/Windows desktop**
