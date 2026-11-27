@@ -893,8 +893,7 @@ impl SavedConnection {
     pub fn account_id(&self) -> String {
         // Unknown labels keep their own namespace; never reuse an FTP secret
         // just because a profile's protocol is unsupported.
-        let protocol = Self::canonical_protocol(&self.protocol)
-            .unwrap_or(self.protocol.as_str());
+        let protocol = Self::canonical_protocol(&self.protocol).unwrap_or(self.protocol.as_str());
         let port = if self.port == 0 {
             Self::default_port(protocol)
         } else {
@@ -1015,7 +1014,10 @@ pub struct Agent {
     /// Last successful cold load duration by provider and model.
     pub model_load_seconds: BTreeMap<String, u64>,
     /// Owner-defined metadata; legacy single-model execution remains unchanged.
-    #[serde(default, skip_serializing_if = "crate::model_catalog::ModelCatalog::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::model_catalog::ModelCatalog::is_empty"
+    )]
     pub model_catalog: crate::model_catalog::ModelCatalog,
     /// What we remember about each connected MCP server and its tools (Phase 16.37).
     ///

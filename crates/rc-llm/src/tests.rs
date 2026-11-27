@@ -309,16 +309,19 @@ fn a_stream_line_is_parsed_or_ignored() {
 #[test]
 fn rate_limit_evidence_survives_both_chat_transports_without_becoming_output() {
     let server = FakeServer::start(vec![(
-        "/api/chat".into(), 429,
+        "/api/chat".into(),
+        429,
         r#"{"error":"Quota exhausted until 21:45; fixture private text"}"#.into(),
     )]);
     let provider = OllamaProvider::new(&server.base_url);
     let request = ChatRequest::new("model", vec![Message::user("hello")]);
     let plain = provider.chat(&request).unwrap_err();
     let mut chunks = Vec::new();
-    let streaming = provider.chat_stream(&request, &mut |chunk| {
-        chunks.push(chunk.to_owned());
-    }).unwrap_err();
+    let streaming = provider
+        .chat_stream(&request, &mut |chunk| {
+            chunks.push(chunk.to_owned());
+        })
+        .unwrap_err();
     assert!(chunks.is_empty());
     for failure in [plain, streaming] {
         assert!(!format!("{failure:?}").contains("fixture private text"));

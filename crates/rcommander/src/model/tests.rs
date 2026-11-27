@@ -1365,7 +1365,10 @@ fn toolbar_custom_layout_survives_factory_reset_and_restore() {
     assert!(model.apply_button_bar(&mut state).is_ok());
     let custom = model.settings.button_bar.clone();
     model.reset_button_bar();
-    assert_eq!(model.settings.button_bar, rc_core::config::ButtonBar::default());
+    assert_eq!(
+        model.settings.button_bar,
+        rc_core::config::ButtonBar::default()
+    );
     assert!(model.restore_custom_button_bar());
     assert_eq!(model.settings.button_bar, custom);
     assert_eq!(model.settings.button_bar_custom, Some(custom));
@@ -1380,11 +1383,22 @@ fn toolbar_directory_shortcut_preserves_case_and_uses_active_panel() {
     model.focus = Side::Left;
     assert!(model.add_current_directory_button().is_ok());
     let button = model.settings.button_bar.buttons.last().unwrap().clone();
-    model.open_in(Side::Left, Location::local(left.path())).unwrap();
+    model
+        .open_in(Side::Left, Location::local(left.path()))
+        .unwrap();
     assert!(model.execute(&button.command).is_ok());
-    assert_eq!(model.panel(Side::Left).location().as_path(), Some(mixed.as_path()));
-    assert_eq!(model.panel(Side::Right).location().as_path(), Some(right.path()));
-    assert!(matches!(model.execute("rc_OpenDirectory:relative"), CommandOutcome::Failed(_)));
+    assert_eq!(
+        model.panel(Side::Left).location().as_path(),
+        Some(mixed.as_path())
+    );
+    assert_eq!(
+        model.panel(Side::Right).location().as_path(),
+        Some(right.path())
+    );
+    assert!(matches!(
+        model.execute("rc_OpenDirectory:relative"),
+        CommandOutcome::Failed(_)
+    ));
 }
 
 #[cfg(unix)]
@@ -1392,12 +1406,19 @@ fn toolbar_directory_shortcut_preserves_case_and_uses_active_panel() {
 fn toolbar_directory_shortcut_refuses_a_lossy_non_utf8_path() {
     use std::os::unix::ffi::OsStringExt;
     let (left, _right, mut model) = fixture();
-    let unusual = left.path().join(std::ffi::OsString::from_vec(vec![b'd', 0xff]));
+    let unusual = left
+        .path()
+        .join(std::ffi::OsString::from_vec(vec![b'd', 0xff]));
     std::fs::create_dir(&unusual).unwrap();
-    model.open_in(Side::Left, Location::local(&unusual)).unwrap();
+    model
+        .open_in(Side::Left, Location::local(&unusual))
+        .unwrap();
     model.focus = Side::Left;
     let before = model.settings.button_bar.buttons.len();
-    assert!(matches!(model.add_current_directory_button(), CommandOutcome::Failed(_)));
+    assert!(matches!(
+        model.add_current_directory_button(),
+        CommandOutcome::Failed(_)
+    ));
     assert_eq!(model.settings.button_bar.buttons.len(), before);
 }
 

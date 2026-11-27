@@ -344,8 +344,7 @@ fn decrypt(bytes: &[u8], passphrase: &str) -> CoreResult<Vault> {
 
 /// TOML diagnostics may quote the original line, including a password.
 fn parse_vault(text: &str) -> CoreResult<Vault> {
-    toml::from_str(text)
-        .map_err(|_| CoreError::Invalid("invalid secret store payload".to_string()))
+    toml::from_str(text).map_err(|_| CoreError::Invalid("invalid secret store payload".to_string()))
 }
 
 fn derive_key(passphrase: &str, salt: &[u8]) -> CoreResult<[u8; 32]> {

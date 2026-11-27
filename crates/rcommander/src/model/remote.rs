@@ -508,17 +508,29 @@ mod tests {
         let mut model = model();
         let original = Location::remote("ftp", "old.example.com", None, "/pub");
         model
-            .connect_remote(Side::Left, Box::new(FakeBackend::new("/pub")), original.clone())
+            .connect_remote(
+                Side::Left,
+                Box::new(FakeBackend::new("/pub")),
+                original.clone(),
+            )
             .unwrap();
         let replacement = Location::remote("ftp", "new.example.com", None, "/unlistable");
-        assert!(model
-            .connect_remote(Side::Left, Box::new(FakeBackend::new("/")), replacement)
-            .is_err());
+        assert!(
+            model
+                .connect_remote(Side::Left, Box::new(FakeBackend::new("/")), replacement)
+                .is_err()
+        );
         assert_eq!(model.left.location(), &original);
         let session = model.remote_session(Side::Left).unwrap();
         assert_eq!(session.location, original);
         assert_eq!(session.backend.describe(), "fake:///pub");
-        assert!(model.left.entries().iter().any(|entry| entry.name == "remote.txt"));
+        assert!(
+            model
+                .left
+                .entries()
+                .iter()
+                .any(|entry| entry.name == "remote.txt")
+        );
     }
 
     #[test]
@@ -526,9 +538,11 @@ mod tests {
         let mut model = model();
         let original = model.left.location().clone();
         let replacement = Location::remote("ftp", "new.example.com", None, "/unlistable");
-        assert!(model
-            .connect_remote(Side::Left, Box::new(FakeBackend::new("/")), replacement)
-            .is_err());
+        assert!(
+            model
+                .connect_remote(Side::Left, Box::new(FakeBackend::new("/")), replacement)
+                .is_err()
+        );
         assert_eq!(model.left.location(), &original);
         assert!(model.remote_session(Side::Left).is_none());
     }

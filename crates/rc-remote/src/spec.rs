@@ -433,7 +433,10 @@ mod tests {
                 assert_eq!(
                     saved.account_id(),
                     rc_core::secrets::account_id(
-                        spec.protocol.label(), &spec.user, &spec.host, spec.effective_port()
+                        spec.protocol.label(),
+                        &spec.user,
+                        &spec.host,
+                        spec.effective_port()
                     )
                 );
                 let profile = rc_core::sessions::Session::from_connection("test", &saved);

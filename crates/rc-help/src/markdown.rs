@@ -681,8 +681,10 @@ fn parse_inline_at(text: &str, depth: u32) -> Vec<Span> {
                     }
                 }
             }
-            '$' if i + 1 < len && !chars[i + 1].is_whitespace()
-                && chars[i + 1] != '$' && (i == 0 || chars[i - 1] != '$') =>
+            '$' if i + 1 < len
+                && !chars[i + 1].is_whitespace()
+                && chars[i + 1] != '$'
+                && (i == 0 || chars[i - 1] != '$') =>
             {
                 // Complete supported expressions only. Code, currency and an
                 // unfinished streaming formula must remain literal.
@@ -754,9 +756,12 @@ fn parse_inline_at(text: &str, depth: u32) -> Vec<Span> {
 /// Small dependency-free display subset for numeric powers, e.g. O(n^2).
 /// Unsupported syntax keeps its original delimiters and content.
 fn simple_inline_math(raw: &str) -> Option<String> {
-    if !raw.contains('^') || !raw.chars().all(|c| {
-        c.is_ascii_alphanumeric() || " ()+-=*/.,^{}".contains(c)
-    }) || raw.ends_with(' ') {
+    if !raw.contains('^')
+        || !raw
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || " ()+-=*/.,^{}".contains(c))
+        || raw.ends_with(' ')
+    {
         return None;
     }
     let mut chars = raw.chars().peekable();
@@ -769,7 +774,11 @@ fn simple_inline_math(raw: &str) -> Option<String> {
             out.push(c);
             continue;
         }
-        if !out.chars().last().is_some_and(|c| c.is_ascii_alphanumeric() || c == ')') {
+        if !out
+            .chars()
+            .last()
+            .is_some_and(|c| c.is_ascii_alphanumeric() || c == ')')
+        {
             return None;
         }
         let braced = chars.peek() == Some(&'{');
@@ -783,8 +792,16 @@ fn simple_inline_math(raw: &str) -> Option<String> {
         }
         while let Some(c) = chars.peek().copied() {
             let sup = match c {
-                '0' => '⁰', '1' => '¹', '2' => '²', '3' => '³', '4' => '⁴',
-                '5' => '⁵', '6' => '⁶', '7' => '⁷', '8' => '⁸', '9' => '⁹',
+                '0' => '⁰',
+                '1' => '¹',
+                '2' => '²',
+                '3' => '³',
+                '4' => '⁴',
+                '5' => '⁵',
+                '6' => '⁶',
+                '7' => '⁷',
+                '8' => '⁸',
+                '9' => '⁹',
                 _ => break,
             };
             chars.next();
@@ -804,7 +821,10 @@ mod inline_math_tests {
 
     #[test]
     fn inline_math_numeric_powers_render_without_dollars() {
-        assert_eq!(parse_inline("Time: $O(n^2)$"), vec![Span::Text("Time: O(n²)".into())]);
+        assert_eq!(
+            parse_inline("Time: $O(n^2)$"),
+            vec![Span::Text("Time: O(n²)".into())]
+        );
         assert_eq!(parse_inline("$x^{-10}$"), vec![Span::Text("x⁻¹⁰".into())]);
     }
 
@@ -814,7 +834,10 @@ mod inline_math_tests {
             assert_eq!(parse_inline(input), vec![Span::Text(input.into())]);
         }
         assert_eq!(parse_inline(r"\$x^2$"), vec![Span::Text("$x^2$".into())]);
-        assert_eq!(parse_inline("\x60$O(n^2)$\x60"), vec![Span::Code("$O(n^2)$".into())]);
+        assert_eq!(
+            parse_inline("\x60$O(n^2)$\x60"),
+            vec![Span::Code("$O(n^2)$".into())]
+        );
     }
 }
 

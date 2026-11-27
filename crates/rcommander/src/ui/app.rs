@@ -507,7 +507,10 @@ impl RCommanderApp {
         }
         match self.model.execute(command) {
             CommandOutcome::OpenFile(path) => {
-                if matches!(command.to_ascii_lowercase().as_str(), "cm_edit" | "cm_editnewfile" | "cm_editnew") {
+                if matches!(
+                    command.to_ascii_lowercase().as_str(),
+                    "cm_edit" | "cm_editnewfile" | "cm_editnew"
+                ) {
                     self.open_editor(path);
                 } else {
                     self.open_viewer(path);
@@ -618,9 +621,26 @@ impl RCommanderApp {
                     // Let ordinary text input and editing shortcuts reach the widget.
                     // Only document function keys and Escape are handled while it has focus.
                     if widget_focused
-                        && !(matches!(self.model.surface(), crate::model::Surface::Editor | crate::model::Surface::Viewer)
-                            && modifiers.is_none()
-                            && matches!(key, Key::Escape | Key::F1 | Key::F2 | Key::F3 | Key::F4 | Key::F5 | Key::F6 | Key::F7 | Key::F8 | Key::F9 | Key::F10 | Key::F11 | Key::F12))
+                        && !(matches!(
+                            self.model.surface(),
+                            crate::model::Surface::Editor | crate::model::Surface::Viewer
+                        ) && modifiers.is_none()
+                            && matches!(
+                                key,
+                                Key::Escape
+                                    | Key::F1
+                                    | Key::F2
+                                    | Key::F3
+                                    | Key::F4
+                                    | Key::F5
+                                    | Key::F6
+                                    | Key::F7
+                                    | Key::F8
+                                    | Key::F9
+                                    | Key::F10
+                                    | Key::F11
+                                    | Key::F12
+                            ))
                     {
                         continue;
                     }
@@ -638,21 +658,37 @@ impl RCommanderApp {
                         continue;
                     }
                     let slot = match key {
-                        Key::F1 => 1, Key::F2 => 2, Key::F3 => 3, Key::F4 => 4,
-                        Key::F5 => 5, Key::F6 => 6, Key::F7 => 7, Key::F8 => 8,
-                        Key::F9 => 9, Key::F10 => 10, Key::F11 => 11, Key::F12 => 12,
+                        Key::F1 => 1,
+                        Key::F2 => 2,
+                        Key::F3 => 3,
+                        Key::F4 => 4,
+                        Key::F5 => 5,
+                        Key::F6 => 6,
+                        Key::F7 => 7,
+                        Key::F8 => 8,
+                        Key::F9 => 9,
+                        Key::F10 => 10,
+                        Key::F11 => 11,
+                        Key::F12 => 12,
                         _ => 0,
                     };
-                    if slot != 0 && modifiers.is_none()
+                    if slot != 0
+                        && modifiers.is_none()
                         && !matches!(self.model.surface(), crate::model::Surface::Panel(_))
                     {
-                        if let Some(entry) = self.model.function_keys().into_iter().find(|entry| entry.slot == slot && !entry.is_empty()) {
+                        if let Some(entry) = self
+                            .model
+                            .function_keys()
+                            .into_iter()
+                            .find(|entry| entry.slot == slot && !entry.is_empty())
+                        {
                             self.run_command(entry.command, ctx);
                         }
                         continue;
                     }
                     if let Some(shortcut) = keys::shortcut_from_egui(key, modifiers)
-                        && let Some(command) = self.model.keymap.lookup(&shortcut).map(str::to_owned)
+                        && let Some(command) =
+                            self.model.keymap.lookup(&shortcut).map(str::to_owned)
                     {
                         self.run_command(&command, ctx);
                         continue;
@@ -664,7 +700,8 @@ impl RCommanderApp {
                     self.handle_navigation_key(key, modifiers);
                 }
                 egui::Event::Text(text) => {
-                    if widget_focused || !modifiers_are_plain(ctx)
+                    if widget_focused
+                        || !modifiers_are_plain(ctx)
                         || !matches!(self.model.surface(), crate::model::Surface::Panel(_))
                     {
                         continue;
@@ -717,8 +754,10 @@ impl RCommanderApp {
                         if action == "cm_ChatFiles" && !self.model.any_panel_shows_chat() {
                             continue;
                         }
-                        if matches!(action, "cm_ReviewWorkspace" | "cm_OpenWorkspace" | "cm_DiscardWorkspace")
-                            && self.model.agent_workspace.is_none()
+                        if matches!(
+                            action,
+                            "cm_ReviewWorkspace" | "cm_OpenWorkspace" | "cm_DiscardWorkspace"
+                        ) && self.model.agent_workspace.is_none()
                         {
                             continue;
                         }
@@ -790,7 +829,9 @@ impl RCommanderApp {
                         ui.close();
                     }
                 }
-            }).response.on_hover_text(self.model.t("toolbar.add"));
+            })
+            .response
+            .on_hover_text(self.model.t("toolbar.add"));
             if ui.small_button("…").on_hover_text(hint).clicked() {
                 command = Some("cm_ButtonConfig".to_string());
             }
@@ -800,12 +841,12 @@ impl RCommanderApp {
             state.selected = Some(index);
             let _ = self.model.remove_button_bar(&mut state);
         }
-        if let Some(index) = edit {
-            if let Some(button) = buttons.get(index) {
-                let mut state = crate::model::dialogs::ButtonBarState::new();
-                state.edit(index, button);
-                self.model.open_dialog(Dialog::ButtonBar(state));
-            }
+        if let Some(index) = edit
+            && let Some(button) = buttons.get(index)
+        {
+            let mut state = crate::model::dialogs::ButtonBarState::new();
+            state.edit(index, button);
+            self.model.open_dialog(Dialog::ButtonBar(state));
         }
         if let Some(command) = command {
             self.pending_command = Some(command);
@@ -817,12 +858,22 @@ impl RCommanderApp {
         self.workspace_rect = ui.max_rect();
         let palette = self.palette.clone();
         use crate::model::DocumentPlacement;
-        if self.model.editor.as_ref().is_some_and(|s| s.placement == DocumentPlacement::Workspace) {
+        if self
+            .model
+            .editor
+            .as_ref()
+            .is_some_and(|s| s.placement == DocumentPlacement::Workspace)
+        {
             self.panel_rects = [None, None];
             crate::ui::editor_window::embedded(ui, &mut self.model, &mut self.editor_ui, &palette);
             return;
         }
-        if self.model.viewer.as_ref().is_some_and(|s| s.placement == DocumentPlacement::Workspace) {
+        if self
+            .model
+            .viewer
+            .as_ref()
+            .is_some_and(|s| s.placement == DocumentPlacement::Workspace)
+        {
             self.panel_rects = [None, None];
             crate::ui::viewer_window::embedded(ui, &mut self.model, &mut self.viewer_ui, &palette);
             return;
@@ -833,8 +884,16 @@ impl RCommanderApp {
         let left_width = (available.x * split).max(120.0);
         let right_width = (available.x - left_width - 4.0).max(120.0);
         let mut actions: Vec<(Side, PanelAction)> = Vec::new();
-        let docked = self.model.editor.as_ref().is_some_and(|s| matches!(s.placement, DocumentPlacement::Panel(_)))
-            || self.model.viewer.as_ref().is_some_and(|s| matches!(s.placement, DocumentPlacement::Panel(_)));
+        let docked = self
+            .model
+            .editor
+            .as_ref()
+            .is_some_and(|s| matches!(s.placement, DocumentPlacement::Panel(_)))
+            || self
+                .model
+                .viewer
+                .as_ref()
+                .is_some_and(|s| matches!(s.placement, DocumentPlacement::Panel(_)));
         if self.model.quick_view && !docked {
             let mut command: Option<String> = None;
             ui.horizontal(|ui| {
@@ -908,46 +967,66 @@ impl RCommanderApp {
             };
             for (index, side) in order.iter().enumerate() {
                 let mut draw = |ui: &mut egui::Ui| {
-                        let placement = DocumentPlacement::Panel(*side);
-                        let editor_here = self.model.editor.as_ref().is_some_and(|s| s.placement == placement);
-                        let viewer_here = self.model.viewer.as_ref().is_some_and(|s| s.placement == placement);
-                        if editor_here || viewer_here {
-                            if ui.rect_contains_pointer(ui.max_rect()) && ui.input(|i| i.pointer.any_pressed()) {
-                                self.model.focus = *side;
-                            }
-                            self.panel_rects[*side as usize] = None;
-                            if editor_here {
-                                crate::ui::editor_window::embedded(ui, &mut self.model, &mut self.editor_ui, &palette);
-                            } else {
-                                crate::ui::viewer_window::embedded(ui, &mut self.model, &mut self.viewer_ui, &palette);
-                            }
-                            return;
+                    let placement = DocumentPlacement::Panel(*side);
+                    let editor_here = self
+                        .model
+                        .editor
+                        .as_ref()
+                        .is_some_and(|s| s.placement == placement);
+                    let viewer_here = self
+                        .model
+                        .viewer
+                        .as_ref()
+                        .is_some_and(|s| s.placement == placement);
+                    if editor_here || viewer_here {
+                        if ui.rect_contains_pointer(ui.max_rect())
+                            && ui.input(|i| i.pointer.any_pressed())
+                        {
+                            self.model.focus = *side;
                         }
-                        if self.model.panel_shows_chat(*side) {
-                            let pane = crate::ui::chat_window::pane(
+                        self.panel_rects[*side as usize] = None;
+                        if editor_here {
+                            crate::ui::editor_window::embedded(
                                 ui,
                                 &mut self.model,
-                                &mut self.chat_ui,
+                                &mut self.editor_ui,
                                 &palette,
-                                *side,
                             );
-                            if pane.show_files {
-                                self.pending_command = Some("cm_ChatFiles".to_string());
-                            }
-                            self.panel_rects[*side as usize] = Some(ui.min_rect());
-                            return;
+                        } else {
+                            crate::ui::viewer_window::embedded(
+                                ui,
+                                &mut self.model,
+                                &mut self.viewer_ui,
+                                &palette,
+                            );
                         }
-                        let response = panel_view::show(
+                        return;
+                    }
+                    if self.model.panel_shows_chat(*side) {
+                        let pane = crate::ui::chat_window::pane(
                             ui,
                             &mut self.model,
-                            *side,
+                            &mut self.chat_ui,
                             &palette,
-                            &mut self.thumbnails,
+                            *side,
                         );
-                        self.panel_rects[*side as usize] = Some(ui.min_rect());
-                        for action in response {
-                            actions.push((*side, action));
+                        if pane.show_files {
+                            self.pending_command = Some("cm_ChatFiles".to_string());
                         }
+                        self.panel_rects[*side as usize] = Some(ui.min_rect());
+                        return;
+                    }
+                    let response = panel_view::show(
+                        ui,
+                        &mut self.model,
+                        *side,
+                        &palette,
+                        &mut self.thumbnails,
+                    );
+                    self.panel_rects[*side as usize] = Some(ui.min_rect());
+                    for action in response {
+                        actions.push((*side, action));
+                    }
                 };
                 if docked {
                     let (rect, _) = ui.allocate_exact_size(
@@ -1424,14 +1503,24 @@ impl eframe::App for RCommanderApp {
         }
 
         let palette = self.palette.clone();
-        if self.model.viewer.as_ref().is_some_and(|s| s.placement == crate::model::DocumentPlacement::Floating) {
+        if self
+            .model
+            .viewer
+            .as_ref()
+            .is_some_and(|s| s.placement == crate::model::DocumentPlacement::Floating)
+        {
             let closed =
                 crate::ui::viewer_window::show(ctx, &mut self.model, &mut self.viewer_ui, &palette);
             if closed {
                 self.model.viewer = None;
             }
         }
-        if self.model.editor.as_ref().is_some_and(|s| s.placement == crate::model::DocumentPlacement::Floating) {
+        if self
+            .model
+            .editor
+            .as_ref()
+            .is_some_and(|s| s.placement == crate::model::DocumentPlacement::Floating)
+        {
             let workspace = self.workspace_for_windows(ctx);
             crate::ui::editor_window::show(
                 ctx,

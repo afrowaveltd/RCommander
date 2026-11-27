@@ -35,12 +35,21 @@ impl ProviderNotice {
         }
         let sample = &body[..end];
         let json = serde_json::from_str::<serde_json::Value>(sample).ok();
-        let message = json.as_ref().and_then(|value| {
-            value.get("error").and_then(|error| {
-                error.as_str().or_else(|| error.get("message").and_then(|m| m.as_str()))
+        let message = json
+            .as_ref()
+            .and_then(|value| {
+                value.get("error").and_then(|error| {
+                    error
+                        .as_str()
+                        .or_else(|| error.get("message").and_then(|m| m.as_str()))
+                })
             })
-        }).unwrap_or(sample);
-        Self { status, retry_after_seconds, message: message.to_owned() }
+            .unwrap_or(sample);
+        Self {
+            status,
+            retry_after_seconds,
+            message: message.to_owned(),
+        }
     }
 
     pub fn is_rate_limited(&self) -> bool {
@@ -79,14 +88,19 @@ impl LlmError {
     }
 
     fn from_http(error: http::HttpError) -> Self {
-        Self { message: error.to_string(), notice: error.notice }
+        Self {
+            message: error.to_string(),
+            notice: error.notice,
+        }
     }
 
     fn from_response(response: http::Response, path: &str) -> Self {
         Self {
             message: format!("the server answered {} for {path}", response.status),
             notice: Some(ProviderNotice::new(
-                response.status, response.retry_after_seconds, &response.body,
+                response.status,
+                response.retry_after_seconds,
+                &response.body,
             )),
         }
     }

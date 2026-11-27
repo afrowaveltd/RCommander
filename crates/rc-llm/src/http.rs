@@ -194,7 +194,11 @@ fn request(
             .map_err(|error| HttpError::new(error.to_string()))?;
         text
     };
-    Ok(Response { status, body, retry_after_seconds })
+    Ok(Response {
+        status,
+        body,
+        retry_after_seconds,
+    })
 }
 
 /// Owns only the active request socket; cancelling never kills the Ollama server.
@@ -365,13 +369,20 @@ fn stream_impl(
         // Bound the body sample and deadline; chunked error bodies are not
         // decoded by this slice. Keep status even if reading evidence fails.
         let mut sample = Vec::new();
-        if !chunked && reader.get_ref().set_read_timeout(Some(timeout.min(Duration::from_secs(5)))).is_ok() {
+        if !chunked
+            && reader
+                .get_ref()
+                .set_read_timeout(Some(timeout.min(Duration::from_secs(5))))
+                .is_ok()
+        {
             let limit = content_length.unwrap_or(8192).min(8192);
             let _ = reader.by_ref().take(limit as u64).read_to_end(&mut sample);
         }
         let mut error = HttpError::new(format!("the server answered {status} for {full_path}"));
         error.notice = Some(crate::ProviderNotice::new(
-            status, retry_after_seconds, &String::from_utf8_lossy(&sample),
+            status,
+            retry_after_seconds,
+            &String::from_utf8_lossy(&sample),
         ));
         return Err(error);
     }

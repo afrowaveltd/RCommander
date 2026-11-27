@@ -117,16 +117,32 @@ impl Model {
     /// then a panel showing the chat, then the file panels.
     pub fn surface(&self) -> Surface {
         use super::DocumentPlacement;
-        if self.editor.as_ref().is_some_and(|s| s.placement == DocumentPlacement::Workspace) {
+        if self
+            .editor
+            .as_ref()
+            .is_some_and(|s| s.placement == DocumentPlacement::Workspace)
+        {
             return Surface::Editor;
         }
-        if self.viewer.as_ref().is_some_and(|s| s.placement == DocumentPlacement::Workspace) {
+        if self
+            .viewer
+            .as_ref()
+            .is_some_and(|s| s.placement == DocumentPlacement::Workspace)
+        {
             return Surface::Viewer;
         }
-        if self.editor.as_ref().is_some_and(|s| s.placement.owns_focus(self.focus)) {
+        if self
+            .editor
+            .as_ref()
+            .is_some_and(|s| s.placement.owns_focus(self.focus))
+        {
             return Surface::Editor;
         }
-        if self.viewer.as_ref().is_some_and(|s| s.placement.owns_focus(self.focus)) {
+        if self
+            .viewer
+            .as_ref()
+            .is_some_and(|s| s.placement.owns_focus(self.focus))
+        {
             return Surface::Viewer;
         }
         if self.panel_shows_chat(self.focus) {

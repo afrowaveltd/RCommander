@@ -551,9 +551,9 @@ impl Model {
             }
             "cm_plugins" => self.open_options_on(OptionsTab::Plugins),
             "cm_secrets" => {
-                self.open_dialog(Dialog::UnlockSecrets(
-                    UnlockSecretsState::new(self.secrets_exist()),
-                ));
+                self.open_dialog(Dialog::UnlockSecrets(UnlockSecretsState::new(
+                    self.secrets_exist(),
+                )));
                 CommandOutcome::Ok
             }
             "cm_buttonconfig" => {
@@ -2470,12 +2470,18 @@ impl Model {
         if !path.is_absolute() || !path.is_dir() {
             return CommandOutcome::Failed(self.t("toolbar.directory_missing"));
         }
-        let caption = path.file_name().unwrap_or(path.as_os_str()).to_string_lossy().into_owned();
+        let caption = path
+            .file_name()
+            .unwrap_or(path.as_os_str())
+            .to_string_lossy()
+            .into_owned();
         let Some(path_text) = path.to_str() else {
             return CommandOutcome::Failed(self.t("toolbar.directory_missing"));
         };
         let command = format!("rc_OpenDirectory:{path_text}");
-        self.settings.button_bar.add(rc_core::config::BarButton::new(caption, command));
+        self.settings
+            .button_bar
+            .add(rc_core::config::BarButton::new(caption, command));
         self.mark_settings_dirty();
         CommandOutcome::Ok
     }
@@ -2986,7 +2992,7 @@ impl Model {
                     editor.chrome = state.chrome;
                 }
                 CommandOutcome::Ok
-            },
+            }
             Err(error) => {
                 let message = error.to_string();
                 self.report_error(&message);

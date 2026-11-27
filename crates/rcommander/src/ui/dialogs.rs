@@ -2577,7 +2577,14 @@ fn button_bar(ui: &mut egui::Ui, model: &mut Model, state: &mut ButtonBarState) 
             for (index, button) in buttons.iter().enumerate() {
                 let selected = state.selected == Some(index);
                 if ui
-                    .selectable_label(selected, format!("{} — {}", crate::model::actions::button_caption(model, button), button.command))
+                    .selectable_label(
+                        selected,
+                        format!(
+                            "{} — {}",
+                            crate::model::actions::button_caption(model, button),
+                            button.command
+                        ),
+                    )
                     .clicked()
                 {
                     state.edit(index, button);
@@ -2586,20 +2593,22 @@ fn button_bar(ui: &mut egui::Ui, model: &mut Model, state: &mut ButtonBarState) 
         });
     ui.separator();
     ui.menu_button(model.t("toolbar.choose_action"), |ui| {
-        egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
-            for &(group, actions) in crate::model::actions::ACTION_GROUPS {
-                ui.collapsing(model.t(group), |ui| {
-                    for &(command, key) in actions {
-                        if ui.button(model.t(key)).clicked() {
-                            state.edit_command = command.to_owned();
-                            state.edit_caption.clear();
-                            state.edit_parameters.clear();
-                            ui.close();
+        egui::ScrollArea::vertical()
+            .max_height(360.0)
+            .show(ui, |ui| {
+                for &(group, actions) in crate::model::actions::ACTION_GROUPS {
+                    ui.collapsing(model.t(group), |ui| {
+                        for &(command, key) in actions {
+                            if ui.button(model.t(key)).clicked() {
+                                state.edit_command = command.to_owned();
+                                state.edit_caption.clear();
+                                state.edit_parameters.clear();
+                                ui.close();
+                            }
                         }
-                    }
-                });
-            }
-        });
+                    });
+                }
+            });
     });
     egui::Grid::new("buttonbar_grid")
         .num_columns(2)
@@ -2660,7 +2669,13 @@ fn button_bar(ui: &mut egui::Ui, model: &mut Model, state: &mut ButtonBarState) 
             *state = ButtonBarState::new();
         }
         let restore = model.t("toolbar.restore_custom");
-        if ui.add_enabled(model.settings.button_bar_custom.is_some(), egui::Button::new(restore)).clicked() {
+        if ui
+            .add_enabled(
+                model.settings.button_bar_custom.is_some(),
+                egui::Button::new(restore),
+            )
+            .clicked()
+        {
             model.restore_custom_button_bar();
             *state = ButtonBarState::new();
         }

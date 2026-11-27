@@ -47,7 +47,14 @@ pub fn embedded(ui: &mut egui::Ui, model: &mut Model, ui_state: &mut EditorUi, p
     render(&ctx, Some(ui), model, ui_state, palette, workspace);
 }
 
-fn render(ctx: &Context, embedded: Option<&mut egui::Ui>, model: &mut Model, ui_state: &mut EditorUi, palette: &Palette, workspace: egui::Rect) -> bool {
+fn render(
+    ctx: &Context,
+    embedded: Option<&mut egui::Ui>,
+    model: &mut Model,
+    ui_state: &mut EditorUi,
+    palette: &Palette,
+    workspace: egui::Rect,
+) -> bool {
     let Some(mut state) = model.editor.take() else {
         return true;
     };
@@ -61,116 +68,121 @@ fn render(ctx: &Context, embedded: Option<&mut egui::Ui>, model: &mut Model, ui_
     let occupied = model.viewer.as_ref().map(|s| s.placement);
     let mut discard_requested = false;
     let mut contents = |ui: &mut egui::Ui| {
-            ui.label(&title);
-            if crate::ui::workspace_window::document_controls(ui, model, &mut state.placement, occupied) {
-                close_requested = true;
-            }
-            if let Some(message) = &ui_state.dirty_prompt {
-                ui.label(egui::RichText::new(message).color(palette.warning));
-                ui.horizontal(|ui| {
-                    if ui.button(model.t("editor.discard_changes")).clicked() {
-                        discard_requested = true;
-                    }
-                    if ui.button(model.t("dialog.config.cancel")).clicked() {
-                        ui_state.dirty_prompt = None;
-                    }
-                });
-            }
-            ui.horizontal_wrapped(|ui| {
-                if ui.button(model.t("prompt.save")).clicked() {
-                    save_requested = true;
+        ui.label(&title);
+        if crate::ui::workspace_window::document_controls(ui, model, &mut state.placement, occupied)
+        {
+            close_requested = true;
+        }
+        if let Some(message) = &ui_state.dirty_prompt {
+            ui.label(egui::RichText::new(message).color(palette.warning));
+            ui.horizontal(|ui| {
+                if ui.button(model.t("editor.discard_changes")).clicked() {
+                    discard_requested = true;
                 }
                 if ui.button(model.t("dialog.config.cancel")).clicked() {
-                    close_requested = true;
+                    ui_state.dirty_prompt = None;
                 }
-                if state.modified {
-                    ui.label(
-                        egui::RichText::new(model.t("editor.modified")).color(palette.readonly),
-                    );
-                }
-                let writable = can_write(std::path::Path::new(&state.path));
-                if !writable && !state.binary {
-                    ui.label(
-                        egui::RichText::new(model.t("editor.readonly"))
-                            .small()
-                            .color(palette.warning),
-                    );
-                }
+            });
+        }
+        ui.horizontal_wrapped(|ui| {
+            if ui.button(model.t("prompt.save")).clicked() {
+                save_requested = true;
+            }
+            if ui.button(model.t("dialog.config.cancel")).clicked() {
+                close_requested = true;
+            }
+            if state.modified {
+                ui.label(egui::RichText::new(model.t("editor.modified")).color(palette.readonly));
+            }
+            let writable = can_write(std::path::Path::new(&state.path));
+            if !writable && !state.binary {
                 ui.label(
-                    egui::RichText::new(model.tf(
-                        "editor.size",
-                        &[
-                            ("chars", &state.text.chars().count().to_string()),
-                            ("lines", &state.text.lines().count().to_string()),
-                        ],
-                    ))
+                    egui::RichText::new(model.t("editor.readonly"))
+                        .small()
+                        .color(palette.warning),
+                );
+            }
+            ui.label(
+                egui::RichText::new(model.tf(
+                    "editor.size",
+                    &[
+                        ("chars", &state.text.chars().count().to_string()),
+                        ("lines", &state.text.lines().count().to_string()),
+                    ],
+                ))
+                .small()
+                .color(palette.hidden),
+            );
+        });
+        if state.binary {
+            ui.separator();
+            ui.label(
+                egui::RichText::new(model.t("editor.binary"))
+                    .color(palette.warning)
+                    .strong(),
+            );
+            ui.label(
+                egui::RichText::new(model.t("editor.binary.hint"))
                     .small()
                     .color(palette.hidden),
-                );
-            });
-            if state.binary {
-                ui.separator();
-                ui.label(
-                    egui::RichText::new(model.t("editor.binary"))
-                        .color(palette.warning)
-                        .strong(),
-                );
-                ui.label(
-                    egui::RichText::new(model.t("editor.binary.hint"))
-                        .small()
-                        .color(palette.hidden),
-                );
-                return;
-            }
-            if let Some(error) = &ui_state.save_error {
-                ui.separator();
-                ui.label(egui::RichText::new(error).color(palette.warning));
-                ui.horizontal_wrapped(|ui| {
-                    if ui.button(model.t("editor.save_copy")).clicked() {
-                        save_copy = true;
-                    }
-                    if ui.button(model.t("editor.elevate")).clicked() {
-                        elevate = true;
-                    }
-                    if let Some(path) = &ui_state.suggested_copy {
-                        ui.label(
-                            egui::RichText::new(path.display().to_string())
-                                .small()
-                                .monospace()
-                                .color(palette.hidden),
-                        );
-                    }
-                });
-            }
+            );
+            return;
+        }
+        if let Some(error) = &ui_state.save_error {
             ui.separator();
-            // The text fills what the window has left, so a maximized editor is a usable editor.
-            let viewport = ui.available_size().max(egui::vec2(1.0, 1.0));
-            egui::ScrollArea::vertical()
-                .id_salt("document_editor")
-                .max_width(viewport.x)
-                .max_height(viewport.y)
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    let response = ui.add(
-                        egui::TextEdit::multiline(&mut state.text)
-                            .font(TextStyle::Monospace)
-                            .desired_width((viewport.x - 20.0).max(1.0))
-                            .desired_rows(1)
-                            .lock_focus(true),
+            ui.label(egui::RichText::new(error).color(palette.warning));
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(model.t("editor.save_copy")).clicked() {
+                    save_copy = true;
+                }
+                if ui.button(model.t("editor.elevate")).clicked() {
+                    elevate = true;
+                }
+                if let Some(path) = &ui_state.suggested_copy {
+                    ui.label(
+                        egui::RichText::new(path.display().to_string())
+                            .small()
+                            .monospace()
+                            .color(palette.hidden),
                     );
-                    if response.changed() {
-                        state.modified = true;
-                        state.dirty_since_open = true;
-                        ui_state.save_error = None;
-                    }
-                });
+                }
+            });
+        }
+        ui.separator();
+        // The text fills what the window has left, so a maximized editor is a usable editor.
+        let viewport = ui.available_size().max(egui::vec2(1.0, 1.0));
+        egui::ScrollArea::vertical()
+            .id_salt("document_editor")
+            .max_width(viewport.x)
+            .max_height(viewport.y)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let response = ui.add(
+                    egui::TextEdit::multiline(&mut state.text)
+                        .font(TextStyle::Monospace)
+                        .desired_width((viewport.x - 20.0).max(1.0))
+                        .desired_rows(1)
+                        .lock_focus(true),
+                );
+                if response.changed() {
+                    state.modified = true;
+                    state.dirty_since_open = true;
+                    ui_state.save_error = None;
+                }
+            });
     };
     let action = if let Some(ui) = embedded {
         contents(ui);
         ChromeAction::None
     } else {
         crate::ui::workspace_window::show(
-            ctx, "editor_window", &title, workspace, &mut chrome, palette, contents,
+            ctx,
+            "editor_window",
+            &title,
+            workspace,
+            &mut chrome,
+            palette,
+            contents,
         )
     };
     if matches!(action, ChromeAction::Close) {

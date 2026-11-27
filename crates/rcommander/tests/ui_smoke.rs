@@ -1293,10 +1293,14 @@ fn connecting_runs_in_the_background_and_reports_the_failure() {
         harness.state_mut().model.top_dialog_mut()
     {
         // Nothing listens on this port, so the attempt fails at once instead of
-        // blocking the window.
+        // blocking the window. The password is typed because a named FTP account
+        // without a secret is stopped before any network access by design (see
+        // `missing_password_stops_before_starting_a_worker`); this test is about
+        // the background attempt, not about the credential gate.
         state.connection.host = "127.0.0.1".to_string();
         state.connection.port = 65_533;
         state.connection.user = "nobody".to_string();
+        state.connection.password = "not-a-real-password".to_string();
     }
     harness.run();
     harness.root().get_by_label("dialog.config.ok").click();
@@ -2664,13 +2668,20 @@ fn toolbar_default_captions_are_localized_and_custom_caption_is_preserved() {
     let (left, right) = fixture();
     let locale_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../rc-i18n/locales");
     let strings = rcommander::i18n::TranslatorStrings::discover(&locale_dir, "cs");
-    let mut settings = Settings::default();
-    settings.language = "cs".into();
+    let settings = Settings {
+        language: "cs".into(),
+        ..Settings::default()
+    };
     let mut app = RCommanderApp::with_strings(
-        settings, Box::new(strings),
-        Location::local(left.path()), Location::local(right.path()),
+        settings,
+        Box::new(strings),
+        Location::local(left.path()),
+        Location::local(right.path()),
     );
-    app.model.settings.button_bar.add(rc_core::config::BarButton::new("My button", "cm_Copy"));
+    app.model
+        .settings
+        .button_bar
+        .add(rc_core::config::BarButton::new("My button", "cm_Copy"));
     let harness = harness(app);
     harness.root().get_by_label("Stručně");
     harness.root().get_by_label("My button");
@@ -3400,7 +3411,10 @@ fn document_surfaces_can_share_the_two_panels_without_losing_editor_text() {
     std::fs::write(&path, "original").unwrap();
     let mut app = app(left.path(), right.path());
     app.open_editor(path.clone());
-    assert_eq!(app.model.editor.as_ref().unwrap().placement, DocumentPlacement::Workspace);
+    assert_eq!(
+        app.model.editor.as_ref().unwrap().placement,
+        DocumentPlacement::Workspace
+    );
     app.model.editor.as_mut().unwrap().placement = DocumentPlacement::Panel(Side::Left);
     app.model.editor.as_mut().unwrap().text = "unsaved".into();
     app.model.editor.as_mut().unwrap().modified = true;
@@ -3410,13 +3424,31 @@ fn document_surfaces_can_share_the_two_panels_without_losing_editor_text() {
     app.model.viewer.as_mut().unwrap().placement = DocumentPlacement::Panel(Side::Right);
     let mut harness = harness(app);
     harness.run();
-    assert_eq!(harness.root().query_all_by_label("document.workspace").count(), 2);
+    assert_eq!(
+        harness
+            .root()
+            .query_all_by_label("document.workspace")
+            .count(),
+        2
+    );
     harness.set_size(egui::vec2(900.0, 550.0));
     harness.run();
-    assert_eq!(harness.root().query_all_by_label("document.workspace").count(), 2);
-    assert_eq!(harness.state().model.editor.as_ref().unwrap().text, "unsaved");
+    assert_eq!(
+        harness
+            .root()
+            .query_all_by_label("document.workspace")
+            .count(),
+        2
+    );
+    assert_eq!(
+        harness.state().model.editor.as_ref().unwrap().text,
+        "unsaved"
+    );
     assert!(harness.state_mut().model.open_editor_for(path).is_err());
-    assert_eq!(harness.state().model.editor.as_ref().unwrap().text, "unsaved");
+    assert_eq!(
+        harness.state().model.editor.as_ref().unwrap().text,
+        "unsaved"
+    );
 }
 
 #[test]
@@ -3424,13 +3456,22 @@ fn f3_and_f4_open_the_expected_workspace_surface() {
     use rcommander::model::{DocumentPlacement, Surface};
     let (left, right) = fixture();
     let mut harness = harness(app(left.path(), right.path()));
-    let index = harness.state().model.left.entries().iter()
-        .position(|entry| entry.name == "alpha.txt").unwrap();
+    let index = harness
+        .state()
+        .model
+        .left
+        .entries()
+        .iter()
+        .position(|entry| entry.name == "alpha.txt")
+        .unwrap();
     harness.state_mut().model.left.set_cursor(index);
     harness.key_press(egui::Key::F3);
     harness.run();
     assert_eq!(harness.state().model.surface(), Surface::Viewer);
-    assert_eq!(harness.state().model.viewer.as_ref().unwrap().placement, DocumentPlacement::Workspace);
+    assert_eq!(
+        harness.state().model.viewer.as_ref().unwrap().placement,
+        DocumentPlacement::Workspace
+    );
     harness.key_press(egui::Key::Escape);
     harness.run();
     assert!(harness.state().model.viewer.is_none());
@@ -3438,5 +3479,8 @@ fn f3_and_f4_open_the_expected_workspace_surface() {
     harness.run();
     assert_eq!(harness.state().model.surface(), Surface::Editor);
     assert_eq!(harness.state().model.editor.as_ref().unwrap().text, "hello");
-    assert_eq!(harness.state().model.editor.as_ref().unwrap().placement, DocumentPlacement::Workspace);
+    assert_eq!(
+        harness.state().model.editor.as_ref().unwrap().placement,
+        DocumentPlacement::Workspace
+    );
 }

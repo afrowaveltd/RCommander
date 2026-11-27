@@ -222,9 +222,8 @@ impl Model {
             self.report_error(&message);
             return CommandOutcome::Failed(message);
         }
-        let remember_password = remember
-            && Self::requires_password(&resolved)
-            && !connection.password.is_empty();
+        let remember_password =
+            remember && Self::requires_password(&resolved) && !connection.password.is_empty();
         let mut spec = super::remote::connection_spec(&resolved, None);
         spec.timeout =
             std::time::Duration::from_secs(self.settings.ftp.timeout_seconds.clamp(3, 120));
@@ -577,21 +576,45 @@ mod tests {
         let mut connection = rc_core::config::SavedConnection::with_defaults("sftp");
         connection.host = "files.example.com".into();
         connection.user = "alice".into();
-        model.secrets.set(&connection.account_id(), "stored").unwrap();
+        model
+            .secrets
+            .set(&connection.account_id(), "stored")
+            .unwrap();
 
-        assert_eq!(model.resolve_connection_credentials(&connection).password, "stored");
+        assert_eq!(
+            model.resolve_connection_credentials(&connection).password,
+            "stored"
+        );
         connection.password = "manual".into();
         let resolved = model.resolve_connection_credentials(&connection);
-        assert_eq!(super::super::remote::connection_spec(&resolved, None).password, "manual");
+        assert_eq!(
+            super::super::remote::connection_spec(&resolved, None).password,
+            "manual"
+        );
 
         connection.password.clear();
         connection.port = 2222;
-        assert!(model.resolve_connection_credentials(&connection).password.is_empty());
+        assert!(
+            model
+                .resolve_connection_credentials(&connection)
+                .password
+                .is_empty()
+        );
         connection.port = 22;
         connection.auth_method = "key".into();
-        assert!(model.resolve_connection_credentials(&connection).password.is_empty());
+        assert!(
+            model
+                .resolve_connection_credentials(&connection)
+                .password
+                .is_empty()
+        );
         connection.auth_method = "agent".into();
-        assert!(model.resolve_connection_credentials(&connection).password.is_empty());
+        assert!(
+            model
+                .resolve_connection_credentials(&connection)
+                .password
+                .is_empty()
+        );
     }
 
     #[test]
@@ -612,10 +635,18 @@ mod tests {
             ("ftps", 21, "explicit-tls-fixture"),
             ("ftps", 990, "implicit-tls-fixture"),
         ] {
-            model.secrets.set(
-                &rc_core::secrets::account_id(protocol, &connection.user, &connection.host, port),
-                secret,
-            ).unwrap();
+            model
+                .secrets
+                .set(
+                    &rc_core::secrets::account_id(
+                        protocol,
+                        &connection.user,
+                        &connection.host,
+                        port,
+                    ),
+                    secret,
+                )
+                .unwrap();
         }
         for (protocol, port, expected) in [
             (" SSH ", 0, "ssh-fixture"),
@@ -628,7 +659,10 @@ mod tests {
         ] {
             connection.protocol = protocol.into();
             connection.port = port;
-            assert_eq!(model.resolve_connection_credentials(&connection).password, expected);
+            assert_eq!(
+                model.resolve_connection_credentials(&connection).password,
+                expected
+            );
         }
     }
 
@@ -668,9 +702,7 @@ mod tests {
         assert_eq!(model.focus, Side::Left);
     }
 
-    fn staged_attempt(
-        model: &mut Model,
-    ) -> std::sync::mpsc::Sender<ConnectEvent> {
+    fn staged_attempt(model: &mut Model) -> std::sync::mpsc::Sender<ConnectEvent> {
         let connection = rc_core::config::SavedConnection::with_defaults("ftp");
         let session = Session::from_connection("fixture", &connection);
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -696,7 +728,9 @@ mod tests {
             .unwrap();
         assert_eq!(model.poll_connect_result(), (true, None));
         assert!(model.is_connecting());
-        sender.send(ConnectEvent::Done(Err("fixture failure".into()))).unwrap();
+        sender
+            .send(ConnectEvent::Done(Err("fixture failure".into())))
+            .unwrap();
         assert_eq!(
             model.wait_for_connect(std::time::Duration::from_secs(1)),
             CommandOutcome::Failed("fixture failure".into())
@@ -716,7 +750,11 @@ mod tests {
             CommandOutcome::Failed(expected)
         );
         assert!(!model.is_connecting());
-        assert!(sender.send(ConnectEvent::Done(Err("late failure".into()))).is_err());
+        assert!(
+            sender
+                .send(ConnectEvent::Done(Err("late failure".into())))
+                .is_err()
+        );
     }
 
     #[test]

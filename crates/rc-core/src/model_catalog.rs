@@ -8,8 +8,17 @@ use std::collections::BTreeSet;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Capability {
-    Text, Coding, Reasoning, Translation, ToolCalling, ImageInput, ImageOutput,
-    AudioInput, AudioOutput, Embeddings, StructuredOutput,
+    Text,
+    Coding,
+    Reasoning,
+    Translation,
+    ToolCalling,
+    ImageInput,
+    ImageOutput,
+    AudioInput,
+    AudioOutput,
+    Embeddings,
+    StructuredOutput,
 }
 
 /// Unknown means unknown, not supported and not a zero cost.
@@ -41,13 +50,20 @@ pub struct ModelProfile {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum QuotaPeriod {
-    Hour, Day, Week, #[default] Month,
+    Hour,
+    Day,
+    Week,
+    #[default]
+    Month,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum QuotaWindow {
-    Rolling, Calendar, #[default] ProviderDefined,
+    Rolling,
+    Calendar,
+    #[default]
+    ProviderDefined,
 }
 
 /// A configured limit, not a statement of current remaining allowance.
@@ -64,7 +80,10 @@ pub struct TokenQuota {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExhaustedAction {
-    #[default] Ask, Wait, Fallback,
+    #[default]
+    Ask,
+    Wait,
+    Fallback,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,8 +146,13 @@ impl ModelCatalog {
         let mut models = BTreeSet::new();
         let mut bindings = BTreeSet::new();
         for model in &self.models {
-            if [model.id.as_str(), model.connection_id.as_str(), model.model_id.as_str()]
-                .iter().any(|id| id.trim().is_empty())
+            if [
+                model.id.as_str(),
+                model.connection_id.as_str(),
+                model.model_id.as_str(),
+            ]
+            .iter()
+            .any(|id| id.trim().is_empty())
             {
                 return Err(CatalogError::MissingIdentity);
             }
@@ -137,10 +161,14 @@ impl ModelCatalog {
             {
                 return Err(CatalogError::DuplicateModel);
             }
-            if model.price_class.is_some_and(|price| price > 5 || (price == 0 && !model.local)) {
+            if model
+                .price_class
+                .is_some_and(|price| price > 5 || (price == 0 && !model.local))
+            {
                 return Err(CatalogError::InvalidPrice);
             }
-            if model.context_tokens == Some(0) || model.max_output_tokens == Some(0)
+            if model.context_tokens == Some(0)
+                || model.max_output_tokens == Some(0)
                 || matches!((model.context_tokens, model.max_output_tokens),
                     (Some(context), Some(output)) if output > context)
             {
@@ -185,30 +213,45 @@ mod tests {
     fn fixture() -> ModelCatalog {
         ModelCatalog {
             quotas: vec![TokenQuota {
-                id: "shared-hour".into(), tokens: 20_000,
-                period: QuotaPeriod::Hour, window: QuotaWindow::Rolling,
+                id: "shared-hour".into(),
+                tokens: 20_000,
+                period: QuotaPeriod::Hour,
+                window: QuotaWindow::Rolling,
             }],
             models: vec![
                 ModelProfile {
-                    id: "local".into(), connection_id: "ollama".into(),
-                    model_id: "example".into(), enabled: true, local: true,
-                    price_class: Some(0), context_tokens: Some(8192),
+                    id: "local".into(),
+                    connection_id: "ollama".into(),
+                    model_id: "example".into(),
+                    enabled: true,
+                    local: true,
+                    price_class: Some(0),
+                    context_tokens: Some(8192),
                     capabilities: [Capability::Text, Capability::Coding].into_iter().collect(),
                     ..Default::default()
                 },
                 ModelProfile {
-                    id: "remote".into(), connection_id: "account".into(),
-                    model_id: "example".into(), enabled: true, price_class: Some(1),
-                    quota_ids: vec!["shared-hour".into()], ..Default::default()
+                    id: "remote".into(),
+                    connection_id: "account".into(),
+                    model_id: "example".into(),
+                    enabled: true,
+                    price_class: Some(1),
+                    quota_ids: vec!["shared-hour".into()],
+                    ..Default::default()
                 },
                 ModelProfile {
-                    id: "remote-2".into(), connection_id: "account".into(),
-                    model_id: "other".into(), enabled: true, price_class: Some(2),
-                    quota_ids: vec!["shared-hour".into()], ..Default::default()
+                    id: "remote-2".into(),
+                    connection_id: "account".into(),
+                    model_id: "other".into(),
+                    enabled: true,
+                    price_class: Some(2),
+                    quota_ids: vec!["shared-hour".into()],
+                    ..Default::default()
                 },
             ],
             routes: vec![RoutingPreference {
-                task: "coding".into(), model_ids: vec!["local".into(), "remote".into()],
+                task: "coding".into(),
+                model_ids: vec!["local".into(), "remote".into()],
                 on_exhausted: ExhaustedAction::Wait,
                 ..Default::default()
             }],

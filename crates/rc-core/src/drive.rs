@@ -388,7 +388,7 @@ pub fn pickable_volumes() -> Vec<Volume> {
             }
             #[cfg(target_os = "linux")]
             {
-                return linux_pickable(volume);
+                linux_pickable(volume)
             }
             #[cfg(not(any(target_os = "linux", target_os = "windows")))]
             {
@@ -665,9 +665,11 @@ mod selector_tests {
             Volume::new("/media/ssd", "SSD_240GB", VolumeKind::Removable),
             Volume::new("/run/media/user/DATA", "DATA", VolumeKind::Removable),
         ];
-        let visible: Vec<_> = candidates.iter()
+        let visible: Vec<_> = candidates
+            .iter()
             .filter(|v| linux_pickable(v))
-            .map(|v| v.label.as_str()).collect();
+            .map(|v| v.label.as_str())
+            .collect();
         assert_eq!(visible, vec!["PROGRAMMING", "SSD_240GB", "DATA"]);
     }
 

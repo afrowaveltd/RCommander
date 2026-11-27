@@ -73,7 +73,13 @@ pub fn embedded(ui: &mut egui::Ui, model: &mut Model, ui_state: &mut ViewerUi, p
     render(&ctx, Some(ui), model, ui_state, palette);
 }
 
-fn render(ctx: &Context, embedded: Option<&mut egui::Ui>, model: &mut Model, ui_state: &mut ViewerUi, palette: &Palette) -> bool {
+fn render(
+    ctx: &Context,
+    embedded: Option<&mut egui::Ui>,
+    model: &mut Model,
+    ui_state: &mut ViewerUi,
+    palette: &Palette,
+) -> bool {
     let Some(mut state) = model.viewer.take() else {
         return true;
     };
@@ -82,48 +88,53 @@ fn render(ctx: &Context, embedded: Option<&mut egui::Ui>, model: &mut Model, ui_
     let occupied = model.editor.as_ref().map(|s| s.placement);
     let mut close_requested = false;
     let mut contents = |ui: &mut egui::Ui| {
-            ui.label(&title);
-            close_requested = crate::ui::workspace_window::document_controls(ui, model, &mut state.placement, occupied);
-            ui.horizontal_wrapped(|ui| {
-                for (label, mode) in [
-                    ("A", ViewerMode::Auto),
-                    ("T", ViewerMode::Text),
-                    ("H", ViewerMode::Hex),
-                    ("I", ViewerMode::Image),
-                ] {
-                    if ui.selectable_label(state.mode == mode, label).clicked() {
-                        state.mode = mode;
-                        let path = std::path::PathBuf::from(&state.path);
-                        let _ = ui_state.load(&path);
-                    }
-                }
-                ui.separator();
-                if ui.button(model.t("cmd.refresh")).clicked() {
+        ui.label(&title);
+        close_requested = crate::ui::workspace_window::document_controls(
+            ui,
+            model,
+            &mut state.placement,
+            occupied,
+        );
+        ui.horizontal_wrapped(|ui| {
+            for (label, mode) in [
+                ("A", ViewerMode::Auto),
+                ("T", ViewerMode::Text),
+                ("H", ViewerMode::Hex),
+                ("I", ViewerMode::Image),
+            ] {
+                if ui.selectable_label(state.mode == mode, label).clicked() {
+                    state.mode = mode;
                     let path = std::path::PathBuf::from(&state.path);
                     let _ = ui_state.load(&path);
                 }
-                ui.label(
-                    RichText::new(ui_state.status())
-                        .small()
-                        .color(palette.hidden),
-                );
-            });
-            ui.separator();
-            ui_state.ensure_texture(ctx);
-            let mode = effective_mode(state.mode, ui_state);
-            match (&ui_state.loaded, mode) {
-                (Some(_loaded), ViewerMode::Image) => show_image(ui, &mut state, ui_state),
-                (Some(loaded), ViewerMode::Hex) => show_hex(ui, &mut state, loaded, palette),
-                (Some(loaded), _) => show_text(ui, &mut state, loaded, palette),
-                (None, _) => {
-                    ui.label(
-                        ui_state
-                            .error
-                            .clone()
-                            .unwrap_or_else(|| model.t("panel.empty")),
-                    );
-                }
             }
+            ui.separator();
+            if ui.button(model.t("cmd.refresh")).clicked() {
+                let path = std::path::PathBuf::from(&state.path);
+                let _ = ui_state.load(&path);
+            }
+            ui.label(
+                RichText::new(ui_state.status())
+                    .small()
+                    .color(palette.hidden),
+            );
+        });
+        ui.separator();
+        ui_state.ensure_texture(ctx);
+        let mode = effective_mode(state.mode, ui_state);
+        match (&ui_state.loaded, mode) {
+            (Some(_loaded), ViewerMode::Image) => show_image(ui, &mut state, ui_state),
+            (Some(loaded), ViewerMode::Hex) => show_hex(ui, &mut state, loaded, palette),
+            (Some(loaded), _) => show_text(ui, &mut state, loaded, palette),
+            (None, _) => {
+                ui.label(
+                    ui_state
+                        .error
+                        .clone()
+                        .unwrap_or_else(|| model.t("panel.empty")),
+                );
+            }
+        }
     };
     if let Some(ui) = embedded {
         contents(ui);
