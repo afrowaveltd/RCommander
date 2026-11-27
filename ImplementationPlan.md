@@ -210,7 +210,10 @@ and actual Hex retained. Expose supported active features through explicit setti
 and scoped grants (including WebView development and browser modes). Unknown/unsupported formats must not pretend to
 render. Implemented slices: Markdown, CSV/TSV, JSON/TOML value trees and
 existing image formats, XML event trees (quick-xml 0.41.0 MIT, DTD/entity
-resolution disabled, upstream notice in Docs/ThirdParty). Next: static SVG
+resolution disabled, upstream notice in Docs/ThirdParty). Pending build/test
+verification in PR #3: INI/CFG/CONF trees, JSONL/NDJSON trees, Netpbm/Farbfeld
+image decoding and bounded SRT/WebVTT timed cue tables (with literal cue
+markup and no media playback dependency). Next: static SVG
 (resvg MIT OR Apache-2.0 is a candidate); spreadsheet cell previews, PDF page rasterization, office
 document text/layout, and audio/video with explicitly supported codecs.
 Assess exact dependency versions, transitive licenses and notice obligations
