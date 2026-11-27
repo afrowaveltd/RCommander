@@ -1665,6 +1665,20 @@ acceptance scenario to the existing Phase 16.0f–i section. Plugin Developer,
 WebView isolation, credential adapter and actual maintenance automation remain
 planned, no servers contacted or changed.
 
+## Handoff — preauthorized emergency maintenance (2026-11-27)
+
+Owner clarified that critical security patches must not wait for an
+interactive approval when the owner is unavailable. The existing server
+maintenance scenario now distinguishes standing per-host mandates from
+one-off approvals. Emergency tickets may permit verified applicable
+security patches immediately, with source verification, scoped elevation,
+transaction and health checks, separate reboot policy, notification and
+durable headless execution requirements. A model cannot self-authorize an
+emergency. Added acceptance scenarios; thresholds and actual host policies
+remain configurable and have not been set on real infrastructure.
+Documentation-only change; no implementation, server connection, patch
+installation or new test execution in this slice.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

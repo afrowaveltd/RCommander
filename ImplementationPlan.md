@@ -606,13 +606,52 @@ no new phase and no claim that this is already implemented.
 Reference acceptance scenario: Afrowave infrastructure maintenance. A
 read-only task may collect service status, disk capacity, update availability
 and selected logs from explicitly assigned hosts. Proposing package updates
-is not permission to execute them. A separate approved maintenance task
-binds host/account, allowed operations, maintenance window, backup and
-rollback expectations, service health checks, and audit receipt. Prefer
-least-privilege dedicated service identities, explicit escalation and
-staged changes; no automatic production reboot, unrelated host access,
-credential disclosure or unverified recovery claim. Test with mock hosts
-and disposable lab machines before production use.
+is not itself permission to execute them. An owner-approved maintenance
+policy can, however, authorize unattended routine or emergency changes in
+advance. The deterministic broker issues narrowly scoped, short-lived
+tickets under this standing mandate without requiring the owner to be
+online. Bind host/account, operation, package scope, trusted sources,
+maintenance window or emergency exception, backup and recovery expectations,
+health checks and audit receipt. Use dedicated least-privilege service
+identities and explicitly scoped elevation.
+
+Emergency security patching (owner requirement): an applicable critical
+vulnerability or actively exploited vulnerability with an available verified
+fix may trigger immediate unattended installation, outside the ordinary
+maintenance window, under an explicitly enabled per-host emergency policy.
+Use authoritative vendor/distribution advisories and installed package
+versions (including vendor backports), verify applicability and package
+repository signatures, and simulate the package transaction. The model
+may recommend an action but cannot declare its own emergency or widen its
+authority. Unverified advisories, unsupported upgrades, unexpected removals,
+repository changes, missing required recovery prerequisites and out-of-scope
+effects must not be silently authorized. Where a patch cannot be safely
+applied, report the blocker and offer only independently authorized
+mitigations. Severity thresholds, allowed packages, hosts and trusted
+sources are configurable; ordinary updates use their own schedule.
+
+Record the proposed and actual package changes, advisory evidence, ticket,
+pre/post checks, outcome and any remaining exposure. Notify the owner
+promptly; inability to reach the owner is not a blocker for an already
+authorized emergency action. Separate service restart and reboot permissions
+from package installation, accounting for package-triggered restarts before
+execution. For redundant critical services, prefer staged rollout with health
+gates and preserved quorum; stop on failed checks, and perform only verified,
+preauthorized recovery. Never claim rollback succeeded without evidence.
+No unrelated host access, credential disclosure, automatic major-version
+upgrade or production reboot without its own explicit policy.
+
+Unattended operation requires an authenticated persistent headless runtime
+or independently running maintenance service with durable scheduling,
+deduplication, bounded retries, policy expiry/revocation and an audit journal.
+Closing the desktop UI must not cancel an explicitly enabled ongoing service;
+offline services must not be represented as monitoring. Test with mock hosts
+and disposable lab machines before production use: critical signed patch
+while owner absent, routine update waits for its window, spoofed advisory
+or unsigned package refused, scope/revocation enforced, unavailable fix
+reported, restart policy enforced, failed health gate halts rollout and
+notifications/receipts survive restart. This extends existing Phase 16,
+25, 32 and remote administration contracts; no new phase.
 
 ### The "process with agent" handoff (16.10a) and the prompt manager (16.16–16.17)
 
