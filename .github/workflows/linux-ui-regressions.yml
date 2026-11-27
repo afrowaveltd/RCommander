@@ -48,6 +48,8 @@ jobs:
       - name: Volume picker, settings and Markdown
         run: |
           cargo test --locked -p rc-core --lib saved_connection_debug_redacts_credentials
+          cargo test --locked -p rc-core --lib saved_connection_account_ids_use_canonical_protocol_and_effective_port
+          cargo test --locked -p rc-core --lib a_new_connection_has_a_usable_host_and_port
           cargo test --locked -p rc-remote --lib spec::tests
           cargo test --locked -p rc-core --lib drive::
           cargo test --locked -p rc-core --lib the_button_bar_round_trips_through_toml

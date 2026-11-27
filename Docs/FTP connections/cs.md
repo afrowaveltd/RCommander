@@ -130,3 +130,14 @@ Dvě chyby jsou pojmenované přesně, protože dřív vypadaly stejně: *privá
 neexistuje* (s cestou, která se skutečně zkusila, po rozbalení `~`) a *server klíč `…`
 odmítl*. Volba *ignorovat* u klíče hostitele neopraví ani jednu — týká se identity
 serveru, ne té vaší.
+
+### Protokol, port a uložená pověření
+
+Uložená přihlašovací hesla se vyhledávají podle protokolu, uživatele, hostitele
+a skutečného TCP portu. Nezadaný port znamená 21 pro FTP a explicitní FTPS,
+nebo 22 pro SFTP/SSH. Pro implicitní FTPS zadejte 990 (FTPS vyžaduje sestavení
+s podporou TLS). Již nastavené nenulové porty zůstávají beze změny. Podporované
+aliasy (SSH, FTPES, FTP+TLS) sdílejí identitu s příslušným protokolem. FTP a FTPS
+zůstávají oddělené i na stejném portu. Starší záznamy uložené pod chybným portem
+nebo aliasem mohou vyžadovat nové zadání a uložení hesla; jiná pověření se
+automaticky nezkoušejí ani nepřesouvají.

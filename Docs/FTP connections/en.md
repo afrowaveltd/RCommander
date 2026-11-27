@@ -133,3 +133,14 @@ Two failures are named precisely because they used to look alike: *the private k
 `…` does not exist* (with the path that was actually tried, after `~` expansion) and
 *the server rejected the key `…`*. Choosing *ignore* for the host key fixes neither —
 it is about the server's identity, not yours.
+
+### Protocol, port and stored credentials
+
+Saved login passwords are matched by protocol, user, host and effective TCP
+port. An unset port uses 21 for FTP and explicit FTPS, or 22 for SFTP/SSH.
+For implicit FTPS explicitly select 990 (FTPS requires a build with TLS support).
+Existing nonzero ports are preserved. Supported aliases (SSH, FTPES, FTP+TLS)
+use the same credential identity as their canonical protocol. FTP and FTPS
+remain separate, even on the same port. Older vault entries under an incorrect
+port or alias may require entering and remembering the password again; we do
+not search other account keys or automatically move secrets.

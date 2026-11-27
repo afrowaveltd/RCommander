@@ -849,12 +849,22 @@ impl std::fmt::Debug for SavedConnection {
 }
 
 impl SavedConnection {
-    /// Default TCP port of a protocol name, used when a connection is created so
-    /// the user can connect without typing a port at all.
-    pub fn default_port(protocol: &str) -> u16 {
+    /// Canonical name of a supported remote protocol. Unknown names are not
+    /// aliases for FTP and must be rejected by callers opening a connection.
+    pub fn canonical_protocol(protocol: &str) -> Option<&'static str> {
         match protocol.trim().to_ascii_lowercase().as_str() {
-            "sftp" | "sftp4" | "sftp5" | "ssh" => 22,
-            "ftps" | "ftpsi" | "ftpes" => 990,
+            "" | "ftp" => Some("ftp"),
+            "ftps" | "ftpes" | "ftp+tls" => Some("ftps"),
+            "sftp" | "ssh" => Some("sftp"),
+            _ => None,
+        }
+    }
+
+    /// Default TCP port shared by profiles, the vault and the wire engine.
+    /// FTPS defaults to explicit TLS; select port 990 for implicit TLS.
+    pub fn default_port(protocol: &str) -> u16 {
+        match Self::canonical_protocol(protocol) {
+            Some("sftp") => 22,
             _ => 21,
         }
     }
@@ -881,12 +891,15 @@ impl SavedConnection {
 
     /// Account id used as the key in the credential store.
     pub fn account_id(&self) -> String {
-        let protocol = if self.protocol.is_empty() {
-            "ftp"
+        // Unknown labels keep their own namespace; never reuse an FTP secret
+        // just because a profile's protocol is unsupported.
+        let protocol = Self::canonical_protocol(&self.protocol)
+            .unwrap_or(self.protocol.as_str());
+        let port = if self.port == 0 {
+            Self::default_port(protocol)
         } else {
-            self.protocol.as_str()
+            self.port
         };
-        let port = if self.port == 0 { 21 } else { self.port };
         crate::secrets::account_id(protocol, &self.user, &self.host, port)
     }
 }
@@ -1187,7 +1200,7 @@ mod tests {
         assert!(ftp.passive, "passive mode is the safe default");
         let sftp = SavedConnection::with_defaults("sftp");
         assert_eq!(sftp.port, 22, "SFTP defaults to 22");
-        assert_eq!(SavedConnection::default_port("FTPS"), 990);
+        assert_eq!(SavedConnection::default_port("FTPS"), 21);
         assert_eq!(SavedConnection::default_port("unknown"), 21);
         // A port the user typed is not a default, so switching the protocol must
         // leave it alone.
@@ -1487,6 +1500,33 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(default_port.account_id(), "ftp://bob@example.com:21");
+    }
+
+    #[test]
+    fn saved_connection_account_ids_use_canonical_protocol_and_effective_port() {
+        let mut connection = SavedConnection {
+            host: "example.test".into(),
+            user: "alice".into(),
+            ..Default::default()
+        };
+        for (label, expected) in [
+            ("", "ftp://alice@example.test:21"),
+            (" SSH ", "sftp://alice@example.test:22"),
+            ("sftp", "sftp://alice@example.test:22"),
+            ("FTPS", "ftps://alice@example.test:21"),
+            ("ftpes", "ftps://alice@example.test:21"),
+            ("ftp+tls", "ftps://alice@example.test:21"),
+            ("unknown", "unknown://alice@example.test:21"),
+        ] {
+            connection.protocol = label.into();
+            assert_eq!(connection.account_id(), expected);
+        }
+        connection.protocol = "ftps".into();
+        connection.port = 990;
+        assert_eq!(connection.account_id(), "ftps://alice@example.test:990");
+        connection.protocol = "ssh".into();
+        connection.port = 2222;
+        assert_eq!(connection.account_id(), "sftp://alice@example.test:2222");
     }
 
     #[test]

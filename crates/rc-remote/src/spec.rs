@@ -29,10 +29,10 @@ impl Protocol {
     /// Parse the protocol name used in the configuration file
     /// (`"ftp"`, `"ftps"`, `"sftp"`; case-insensitive).
     pub fn from_label(label: &str) -> Option<Protocol> {
-        match label.trim().to_ascii_lowercase().as_str() {
-            "" | "ftp" => Some(Protocol::Ftp),
-            "ftps" | "ftpes" | "ftp+tls" => Some(Protocol::Ftps),
-            "sftp" | "ssh" => Some(Protocol::Sftp),
+        match SavedConnection::canonical_protocol(label) {
+            Some("ftp") => Some(Protocol::Ftp),
+            Some("ftps") => Some(Protocol::Ftps),
+            Some("sftp") => Some(Protocol::Sftp),
             _ => None,
         }
     }
@@ -48,10 +48,7 @@ impl Protocol {
 
     /// Default TCP port of the protocol (`0` in a spec means this one).
     pub fn default_port(self) -> u16 {
-        match self {
-            Protocol::Ftp | Protocol::Ftps => 21,
-            Protocol::Sftp => 22,
-        }
+        SavedConnection::default_port(self.label())
     }
 
     /// True when the protocol is encrypted end to end.
@@ -419,6 +416,30 @@ mod tests {
         assert_eq!(s.effective_port(), 22);
         s.port = 2121;
         assert_eq!(s.effective_port(), 2121);
+    }
+
+    #[test]
+    fn vault_identity_and_wire_port_agree_for_saved_profiles() {
+        for label in ["", "ftp", "ftps", "ftpes", "ftp+tls", "sftp", " SSH "] {
+            for port in [0, 21, 22, 990, 2222] {
+                let saved = SavedConnection {
+                    protocol: label.into(),
+                    port,
+                    user: "alice".into(),
+                    host: "example.test".into(),
+                    ..SavedConnection::default()
+                };
+                let spec = ConnectionSpec::from_saved(&saved);
+                assert_eq!(
+                    saved.account_id(),
+                    rc_core::secrets::account_id(
+                        spec.protocol.label(), &spec.user, &spec.host, spec.effective_port()
+                    )
+                );
+                let profile = rc_core::sessions::Session::from_connection("test", &saved);
+                assert_eq!(profile.to_connection().account_id(), saved.account_id());
+            }
+        }
     }
 
     #[test]

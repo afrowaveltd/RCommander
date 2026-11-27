@@ -1622,6 +1622,27 @@ unchanged, planned in Phase 19.
   document smoke tests. Its update triggers a fresh portable build on main.
   New revision verification pending. No local toolchain available here.
 
+## Handoff — canonical remote account identity (2026-11-27)
+
+Linux UI [#7](https://github.com/afrowaveltd/RCommander/actions/runs/46004454434)
+and [wallet regressions](https://github.com/afrowaveltd/RCommander/actions/runs/46004454517)
+passed on `2498d66`. Linux log contains no Cargo or Actions warning lines.
+The portable Windows build for that revision was still running when checked.
+
+Stage A / Phase 7 and 13.4a: profiles, wire protocol and credential lookup
+now share supported canonical protocol names and default ports. FTP and
+explicit FTPS use 21, SFTP uses 22; explicit nonzero ports, including 990
+for implicit FTPS, are preserved. Unknown labels remain separate from FTP
+credential keys and the model still rejects them before connecting. The
+legacy low-level from_saved fallback is unchanged. Supported aliases resolve
+to the same account; FTP/FTPS and different ports remain separate. No
+automatic migration or fallback to a different old credential key: affected
+users can re-enter and remember the secret. FTPS feature availability and
+real remote server acceptance are unchanged. Updated EN/CS help and tests
+across rc-core, rc-remote and the application model. Linux CI includes the
+new tests; the current Windows build predates these changes. New revision
+not yet verified, no local toolchain available.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

@@ -595,6 +595,44 @@ mod tests {
     }
 
     #[test]
+    fn remote_credentials_distinguish_protocol_and_effective_port() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        let mut connection = rc_core::config::SavedConnection {
+            host: "files.example.test".into(),
+            user: "alice".into(),
+            auth_method: "password".into(),
+            protocol: "sftp".into(),
+            ..Default::default()
+        };
+        for (protocol, port, secret) in [
+            ("sftp", 22, "ssh-fixture"),
+            ("sftp", 2222, "other-ssh-fixture"),
+            ("ftp", 21, "ftp-fixture"),
+            ("ftps", 21, "explicit-tls-fixture"),
+            ("ftps", 990, "implicit-tls-fixture"),
+        ] {
+            model.secrets.set(
+                &rc_core::secrets::account_id(protocol, &connection.user, &connection.host, port),
+                secret,
+            ).unwrap();
+        }
+        for (protocol, port, expected) in [
+            (" SSH ", 0, "ssh-fixture"),
+            ("sftp", 2222, "other-ssh-fixture"),
+            ("ftp", 0, "ftp-fixture"),
+            ("ftpes", 0, "explicit-tls-fixture"),
+            ("ftps", 990, "implicit-tls-fixture"),
+            ("sftp", 21, ""),
+            ("unknown", 21, ""),
+        ] {
+            connection.protocol = protocol.into();
+            connection.port = port;
+            assert_eq!(model.resolve_connection_credentials(&connection).password, expected);
+        }
+    }
+
+    #[test]
     fn missing_password_stops_before_starting_a_worker() {
         let dir = tempfile::tempdir().unwrap();
         let mut model = model_in(dir.path());
