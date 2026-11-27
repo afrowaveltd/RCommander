@@ -230,6 +230,19 @@ fixtures and regressions. Candidate libraries are not yet integrated.
 
 ### Phase 10.10 — Native context menus and contextual actions
 
+Owner clarification (2026-11-28): use the RCommander actions first, followed
+by source-specific actions and the desktop/system section at the bottom.
+The initial shared list/thumbnail menu and desktop fallback are integrated
+in main (verification pending). The native Windows Shell menu and Linux
+desktop extension discovery remain separate platform-specific work. For
+Plasma, evaluate installed Dolphin/KIO service menus and applicable MIME
+actions; respect visibility, selection count, MIME type, executable
+availability and desktop entry Exec field-code rules. Do not claim these
+are imported until demonstrated. Provide an honest open-in-system-file-manager
+fallback and settings for optional native integration. Native commands must
+operate on the exact local selection; no virtual paths or unintended shell
+execution. 
+
 Right-click selects the item under the pointer (preserving an existing multi-selection
 when the clicked item is already marked), focuses the correct pane, and opens a context
 menu for that exact selection. A right-click on empty space has directory/background
