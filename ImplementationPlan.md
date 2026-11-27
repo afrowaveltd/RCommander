@@ -614,6 +614,8 @@ Example user journey:
 
 ### Phase 16.16–16.21 — Prompt library, workload packs and reusable agent runtime
 
+Related extensions: Phase 32 reusable workflow graphs, Phase 34 typed directory provisioning templates, and Phase 36 developer toolchains. All reuse these prompt/workload/runtime contracts.
+
 These are foundational to the AI layer, not a separate chatbot or a late add-on.
 The user can configure a provider, choose a workload, adjust prompts, and inspect the
 effective context before asking the agent to act. The initial translation demo may use
@@ -1127,6 +1129,8 @@ highlighted spans in both renderers.
 
 ## Phase 17 — Rich document previewer (PDF, Office, Markdown, source code)
 
+Phase 31 reuses these extraction and preview capabilities for private local indexing, OCR and source-linked retrieval.
+
 The F3 viewer covers text, images and a hexdump. This phase turns it into a
 document viewer that developers and office users can actually work with, while
 keeping the pixel/byte budgets that stop a single file from freezing the window.
@@ -1628,6 +1632,8 @@ are required to claim actual sandbox enforcement.
 
 ## Phase 19 — Integrated SSH terminal and PowerShell remoting
 
+Phase 33 adds optional graphical sessions; Phase 34 reuses scoped remote administration for directory services. Neither changes the command-remoting prerequisites.
+
 An IT professional who already uses the file manager to look at a server wants the
 shell next to it. This is a **terminal emulator**, not a file transfer, so it gets
 its own isolated phase.
@@ -1722,6 +1728,8 @@ Running portable RCommander as administrator/root does not count as a sandbox
 and must never silently relax tool permissions.
 
 ## Phase 21 — Portable host diagnostics, System Check and repair workloads
+
+Phase 29 extends network evidence, Phase 35 adds actual backup/restore drills, and Phase 34 adds directory-specific diagnostics. Reuse the existing policy and diagnostic contracts.
 
 **Goal:** a technician can launch RCommander from removable storage (without
 installing the ordinary file manager on the target), choose a local or explicitly
@@ -2084,6 +2092,8 @@ restorable checkpoints from Markdown transcript exports.
 
 ## Phase 26 — External Agent Runtimes and divided responsibility (planned)
 
+Phase 30 supplies browser/API acceptance tests, Phase 32 repeatable workflow graphs, and Phase 36 toolchain/integrity checks for the independent review and release roles.
+
 RCommander should not reimplement DeepSeek Harness merely to replace its Web
 chat. RC owns native GUI/TUI, workspaces, coordination and common policy;
 an optional adapter supplies a complete agent runtime. Keep the existing
@@ -2335,6 +2345,266 @@ attaches hardware or restarts a destructive test.
 guest control, USB and hardware tests after Phase 16/19/20/21 prerequisites.
 Reuse Phase 25/26/27. Real hardware testing is optional and not a requirement
 for basic file management.
+
+## Phase 29 — Network Workbench (planned, 2026-11-27)
+
+Extend Phase 21 diagnostics, Phase 19 remote execution and Phase 27 capability
+categories with an evidence-based network workbench for an individual
+technician. A user can ask why a chosen application cannot reach its server;
+the agent traces name resolution, routes, transport, proxy, TLS and application
+responses instead of guessing. Prefer existing OS tools and optional
+Wireshark/tshark adapters over a new packet analyzer. Local and explicitly
+selected remote targets are supported according to provider capabilities.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 29.1 | Network inventory and path | interfaces, IP/DNS/routes, resolver results, bounded ping/traceroute and selected service reachability, IPv4/IPv6 | fixtures for DNS failure, unreachable route, IPv6, timeout and blocked probes; no inference that an unanswered probe proves a host is down |
+| 29.2 | HTTP/TLS/proxy | request/response timing and headers, redirects, certificate chain/name/expiry, HTTP/SOCKS/NTLM proxy configuration and authentication diagnostics | local test endpoints, expired/wrong-name certificates, proxy challenge, redaction, no disabling validation or bypassing managed policy |
+| 29.3 | VPN and firewall | read-only WireGuard/tunnel status, routes and effective rule evidence, OS-specific firewall providers | mock and selected live tests for overlapping routes and blocked traffic; modifications only through existing reviewed repair policy |
+| 29.4 | Capture and protocol analysis | optional scoped capture/import of PCAP/PCAPNG, protocol summaries, filters and time correlation, packet viewer | synthetic capture and opt-in lab tests; privilege/capture limits, stop, redaction and no raw packet export without permission |
+| 29.5 | Network diagnosis workload | correlation of observations, reproducible probes, cause hypotheses with confidence, before/after verification | isolated network fixture and remote test; separate observed facts from hypotheses, report unknown or inaccessible layers |
+
+Respect explicit host/interface/target scope and employer network policies.
+No broad network scanning, credential interception, traffic decryption or
+automatic firewall/proxy changes. Capture requires explicit permission,
+bounded duration/size and local handling by default; payloads may contain
+private data. Use the existing encrypted credential store and system proxy
+settings where supported; never expose credentials or authorization headers
+to the model. Proxy compatibility is also a cross-cutting prerequisite for
+plugin downloads, API clients and remote model providers, not a reason to
+circumvent a managed proxy.
+
+## Phase 30 — Browser and API Workbench (planned)
+
+Close the loop for Phase 16 developer workloads, Phase 21 deployments and
+Phase 26 creative web projects: a built website must be tested from the
+user's side, not only compiled. Use optional adapters to established browser
+automation tools (e.g. Playwright) rather than ship a second browser engine.
+A separate API panel works as a small request/response laboratory, with
+reusable collections and human-readable evidence.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 30.1 | API request workspace | HTTP methods, URL/query/header/body editor, JSON and multipart, response tree/raw/headers/timings, saved collections and environment references | local fixtures, malformed responses, cancellation, size limits, TLS/proxy validation, no secrets persisted in collection |
+| 30.2 | API contract testing | OpenAPI import/validation, typed request templates, assertions, auth adapters, optional GraphQL/WebSocket support after separate verification | deterministic positive/negative cases, schema mismatch, explicit target and write approval, unsupported protocols visible |
+| 30.3 | Browser adapter | isolated browser profiles, navigation, screenshots, DOM/accessibility inspection, console/network logs, scoped form interaction | local test site, isolated credentials, viewport switching, safe cancellation, no automatic external submission |
+| 30.4 | End-to-end tests | reusable scenario recording/editing, deterministic assertions, responsive layouts, accessibility and visual regression evidence | registration/login/cart fixture with synthetic accounts and mock payment, compare screenshots with tolerances, failed assertion and reproducible report |
+| 30.5 | Developer integration | persist API/browser scenarios and artifacts in Phase 25, run through Phase 32 workflow and Phase 26 reviewer/release gate | failed browser/API check blocks configured release; explicit destination and real test evidence, no unsupported success claims |
+
+Keep test and live environments visibly distinct. Treat page content and
+API output as untrusted data, never instructions or authority. Do not reuse
+a personal browser profile by default, bypass CAPTCHA/access controls or
+submit live forms, purchases or mutations without appropriate approval.
+Secrets live in Phase 13.4, never in captured screenshots, logs, exported
+collections or model prompts where avoidable. Avoid SSRF or arbitrary URL
+fetches from imported specifications; validate allowed destinations.
+
+## Phase 31 — Local Knowledge Engine (planned)
+
+Private, local-first searchable knowledge over the owner's explicitly
+selected directories: manuals, old repairs, notes, source trees, PDFs,
+configuration and prior reports. This is not Agent Commons (16.22–16.26)
+or a copy of every chat. Reuse Phase 17 extraction/rendering, the workspace
+store and approved virtual data sources; no requirement for cloud models.
+A technician can ask whether the same fault was solved two years ago and
+receive actual source excerpts with document/page/line and version evidence.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 31.1 | Scoped local index | incremental metadata and full-text indexing, SQLite FTS candidate, roots/exclusions, cancellation and storage quotas | add/change/delete, symlink boundaries, permissions, Unicode, large files, offline search and index rebuild |
+| 31.2 | Extraction and OCR | text/code/Markdown, supported PDF/Office extracts, optional OCR adapter for scans and images; preserve page/line anchors | mixed fixtures, unsupported formats, OCR uncertainty, malformed files and bounded resource use |
+| 31.3 | Optional semantic search | local embeddings behind provider interface, hybrid ranking, language and project filters, reindex on model change | offline fixture comparisons with keyword baseline, no required embeddings, no silent remote upload |
+| 31.4 | Evidence retrieval and UI | global/private project search, cited excerpts, F3 source navigation, bounded retrieval for agents | stale/deleted source, access revoked, malicious embedded instructions, denied remote sharing and evidence links tested |
+| 31.5 | Lifecycle and privacy | index retention, pause/rebuild/delete, encrypted storage option and backup/export controls | deletion clears indexed derivatives, credential/secret exclusions, portable/host boundary, resource budget and no default public sharing |
+
+Never index a whole disk by default, secret stores or private folders without
+scope. Apply access checks at retrieval, not merely indexing. Preserve
+original sources and distinguish OCR, derived summaries and source facts.
+Send only approved relevant excerpts to remote models; local deterministic
+retrieval must remain usable on weak machines. Index and embeddings can
+themselves disclose content. No automatic promotion to Agent Commons.
+
+## Phase 32 — Workflow Studio and repeatable personal tasks (planned)
+
+Extend Phase 16.18–16.20 workload contracts, Phase 16.28 coordination,
+Phase 25 checkpoints and Phase 26 external runtimes into a reusable,
+versioned workflow graph, not a second agent engine. A user can design,
+save, clone, edit, inspect and rerun a workflow through native UI or
+headless execution. The graph may combine ordinary commands, approved
+MCP calls, plugins, AI roles, typed inputs/outputs, dependency/conditional
+branches, bounded parallelism and explicit human decisions. Prefer
+deterministic tools for deterministic work: invoke an AI only for steps
+requiring interpretation or judgment. Reuse common policy and budget gates.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 32.1 | Workflow graph contract | versioned typed steps, parameters, dependencies, validation, conditions, bounded loops and artifacts | invalid/cyclic graph, type mismatch, missing capability, deterministic branch and secret reference tests |
+| 32.2 | Runner and checkpoints | reuse runtime/queue, step status, timeouts, cancellation, retry only where safe, persisted receipts | crash/resume, partial parallel failure, revoked grant, ambiguous external write never replayed automatically |
+| 32.3 | Workflow editor | form/graph view, preview/dry run, saved templates, per-step configuration, version diff, import/export | headless and UI tests; imported workflow inert, no grants embedded, unsupported steps visible |
+| 32.4 | Optional personal triggers | manual first, then explicitly enabled local schedule or scoped file/event trigger, debounce, concurrency limits and notification | mock clock/event tests, missed runs, timezone/DST, no hidden persistent service, stop/revoke, no unattended privilege escalation |
+| 32.5 | Reference workflows | build/test Linux and Windows, compare results, review, commit/push and separately approved release; reusable maintenance/backup tasks | local fixtures and selected CI integration; failed required tests block publication, human approval and reproducible evidence |
+
+Triggers are optional personal productivity, not unattended fleet control.
+Show active schedules, execution identity, next run, resource limits and
+last outcome. Respect sleep/offline behavior: no promise of running while
+the host is off. Portable mode leaves no scheduler or service behind.
+No automatic approval from a saved prompt, workflow or previous successful
+run. Each effect is checked against current policy and destination.
+
+## Phase 33 — Remote Visual Workspace (planned)
+
+Complement Phase 19 command remoting and Phase 28 lab recovery with
+optional graphical control for applications that have no useful command
+or MCP interface. Use established RDP/VNC/VM-console clients or adapters,
+not implementations of every protocol. Keep terminal access and
+graphical access separate capabilities. The technician can see a guest
+installer error, operate a GUI, capture approved evidence and optionally
+delegate bounded interaction to an agent.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 33.1 | Visual-session contract | selected host/guest identity, RDP/VNC/console adapters, connect/disconnect, capability discovery | fixtures and real disposable guests, certificate/host verification, unavailable protocol and disconnected guest |
+| 33.2 | View and evidence | native panel/window or approved external viewer, screenshots on demand, optional accessibility tree | visible recording/capture state, redaction and bounded image transfer, secure-desktop limitations |
+| 33.3 | Scoped GUI interaction | typed clicks/keys/accessibility actions with explicit control grant, manual override, visible session indicator and stop | isolated test app, wrong window/host, changed UI, cancellation and protected prompts; no automatic credential entry |
+| 33.4 | Lab and browser integration | VM console fallback when guest network is unavailable, installation and visual-test workflows | recover a test VM after network loss, capture evidence before snapshot restore, no host control via guest grant |
+
+No covert screen monitoring, credential capture, unattended employee
+surveillance or automatic interaction with security/elevation dialogs.
+Read-only viewing and control are separate permissions; clipboard and file
+redirection are opt-in. Avoid sending raw screenshots to cloud models by
+default. Prefer semantic accessibility information and typed tools over
+blind coordinates; confirm current target/window before acting.
+
+## Phase 34 — Directory Services and Identity Workbench (planned)
+
+An optional RSAT-style workbench for the owner's individual directory
+administration on Windows and Linux. Use Phase 18 universal panels,
+Phase 27 semantic categories, Phase 13 credentials and Phase 19 remote
+management. First targets are Samba AD and Microsoft Active Directory,
+then OpenLDAP with its own schema/operations. Do not assume LDAP alone
+implements all AD/RSAT functions. Native directory adapters and approved
+PowerShell/samba-tool/other supported adapters may complement one another.
+Support discovery of actual server capabilities, schema and delegated
+rights, verified LDAPS or StartTLS, Kerberos where supported, and explicit
+directory/tenant/domain selection. Never silently downgrade transport or
+use domain administrator as the default identity.
+
+### Named provisioning templates and prompts
+
+The owner's example: "Create a standard user named James Cooper." A
+user-authored prompt can select a named, versioned provisioning template,
+supply typed parameters and explain the requested task. The template, not
+the model's guesses, defines the exact allowed domain/OU, naming rules
+and collision handling, required attributes, standard group memberships,
+account state, password/setup policy and any explicitly supported
+post-provisioning checks. Example only: a Standard User template may
+specify an organization-selected Users OU, approved standard groups,
+display name and account-name rules; no actual domain or memberships
+are hard-coded from this example. Admin reviews template and changes;
+a prompt alone never grants privileges. Resolve group and OU identities
+against the selected live directory, verify delegated rights and show
+exact planned object creation/group changes. Refuse ambiguity, duplicate
+accounts, invalid schema or out-of-template grants. Passwords are generated
+or entered through a trusted local secret flow, not exposed in chat,
+audit, prompt history, exported templates or model context; use supported
+secure initial-password/change-at-first-login mechanisms as applicable.
+Create account disabled until required provisioning checks pass where
+supported, handle partial failure explicitly and avoid duplicate creation
+on retry. Do not silently delete existing objects as rollback.
+
+Support tree/list/detail of OUs, users, groups, computers and contacts,
+search/filter, attributes, memberships (including nested groups), ACL/
+delegation review, account state, password resets/unlock and lifecycle
+moves/disable with separate permission checks. Explain access problems
+using directory membership and available resource ACL evidence; actual
+effective access can also depend on local groups, deny ACEs, inheritance,
+claims, share permissions and token refresh. Report incomplete evidence
+instead of claiming certainty. GPO browsing/reporting and selected
+reviewed changes, replication/DNS health and related AD-specific
+administrative capabilities are separate optional adapters; no blanket
+promise of complete RSAT parity. No bulk domain-wide automation or
+self-granting of elevated rights.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 34.1 | Directory contract and read-only panels | AD/Samba/OpenLDAP capability matrix, secure connection, OU/object tree and attributes | fixture directories, wrong domain, invalid TLS, paging, Unicode, delegated account and unavailable attributes |
+| 34.2 | Membership and access diagnostics | nested groups, ACL/delegation evidence, account state and explainable findings | cycles, deny/inheritance fixtures, incomplete evidence reported, read-only default |
+| 34.3 | Reviewed object administration | create/edit/move/disable, group membership, password reset/unlock, backup/recovery evidence | disposable domain, explicit exact target, denied privileges, partial creation and stale object handling |
+| 34.4 | Provisioning templates and prompt integration | typed reusable Standard User and other user-defined profiles, preview, validation and audited execution | James Cooper fixture, collisions, invalid OU/group, no unauthorized privilege, secret redaction, failed step and idempotent recovery |
+| 34.5 | AD-specific extensions | optional GPO/replication/DNS health and selected management adapters | test domain only first, per-platform feature verification, report unsupported functions, scoped approval for changes |
+
+Reuse existing prompt manager and workload contracts, not a second prompt
+catalogue. Templates may include deprovisioning steps (disable and move to
+an approved OU, preserve retention policy); deletion, privileged membership,
+delegation/ACL and GPO changes require independent explicit grants. Keep
+directory data scoped to the authorized user, with no automatic cloud or
+public sharing.
+
+## Phase 35 — Backup, Synchronization and Recovery (planned)
+
+Phase 16.0/20 verified per-change backups remain mandatory where required;
+they are not a complete backup strategy. Add optional providers for rsync,
+restic, BorgBackup, rclone and native OS tools according to actual platform
+support. Reuse dual panels, background transfers, Phase 25 workspaces and
+Phase 32 personal workflows. A technician should prove recovery by restoring
+a sample or full approved set, not merely check that a backup exists.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 35.1 | Comparison/sync plan | directory comparison, metadata/hash modes, filters, directional preview, conflicts and dry run | timestamp/encoding/symlink/ACL differences, no implicit deletion or overwrite |
+| 35.2 | Backup provider contracts | repository/snapshot browser, named jobs, incremental backup, progress and cancellation | temporary local repositories, missing tools, corrupted snapshot, storage quota and secret protection |
+| 35.3 | Integrity and restore | verify snapshot/checksums, browse versions, restore to separate target, sample/full recovery drill and report | corrupted/missing files, insufficient space, restore hash comparison, permissions and recovery failure evidence |
+| 35.4 | Optional remote targets and retention | configured SSH/object/cloud provider, encrypted credentials, retention and prune preview | test endpoint, network failure, restore without original host, explicit irreversible delete/prune approval |
+| 35.5 | Recovery workflow | agent correlates configured sources, coverage, backup age, verification and restore evidence | distinguish missing coverage from success; failed restore visible, no destructive production test |
+
+Use explicit source/destination identities, report metadata support and
+limitations per backend, estimate space, stage restores before replacing
+originals, preserve unrelated files and verify result. Never make destructive
+mirror sync the default. Pruning, overwriting and changing retention need
+separate approval. Do not promise physical disk recovery; optional
+DiskChecker/DITA/DiskMigrator adapters remain separately scoped.
+
+## Phase 36 — Developer Toolchain and Software Integrity (planned)
+
+Extend Phase 16.13/16.21, Phase 17 editor, Phase 26 Git/release roles and
+Phase 28 lab with optional typed tooling for software development rather
+than recreate a full IDE. Workspaces know actual toolchain versions and
+execution targets (host/WSL/remote/VM), and agents use reliable build,
+language and debugger data instead of inventing compiler results.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 36.1 | Toolchain inventory and profiles | compiler/SDK/runtime/version detection, target architecture, reproducible project environment, approved install/update proposals | fixtures for multiple SDKs, missing tools, proxy/offline operation, no implicit installation or PATH mutation |
+| 36.2 | LSP adapter | optional language servers, diagnostics, symbols, references and navigation via existing editor | fixture server, stale document version, cancellation, server failure and scoped files |
+| 36.3 | DAP/debug adapter | debugger sessions, breakpoints, stack/variables and controlled stepping, supported local/lab targets | toy program fixtures, process exit, no implicit attachment to unrelated process, sensitive memory redaction |
+| 36.4 | Dependencies and licensing | lockfile/dependency graph, approved updates, license inventory, known-vulnerability lookup with date/source and coverage | pinned fixtures, incompatible/unknown license flagged, stale advisory data, no automatic unsafe upgrades |
+| 36.5 | Build provenance and integrity | SBOM (SPDX/CycloneDX candidate), checksums, verified signatures where available, exact source/toolchain/test artifact provenance | mock and real sample builds, tampered artifact, unsigned/unknown distinguishable, no invented reproducibility |
+| 36.6 | Release acceptance workload | use Phase 32 graph, Phase 30 tests and Phase 26 roles to validate build/test/integrity evidence before release | required failed checks block publication, approved exceptions audited, no secrets/signing keys in model context |
+
+Use existing package managers, LSP/DAP and security scanning tools via
+optional adapters; verify versions, licenses and platform capabilities.
+Package/build scripts and language servers can execute code: run untrusted
+projects in approved isolated environments. Never pass signing keys or
+registry credentials to agents; delegate narrowly scoped signing/publish
+operations through trusted tools. Report tool failures, unknown licenses
+and advisory database freshness explicitly. No claim of comprehensive
+vulnerability detection or full IDE parity.
+
+### Delivery order for Phases 29–36
+
+These are optional extension families for the individual technician,
+developer and owner, not eight new mandatory engines. Define network/proxy
+contracts with Phase 21, API/browser with Phase 26/28, retrieval with
+Phase 17/25, workflow graph with Phase 16/25, visual control with Phase
+19/28, directory templates with Phase 16.17/16.18 and Phase 27, backup
+with Phase 16.0/25, and toolchain contracts with Phase 16.13/26. Use the
+Phase 18 installer/category registry and one policy/audit/job system.
+Deliver useful read-only slices and mock fixtures first; prioritize
+network, API/browser, local knowledge and workflow, then directory,
+backup and toolchain as dependencies permit; visual automation after
+scoped remote/lab control. Normal dual-pane operation must not depend on
+any of these adapters or on a model. Keep plans, verified implementation
+and supported platform matrices distinct.
 
 ## Ideas backlog (not scheduled yet, cheapest value first)
 

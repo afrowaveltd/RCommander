@@ -47,6 +47,14 @@ cargo test --workspace
 | 26 | External Agent Runtimes | **pending** — optional DeepSeek Harness SDK adapter, native chat, scoped MCP, independent Git/release roles and multi-runtime teams |
 | 27 | Capability Discovery and Plugin Workshop | **pending** — semantic category contracts, reusable panels, discovery across RC/Harness/MCP and independently reviewed plugin creation/activation |
 | 28 | Virtual Hardware Laboratory | **pending** — virtualization providers, independent host and guest controls, exclusive approved USB, driver test/recovery and lab workspaces |
+| 29 | Network Workbench | **pending** — scoped DNS/routes/proxy/TLS/VPN/firewall diagnostics, optional packet capture and evidence-based diagnosis |
+| 30 | Browser and API Workbench | **pending** — HTTP/API collections and contract tests, browser adapter, end-to-end visual/functional acceptance |
+| 31 | Local Knowledge Engine | **pending** — private local full-text index, optional OCR/embeddings and source-linked retrieval |
+| 32 | Workflow Studio | **pending** — versioned reusable graphs, deterministic steps, agent handoffs, checkpoints and optional personal triggers |
+| 33 | Remote Visual Workspace | **pending** — optional RDP/VNC/VM console and scoped graphical evidence/interaction |
+| 34 | Directory Services and Identity | **pending** — AD/Samba/OpenLDAP panels, access diagnostics, reviewed object management and typed provisioning templates |
+| 35 | Backup, Synchronization and Recovery | **pending** — provider adapters, comparison/sync previews, verified backup and restore drills |
+| 36 | Developer Toolchain and Software Integrity | **pending** — SDK/toolchain inventory, optional LSP/DAP, dependency/license review, SBOM and artifact verification |
 
 
 ---
@@ -1400,6 +1408,17 @@ duplicating them; Phase 28 reuses scoped remote management and adds a
 virtualization category plus guest/host isolation. Runtime, USB and
 hypervisor behavior require real integration tests before claiming support.
 
+## Phases 29–36 — planned workbench extensions (2026-11-27)
+
+All are planned, not implemented or tested. They extend existing engines
+rather than duplicate them: network/backup diagnostics (21), browser and
+toolchain acceptance (26), local retrieval (17/25), reusable workflows
+(16/25), graphical sessions (19/28), directory categories and typed
+provisioning templates (16/18/27). Read-only slices and fixtures first;
+actual OS, server and tool compatibility must be verified. The owner's
+Standard User / James Cooper example is a template test, not an actual
+directory mutation or a grant of privileges.
+
 ## Next steps (in priority order)
 
 1. Finish interactive password prompting for SFTP sessions without saved secrets.
@@ -1446,6 +1465,14 @@ hypervisor behavior require real integration tests before claiming support.
 14. Phase 28: mock virtualization and read-only inventory before scoped
     VM recovery, guest management and physical USB. Verify the selected
     hypervisor and test-device boundaries before permitting live tests.
+
+15. Define Phase 29 network/proxy and Phase 30 browser/API contracts,
+    Phase 31 local retrieval and Phase 32 workflow graphs alongside their
+    existing engine prerequisites; prioritize small local/read-only slices.
+16. Implement Phase 34 directory browsing and typed provisioning templates,
+    Phase 35 restore verification and Phase 36 toolchain/integrity adapters
+    incrementally; Phase 33 graphical control after remote/lab policy.
+    Keep all optional, independently verified, and individual-user scoped.
 
 These are planned priorities, not assertions of new implementation. Earlier
 per-phase narrative remains historical evidence; the summary and current gaps
