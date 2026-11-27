@@ -937,6 +937,8 @@ pub struct FtpConnectState {
     pub connection: SavedConnection,
     pub save_password: bool,
     pub status: String,
+    /// A saved-profile credential prompt, not an editable connection form.
+    pub password_session: Option<rc_core::sessions::Session>,
     /// Session selected in the "saved sessions" list of the dialog.
     pub session_choice: String,
     /// Name to store the current settings under.
@@ -956,6 +958,7 @@ impl Default for FtpConnectState {
             connection: SavedConnection::with_defaults("ftp"),
             save_password: false,
             status: String::new(),
+            password_session: None,
             session_choice: String::new(),
             session_name: String::new(),
             ssh_config_path: rc_core::sessions::expand_home("~/.ssh/config"),
@@ -965,6 +968,41 @@ impl Default for FtpConnectState {
 }
 
 impl FtpConnectState {
+    pub fn for_password(profile: rc_core::sessions::Session, status: String) -> Self {
+        Self {
+            connection: profile.to_connection(),
+            session_choice: profile.name.clone(),
+            session_name: profile.name.clone(),
+            password_session: Some(profile),
+            status,
+            ..Self::default()
+        }
+    }
+
+    pub fn profile_for_connect(&self) -> rc_core::sessions::Session {
+        if let Some(profile) = &self.password_session {
+            return profile.clone();
+        }
+        let name = if self.session_name.trim().is_empty() {
+            self.connection.host.clone()
+        } else {
+            self.session_name.trim().to_string()
+        };
+        rc_core::sessions::Session::from_connection(name, &self.connection)
+    }
+
+    /// Keep the exact saved account and settings; only the typed password can
+    /// come from the focused prompt.
+    pub fn connection_for_connect(&self) -> SavedConnection {
+        if let Some(profile) = &self.password_session {
+            let mut connection = profile.to_connection();
+            connection.password.clone_from(&self.connection.password);
+            connection
+        } else {
+            self.connection.clone()
+        }
+    }
+
     /// True when the SSH-specific fields should be shown.
     pub fn is_ssh(&self) -> bool {
         matches!(
@@ -984,6 +1022,9 @@ impl FtpConnectState {
 
     /// Validation that also covers the SSH-specific choices.
     pub fn validate(&self) -> Result<(), String> {
+        if self.password_session.is_some() && self.connection.password.is_empty() {
+            return Err("session.password_required".into());
+        }
         if self.is_ssh() {
             if self.connection.user.trim().is_empty() {
                 return Err("SFTP needs a user name".to_string());
@@ -1969,6 +2010,24 @@ mod tests {
         let mut c2 = c.clone();
         c2.text = "changed".into();
         assert!(c2.is_modified());
+    }
+
+    #[test]
+    fn password_prompt_preserves_saved_profile_and_requires_explicit_secret() {
+        let mut profile = rc_core::sessions::Session::new("work", "example.test", "sftp");
+        profile.user = "alice".into();
+        profile.port = 2222;
+        profile.remote_dir = "/data".into();
+        profile.use_mlsd = false;
+        let mut state = FtpConnectState::for_password(profile.clone(), "missing".into());
+        assert!(state.connection.password.is_empty());
+        assert!(!state.save_password);
+        assert_eq!(state.password_session.as_ref(), Some(&profile));
+        assert!(state.validate().is_err());
+        state.connection.password = "typed-secret".into();
+        assert!(state.validate().is_ok());
+        assert_eq!(state.profile_for_connect(), profile);
+        assert!(FtpConnectState::default().password_session.is_none());
     }
 
     #[test]
