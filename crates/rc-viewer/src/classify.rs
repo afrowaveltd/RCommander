@@ -492,6 +492,7 @@ fn structured_hint(name: &str, head: &[u8]) -> Option<(&'static str, &'static st
         "html" | "htm" | "shtml" => ("html", "text/html"),
         "md" | "markdown" | "mdown" | "mkd" | "mkdn" => ("markdown", "text/markdown"),
         "json" => ("json", "application/json"),
+        "jsonl" | "ndjson" => ("jsonl", "application/x-ndjson"),
         "csv" => ("csv", "text/csv"),
         "tsv" | "tab" => ("csv", "text/tab-separated-values"),
         "xml" | "xsl" | "xslt" | "xsd" | "svg" | "plist" | "xhtml" => ("xml", "application/xml"),
@@ -883,6 +884,9 @@ mod tests {
         assert_eq!(kind_of("feed.dat", b"<?xml?>").1, "xml");
         assert_eq!(kind_of("notes.md", b"# Title\n\nbody\n").1, "markdown");
         assert_eq!(kind_of("data.json", b"{\"a\":1}").1, "json");
+        assert_eq!(kind_of("events.JSONL", b"{}\n{}\n").1, "jsonl");
+        assert_eq!(kind_of("events.ndjson", b"{}\n").2, "application/x-ndjson");
+        assert_eq!(kind_of("fake.jsonl", b"\x89PNG\r\n\x1a\n").0, ContentKind::Image);
         assert_eq!(kind_of("table.csv", b"a,b\n1,2\n").1, "csv");
         assert_eq!(kind_of("table.tsv", b"a\tb\n1\t2\n").1, "csv");
         assert_eq!(kind_of("conf.yml", b"a: 1\n").1, "yaml");
