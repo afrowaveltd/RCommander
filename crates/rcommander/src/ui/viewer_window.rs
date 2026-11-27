@@ -179,11 +179,13 @@ fn show_text(
     egui::ScrollArea::both()
         .auto_shrink([false, false])
         .show(ui, |ui| {
+            // A borrowed str is a read-only TextBuffer: selection and copying
+            // remain available without allocating a mutable clone every frame.
+            let mut read_only = text.text.as_str();
             ui.add(
-                egui::TextEdit::multiline(&mut text.text.clone())
+                egui::TextEdit::multiline(&mut read_only)
                     .font(TextStyle::Monospace)
-                    .desired_width(f32::INFINITY)
-                    .interactive(false),
+                    .desired_width(f32::INFINITY),
             );
         });
 }

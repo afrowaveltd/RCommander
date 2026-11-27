@@ -292,6 +292,12 @@ impl RCommanderApp {
         // The desktop actions need the cursor and the panel rather than the command table, so they
         // are handled here, where both are in reach.
         match command {
+            "cm_EditorClose" => {
+                if matches!(self.model.editor_close(), CommandOutcome::Failed(_)) {
+                    self.editor_ui.dirty_prompt = Some(self.model.t("editor.discard_prompt"));
+                }
+                return;
+            }
             "cm_ViewerReload" => {
                 if let Some(state) = &self.model.viewer {
                     let _ = self.viewer_ui.load(std::path::Path::new(&state.path));
@@ -596,9 +602,10 @@ impl RCommanderApp {
     }
 
     fn handle_shortcuts(&mut self, ctx: &Context) {
-        if self.model.modal() || ctx.memory(|m| m.focused()).is_some() {
+        if self.model.modal() {
             return;
         }
+        let widget_focused = ctx.memory(|m| m.focused()).is_some();
         let events = ctx.input(|i| i.events.clone());
         for event in events {
             match event {
@@ -608,11 +615,20 @@ impl RCommanderApp {
                     modifiers,
                     ..
                 } => {
+                    // Let ordinary text input and editing shortcuts reach the widget.
+                    // Only document function keys and Escape are handled while it has focus.
+                    if widget_focused
+                        && !(matches!(self.model.surface(), crate::model::Surface::Editor | crate::model::Surface::Viewer)
+                            && modifiers.is_none()
+                            && matches!(key, Key::Escape | Key::F1 | Key::F2 | Key::F3 | Key::F4 | Key::F5 | Key::F6 | Key::F7 | Key::F8 | Key::F9 | Key::F10 | Key::F11 | Key::F12))
+                    {
+                        continue;
+                    }
                     if key == Key::Escape {
                         if self.model.surface() == crate::model::Surface::Viewer {
                             self.model.viewer = None;
                         } else if self.model.surface() == crate::model::Surface::Editor {
-                            let _ = self.model.editor_close();
+                            self.run_command("cm_EditorClose", ctx);
                         } else if self.model.help.is_some() {
                             self.model.help = None;
                         } else {
@@ -648,7 +664,9 @@ impl RCommanderApp {
                     self.handle_navigation_key(key, modifiers);
                 }
                 egui::Event::Text(text) => {
-                    if !modifiers_are_plain(ctx) {
+                    if widget_focused || !modifiers_are_plain(ctx)
+                        || !matches!(self.model.surface(), crate::model::Surface::Panel(_))
+                    {
                         continue;
                     }
                     for ch in text.chars() {
@@ -688,10 +706,6 @@ impl RCommanderApp {
             CommandOutcome::Failed(message) => self.model.report_error(message),
             _ => {}
         }
-    }
-
-    fn after_key(&mut self) {
-        self.sync_theme();
     }
 
     fn menu_bar(&mut self, ui: &mut egui::Ui) {

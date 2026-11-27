@@ -179,6 +179,7 @@ fn render(ctx: &Context, embedded: Option<&mut egui::Ui>, model: &mut Model, ui_
         match write_file(&path, &state.text) {
             Ok(()) => {
                 state.modified = false;
+                ui_state.dirty_prompt = None;
                 ui_state.save_error = None;
                 ui_state.suggested_copy = None;
                 model.report(model.t("status.done"));
@@ -204,6 +205,7 @@ fn render(ctx: &Context, embedded: Option<&mut egui::Ui>, model: &mut Model, ui_
                 // The copy is a copy: the window says where the text went, so nobody loses track of
                 // which file holds the truth.
                 state.modified = false;
+                ui_state.dirty_prompt = None;
                 ui_state.save_error = None;
                 let message = model.tf(
                     "editor.saved_copy",

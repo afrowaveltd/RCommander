@@ -1572,8 +1572,10 @@ retained; not a separate OS window. Added model/UI tests. Linux regression
 passed on previous revision d1b03a1; new changes await compilation and GUI
 smoke tests. Verify F3/F4, F-key bar, keyboard focus, dock switching, dirty
 buffer close/save/reload, resize and Windows/Linux. Terminal pane is planned
-under Phase 19 (real PTY/ConPTY/SSH); no implementation claim. Persistent
-placement preference and separate native viewport are follow-ups. Keep
+under Phase 19 (real PTY/ConPTY/SSH); no implementation claim. Document Escape/F10 preserves dirty buffers and offers explicit discard;
+read-only preview text uses selectable borrowed text rather than a disabled
+widget. Persistent placement preference and separate native viewport are
+follow-ups. Keep
 main authoritative for the other developer.
 
 ## Next steps (dependency-ordered)
