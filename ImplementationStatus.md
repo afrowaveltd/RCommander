@@ -2253,6 +2253,34 @@ documents fall back to source. This is a normalized preview, not a
 schema validator or SVG renderer. Unit and GUI regression added.
 No local toolchain; CI pending.
 
+## Handoff — preview extensions and panel navigation (2026-11-28)
+
+**Integrated in main; verification pending.** Owner requests main as the
+shared handoff branch for local collaboration. Both previously open pull
+requests were merged: PR #4 (`2b8eec3e616453e6a27e580809e417d846e5463c`)
+and PR #3 (`d3fc747280e4358a92de7c0bc2a7d7d8618a6dc8`).
+
+- PR #4: the parent pseudo-row now invokes parent navigation on Enter and
+  double-click, without becoming a file-operation target. Panel-local
+  chronological Back/Forward, keyboard shortcuts, disabled unavailable
+  directions, reset handling, EN/CS labels and model/UI regressions. Up
+  remains as fallback when the parent row is hidden; remote-session
+  history is not yet implemented.
+- PR #3: INI/CFG/CONF and JSONL/NDJSON trees, Netpbm PBM/PGM/PPM/PAM and
+  Farbfeld image previews, SRT/WebVTT cue tables and regression fixtures.
+  No new crate dependencies for these slices. SQL, configurable native
+  WebView, adaptive Education Workbench and provider-neutral Learning
+  storage are designs, not implemented features.
+
+GitHub returned no workflow runs or combined statuses for the reviewed PR
+heads; the editing environment has no Cargo toolchain. Merging was expressly
+authorized by the owner, not evidence of a successful build. Verify on the
+current main revision with `cargo test -p rc-viewer`,
+`cargo test -p rcommander`, then `cargo test --workspace`,
+`cargo fmt --check` and applicable Clippy checks. Record actual results
+before marking the new slices done. Prior verified results are historical,
+not evidence for this revision.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
