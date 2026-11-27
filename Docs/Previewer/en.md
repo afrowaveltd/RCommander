@@ -45,7 +45,8 @@ agent access. Offer three presets without hiding the individual controls:
 | Browser | User-directed web browsing | Ordinary web JavaScript, network and navigation; normal browser permissions; agent access opt-in |
 
 These are proposed defaults, not hardcoded restrictions on user-selected
-browser functionality. Display the effective mode and permissions in the
+browser functionality. This follows the project-wide capability breadth and
+user control principle in [ImplementationPlan.md](../../ImplementationPlan.md). Display the effective mode and permissions in the
 toolbar. Use separate browser storage profiles where supported; passive preview
 must not inherit authenticated browser sessions. Switching to a more capable
 mode must be explicit, and a page must not be able to grant itself permissions.
@@ -61,6 +62,12 @@ policy, report the missing capability and fall back safely rather than silently
 granting access.
 
 ### Agent integration and live web development (planned)
+
+Panel context follows agent placement automatically: a left-panel agent
+receives right-panel context, a right-panel agent receives left-panel
+context, and an agent outside the panels receives both. A WebView is a
+normal typed panel surface within this rule. Context discovery does not
+bypass resource, action or remote-model egress permissions.
 
 Provide a platform-neutral WebView session interface so the AI toolkit and
 MCP tools can access an explicitly selected viewer session without relying
