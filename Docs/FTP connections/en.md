@@ -144,3 +144,11 @@ use the same credential identity as their canonical protocol. FTP and FTPS
 remain separate, even on the same port. Older vault entries under an incorrect
 port or alias may require entering and remembering the password again; we do
 not search other account keys or automatically move secrets.
+
+## Saved session password prompt
+
+When opening a saved session directly by name, if its required password is
+not available, RCommander asks for the password in a focused dialog. The
+account and server remain fixed; enter the masked password or cancel. The
+optional remember checkbox is off by default and saves only after a successful
+connection. The regular connection editor remains available for editing profiles.
