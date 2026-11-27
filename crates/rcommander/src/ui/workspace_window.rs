@@ -244,3 +244,34 @@ mod tests {
         assert!(chrome.filling());
     }
 }
+
+/// Shared controls for full workspace, left/right panel and floating child window.
+pub fn document_controls(
+    ui: &mut egui::Ui,
+    model: &mut crate::model::Model,
+    placement: &mut crate::model::DocumentPlacement,
+    occupied: Option<crate::model::DocumentPlacement>,
+) -> bool {
+    use crate::model::{DocumentPlacement as P, Side};
+    let mut close = false;
+    ui.horizontal_wrapped(|ui| {
+        for (target, key) in [
+            (P::Workspace, "document.workspace"),
+            (P::Panel(Side::Left), "document.left"),
+            (P::Panel(Side::Right), "document.right"),
+            (P::Floating, "document.floating"),
+        ] {
+            let available = !matches!(target, P::Panel(_)) || occupied != Some(target);
+            if ui.add_enabled(available, egui::Button::new(model.t(key)).selected(*placement == target)).clicked() {
+                *placement = target;
+                if let P::Panel(side) = target {
+                    model.focus = side;
+                }
+            }
+        }
+        if ui.small_button(model.t("dialog.config.close")).clicked() {
+            close = true;
+        }
+    });
+    close
+}

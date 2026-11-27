@@ -988,6 +988,9 @@ impl Model {
 
     /// Open the F4 editor for `path`, loading the text.
     pub fn open_editor_for(&mut self, path: impl Into<PathBuf>) -> std::io::Result<()> {
+        if self.editor.as_ref().is_some_and(|state| state.modified) {
+            return Err(std::io::Error::other(self.t("editor.modified")));
+        }
         let path = path.into();
         let bytes = match std::fs::read(&path) {
             Ok(bytes) => bytes,
@@ -2977,7 +2980,13 @@ impl Model {
             return CommandOutcome::Failed(message);
         }
         match self.open_editor_for(std::path::PathBuf::from(&state.path)) {
-            Ok(()) => CommandOutcome::Ok,
+            Ok(()) => {
+                if let Some(editor) = self.editor.as_mut() {
+                    editor.placement = state.placement;
+                    editor.chrome = state.chrome;
+                }
+                CommandOutcome::Ok
+            },
             Err(error) => {
                 let message = error.to_string();
                 self.report_error(&message);

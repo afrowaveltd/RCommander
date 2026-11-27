@@ -61,3 +61,12 @@ Nothing is ever reported as saved when it was not.
 A file opened from inside an archive is extracted to a temporary place; when you
 save it, the archive is repacked with the new version. The same applies to files
 opened from an FTP panel: saving uploads the new version back.
+
+
+## Workspace placement
+
+By default the document covers both file panels. The placement controls move
+it to the left or right panel or a floating child window inside the main app.
+Moving it preserves the open document and editor buffer. Click the other
+panel to use it. A separate OS window and embedded terminal are not included
+in this slice.

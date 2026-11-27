@@ -1747,6 +1747,27 @@ Store secrets behind the host broker and do not forward credentials to arbitrary
 plugins. Headless fixtures exercise policy decisions; separate platform tests
 are required to claim actual sandbox enforcement.
 
+### Workspace document and terminal placement (owner request, 2026-11-27)
+
+F3/F4 default to the workspace covering both file panels, with left/right
+docking and floating child window choices. Reuse the same document buffer and
+renderer, never reopen or lose edits on relocation. The other panel remains
+usable; focused surfaces own their keyboard actions. Support one editor and
+one viewer initially; independent multiple document tabs, persistent
+placement preferences and actual separate OS viewport detachment are follow-ups.
+
+For Phase 19, make the terminal another panel/workspace surface with its
+own session identity, cwd, focus, scrollback, selection and clipboard.
+Allow editor in one panel and live terminal in the other (e.g. fstab and
+lsblk -f). The bottom command line may open/focus the terminal explicitly;
+do not silently reinterpret internal commands as shell commands. Reuse
+the real PTY/ConPTY/SSH engine and widget, not a fake terminal or synchronous
+command-output field. Include Windows ConPTY and Unix PTY lifecycle, resize,
+input, stop/close, local/remote identity, clear permissions and independent
+session state. External terminal launch remains available. Test keyboard
+routing and copy/paste across editor and terminal, then real platform
+acceptance; no auto-elevation or agent execution implied.
+
 ## Phase 19 — Integrated SSH terminal and PowerShell remoting
 
 Phase 33 adds optional graphical sessions; Phase 34 reuses scoped remote administration for directory services. Neither changes the command-remoting prerequisites.
@@ -1761,7 +1782,7 @@ its own isolated phase.
 | 19.2 | PTY and SSH channel | a local shell through a pseudo-terminal (unix) and a remote shell through the existing SSH session (reusing Phase 13's host-key and credential handling) | in-process tests for the local PTY on Linux; the SSH channel is covered by the opt-in integration test against a real server |
 | 19.3 | Terminal widget | rendering with the bundled monospace font, key mapping (Ctrl/Alt combinations, function keys, clipboard copy/paste, optional Ctrl+Shift+C/V), selection, scrollback search, zoom | widget tests that key sequences reach the engine and that selection + clipboard round trip |
 | 19.4 | Sessions | several terminal tabs bound to saved sessions, per-host profiles, reconnect after a dropped connection, a log file option | model tests for tab lifetimes, reconnect and per-session settings; a dropped connection shows a clear state instead of a frozen screen |
-| 19.5 | Safety | no automatic command execution from the file manager side, confirmation for "open shell on this host", the terminal is a separate window by default | tests that opening a terminal does not run anything else; documentation of what the terminal can and cannot do |
+| 19.5 | Safety | no automatic command execution from the file manager side, confirmation for "open shell on this host", terminal placement selectable (left/right panel, workspace, floating) | tests that opening a terminal does not run anything else; documentation of what the terminal can and cannot do |
 
 
 ### Phase 19.6–19.9 — Windows PowerShell remoting (planned)

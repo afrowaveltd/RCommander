@@ -562,9 +562,28 @@ pub struct Model {
     pub plugin_problems: Vec<rc_core::plugin::PluginProblem>,
 }
 
+/// Placement of a document surface within the main workspace.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DocumentPlacement {
+    #[default]
+    Workspace,
+    Panel(Side),
+    Floating,
+}
+
+impl DocumentPlacement {
+    pub fn owns_focus(self, side: Side) -> bool {
+        match self {
+            Self::Panel(panel) => panel == side,
+            _ => true,
+        }
+    }
+}
+
 /// An open F3 viewer.
 #[derive(Clone, Debug, Default)]
 pub struct ViewerState {
+    pub placement: DocumentPlacement,
     pub path: String,
     pub mode: ViewerMode,
     pub scroll: f32,
@@ -594,6 +613,7 @@ pub enum ViewerMode {
 /// An open F4 editor.
 #[derive(Clone, Debug, Default)]
 pub struct EditorState {
+    pub placement: DocumentPlacement,
     pub path: String,
     pub text: String,
     pub modified: bool,

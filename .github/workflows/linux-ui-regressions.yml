@@ -16,6 +16,11 @@ on:
       - "crates/rcommander/src/model/commands.rs"
       - "crates/rcommander/src/model/tests.rs"
       - "crates/rcommander/src/ui/app.rs"
+      - "crates/rcommander/src/ui/editor_window.rs"
+      - "crates/rcommander/src/ui/viewer_window.rs"
+      - "crates/rcommander/src/ui/workspace_window.rs"
+      - "crates/rcommander/src/model/surfaces.rs"
+      - "crates/rcommander/src/model/mod.rs"
       - "crates/rcommander/src/ui/dialogs.rs"
       - "crates/rcommander/src/ui/panel_view.rs"
       - "crates/rcommander/tests/ui_smoke.rs"
@@ -45,6 +50,8 @@ jobs:
         run: |
           cargo test --locked -p rcommander --lib model::sessions::tests
           cargo test --locked -p rcommander --lib model::remote::tests
+          cargo test --locked -p rcommander --lib model::surfaces::tests
+          cargo test --locked -p rcommander --test ui_smoke document_surfaces_can_share_the_two_panels_without_losing_editor_text
           cargo test --locked -p rcommander --lib a_saved_connection_maps_to_a_connection_spec
           cargo test --locked -p rcommander --lib toolbar_
           cargo test --locked -p rcommander --lib action_catalogue

@@ -38,7 +38,17 @@ pub fn show(
     palette: &Palette,
     workspace: egui::Rect,
 ) -> bool {
-    let Some(mut state) = model.editor.clone() else {
+    render(ctx, None, model, ui_state, palette, workspace)
+}
+
+pub fn embedded(ui: &mut egui::Ui, model: &mut Model, ui_state: &mut EditorUi, palette: &Palette) {
+    let ctx = ui.ctx().clone();
+    let workspace = ui.max_rect();
+    render(&ctx, Some(ui), model, ui_state, palette, workspace);
+}
+
+fn render(ctx: &Context, embedded: Option<&mut egui::Ui>, model: &mut Model, ui_state: &mut EditorUi, palette: &Palette, workspace: egui::Rect) -> bool {
+    let Some(mut state) = model.editor.take() else {
         return true;
     };
     let title = format!("{} — {}", model.t("cmd.edit"), state.path);
@@ -48,14 +58,24 @@ pub fn show(
     let mut elevate = false;
 
     let mut chrome = state.chrome;
-    let action = crate::ui::workspace_window::show(
-        ctx,
-        "editor_window",
-        &title,
-        workspace,
-        &mut chrome,
-        palette,
-        |ui| {
+    let occupied = model.viewer.as_ref().map(|s| s.placement);
+    let mut discard_requested = false;
+    let mut contents = |ui: &mut egui::Ui| {
+            ui.label(&title);
+            if crate::ui::workspace_window::document_controls(ui, model, &mut state.placement, occupied) {
+                close_requested = true;
+            }
+            if let Some(message) = &ui_state.dirty_prompt {
+                ui.label(egui::RichText::new(message).color(palette.warning));
+                ui.horizontal(|ui| {
+                    if ui.button(model.t("editor.discard_changes")).clicked() {
+                        discard_requested = true;
+                    }
+                    if ui.button(model.t("dialog.config.cancel")).clicked() {
+                        ui_state.dirty_prompt = None;
+                    }
+                });
+            }
             ui.horizontal_wrapped(|ui| {
                 if ui.button(model.t("prompt.save")).clicked() {
                     save_requested = true;
@@ -140,8 +160,15 @@ pub fn show(
                         ui_state.save_error = None;
                     }
                 });
-        },
-    );
+    };
+    let action = if let Some(ui) = embedded {
+        contents(ui);
+        ChromeAction::None
+    } else {
+        crate::ui::workspace_window::show(
+            ctx, "editor_window", &title, workspace, &mut chrome, palette, contents,
+        )
+    };
     if matches!(action, ChromeAction::Close) {
         close_requested = true;
     }
@@ -204,9 +231,14 @@ pub fn show(
         }
     }
 
-    if close_requested {
+    if discard_requested || (close_requested && !state.modified) {
+        ui_state.dirty_prompt = None;
         model.editor = None;
         return true;
+    }
+    if close_requested {
+        ui_state.dirty_prompt = Some(model.t("editor.discard_prompt"));
+        state.chrome.closed = false;
     }
     model.editor = Some(state);
     false

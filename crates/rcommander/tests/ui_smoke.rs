@@ -3391,3 +3391,26 @@ allow = ["view"]
         "the disabled plugin is still listed, so it can be switched back on"
     );
 }
+
+#[test]
+fn document_surfaces_can_share_the_two_panels_without_losing_editor_text() {
+    use rcommander::model::{DocumentPlacement, Side, Surface};
+    let (left, right) = fixture();
+    let path = left.path().join("document.txt");
+    std::fs::write(&path, "original").unwrap();
+    let mut app = app(left.path(), right.path());
+    app.open_editor(path.clone());
+    assert_eq!(app.model.editor.as_ref().unwrap().placement, DocumentPlacement::Workspace);
+    app.model.editor.as_mut().unwrap().placement = DocumentPlacement::Panel(Side::Left);
+    app.model.editor.as_mut().unwrap().text = "unsaved".into();
+    app.model.editor.as_mut().unwrap().modified = true;
+    app.model.focus = Side::Right;
+    assert_eq!(app.model.surface(), Surface::Panel(Side::Right));
+    app.open_viewer(path.clone());
+    app.model.viewer.as_mut().unwrap().placement = DocumentPlacement::Panel(Side::Right);
+    let mut harness = harness(app);
+    harness.run();
+    assert_eq!(harness.state().model.editor.as_ref().unwrap().text, "unsaved");
+    assert!(harness.state_mut().model.open_editor_for(path).is_err());
+    assert_eq!(harness.state().model.editor.as_ref().unwrap().text, "unsaved");
+}

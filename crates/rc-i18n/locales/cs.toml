@@ -754,3 +754,10 @@ authors = ["RCommander contributors"]
 "toolbar.restore_custom" = "Obnovit moje rozložení"
 "toolbar.directory_missing" = "Uložený místní adresář není dostupný."
 "toolbar.local_directory_only" = "Připnout lze pouze místní adresář."
+
+"document.workspace" = "Oba panely"
+"document.left" = "Levý panel"
+"document.right" = "Pravý panel"
+"document.floating" = "Plovoucí okno"
+"editor.discard_changes" = "Zahodit změny"
+"editor.discard_prompt" = "Soubor obsahuje neuložené změny. Uložte je, nebo je výslovně zahoďte."

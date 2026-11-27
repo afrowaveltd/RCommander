@@ -61,3 +61,12 @@ cannot exhaust memory; instead it is downscaled for display.
 When the text is Arabic, Hebrew, Persian or Urdu, the previewer switches to
 right-to-left flow automatically. `Ctrl+Right Shift` and `Ctrl+Left Shift`
 override the alignment manually.
+
+
+## Workspace placement
+
+By default the document covers both file panels. The placement controls move
+it to the left or right panel or a floating child window inside the main app.
+Moving it preserves the open document and editor buffer. Click the other
+panel to use it. A separate OS window and embedded terminal are not included
+in this slice.

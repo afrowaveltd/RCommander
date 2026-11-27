@@ -58,3 +58,12 @@ Nic se nikdy neohlásí jako uložené, když uložené není.
 Soubor otevřený z archivu se rozbalí do dočasného umístění; při uložení se archiv
 přebalí s novou verzí. Totéž platí pro soubory otevřené z FTP panelu: uložení
 nahraje novou verzi zpět.
+
+
+## Umístění v pracovním prostoru
+
+Výchozí zobrazení překryje oba panely. Ovládací prvky umožňují přesun do
+levého či pravého panelu nebo do plovoucího okna uvnitř hlavní aplikace.
+Přesun nemění otevřený soubor ani rozepsaný text. Druhý panel zůstává
+použitelný; kliknutím jej aktivujete. Samostatné okno operačního systému
+ani integrovaný terminál zatím nejsou součástí této změny.

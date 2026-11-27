@@ -292,6 +292,12 @@ impl RCommanderApp {
         // The desktop actions need the cursor and the panel rather than the command table, so they
         // are handled here, where both are in reach.
         match command {
+            "cm_ViewerReload" => {
+                if let Some(state) = &self.model.viewer {
+                    let _ = self.viewer_ui.load(std::path::Path::new(&state.path));
+                }
+                return;
+            }
             "cm_OpenExternal" => {
                 if let Some(path) = self.desktop_target(false) {
                     self.run_desktop_action(rc_core::desktop::Action::Open(path));
@@ -494,7 +500,13 @@ impl RCommanderApp {
             return;
         }
         match self.model.execute(command) {
-            CommandOutcome::OpenFile(path) => self.open_viewer(path),
+            CommandOutcome::OpenFile(path) => {
+                if matches!(command.to_ascii_lowercase().as_str(), "cm_edit" | "cm_editnewfile" | "cm_editnew") {
+                    self.open_editor(path);
+                } else {
+                    self.open_viewer(path);
+                }
+            }
             CommandOutcome::OpenExternally(path) => self.open_externally(path),
             CommandOutcome::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             CommandOutcome::Minimize => {
@@ -553,8 +565,9 @@ impl RCommanderApp {
 
     /// Show `path` in the editor.
     pub fn open_editor(&mut self, path: std::path::PathBuf) {
-        if let Err(e) = self.model.open_editor_for(path) {
-            self.model.report_error(e.to_string());
+        match self.model.open_editor_for(path) {
+            Ok(()) => self.editor_ui = EditorUi::default(),
+            Err(e) => self.model.report_error(e.to_string()),
         }
     }
 
@@ -596,10 +609,10 @@ impl RCommanderApp {
                     ..
                 } => {
                     if key == Key::Escape {
-                        if self.model.viewer.is_some() {
+                        if self.model.surface() == crate::model::Surface::Viewer {
                             self.model.viewer = None;
-                        } else if self.model.editor.is_some() {
-                            self.model.editor = None;
+                        } else if self.model.surface() == crate::model::Surface::Editor {
+                            let _ = self.model.editor_close();
                         } else if self.model.help.is_some() {
                             self.model.help = None;
                         } else {
@@ -608,10 +621,27 @@ impl RCommanderApp {
                         }
                         continue;
                     }
-                    if let Some(shortcut) = keys::shortcut_from_egui(key, modifiers)
-                        && self.model.handle_key(&shortcut)
+                    let slot = match key {
+                        Key::F1 => 1, Key::F2 => 2, Key::F3 => 3, Key::F4 => 4,
+                        Key::F5 => 5, Key::F6 => 6, Key::F7 => 7, Key::F8 => 8,
+                        Key::F9 => 9, Key::F10 => 10, Key::F11 => 11, Key::F12 => 12,
+                        _ => 0,
+                    };
+                    if slot != 0 && modifiers.is_none()
+                        && !matches!(self.model.surface(), crate::model::Surface::Panel(_))
                     {
-                        self.after_key();
+                        if let Some(entry) = self.model.function_keys().into_iter().find(|entry| entry.slot == slot && !entry.is_empty()) {
+                            self.run_command(entry.command, ctx);
+                        }
+                        continue;
+                    }
+                    if let Some(shortcut) = keys::shortcut_from_egui(key, modifiers)
+                        && let Some(command) = self.model.keymap.lookup(&shortcut).map(str::to_owned)
+                    {
+                        self.run_command(&command, ctx);
+                        continue;
+                    }
+                    if !matches!(self.model.surface(), crate::model::Surface::Panel(_)) {
                         continue;
                     }
                     // Unhandled keys: cursor movement and quick search.
@@ -772,13 +802,26 @@ impl RCommanderApp {
         // The area the panels are about to fill; a maximized or pinned window covers exactly this.
         self.workspace_rect = ui.max_rect();
         let palette = self.palette.clone();
+        use crate::model::DocumentPlacement;
+        if self.model.editor.as_ref().is_some_and(|s| s.placement == DocumentPlacement::Workspace) {
+            self.panel_rects = [None, None];
+            crate::ui::editor_window::embedded(ui, &mut self.model, &mut self.editor_ui, &palette);
+            return;
+        }
+        if self.model.viewer.as_ref().is_some_and(|s| s.placement == DocumentPlacement::Workspace) {
+            self.panel_rects = [None, None];
+            crate::ui::viewer_window::embedded(ui, &mut self.model, &mut self.viewer_ui, &palette);
+            return;
+        }
         let split = self.model.settings.layout.panel_split.clamp(0.2, 0.8);
         let rtl = self.model.direction().is_rtl();
         let available = ui.available_size();
         let left_width = (available.x * split).max(120.0);
         let right_width = (available.x - left_width - 4.0).max(120.0);
         let mut actions: Vec<(Side, PanelAction)> = Vec::new();
-        if self.model.quick_view {
+        let docked = self.model.editor.as_ref().is_some_and(|s| matches!(s.placement, DocumentPlacement::Panel(_)))
+            || self.model.viewer.as_ref().is_some_and(|s| matches!(s.placement, DocumentPlacement::Panel(_)));
+        if self.model.quick_view && !docked {
             let mut command: Option<String> = None;
             ui.horizontal(|ui| {
                 let target_side = if rtl { Side::Left } else { Side::Right };
@@ -845,6 +888,21 @@ impl RCommanderApp {
                     egui::vec2(widths[index], available.y),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
+                        let placement = DocumentPlacement::Panel(*side);
+                        let editor_here = self.model.editor.as_ref().is_some_and(|s| s.placement == placement);
+                        let viewer_here = self.model.viewer.as_ref().is_some_and(|s| s.placement == placement);
+                        if editor_here || viewer_here {
+                            if ui.rect_contains_pointer(ui.max_rect()) && ui.input(|i| i.pointer.any_pressed()) {
+                                self.model.focus = *side;
+                            }
+                            self.panel_rects[*side as usize] = None;
+                            if editor_here {
+                                crate::ui::editor_window::embedded(ui, &mut self.model, &mut self.editor_ui, &palette);
+                            } else {
+                                crate::ui::viewer_window::embedded(ui, &mut self.model, &mut self.viewer_ui, &palette);
+                            }
+                            return;
+                        }
                         if self.model.panel_shows_chat(*side) {
                             let pane = crate::ui::chat_window::pane(
                                 ui,
@@ -1327,14 +1385,14 @@ impl eframe::App for RCommanderApp {
         }
 
         let palette = self.palette.clone();
-        if self.model.viewer.is_some() {
+        if self.model.viewer.as_ref().is_some_and(|s| s.placement == crate::model::DocumentPlacement::Floating) {
             let closed =
                 crate::ui::viewer_window::show(ctx, &mut self.model, &mut self.viewer_ui, &palette);
             if closed {
                 self.model.viewer = None;
             }
         }
-        if self.model.editor.is_some() {
+        if self.model.editor.as_ref().is_some_and(|s| s.placement == crate::model::DocumentPlacement::Floating) {
             let workspace = self.workspace_for_windows(ctx);
             crate::ui::editor_window::show(
                 ctx,

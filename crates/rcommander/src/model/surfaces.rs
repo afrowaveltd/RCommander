@@ -116,10 +116,17 @@ impl Model {
     /// The order is the order of "innermost thing first": a modal editor or viewer owns the keys,
     /// then a panel showing the chat, then the file panels.
     pub fn surface(&self) -> Surface {
-        if self.editor.is_some() {
+        use super::DocumentPlacement;
+        if self.editor.as_ref().is_some_and(|s| s.placement == DocumentPlacement::Workspace) {
             return Surface::Editor;
         }
-        if self.viewer.is_some() {
+        if self.viewer.as_ref().is_some_and(|s| s.placement == DocumentPlacement::Workspace) {
+            return Surface::Viewer;
+        }
+        if self.editor.as_ref().is_some_and(|s| s.placement.owns_focus(self.focus)) {
+            return Surface::Editor;
+        }
+        if self.viewer.as_ref().is_some_and(|s| s.placement.owns_focus(self.focus)) {
             return Surface::Viewer;
         }
         if self.panel_shows_chat(self.focus) {
@@ -308,6 +315,26 @@ mod tests {
         assert_eq!(model.surface(), Surface::Viewer);
         model.viewer = None;
         model.editor = Some(crate::model::EditorState::default());
+        assert_eq!(model.surface(), Surface::Editor);
+    }
+
+    #[test]
+    fn docked_document_surfaces_follow_the_focused_panel() {
+        use crate::model::{DocumentPlacement, EditorState, ViewerState};
+        let files = tempfile::tempdir().unwrap();
+        let mut model = model(files.path());
+        model.editor = Some(EditorState {
+            placement: DocumentPlacement::Panel(Side::Left),
+            ..Default::default()
+        });
+        model.focus = Side::Right;
+        assert_eq!(model.surface(), Surface::Panel(Side::Right));
+        model.viewer = Some(ViewerState {
+            placement: DocumentPlacement::Panel(Side::Right),
+            ..Default::default()
+        });
+        assert_eq!(model.surface(), Surface::Viewer);
+        model.focus = Side::Left;
         assert_eq!(model.surface(), Surface::Editor);
     }
 

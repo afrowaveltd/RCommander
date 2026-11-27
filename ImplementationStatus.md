@@ -1560,6 +1560,22 @@ live model acceptance; do not give room messages or supervisor votes authority.
   typed authentication errors/retry and real SFTP/FTP smoke tests. Do not mark
   Phase 7 or 13 complete. No local compilation in this editing environment.
 
+## Handoff — F3/F4 workspace placement (2026-11-27)
+
+Owner requests MC-like full workspace default, left/right docking, optional
+floating and a terminal in the other pane. Source slice: shared document
+placement and embedded rendering for one viewer and one editor, localized
+controls, focused panel surface routing, F4 GUI dispatch, unsaved replacement
+guard and explicit discard on GUI close. Existing floating child windows
+retained; not a separate OS window. Added model/UI tests. Linux regression
+[#3](https://github.com/afrowaveltd/RCommander/actions/runs/45990804788)
+passed on previous revision d1b03a1; new changes await compilation and GUI
+smoke tests. Verify F3/F4, F-key bar, keyboard focus, dock switching, dirty
+buffer close/save/reload, resize and Windows/Linux. Terminal pane is planned
+under Phase 19 (real PTY/ConPTY/SSH); no implementation claim. Persistent
+placement preference and separate native viewport are follow-ups. Keep
+main authoritative for the other developer.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

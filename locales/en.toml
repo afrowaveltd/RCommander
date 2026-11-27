@@ -758,3 +758,10 @@ authors = ["RCommander contributors"]
 "toolbar.restore_custom" = "Restore my layout"
 "toolbar.directory_missing" = "The saved local directory is unavailable."
 "toolbar.local_directory_only" = "Only a local directory can be pinned."
+
+"document.workspace" = "Both panels"
+"document.left" = "Left panel"
+"document.right" = "Right panel"
+"document.floating" = "Floating window"
+"editor.discard_changes" = "Discard changes"
+"editor.discard_prompt" = "There are unsaved changes. Save them or explicitly discard them."

@@ -64,17 +64,27 @@ impl ViewerUi {
 
 /// Draw the viewer window; returns true when the user closed it.
 pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut ViewerUi, palette: &Palette) -> bool {
-    let Some(mut state) = model.viewer.clone() else {
+    render(ctx, None, model, ui_state, palette)
+}
+
+/// Render the same viewer in the workspace or a single panel.
+pub fn embedded(ui: &mut egui::Ui, model: &mut Model, ui_state: &mut ViewerUi, palette: &Palette) {
+    let ctx = ui.ctx().clone();
+    render(&ctx, Some(ui), model, ui_state, palette);
+}
+
+fn render(ctx: &Context, embedded: Option<&mut egui::Ui>, model: &mut Model, ui_state: &mut ViewerUi, palette: &Palette) -> bool {
+    let Some(mut state) = model.viewer.take() else {
         return true;
     };
     let mut open = true;
     let title = format!("{} — {}", model.t("viewer.text"), state.title);
-    egui::Window::new(title)
-        .open(&mut open)
-        .resizable(true)
-        .default_size([760.0, 560.0])
-        .show(ctx, |ui| {
-            ui.horizontal(|ui| {
+    let occupied = model.editor.as_ref().map(|s| s.placement);
+    let mut close_requested = false;
+    let mut contents = |ui: &mut egui::Ui| {
+            ui.label(&title);
+            close_requested = crate::ui::workspace_window::document_controls(ui, model, &mut state.placement, occupied);
+            ui.horizontal_wrapped(|ui| {
                 for (label, mode) in [
                     ("A", ViewerMode::Auto),
                     ("T", ViewerMode::Text),
@@ -114,7 +124,18 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut ViewerUi, palette: 
                     );
                 }
             }
-        });
+    };
+    if let Some(ui) = embedded {
+        contents(ui);
+    } else {
+        egui::Window::new(&title)
+            .id(egui::Id::new("document_viewer"))
+            .open(&mut open)
+            .resizable(true)
+            .default_size([760.0, 560.0])
+            .show(ctx, contents);
+    }
+    open = open && !close_requested;
     model.viewer = if open { Some(state) } else { None };
     !open
 }

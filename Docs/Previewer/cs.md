@@ -61,3 +61,12 @@ nemůže vyčerpat paměť — místo toho se pro zobrazení zmenší.
 Je-li text arabský, hebrejský, perský nebo urdský, přepne se prohlížeč
 automaticky na tok zprava doleva. Zarovnání lze ručně přepnout pomocí
 `Ctrl+Right Shift` a `Ctrl+Left Shift`.
+
+
+## Umístění v pracovním prostoru
+
+Výchozí zobrazení překryje oba panely. Ovládací prvky umožňují přesun do
+levého či pravého panelu nebo do plovoucího okna uvnitř hlavní aplikace.
+Přesun nemění otevřený soubor ani rozepsaný text. Druhý panel zůstává
+použitelný; kliknutím jej aktivujete. Samostatné okno operačního systému
+ani integrovaný terminál zatím nejsou součástí této změny.
