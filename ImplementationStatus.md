@@ -2311,6 +2311,21 @@ EN/CS strings and help. No automatic retry on rejected authentication or
 wallet-unlock flow is claimed. No Cargo available in this environment;
 run model and UI tests and real FTP/SFTP acceptance before marking done.
 
+## Handoff — Arabic RTL localization fixture (2026-11-28)
+
+Added Modern Standard Arabic `locales/ar.toml`, mirrored byte-for-byte
+in `crates/rc-i18n/locales/ar.toml`. The reference snapshot has 791 keys;
+static comparison found 791 matching keys, no missing or extra keys and
+no placeholder mismatches. Twelve invariant strings (brand names,
+keyboard modifiers, pure placeholders or sample paths) are unchanged.
+Added regression tests for TOML parsing, pack parity, reference coverage,
+placeholder parity, formatting and RTL/LTR switching. Rust tests are
+not executed in this environment. Linguistic/native review and real GUI
+acceptance remain pending: check Arabic font coverage and contextual
+joining, Unicode bidirectional layout, mixed Latin file names/paths,
+numbers, two-panel mirroring, dialogs, menus, editor/viewer and switch
+back to English. No Arabic help translation or new font bundled.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
