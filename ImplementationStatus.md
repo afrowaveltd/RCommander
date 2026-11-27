@@ -1643,6 +1643,28 @@ across rc-core, rc-remote and the application model. Linux CI includes the
 new tests; the current Windows build predates these changes. New revision
 not yet verified, no local toolchain available.
 
+## Handoff — policy destination checks and plugin ticket contract (2026-11-27)
+
+Linux UI [#8](https://github.com/afrowaveltd/RCommander/actions/runs/46005165286)
+passed at `46bb86f` (canonical remote accounts). Stage B first hardening:
+the existing policy deny list previously checked the source but not the
+canonical local destination before pre-approvals. Both endpoints now get the
+same deny check before grant, session or permanent approval. Tests exercise
+normal, session and permanent approvals, allowed sibling paths, and Unix
+symlink alias to a protected destination with a missing leaf. Linux CI now
+runs the complete core policy test module. Verification of this revision
+pending; no local Rust toolchain in this editing environment.
+
+This fixes a specific check, not a complete sandbox. Remaining: canonical
+path races, dangling links, recursive ancestor operations, explicit protected
+vault/config resources in every entry point, broad legacy approvals, typed
+caller/target contracts and remote destination policy. Do not expose this
+legacy policy as a sufficient isolation boundary for generated plugins.
+Added the owner-approved plugin ticket design and Afrowave server maintenance
+acceptance scenario to the existing Phase 16.0f–i section. Plugin Developer,
+WebView isolation, credential adapter and actual maintenance automation remain
+planned, no servers contacted or changed.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

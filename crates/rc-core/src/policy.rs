@@ -481,14 +481,18 @@ impl Policy {
             _ => None,
         };
 
-        // 2. The deny list wins over every grant.
-        if let Some(resource) = &resource {
+        // 2. Both endpoints are protected, including a not-yet-created local
+        // destination. A pre-approval must never bypass an explicit deny.
+        for path in [resource.as_deref(), destination_path.as_deref()]
+            .into_iter()
+            .flatten()
+        {
             for denied in &self.deny_paths {
                 let denied = canonical_for_check(denied).unwrap_or_else(|| denied.clone());
-                if resource.starts_with(&denied) {
+                if path.starts_with(&denied) {
                     return Decision::Deny(Denial {
                         reason: DenialReason::Denied,
-                        message: format!("{} is on the deny list", resource.display()),
+                        message: format!("{} is on the deny list", path.display()),
                     });
                 }
             }
@@ -1065,6 +1069,52 @@ mod tests {
                 .is_denied(),
             "a pre-approval cannot unlock the deny list"
         );
+    }
+
+    #[test]
+    fn denied_destination_wins_over_grant_and_all_approval_modes() {
+        let (_dir, root) = temp();
+        let mut policy = sandbox(&root);
+        let protected = root.join("vault");
+        std::fs::create_dir_all(&protected).unwrap();
+        let source = root.join("ordinary.txt");
+        std::fs::write(&source, "fixture").unwrap();
+        policy.deny_paths.push(protected.clone());
+
+        let blocked = Request::write(&source, protected.join("new.txt"), "agent");
+        let allowed = Request::write(&source, root.join("vault-copy.txt"), "agent");
+        for mode in 0..3 {
+            match mode {
+                1 => policy.approve_for_session(Operation::Write),
+                2 => {
+                    policy.clear_session_approvals();
+                    assert!(policy.preapprove(Operation::Write, "fixture"));
+                }
+                _ => {}
+            }
+            match policy.check(&blocked, now()) {
+                Decision::Deny(denial) => assert_eq!(denial.reason, DenialReason::Denied),
+                other => panic!("protected destination allowed: {other:?}"),
+            }
+            assert!(policy.check(&allowed, now()).is_allowed());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn denied_destination_is_checked_after_resolving_symlink() {
+        let (_dir, root) = temp();
+        let mut policy = sandbox(&root);
+        let protected = root.join("vault");
+        std::fs::create_dir_all(&protected).unwrap();
+        let alias = root.join("alias");
+        std::os::unix::fs::symlink(&protected, &alias).unwrap();
+        policy.deny_paths.push(protected);
+        let blocked = Request::write(root.join("ordinary.txt"), alias.join("new.txt"), "agent");
+        match policy.check(&blocked, now()) {
+            Decision::Deny(denial) => assert_eq!(denial.reason, DenialReason::Denied),
+            other => panic!("protected destination allowed: {other:?}"),
+        }
     }
 
     #[test]

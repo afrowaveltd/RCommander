@@ -578,6 +578,42 @@ and directory services.
 | 16.0h | Unified control and revocation | scoped grants, explicit one-shot elevation request, stop/drain/revoke through GUI/CLI/MCP/runtime | denied OS elevation stays denied, no new work after stop, scope changes never self-authorized, actual in-flight effects reported, no hidden execution path |
 | 16.0i | Task-scoped credential brokerage | [Issue #2](https://github.com/afrowaveltd/RCommander/issues/2): owner/agent wallets, typed credential bindings, trusted sinks and revocation; reuse 13.4 and 16.0f–h | no secret disclosure by default, no identity or environment fallback on auth failure, explicit scope changes, session isolation, real provider tests |
 
+#### Plugin capability tickets and server maintenance reference scenarios
+
+The Plugin Developer role (AutoPlugin / Phase 27) is an SDK-aware developer,
+not a privileged runtime. It can propose an original plugin, tests, localized
+help, manifest and installation package. The manifest requests capabilities;
+it does not grant them. A trusted runtime authenticates the plugin instance,
+and only the deterministic application broker can issue a capability ticket
+after policy and any required user approval. Tickets bind caller instance,
+task/session, exact typed operation, canonical resource, destination, expiry
+and revocation state. Use opaque unguessable handles backed by host-owned
+state; reject spoofed, transferred, expired, replayed or revoked tickets as
+appropriate to the one-shot or explicitly reusable contract. Never serialize
+secret material into a ticket or expose a vault-read method in the plugin SDK.
+Only trusted application adapters may resolve credentials for an approved
+sink. Existing explicit direct-disclosure exceptions for trusted agent tasks
+(16.0i) must not become a plugin SDK capability.
+
+Arbitrary native plugins in the application process cannot be constrained
+by a manifest alone. Isolate untrusted code, including generated plugins,
+with an enforceable OS or sandbox runtime boundary; no ambient filesystem,
+network, credential or execution rights. A web surface must not expose an
+unrestricted native bridge; remote page content is untrusted. Unsupported
+isolation or adapters fail closed. Reuse existing Phase 16/20/27/30 work;
+no new phase and no claim that this is already implemented.
+
+Reference acceptance scenario: Afrowave infrastructure maintenance. A
+read-only task may collect service status, disk capacity, update availability
+and selected logs from explicitly assigned hosts. Proposing package updates
+is not permission to execute them. A separate approved maintenance task
+binds host/account, allowed operations, maintenance window, backup and
+rollback expectations, service health checks, and audit receipt. Prefer
+least-privilege dedicated service identities, explicit escalation and
+staged changes; no automatic production reboot, unrelated host access,
+credential disclosure or unverified recovery claim. Test with mock hosts
+and disposable lab machines before production use.
+
 ### The "process with agent" handoff (16.10a) and the prompt manager (16.16–16.17)
 
 Two features grow out of the same observation: an agent is only useful when the
