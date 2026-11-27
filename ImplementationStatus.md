@@ -43,6 +43,10 @@ cargo test --workspace
 | 22 | Native WSL integration and cross-OS workspaces | **pending** — native filesystem/execution providers, mount-aware path mapping and cross-OS tests |
 | 23 | Database panels and administration (SQL and document stores) | **pending** — SQLite/PostgreSQL first, read-only browsing and SQL workspace, reviewed edits, comparison, transfers, backup/restore and AI DBA; SQL Server/MySQL/MariaDB and native MongoDB document provider (23.10) later |
 | 24 | Afrowave Personality Studio and creative agent teams | **pending** — editable persona packs independent of model/role/permissions, optional creative teams, local/remote image providers, structured document composition and export, and a separately deployable affordable-model public gateway; reuse Phase 16 and keep Agent Commons text-only |
+| 25 | Persistent Workspaces | **pending** — named project/panel/editor/tool/task checkpoints, local SessionStore, safe suspend/resume and portable exports |
+| 26 | External Agent Runtimes | **pending** — optional DeepSeek Harness SDK adapter, native chat, scoped MCP, independent Git/release roles and multi-runtime teams |
+| 27 | Capability Discovery and Plugin Workshop | **pending** — semantic category contracts, reusable panels, discovery across RC/Harness/MCP and independently reviewed plugin creation/activation |
+| 28 | Virtual Hardware Laboratory | **pending** — virtualization providers, independent host and guest controls, exclusive approved USB, driver test/recovery and lab workspaces |
 
 
 ---
@@ -1385,6 +1389,17 @@ command either by its own name or through a family rule:
 | Optional privileged OS helper not implemented | Phase 20 (not required for ordinary AI chat) |
 | Portable host diagnosis/repair, System Check, before/after verification and remote deployment workflows are planned | Phase 21; read-only fixtures first, gated repairs only after policy and applicable OS/SSH capabilities |
 
+## Phases 25–28 — planned extensions (2026-11-27)
+
+No implementation or test claims yet. Phase 25 consolidates workspace restore
+and existing session/checkpoint plans; Phase 26 uses the documented upstream
+DeepSeek Harness SDK (revision 4b399c3, source links and limitations in the
+plan), with internal and external runtime interfaces kept separate.
+Phase 27 extends existing plugin contracts and catalogue rather than
+duplicating them; Phase 28 reuses scoped remote management and adds a
+virtualization category plus guest/host isolation. Runtime, USB and
+hypervisor behavior require real integration tests before claiming support.
+
 ## Next steps (in priority order)
 
 1. Finish interactive password prompting for SFTP sessions without saved secrets.
@@ -1420,6 +1435,17 @@ command either by its own name or through a family rule:
     foundations; SQLite/PostgreSQL browsing and SQL execution before write/DBA
     features. Reuse logical query abstractions for Agent Commons without sharing
     database administrator privileges.
+
+12. Define Phase 25 workspace storage/restore contracts with the current
+    SessionStore design and Phase 26 runtime contract with Phase 16.19;
+    first deliver native local workspace restore, then a pinned optional
+    SDK bridge with mocked protocol and opt-in live tests. Add independent
+    Git/release roles only through the existing policy and review gates.
+13. Extend Phase 18 with Phase 27 category contracts and read-only
+    discovery, then the reviewed Workshop after executable isolation.
+14. Phase 28: mock virtualization and read-only inventory before scoped
+    VM recovery, guest management and physical USB. Verify the selected
+    hypervisor and test-device boundaries before permitting live tests.
 
 These are planned priorities, not assertions of new implementation. Earlier
 per-phase narrative remains historical evidence; the summary and current gaps

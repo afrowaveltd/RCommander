@@ -2034,6 +2034,308 @@ and later; no impact on the basic file manager, offline mode or Agent Commons.
 No particular model, visual style, framework, budget or deployment date is
 mandated by this plan.
 
+## Phase 25 — Persistent Workspaces (requested 2026-11-27, planned)
+
+The owner wants to ask the agent to save the entire working environment at
+the end of a day, close RC, and continue from the same project the next
+morning. A chat transcript alone is not a workspace. Reuse the conversation
+SessionStore design under Phase 18 (bundled SQLite, optional explicitly
+configured remote stores, migrations and retention), the Phase 16.19–16.20
+checkpoint/runtime contracts and the Phase 16.10 working-copy manifests.
+Keep the native file manager usable without agents or external services.
+
+A named versioned workspace records project root and host identity, both
+pane locations/tabs/cursor/selection, active surface, layout, open editors
+and unsaved buffers with original hashes, tool/plugin IDs and versions,
+connection references, agent roles/models/runtime profiles, internal and
+external session references, task graph and checkpoint/event cursors,
+pending decisions, budgets and audit evidence, Git branch/HEAD/dirty state,
+working copies, build/test results and artifact references. Phase 28 adds
+VM/snapshot/device identities. Store credentials by reference, never secret
+values, and large artifacts outside the metadata DB. Do not duplicate the
+external runtime's authoritative history or copy all project files.
+
+Expose save/list/restore/rename/delete/clone/export/import/suspend/resume
+through the UI, command catalogue and scoped MCP tools (proposed names
+`workspace.save`, `workspace.restore`, `workspace.suspend`, `workspace.resume`).
+A save of live work records that work is still active; suspend stops new work,
+settles or cancels supported operations, flushes durable state and reports
+uncertain outcomes before marking a checkpoint suspended. Keep the last
+valid generation on failed save, use a single mutable writer/lease, and
+recover explicitly after a crash. Restore UI state first without executing
+recorded actions. Before resuming, revalidate host, paths, original hashes,
+Git HEAD, tool schemas/versions, runtime/session identity, credentials,
+policy and budgets. Revoked grants stay revoked; pending approvals are not
+reusable authority. Never automatically repeat an ambiguous write, send,
+push or installation. Report unsupported suspension honestly. A clone must
+not create two owners of one live runtime session. Exports are inspectable,
+versioned, secret-free by default and never execute on import. Separate
+restorable checkpoints from Markdown transcript exports.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 25.1 | Workspace contract/store | named versioned local records, atomic checkpoints, shared session/artifact references | round-trip, migration, crash/failed-save, concurrent writer and secret-exclusion tests |
+| 25.2 | Native restore | panes, tabs, project, tools, unsaved editor buffers and workspace switcher | GUI/headless tests for missing paths, dirty files, stale Git state and no restore side effects |
+| 25.3 | Agent checkpoint | task board, runtime IDs, save/suspend/resume and visible status | mock jobs, restart, revoked grants, uncertain effects and no duplicate writes |
+| 25.4 | Commands and portability | UI/shortcuts/MCP, clone, export/import and restore preview | explicit cross-host remapping, unsupported runtime handling, no executable import or credential leakage |
+
+**Order:** define 25.1 alongside the ongoing SessionStore work; deliver
+25.2 before requiring any external runtime; integrate 25.3 with Phase 26.
+
+## Phase 26 — External Agent Runtimes and divided responsibility (planned)
+
+RCommander should not reimplement DeepSeek Harness merely to replace its Web
+chat. RC owns native GUI/TUI, workspaces, coordination and common policy;
+an optional adapter supplies a complete agent runtime. Keep the existing
+model provider (`rc-llm::Provider`) separate from a runtime, which owns a
+session, tool loop, lifecycle and events. Introduce a headless, versioned
+`AgentRuntime` contract (proposed name) for internal and external adapters:
+capability negotiation, start/attach/submit/wait/cancel/suspend/resume/close,
+events and approvals. Do not claim unsupported operations. Multiple runtimes
+can coexist with distinct session ownership, credentials, tool scopes,
+profiles, role assignments and budgets; no silent paid/cloud fallback.
+
+### Reference adapter: DeepSeek Harness
+
+Research basis (2026-11-27): upstream
+[`deepseek-ai/deepseek-harness` revision 4b399c3](https://github.com/deepseek-ai/deepseek-harness/tree/4b399c39a6d1479cd84ca591b4d7c88e24d38a96),
+[architecture](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/docs/architecture.md),
+[SDK protocol](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/packages/sdk/protocol/README.md),
+[SDK server](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/packages/sdk/server/README.md),
+[extension cookbook](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/docs/cookbook/extension-cookbook.md).
+This is documented upstream capability, not a tested RC integration.
+
+Harness is a Cordis plugin tree: even its agent loop, persistence and model
+adapters are plugins. Use its supported `dsh --profile sdk` process and
+newline-delimited JSON-RPC 2.0 over stdio. The first RC runtime plugin uses a
+Rust client, existing native chat, activity/approval UI and a dedicated
+configured profile/home, with a pinned compatible version. No Electron,
+browser embedding, DOM automation or upstream fork. Use approved YAML
+profile overlays and native MCP client rows; the Web MCP manager is not
+assumed to be present in the SDK profile. Only add a Cordis extension when
+the public protocol lacks required functions.
+
+| Upstream wire surface | RC use |
+| --- | --- |
+| `initialize` | wait for readiness, exact provider/model/effort and approval/question capability flags |
+| `session/prompt`, `session/query` | enqueue receipt versus supported native command, ordered text/image blocks if model supports them, timezone |
+| `session.event`, `session.status`, `subagent.started`, `subagent.finished` | durable facts, whole-agent state and child activity; filter by owned session |
+| `session/wait`, `session.query.completed` | scoped completion observation; idle is not proof of success, wait may return between goal rounds |
+| `session/working-directory/get`, `session/working-directory/set` | project directory, never a new sandbox grant |
+| `approval/request`, `user-question/ask` | native dialogs and policy; allow once/reject/cancel, questions are distinct from approvals |
+| `session/resume` | exact persisted root session in original store, revalidate profile/model/policy; no new prompt |
+| `shutdown` | graceful runtime disposal and persistence flush |
+
+Keep reading while waiting for requests, including reverse RPC, bound queues
+and frame sizes, separate stderr from protocol stdout, reject malformed or
+late responses and surface EOF. Keep the Harness log authoritative for
+model history; RC stores a UI projection and references. Current SDK lacks
+per-session cancel/close, protocol-version negotiation, historical replay
+on resume and the Web follower's live assistant-token stream. Do not
+advertise these in the basic bridge. Investigate version-pinned Cordis
+extensions using `ctx.agents`, `session/event`, `agent/assistant-stream`,
+and tool guards, or another supported interface; isolate processes to
+limit shutdown scope. ACP is another candidate for automation, not a
+promise of full UI parity. Do not depend on undocumented session-file
+parsing for history. SDK approval metadata alone may not identify the
+target; fail closed on unknown scope and enforce structured grants in the
+broker/runtime. See the upstream Windows sandbox documentation: partial
+write confinement is not general read or network isolation.
+
+### MCP and independent roles
+
+Expose approved RC tools through Phase 8 stdio MCP first; secure HTTP
+transport is a later, distinct verified task. The Harness can consume RC
+tools, and RC can drive Harness sessions; prevent recursive delegation
+loops with task IDs, parent linkage, bounded depth/concurrency, per-task
+budgets, cancellation and provenance. Apply the same Phase 16.0/16.36/18
+policy to every runtime; no inherited privileges or undisclosed data
+transfer. Other services (DiskChecker, DITA, UnderstandMe, Afutrans and
+Craft tools) can participate through the scoped broker.
+
+The developer runtime needs a working copy, build/test capabilities and a
+way to report artifacts, not Git credentials or push authority. Separate
+reviewer, Git and release roles. A small local model can summarize a diff
+and propose commit text; rc-git deterministically stages reviewed paths,
+commits and pushes only approved targets under explicit bounded policy.
+Release publication is separately authorized and uses verified build/test
+evidence. Stop on conflicts, failed tests, secrets, stale approvals or
+uncertain outcomes. Hiding Git tools does not isolate an unrestricted
+shell: constrain filesystem, processes, network, plugin installation and
+credentials, including SSH agent and credential helpers. Never let a model
+approve its own privilege expansion. Use stronger isolation when platform
+sandbox limitations matter.
+
+Reference workflow: architect divides a website/logo/animation request into
+a task graph and common asset interface; creative agents use approved
+PhotoCraft/DesignCraft/AniCraft/EffectCraft MCP capabilities, developer
+builds the website and logic, reviewer checks integration, Git role
+commits/pushes and release role publishes under policy. Save all artifacts,
+task state, budgets and evidence in Phase 25. Roles are user-configurable
+and independent of providers/personas; single-model workflows remain
+possible, but independent validation cannot be replaced by self-approval.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 26.1 | Runtime contract/plugin kind | internal adapter, mock external runtime, capability flags | lifecycle, unsupported operations, routing, concurrent sessions and budget tests |
+| 26.2 | SDK bridge | Rust stdio client, native chat, approval/questions, profile/version pinning | fixture protocol and opt-in Linux/Windows smoke tests, reverse RPC during wait, clean shutdown |
+| 26.3 | Resume and extended controls | workspace session binding, history reconciliation, optional live-stream/cancel extension | missing/occupied session, restart, gaps/deduplication, stale scope and unsupported features tested |
+| 26.4 | Scoped bidirectional MCP | per-runtime approved tool subset and broker | fake/live stdio tests, denied calls, isolation, no recursive loop or credential leakage |
+| 26.5 | Git/release role | reviewed paths, commits, scoped push and verified publication | temp repo/local remote, failed checks and denied/ambiguous push, concurrent changes and stale approvals |
+| 26.6 | Multi-runtime reference workload | website/logo/animation task graph with Craft tools | mocks then opt-in live services, validated artifacts and no unsanctioned publication |
+
+**Order:** define 26.1 alongside Phase 16.19/16.27–16.30, then 26.2,
+25.3/26.3–26.4, then independent roles and creative integration. Keep
+all external runtimes optional and basic RC lightweight.
+
+## Phase 27 — Capability Discovery and Plugin Workshop (planned)
+
+Extend the existing Phase 18 package, installer, manager, catalogue and
+universal panels rather than introduce another plugin system. The agent
+should search for missing capabilities in RC and connected harnesses, then
+propose a new tool in the ecosystem best suited to it if none exists.
+
+### Semantic categories and shared UI
+
+Define versioned category contracts with required/optional actions,
+canonical fields and units, opaque IDs, paging/filtering, typed errors,
+action effects, UI templates and provider-specific extensions. Begin with
+`mail` (folders, list/read/search messages, attachments, compose/send,
+list/detail pairing); then graphics, animation, document, database,
+storage, translation, version-control, hardware, reverse-engineering,
+virtualization and agent-runtime. Two email MCP providers may share the
+MailCraft-style panel after validated mapping, without identical tool names
+or full feature parity. Reuse Phase 18 table columns, action verbs and
+preview pairing. MCP standardizes communication, not semantics. Never
+infer a send/delete grant from a matching category or schema. Unknown
+effects are treated conservatively; optional capabilities remain optional.
+
+Discovery order: active tools, installed but disabled RC plugins, attached
+runtime inventories (e.g. Harness), configured MCP services, then explicitly
+approved external catalogues. Read-only inventory first, deterministic
+schema/compatibility filtering, optional agent ranking and mapping proposal.
+No automatic code execution, connection to arbitrary hosts or activation.
+Catalogue entries project package identity, categories, schema/version,
+platforms, dependencies, effects/permissions, source, license, hashes/
+signatures where available, test evidence, limitations and visual templates.
+Checksums prove integrity, not authorship. Tool descriptions, README and
+remote output are untrusted data, not instructions or permissions.
+
+### Workshop
+
+Choose the smallest suitable tool: declarative RC manifest, Harness Cordis
+plugin, reusable standalone MCP server, isolated executable, runtime
+adapter or native RC code when really required. Agent proposes ecosystem
+and creates source, manifest, README/license, fixtures, tests, requested
+capabilities and rollback plan in an isolated working copy. Reuse only
+appropriately licensed material. Separate propose/build/test/review/install/
+activate. Pin dependencies, verify provenance, run negative tests and
+review actual code and install scripts. No self-approval, self-escalation,
+silent profile changes, credentials inheritance or automatic installation
+from untrusted output. Enforce confinement at execution time; independent
+approval for new executable code and expanded permissions. Support disable,
+uninstall, rollback, version pinning and visible restart requirements
+(e.g. startup-only SDK profile). Preserve saved workspaces. Optional
+reviewed, sanitized, licensed catalogue contributions through Agent Commons
+respect its text-only boundary; distribute binary packages separately.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 27.1 | Category contracts | registry, shared panel schemas and extensions | two fake mail backends render same list/detail; missing send/delete absent, invalid maps fail closed |
+| 27.2 | Discovery | local and external capability inventory, agent-assisted suggestions | duplicate/missing tools, hostile descriptions, version changes, no implicit activation/network grant |
+| 27.3 | Workshop scaffolding | RC manifest, Cordis plugin and MCP server templates | reproducible fixtures, invalid schema/dependency tests, reviewable source inside workspace |
+| 27.4 | Reviewed install/activation | reuse existing installer and policy, version/rollback | malicious package tests, expanded permissions require approval, restart visible |
+| 27.5 | Reference integrations | alternative mail providers, graphics/animation and Afrowave tools | validated mock and opt-in real mappings, structured artifacts, no private publication |
+
+**Order:** 27.1 alongside manifest contracts, 27.2 after catalogue and
+runtime inventory; Workshop only after installer, review and executable
+isolation gates. Manual discovery never requires an AI model.
+
+## Phase 28 — Virtual Hardware Laboratory (planned)
+
+Linux RC controls a VMware Workstation guest with a specifically assigned
+physical USB device. Windows guest remote PowerShell provides in-guest
+control; a separate host-side virtualization provider can restart/recover
+a VM when a guest driver crashes. Linux and other supported guest OSes
+also participate. This is a disposable test lab for original driver
+development, legacy interoperability, installer/migration testing and
+system repairs, not privileged experimentation on the production host.
+
+### Independent host and guest control planes
+
+A `virtualization` category provider handles VM inventory, health,
+start/stop/reset, snapshots/restore/clone, scoped configuration and USB
+attach/detach where supported. Candidate first backend VMware Workstation
+and `vmrun`; later KVM/QEMU/libvirt, VirtualBox, Hyper-V and Proxmox.
+Verify actual product/version, host OS, licensing, installed tooling,
+guest additions and supported methods, especially USB passthrough:
+`vmrun` does not guarantee arbitrary USB attach/detach. Do not promise
+uniform parity. A narrow host service or typed broker accepts allowlisted
+VM/device operations; never delegate unrestricted host shell or admin
+credentials. Bind stable host/VM/snapshot IDs, serialize operations, check
+before/after state and maintain a recovery path independent of guest health.
+
+Guest control reuses Phase 19 (SSH/PowerShell remoting; PowerShell 7 over SSH
+as initial Linux-to-Windows candidate, WSMan where supported), Phase 21
+diagnostics and Phase 20 narrow privileges. Approved guest-only file
+transfer, compilation, driver enable/disable/install/remove, service/
+registry configuration, restart, log/dump export, debugging and tests.
+Windows WDK/WinDbg/KD and Linux kernel toolchains/GDB are candidates.
+Debugging and guest connectivity are explicit prerequisites. Use a lab
+network without production credentials or default production bridging.
+Collect evidence outside the guest before a rollback. VM isolation is
+not an absolute guarantee against host/device damage.
+
+### Laboratory Zone and physical safety
+
+Extend Phase 16.36 with a bounded lab profile: broader authority in one
+designated disposable guest, narrow host VM controls only, explicitly
+approved exclusive USB assignment. Use stable identity (port/topology
+and serial where available locally), check after reconnect, refuse ambiguity
+and system disks; never choose a device solely by VID/PID. Physical media
+writes, firmware changes, persistent hardware effects and host modifications
+need separate scoped approval; destructive operations default denied.
+**VM snapshots do not restore physical USB contents, firmware, external
+network effects or host configuration.** Preserve baseline and test
+evidence; handle unplug, reboot, hung guest, failed snapshots and bounded
+retry. Never automatically disable host protection or signing; use an
+explicitly provisioned lab/test-signing configuration if appropriate.
+Guest administrator authority never becomes host administrator authority.
+
+### Reference workload: revive legacy USB hardware
+
+Hardware agent identifies the device, researches public specs; reverse
+engineering role lawfully inspects old driver via Ghidra/radare2 and, where
+appropriate, observes permitted behavior on an older-OS guest. Respect
+licensing, applicable law and Phase 0 clean-room boundaries; keep proprietary
+binaries, decompiled output and private captures outside Git/public sharing,
+document behavioral facts and produce original implementation. Developer
+implements the driver against the interface contract. System/test agent
+creates baseline, builds matching driver, installs in the designated guest,
+runs functional and reconnect tests, collects logs/dumps/results, restores
+baseline and iterates. Host control recovers crashed guest. Reviewer checks
+source and evidence; separate Git/release agents publish under policy.
+Do not promise every device can be revived or one test proves broad
+compatibility; document exact tested hardware and OS combinations.
+Persistent Workspace records lab IDs, baseline, device binding, toolchain,
+driver revision, test matrix, attempts and unresolved actions. Restore
+metadata first; opening a workspace never implicitly rolls back a VM,
+attaches hardware or restarts a destructive test.
+
+| # | Step | Output | DoD |
+| --- | --- | --- | --- |
+| 28.1 | Virtualization contract/inventory | mock provider, read-only discovery, VMware capability investigation | stable identities, no side effects, unsupported operations and version/platform matrix |
+| 28.2 | Scoped host control | first verified backend, VM lifecycle and snapshot recovery | disposable VM, guest unreachable, wrong target denied, failed rollback and no unauthorized host changes |
+| 28.3 | Guest OS control | SSH/PowerShell, toolchains, guest driver lifecycle, logs/dumps | Windows/Linux guest tests, reboot/reconnect, separate privileges, evidence outside VM |
+| 28.4 | Exclusive USB | verified supported attach/detach, stable binding and device grants | sacrificial device, unplug/replug, duplicate VID/PID, wrong-device refusal, no implicit destructive writes |
+| 28.5 | Driver workload | analysis, original implementation, build/test/debug/restore | mocks then opt-in physical tests, bounded iteration, independent review, no proprietary artifacts committed |
+| 28.6 | Lab workspaces and wider workloads | persistent lab state, installers/migration/repair, other adapters | stale binding/snapshot, crash recovery, explicit resume and separately verified platform matrix |
+
+**Order:** contract and read-only inventory first; narrow host control,
+guest control, USB and hardware tests after Phase 16/19/20/21 prerequisites.
+Reuse Phase 25/26/27. Real hardware testing is optional and not a requirement
+for basic file management.
+
 ## Ideas backlog (not scheduled yet, cheapest value first)
 
 These are candidates that fit the "portable tool for a developer/administrator"
@@ -2049,7 +2351,7 @@ above are green.
 | Disk-usage treemap | a second view of the duplicate finder data: what really occupies the disk | medium |
 | Checksum watch ("fingerprint this folder") | store a checksum file per directory and report drift later; reuses `rc-core::checksum` | small |
 | Command palette (fuzzy) | `Ctrl+Shift+P` over the 594-command catalogue; the model already dispatches by name | small |
-| Session restore with unsaved-edit recovery | reopen tabs, panels and editor buffers after a crash | small |
+| Session restore with unsaved-edit recovery | scheduled in Phase 25.1–25.2; reopen tabs, panels and editor buffers without replaying side effects | see Phase 25 |
 | Per-directory action menus | `.rcommander.toml` next to a folder defines buttons (build, test, deploy) with confirmations | medium |
 | Accessibility pass | full keyboard navigation and screen-reader labels (the panels already carry accessible names) | medium |
 
