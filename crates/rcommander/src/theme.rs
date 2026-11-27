@@ -427,6 +427,49 @@ pub fn install_user_fonts(
     (installed, failures)
 }
 
+/// Pick an installed Arabic-capable face by conventional family name.
+fn arabic_fallback(discovered: &[rc_core::font::FontFile]) -> Option<&rc_core::font::FontFile> {
+    let candidates = ["notosansarabic", "notonaskharabic", "amiri", "dejavusans", "tahoma", "arial"];
+    candidates.iter().find_map(|candidate| {
+        discovered.iter().find(|font| {
+            let normalized: String = font.family.chars()
+                .filter(|ch| ch.is_ascii_alphanumeric())
+                .map(|ch| ch.to_ascii_lowercase()).collect();
+            normalized == *candidate && font.regular
+        })
+    })
+}
+
+/// Add an installed Arabic face as fallback without replacing the chosen UI
+/// font. No font is downloaded or bundled by this function.
+pub fn install_arabic_fallback(
+    ctx: &egui::Context,
+    discovered: &[rc_core::font::FontFile],
+    installed: &[&'static str],
+) -> bool {
+    use egui::{FontData, FontFamily, FontPriority};
+    let Some(file) = arabic_fallback(discovered) else { return false; };
+    if !std::fs::metadata(&file.path).is_ok_and(|meta| meta.len() <= 16 * 1024 * 1024)
+        || !rc_core::font::looks_like_font(&file.path)
+    {
+        return false;
+    }
+    let Ok(bytes) = std::fs::read(&file.path) else { return false; };
+    let mut families = vec![FontFamily::Proportional, FontFamily::Monospace];
+    families.extend(installed.iter().map(|role| family(role)));
+    for (index, family) in families.into_iter().enumerate() {
+        ctx.add_font(egui::epaint::text::FontInsert::new(
+            &format!("rc-arabic-fallback-{index}-{family:?}-{}", file.family),
+            FontData::from_owned(bytes.clone()),
+            vec![egui::epaint::text::InsertFontFamily {
+                family,
+                priority: FontPriority::Lowest,
+            }],
+        ));
+    }
+    true
+}
+
 /// The egui family of a text role, falling back to the built-in face.
 pub fn family(role: &str) -> egui::FontFamily {
     match role {
@@ -726,6 +769,17 @@ mod icon_fallback_tests {
 
     /// A custom family must keep the icon font as its last fallback, or the tool bar's icons
     /// become characters the font cannot draw — and a missing glyph is a panic in egui.
+    #[test]
+    fn arabic_fallback_prefers_a_dedicated_face() {
+        let font = |family: &str| rc_core::font::FontFile {
+            family: family.into(), path: std::path::PathBuf::from("unused.ttf"),
+            mono: false, regular: true,
+        };
+        let fonts = vec![font("Arial"), font("Noto Sans Arabic"), font("DejaVu Sans")];
+        assert_eq!(arabic_fallback(&fonts).unwrap().family, "Noto Sans Arabic");
+        assert!(arabic_fallback(&[font("Unknown")]).is_none());
+    }
+
     #[test]
     fn a_custom_family_keeps_the_icon_font_as_a_fallback() {
         let dir = tempfile::tempdir().unwrap();
