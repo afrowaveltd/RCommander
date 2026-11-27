@@ -429,7 +429,10 @@ authors = ["RCommander contributors"]
 
 "ftp.port_default" = "Use the default port for this protocol"
 "ftp.user_hint" = "user name (empty = anonymous)"
-"ftp.password_hint" = "password (kept in the credential store)"
+"ftp.password_hint" = "password or leave blank to use a saved password"
+"ftp.remember_password" = "Remember entered password after connecting"
+"ftp.key_passphrase" = "Private key passphrase"
+"session.unsupported_protocol" = "Unsupported connection protocol"
 
 "ftp.sessions" = "Saved sessions"
 "ftp.sessions.none" = "No saved sessions yet — fill in the fields and press Save."

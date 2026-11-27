@@ -425,7 +425,10 @@ authors = ["RCommander contributors"]
 
 "ftp.port_default" = "Použít výchozí port pro tento protokol"
 "ftp.user_hint" = "uživatelské jméno (prázdné = anonymně)"
-"ftp.password_hint" = "heslo (ukládá se do úložiště údajů)"
+"ftp.password_hint" = "heslo nebo ponechte prázdné pro uložené heslo"
+"ftp.remember_password" = "Zapamatovat zadané heslo po připojení"
+"ftp.key_passphrase" = "Heslo privátního klíče"
+"session.unsupported_protocol" = "Nepodporovaný protokol připojení"
 
 "ftp.sessions" = "Uložené relace"
 "ftp.sessions.none" = "Zatím žádné uložené relace — vyplňte pole a stiskněte Uložit."

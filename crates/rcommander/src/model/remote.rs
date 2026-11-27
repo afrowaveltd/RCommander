@@ -171,7 +171,9 @@ pub fn connection_spec(
     password: Option<String>,
 ) -> rc_remote::ConnectionSpec {
     let mut saved = connection.clone();
-    saved.password = password.unwrap_or_default();
+    if let Some(password) = password {
+        saved.password = password;
+    }
     let mut spec = rc_remote::ConnectionSpec::from_saved(&saved);
     // `from_saved` maps the key path; the passphrase travels in the spec only for
     // this connection attempt and is never stored on disk.

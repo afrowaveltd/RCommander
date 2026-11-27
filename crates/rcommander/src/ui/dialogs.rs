@@ -2253,6 +2253,13 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
                         .hint_text("~/.ssh/id_ed25519"),
                 );
                 ui.end_row();
+                ui.label(model.t("ftp.key_passphrase"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.connection.key_passphrase)
+                        .password(true)
+                        .desired_width(220.0),
+                );
+                ui.end_row();
             }
             ui.label("host key");
             ui.horizontal(|ui| {
@@ -2276,8 +2283,11 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
         }
     });
     ui.checkbox(&mut state.connection.passive, model.t("ftp.passive"));
-    ui.checkbox(&mut state.save_password, "remember the password");
+    ui.checkbox(&mut state.save_password, model.t("ftp.remember_password"));
     ui.label(state.summary());
+    if !state.status.is_empty() {
+        ui.label(&state.status);
+    }
     let (ok, cancel) = buttons(ui, model);
     if cancel {
         return DialogAction::Close;
@@ -2296,8 +2306,7 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
         };
         let session = rc_core::sessions::Session::from_connection(name, &connection);
         // Remembering the password is opt-in.
-        let _ = state.save_password;
-        match model.start_connect(&connection, &session) {
+        match model.start_connect_with_remember(&connection, &session, state.save_password) {
             crate::model::CommandOutcome::Ok => {
                 // The attempt runs in the background: the dialog closes now and
                 // the panel fills in when `poll_connect` reports the result.

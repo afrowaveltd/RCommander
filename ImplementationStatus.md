@@ -1500,6 +1500,29 @@ through ordinary path navigation; full TeX is not claimed.
   then stage B typed authorization/custodian contracts. Independently ready
   archive capability work can proceed without blocking normal file management.
 
+## Handoff — remote authentication first slice (2026-11-27)
+
+- 13.4a wallet regression workflow [#1](https://github.com/afrowaveltd/RCommander/actions/runs/45987193963)
+  completed successfully on both Ubuntu and Windows at `d233199`. This covers
+  the wallet library, not a new full app build or power-loss/zeroization guarantees.
+- 7/13 missing-password path **partial, source implemented, verification pending**:
+  connection_spec no longer drops a typed password; the common start path resolves
+  the exact stored account only when a manual password is absent and password
+  authentication is selected. Unknown protocols refused before lookup. Explicit
+  remember consent defaults off and applies only to newly typed passwords after
+  successful connection. Missing credentials stop before network access, the
+  prefilled dialog displays its status, and key-file passphrases have their own
+  masked field. EN/CS docs and strings updated.
+- Tests added in model::sessions::tests; Linux UI regression workflow now runs
+  them. Run `cargo test --locked -p rcommander --lib model::sessions::tests`,
+  `cargo test --locked -p rcommander --lib a_saved_connection_maps_to_a_connection_spec`
+  and `cargo fmt --all --check`. No local compilation available to this editor.
+- Remaining: real SFTP password/key/agent and save/no-save smoke tests on both
+  desktops; dedicated password-only prompt or wallet unlock flow, retry after
+  rejected authentication, key-passphrase storage keyed to the key identity,
+  headless connect outcome, cancellation and typed error propagation.
+  Do not mark Phase 7 or 13 complete yet.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

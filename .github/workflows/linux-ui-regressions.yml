@@ -8,6 +8,9 @@ on:
       - ".github/workflows/linux-ui-regressions.yml"
       - "crates/rc-core/src/drive.rs"
       - "crates/rc-core/src/config.rs"
+      - "crates/rcommander/src/model/sessions.rs"
+      - "crates/rcommander/src/model/remote.rs"
+      - "crates/rcommander/src/model/dialogs.rs"
       - "crates/rc-help/src/markdown.rs"
       - "crates/rcommander/src/model/actions.rs"
       - "crates/rcommander/src/model/commands.rs"
@@ -40,6 +43,8 @@ jobs:
           cargo test --locked -p rc-help --lib inline_math
       - name: Model and headless UI regressions
         run: |
+          cargo test --locked -p rcommander --lib model::sessions::tests
+          cargo test --locked -p rcommander --lib a_saved_connection_maps_to_a_connection_spec
           cargo test --locked -p rcommander --lib toolbar_
           cargo test --locked -p rcommander --lib action_catalogue
           cargo test --locked -p rcommander --test ui_smoke drive_selector_is_shown_in_each_panel_and_respects_layout_setting

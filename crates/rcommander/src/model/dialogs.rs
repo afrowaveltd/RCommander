@@ -950,7 +950,7 @@ impl Default for FtpConnectState {
             // port, so a local server can be reached without typing anything
             // beyond a user name.
             connection: SavedConnection::with_defaults("ftp"),
-            save_password: true,
+            save_password: false,
             status: String::new(),
             session_choice: String::new(),
             session_name: String::new(),

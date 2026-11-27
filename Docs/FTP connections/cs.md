@@ -57,9 +57,12 @@ přes `MDTM`. To je důležité pro *synchronizaci adresářů*, která časy po
 
 ## Bezpečnost
 
-Hesla se do konfiguračního souboru ukládají jen na výslovné přání. Pro cokoli
-jiného než důvěryhodnou místní síť používejte SFTP nebo FTPS a zkontrolujte
-část `[ftp]` konfiguračního souboru, co je v něm uloženo.
+Hesla se do profilu připojení neukládají. Prázdné pole hesla použije uložené
+heslo právě tohoto účtu; ručně zadané heslo má přednost pro aktuální pokus.
+Volba **Zapamatovat zadané heslo po připojení** je výchozím stavem vypnutá.
+Heslo se uloží až po úspěšném připojení. Soubor s klíčem má samostatné skryté
+pole pro heslo privátního klíče, které se touto volbou neukládá.
+V nedůvěryhodné síti používejte SFTP.
 
 ## Kde jsou uložena hesla
 

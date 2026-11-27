@@ -57,9 +57,12 @@ modification time when it is available through `MDTM`. This matters for
 
 ## Security
 
-Passwords are stored in your configuration file only when you ask for it. Prefer
-SFTP or FTPS for anything that is not a trusted local network, and check the
-`[ftp]` section of the settings file to review what is stored.
+Passwords are never saved in the connection profile. Leave the password field
+empty to use a stored password for that exact account. Enter a password to
+override it for this attempt. **Remember entered password after connecting**
+is off by default; select it only to save the newly entered password after a
+successful connection. Key-file authentication has a separate masked passphrase
+field; this field is not saved by this option. Prefer SFTP on untrusted networks.
 
 ## Where passwords are stored
 

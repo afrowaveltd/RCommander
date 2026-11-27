@@ -112,15 +112,13 @@ impl Model {
             self.report_error(&message);
             return CommandOutcome::Failed(message);
         };
-        let mut connection = session.to_connection();
-        if let Some(secret) = self.stored_password(&connection) {
-            connection.password = secret;
-        }
-        if session.needs_password() && connection.password.is_empty() {
+        let connection = session.to_connection();
+        let resolved = self.resolve_connection_credentials(&connection);
+        if Self::requires_password(&resolved) && resolved.password.is_empty() {
             // Ask rather than fail: the dialog is pre-filled with the session.
             self.open_dialog(super::Dialog::FtpConnect(super::dialogs::FtpConnectState {
                 connection,
-                save_password: true,
+                save_password: false,
                 status: self.tf("session.needs_password", &[("name", name)]),
                 session_choice: name.to_string(),
                 session_name: name.to_string(),
@@ -129,6 +127,41 @@ impl Model {
             return CommandOutcome::Ok;
         }
         self.start_connect(&connection, &session)
+    }
+
+    /// Only password authentication for a known protocol uses the account password.
+    fn requires_password(connection: &rc_core::config::SavedConnection) -> bool {
+        let Some(protocol) = rc_remote::Protocol::from_label(&connection.protocol) else {
+            return false;
+        };
+        let spec = rc_remote::ConnectionSpec::from_saved(connection);
+        if protocol == rc_remote::Protocol::Sftp {
+            matches!(spec.auth, rc_remote::AuthMethod::Password)
+        } else {
+            !spec.is_anonymous()
+        }
+    }
+
+    /// Resolve only the exact account, and only when no manual password was entered.
+    /// A key-file passphrase is a separate secret, never a login-password fallback.
+    fn resolve_connection_credentials(
+        &self,
+        connection: &rc_core::config::SavedConnection,
+    ) -> rc_core::config::SavedConnection {
+        let mut resolved = connection.clone();
+        if let Some(protocol) = rc_remote::Protocol::from_label(&resolved.protocol) {
+            if resolved.port == 0 {
+                resolved.port = protocol.default_port();
+            }
+            if Self::requires_password(&resolved) {
+                if resolved.password.is_empty() {
+                    resolved.password = self.stored_password(&resolved).unwrap_or_default();
+                }
+            } else {
+                resolved.password.clear();
+            }
+        }
+        resolved
     }
 
     /// True while a connection attempt is running in the background.
@@ -163,12 +196,36 @@ impl Model {
         connection: &rc_core::config::SavedConnection,
         session: &Session,
     ) -> CommandOutcome {
+        self.start_connect_with_remember(connection, session, false)
+    }
+
+    /// Start a user-requested attempt; remembering a newly entered password is opt-in.
+    pub fn start_connect_with_remember(
+        &mut self,
+        connection: &rc_core::config::SavedConnection,
+        session: &Session,
+        remember: bool,
+    ) -> CommandOutcome {
         if self.connect_job.is_some() {
             let message = self.t("session.busy");
             self.report_error(&message);
             return CommandOutcome::Failed(message);
         }
-        let mut spec = super::remote::connection_spec(connection, None);
+        if rc_remote::Protocol::from_label(&connection.protocol).is_none() {
+            let message = self.t("session.unsupported_protocol");
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        let resolved = self.resolve_connection_credentials(connection);
+        if Self::requires_password(&resolved) && resolved.password.is_empty() {
+            let message = self.tf("session.needs_password", &[("name", &session.name)]);
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        let remember_password = remember
+            && Self::requires_password(&resolved)
+            && !connection.password.is_empty();
+        let mut spec = super::remote::connection_spec(&resolved, None);
         spec.timeout =
             std::time::Duration::from_secs(self.settings.ftp.timeout_seconds.clamp(3, 120));
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -182,9 +239,15 @@ impl Model {
             .map(|backend| Box::new(backend) as Box<dyn super::remote::RemoteBackend>);
             let _ = sender.send(ConnectEvent::Done(result));
         });
+        let mut connection = resolved;
+        if !remember_password {
+            connection.password.clear();
+        }
+        connection.key_passphrase.clear();
         self.connect_job = Some(ConnectJob {
             session: session.clone(),
-            connection: connection.clone(),
+            connection,
+            remember_password,
             side: self.focus,
             stage: None,
             started: std::time::Instant::now(),
@@ -262,11 +325,14 @@ impl Model {
                 );
                 match self.connect_remote(job.side, backend, location) {
                     Ok(()) => {
-                        if !job.connection.password.is_empty() {
-                            let _ = self.remember_password(&job.connection);
-                        }
                         let message = self.tf("session.connected", &[("name", &job.session.name)]);
                         self.report(message);
+                        if job.remember_password
+                            && let CommandOutcome::Failed(error) =
+                                self.remember_password(&job.connection)
+                        {
+                            self.report_error(error);
+                        }
                     }
                     Err(error) => {
                         let message = error.to_string();
@@ -324,6 +390,8 @@ impl Model {
 pub struct ConnectJob {
     pub session: Session,
     pub connection: rc_core::config::SavedConnection,
+    /// True only for a newly entered password with explicit user consent.
+    pub remember_password: bool,
     /// Panel that will receive the connection, captured when it started.
     pub side: super::Side,
     /// Step the attempt has reached, so the status line can say what is happening.
@@ -483,6 +551,45 @@ mod tests {
             model.top_dialog(),
             Some(crate::model::Dialog::FtpConnect(_))
         ));
+    }
+
+    #[test]
+    fn remote_credentials_use_the_exact_account_and_keep_manual_override() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        let mut connection = rc_core::config::SavedConnection::with_defaults("sftp");
+        connection.host = "files.example.com".into();
+        connection.user = "alice".into();
+        model.secrets.set(&connection.account_id(), "stored").unwrap();
+
+        assert_eq!(model.resolve_connection_credentials(&connection).password, "stored");
+        connection.password = "manual".into();
+        let resolved = model.resolve_connection_credentials(&connection);
+        assert_eq!(super::super::remote::connection_spec(&resolved, None).password, "manual");
+
+        connection.password.clear();
+        connection.port = 2222;
+        assert!(model.resolve_connection_credentials(&connection).password.is_empty());
+        connection.port = 22;
+        connection.auth_method = "key".into();
+        assert!(model.resolve_connection_credentials(&connection).password.is_empty());
+        connection.auth_method = "agent".into();
+        assert!(model.resolve_connection_credentials(&connection).password.is_empty());
+    }
+
+    #[test]
+    fn missing_password_stops_before_starting_a_worker() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        let mut connection = rc_core::config::SavedConnection::with_defaults("sftp");
+        connection.user = "alice".into();
+        let session = Session::from_connection("test", &connection);
+        assert!(matches!(
+            model.start_connect(&connection, &session),
+            CommandOutcome::Failed(_)
+        ));
+        assert!(!model.is_connecting());
+        assert!(model.secrets.accounts().is_empty());
     }
 
     #[test]
