@@ -467,6 +467,18 @@ fn sort_command_for(id: &str) -> &'static str {
     }
 }
 
+/// Configured row height is a minimum, never a cap on text.
+fn padded_row_height(minimum: f32, text_height: f32) -> f32 {
+    minimum.max(text_height.ceil() + 6.0)
+}
+
+/// Measure the actual font stack, including fallback glyphs used by the
+/// current language, rather than assuming that font size equals line height.
+fn measured_line_height(ui: &Ui, font: &FontId, sample: &str) -> f32 {
+    let galley = ui.painter().layout_no_wrap(sample.to_owned(), font.clone(), Color32::WHITE);
+    galley.rect.height().max(galley.mesh_bounds.height()).max(font.size)
+}
+
 fn list_header(
     ui: &mut Ui,
     model: &mut Model,
@@ -480,19 +492,23 @@ fn list_header(
     }
     let spec = model.panel(side).sort();
     let header_bg = palette.header_background;
-    let _rect = ui
-        .available_rect_before_wrap()
-        .with_max_y(ui.cursor().min.y + 18.0);
-    let (rect, _response) =
-        ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0), Sense::hover());
-    let painter = ui.painter();
-    painter.rect_filled(rect, 0, header_bg);
-    let mut font_id = ui.style().text_styles[&egui::TextStyle::Body].clone();
-    font_id.size = (model.settings.display.font_size - 1.0).max(8.0);
+    let mut font_id = font(ui, model);
+    font_id.size = (font_id.size - 1.0).max(8.0);
     // Column headers follow `settings.display.columns` for a local directory, and the
     // source's own declaration for a plugin source — so hiding, adding and reordering
     // columns changes the header row, and a mail list never shows a "Size" header.
     let columns = model.columns(side);
+    let header_text_height = columns.iter().fold(
+        measured_line_height(ui, &font_id, "Ag 0123456789"),
+        |height, column| height.max(measured_line_height(ui, &font_id, &column.label)),
+    );
+    let header_height = padded_row_height(18.0, header_text_height);
+    let (rect, _response) = ui.allocate_exact_size(
+        Vec2::new(ui.available_width(), header_height),
+        Sense::hover(),
+    );
+    let painter = ui.painter();
+    painter.rect_filled(rect, 0, header_bg);
     let cells = column_rects(&columns, rect, rtl);
     for (index, column) in columns.iter().enumerate() {
         let column_rect = cells[index];
@@ -513,9 +529,9 @@ fn list_header(
             ""
         };
         let (anchor, align) = if rtl {
-            (column_rect.right_top() + Vec2::new(-2.0, 2.0), Align2::RIGHT_TOP)
+            (egui::pos2(column_rect.right() - 2.0, column_rect.center().y), Align2::RIGHT_CENTER)
         } else {
-            (column_rect.left_top() + Vec2::new(2.0, 2.0), Align2::LEFT_TOP)
+            (egui::pos2(column_rect.left() + 2.0, column_rect.center().y), Align2::LEFT_CENTER)
         };
         painter.with_clip_rect(column_rect.intersect(ui.clip_rect())).text(
             anchor,
@@ -562,7 +578,6 @@ fn file_list(
     rtl: bool,
     actions: &mut Vec<PanelAction>,
 ) {
-    let row_height = model.settings.display.row_height.max(12.0);
     let view_mode = model.panel(side).view_mode;
     let entries: Vec<Entry> = model.panel(side).entries().to_vec();
     let cursor = model.panel(side).cursor();
@@ -576,8 +591,15 @@ fn file_list(
     let error = model.panel(side).error.clone();
     // One resolution per frame: the columns do not change between rows.
     let columns = model.columns(side);
-    let mut font_id = ui.style().text_styles[&egui::TextStyle::Body].clone();
-    font_id.size = model.settings.display.font_size;
+    let font_id = font(ui, model);
+    let sample = format!("Ag 0123456789 {} {}", crate::icons::Icon::Folder.glyph(), model.t("col.name"));
+    let mut line_height = measured_line_height(ui, &font_id, &sample);
+    // Sample localized column captions too, including provider-specific scripts.
+    // Keep virtual scrolling bounded; do not shape every filename.
+    for column in &columns {
+        line_height = line_height.max(measured_line_height(ui, &font_id, &column.label));
+    }
+    let row_height = padded_row_height(model.settings.display.row_height.max(12.0), line_height);
     let mut clicked: Option<(usize, ClickKind)> = None;
 
     let scroll = egui::ScrollArea::vertical()
@@ -1387,6 +1409,26 @@ mod tests {
             row_background(1, false, false, true, &dark),
             Some(dark.row_alternate)
         );
+    }
+
+    #[test]
+    fn row_height_respects_minimum_and_grows_with_font_metrics() {
+        assert_eq!(padded_row_height(28.0, 14.0), 28.0);
+        assert_eq!(padded_row_height(18.0, 24.1), 31.0);
+        assert_eq!(padded_row_height(12.0, 40.0), 46.0);
+    }
+
+    #[test]
+    fn measured_row_height_grows_with_the_actual_ui_font() {
+        let ctx = egui::Context::default();
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let small = measured_line_height(ui, &FontId::proportional(12.0), "Ag 0123456789");
+            let large = measured_line_height(ui, &FontId::proportional(32.0), "Ag 0123456789");
+            assert!(large > small);
+            assert!(padded_row_height(18.0, large) >= large + 6.0);
+        });
+        let mut deltas = output.textures_delta;
+        deltas.clear();
     }
 
     #[test]
