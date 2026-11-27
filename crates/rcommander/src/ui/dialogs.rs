@@ -553,10 +553,10 @@ fn overwrite(
     }
     let mut action = DialogAction::None;
     ui.horizontal(|ui| {
-        if ui.button("Overwrite").clicked() {
+        if ui.button(model.t("dialog.overwrite.title")).clicked() {
             action = DialogAction::Run;
         }
-        if ui.button("Skip").clicked() {
+        if ui.button(model.t("dialog.overwrite.skip")).clicked() {
             action = DialogAction::Close;
         }
         if ui.button(model.t("dialog.config.cancel")).clicked() {
@@ -715,11 +715,11 @@ fn pack(ui: &mut egui::Ui, model: &mut Model, state: &mut PackState) -> DialogAc
     ui.label(model.t("dialog.copy.to"));
     ui.add(egui::TextEdit::singleline(&mut state.archive_name).desired_width(f32::INFINITY));
     ui.horizontal(|ui| {
-        ui.label("format");
+        ui.label(model.t("archive.format"));
         ui.radio_value(&mut state.format, "zip".to_string(), "zip");
         ui.radio_value(&mut state.format, "tar.gz".to_string(), "tar.gz");
     });
-    ui.add(egui::Slider::new(&mut state.level, 0..=9).text("level"));
+    ui.add(egui::Slider::new(&mut state.level, 0..=9).text(model.t("archive.level")));
     let (ok, cancel) = buttons(ui, model);
     if cancel {
         return DialogAction::Close;
@@ -785,16 +785,16 @@ fn multi_rename(
         ui.label(model.t("dialog.rename_pattern"));
         ui.add(egui::TextEdit::singleline(&mut state.pattern).desired_width(260.0));
         ui.end_row();
-        ui.label("extension");
+        ui.label(model.t("col.ext"));
         ui.add(egui::TextEdit::singleline(&mut state.extension_pattern).desired_width(260.0));
         ui.end_row();
-        ui.label("search");
+        ui.label(model.t("dialog.search.name"));
         ui.add(egui::TextEdit::singleline(&mut state.search_for).desired_width(260.0));
         ui.end_row();
-        ui.label("replace");
+        ui.label(model.t("dialog.rename.replace"));
         ui.add(egui::TextEdit::singleline(&mut state.replace_with).desired_width(260.0));
         ui.end_row();
-        ui.label("counter");
+        ui.label(model.t("dialog.rename.counter"));
         ui.horizontal(|ui| {
             ui.add(egui::DragValue::new(&mut state.counter_start));
             ui.add(egui::DragValue::new(&mut state.counter_step));
@@ -837,21 +837,21 @@ fn attributes(ui: &mut egui::Ui, model: &mut Model, state: &mut AttributesState)
     let mut archive = state.archive.unwrap_or(false);
     let mut changed = false;
     if ui
-        .checkbox(&mut readonly, model.t("cmd.attributes"))
+        .checkbox(&mut readonly, model.t("attributes.readonly"))
         .changed()
     {
         state.readonly = Some(readonly);
         changed = true;
     }
-    if ui.checkbox(&mut hidden, "hidden").changed() {
+    if ui.checkbox(&mut hidden, model.t("attributes.hidden")).changed() {
         state.hidden = Some(hidden);
         changed |= true;
     }
-    if ui.checkbox(&mut system, "system").changed() {
+    if ui.checkbox(&mut system, model.t("attributes.system")).changed() {
         state.system = Some(system);
         changed |= true;
     }
-    if ui.checkbox(&mut archive, "archive").changed() {
+    if ui.checkbox(&mut archive, model.t("attributes.archive")).changed() {
         state.archive = Some(archive);
         changed |= true;
     }
@@ -859,7 +859,7 @@ fn attributes(ui: &mut egui::Ui, model: &mut Model, state: &mut AttributesState)
     {
         let mut mode = state.unix_mode.unwrap_or(0o644);
         if ui
-            .add(egui::Slider::new(&mut mode, 0..=0o777).text("unix mode"))
+            .add(egui::Slider::new(&mut mode, 0..=0o777).text(model.t("attributes.unix_mode")))
             .changed()
         {
             state.unix_mode = Some(mode);
@@ -931,7 +931,7 @@ fn hotlist(ui: &mut egui::Ui, model: &mut Model, state: &mut HotlistState) -> Di
         });
     ui.separator();
     ui.horizontal(|ui| {
-        if ui.button("+ current dir").clicked() {
+        if ui.button(model.t("toolbar.add_directory")).clicked() {
             let current = model.active().location().display();
             list.add(current.clone(), current);
             let _ = list.save(&path);
@@ -2635,12 +2635,12 @@ fn options(
     ui.separator();
     settings_body(ui, state.tab.key(), |ui| match state.tab {
         OptionsTab::Display => {
-            ui.checkbox(&mut state.draft.display.show_hidden, "show hidden");
-            ui.checkbox(&mut state.draft.display.show_parent_entry, "show ..");
-            ui.checkbox(&mut state.draft.display.dirs_first, "dirs first");
-            ui.checkbox(&mut state.draft.display.natural_sort, "natural sort");
+            ui.checkbox(&mut state.draft.display.show_hidden, model.t("settings.show_hidden"));
+            ui.checkbox(&mut state.draft.display.show_parent_entry, model.t("settings.show_parent"));
+            ui.checkbox(&mut state.draft.display.dirs_first, model.t("settings.dirs_first"));
+            ui.checkbox(&mut state.draft.display.natural_sort, model.t("settings.natural_sort"));
             ui.add(
-                egui::Slider::new(&mut state.draft.display.font_size, 8.0..=28.0).text("font size"),
+                egui::Slider::new(&mut state.draft.display.font_size, 8.0..=28.0).text(model.t("settings.font_size")),
             );
             ui.separator();
             ui.label(
@@ -2672,7 +2672,7 @@ fn options(
             }
             ui.add(
                 egui::Slider::new(&mut state.draft.display.row_height, 14.0..=40.0)
-                    .text("row height"),
+                    .text(model.t("settings.row_height")),
             );
         }
         OptionsTab::Language => {
@@ -2702,13 +2702,13 @@ fn options(
         }
         OptionsTab::Editor => {
             ui.add(
-                egui::Slider::new(&mut state.draft.editor.font_size, 8.0..=28.0).text("font size"),
+                egui::Slider::new(&mut state.draft.editor.font_size, 8.0..=28.0).text(model.t("settings.font_size")),
             );
-            ui.checkbox(&mut state.draft.editor.word_wrap, "word wrap");
-            ui.add(egui::Slider::new(&mut state.draft.editor.tab_width, 1..=8).text("tab width"));
+            ui.checkbox(&mut state.draft.editor.word_wrap, model.t("viewer.wrap"));
+            ui.add(egui::Slider::new(&mut state.draft.editor.tab_width, 1..=8).text(model.t("settings.tab_width")));
         }
         OptionsTab::Packer => {
-            egui::ComboBox::from_label("format")
+            egui::ComboBox::from_label(model.t("archive.format"))
                 .selected_text(state.draft.packer.default_type.clone())
                 .show_ui(ui, |ui| {
                     ui.selectable_value(
@@ -2722,15 +2722,15 @@ fn options(
                         "tar.gz",
                     );
                 });
-            ui.add(egui::Slider::new(&mut state.draft.packer.level, 0..=9).text("level"));
+            ui.add(egui::Slider::new(&mut state.draft.packer.level, 0..=9).text(model.t("archive.level")));
         }
         OptionsTab::Ftp => {
-            ui.checkbox(&mut state.draft.ftp.passive_mode, "passive mode");
-            ui.checkbox(&mut state.draft.ftp.use_mlsd, "use MLSD");
+            ui.checkbox(&mut state.draft.ftp.passive_mode, model.t("ftp.passive"));
+            ui.checkbox(&mut state.draft.ftp.use_mlsd, model.t("ftp.use_mlsd"));
             ui.add(
                 egui::DragValue::new(&mut state.draft.ftp.timeout_seconds)
                     .range(5..=600)
-                    .prefix("timeout "),
+                    .prefix(format!("{} ", model.t("ftp.timeout"))),
             );
         }
         OptionsTab::Agent => {
@@ -2743,7 +2743,7 @@ fn options(
                 model.t("agent.ask"),
             );
             ui.horizontal(|ui| {
-                ui.label("transport");
+                ui.label(model.t("agent.transport"));
                 ui.radio_value(
                     &mut state.draft.agent.server_transport,
                     "stdio".to_string(),
@@ -2758,7 +2758,7 @@ fn options(
             ui.add(
                 egui::DragValue::new(&mut state.draft.agent.server_port)
                     .range(0..=65535)
-                    .prefix("port "),
+                    .prefix(format!("{} ", model.t("ftp.port"))),
             );
         }
         OptionsTab::Security => {
@@ -2831,7 +2831,7 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
     // while the shown port is still a default itself.
     let mut protocol_choice: Option<&'static str> = None;
     ui.horizontal(|ui| {
-        ui.label("protocol");
+        ui.label(model.t("ftp.protocol"));
         if ui
             .selectable_label(state.connection.protocol == "ftp", "FTP")
             .clicked()
@@ -2905,17 +2905,17 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
         );
         ui.end_row();
         if state.is_ssh() {
-            ui.label("authentication");
+            ui.label(model.t("ftp.authentication"));
             ui.horizontal(|ui| {
                 ui.selectable_value(
                     &mut state.connection.auth_method,
                     "password".to_string(),
-                    "password",
+                    model.t("ftp.password"),
                 );
                 ui.selectable_value(
                     &mut state.connection.auth_method,
                     "key".to_string(),
-                    "key file",
+                    model.t("ftp.key_file"),
                 );
                 ui.selectable_value(
                     &mut state.connection.auth_method,
@@ -2925,7 +2925,7 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
             });
             ui.end_row();
             if state.connection.auth_method == "key" {
-                ui.label("key file");
+                ui.label(model.t("ftp.key_file"));
                 ui.add(
                     egui::TextEdit::singleline(&mut state.connection.key_path)
                         .desired_width(220.0)
@@ -2940,22 +2940,22 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
                 );
                 ui.end_row();
             }
-            ui.label("host key");
+            ui.label(model.t("ftp.host_key"));
             ui.horizontal(|ui| {
                 ui.selectable_value(
                     &mut state.connection.host_key_policy,
                     "tofu".to_string(),
-                    "trust on first use",
+                    model.t("ftp.host_key.tofu"),
                 );
                 ui.selectable_value(
                     &mut state.connection.host_key_policy,
                     "strict".to_string(),
-                    "strict",
+                    model.t("ftp.host_key.strict"),
                 );
                 ui.selectable_value(
                     &mut state.connection.host_key_policy,
                     "ignore".to_string(),
-                    "ignore",
+                    model.t("ftp.host_key.ignore"),
                 );
             });
             ui.end_row();
@@ -3208,7 +3208,7 @@ fn mask_prompt(ui: &mut egui::Ui, model: &mut Model, state: &mut MaskPromptState
 }
 
 fn compare(ui: &mut egui::Ui, model: &mut Model, state: &mut CompareState) -> DialogAction {
-    ui.label(state.summary());
+    ui.label(model.tf("dialog.compare.summary", &[("count", &state.different().to_string()), ("total", &state.rows.len().to_string())]));
     egui::ScrollArea::vertical()
         .max_height(280.0)
         .id_salt("compare_scroll")
@@ -3472,7 +3472,7 @@ fn view_modes(
                     {
                         *state = ViewModeDialogState::from_mode(mode, index);
                     }
-                    if ui.small_button("apply").clicked() {
+                    if ui.small_button(model.t("dialog.config.apply")).clicked() {
                         let _ = model.apply_view_mode(&mode.name);
                     }
                     if ui.small_button("×").clicked() {
@@ -3487,10 +3487,10 @@ fn view_modes(
     egui::Grid::new("viewmode_grid")
         .num_columns(2)
         .show(ui, |ui| {
-            ui.label("name");
+            ui.label(model.t("col.name"));
             ui.add(egui::TextEdit::singleline(&mut state.name).desired_width(200.0));
             ui.end_row();
-            ui.label("kind");
+            ui.label(model.t("dialog.viewmode.kind"));
             egui::ComboBox::from_id_salt("viewmode_kind")
                 .selected_text(state.kind.clone())
                 .show_ui(ui, |ui| {
@@ -3499,10 +3499,10 @@ fn view_modes(
                     }
                 });
             ui.end_row();
-            ui.label("mask");
+            ui.label(model.t("dialog.viewmode.mask"));
             ui.add(egui::TextEdit::singleline(&mut state.mask).desired_width(200.0));
             ui.end_row();
-            ui.label("sort");
+            ui.label(model.t("dialog.viewmode.sort"));
             egui::ComboBox::from_id_salt("viewmode_sort")
                 .selected_text(state.sort_field.clone())
                 .show_ui(ui, |ui| {
@@ -3512,7 +3512,7 @@ fn view_modes(
                 });
             ui.end_row();
         });
-    ui.checkbox(&mut state.sort_reversed, "reversed");
+    ui.checkbox(&mut state.sort_reversed, model.t("dialog.viewmode.reversed"));
     if ui.button(model.t("dialog.config.apply")).clicked() {
         match model.save_view_mode(state) {
             crate::model::CommandOutcome::Failed(message) => model.report_error(message),
@@ -3565,7 +3565,7 @@ fn split(ui: &mut egui::Ui, model: &mut Model, state: &mut SplitState) -> Dialog
 fn combine(ui: &mut egui::Ui, model: &mut Model, state: &mut CombineState) -> DialogAction {
     ui.label(&state.first_part);
     if state.discovered > 0 {
-        ui.label(format!("{} part(s) found", state.discovered));
+        ui.label(model.tf("dialog.combine.parts", &[("count", &state.discovered.to_string())]));
     }
     ui.horizontal(|ui| {
         ui.label(model.t("dialog.copy.to"));
@@ -3589,7 +3589,7 @@ fn checksum(ui: &mut egui::Ui, model: &mut Model, state: &mut ChecksumState) -> 
         &[("count", &state.sources.len().to_string())],
     ));
     ui.horizontal(|ui| {
-        ui.label("algorithm");
+        ui.label(model.t("dialog.algorithm"));
         egui::ComboBox::from_id_salt("checksum_algo")
             .selected_text(state.algorithm.clone())
             .show_ui(ui, |ui| {
@@ -3682,7 +3682,7 @@ fn duplicates(ui: &mut egui::Ui, model: &mut Model, state: &mut DuplicatesState)
     ui.horizontal(|ui| {
         ui.label(model.t("col.size"));
         ui.add(egui::DragValue::new(&mut state.min_size).range(0..=u32::MAX as u64));
-        ui.label("algorithm");
+        ui.label(model.t("dialog.algorithm"));
         egui::ComboBox::from_id_salt("dupe_algo")
             .selected_text(state.algorithm.clone())
             .show_ui(ui, |ui| {
@@ -3727,7 +3727,7 @@ fn encode_dialog(ui: &mut egui::Ui, model: &mut Model, state: &mut EncodeState) 
         &[("count", &state.sources.len().to_string())],
     ));
     ui.horizontal(|ui| {
-        ui.label("encoding");
+        ui.label(model.t("viewer.encoding"));
         for id in ["MIME", "UUE", "XXE"] {
             ui.selectable_value(&mut state.encoding, id.to_string(), id);
         }
@@ -3747,7 +3747,7 @@ fn encode_dialog(ui: &mut egui::Ui, model: &mut Model, state: &mut EncodeState) 
 fn decode_dialog(ui: &mut egui::Ui, model: &mut Model, state: &mut DecodeState) -> DialogAction {
     ui.label(&state.source);
     ui.horizontal(|ui| {
-        ui.label("target name");
+        ui.label(model.t("dialog.target_name"));
         ui.add(
             egui::TextEdit::singleline(&mut state.target_name)
                 .desired_width(280.0)
@@ -4534,9 +4534,9 @@ fn sync(ui: &mut egui::Ui, model: &mut Model, state: &mut SyncState) -> DialogAc
         ui.label(model.t("panel.target"));
         ui.add(egui::TextEdit::singleline(&mut state.right).desired_width(200.0));
     });
-    ui.checkbox(&mut state.ignore_dates, "ignore dates");
-    ui.checkbox(&mut state.by_content, "compare by content");
-    ui.checkbox(&mut state.dry_run, "dry run");
+    ui.checkbox(&mut state.ignore_dates, model.t("dialog.sync.ignore_dates"));
+    ui.checkbox(&mut state.by_content, model.t("cmd.compare_by_content"));
+    ui.checkbox(&mut state.dry_run, model.t("dialog.sync.dry_run"));
     let mut action = DialogAction::None;
     if ui.button(model.t("cmd.compare_dirs")).clicked() {
         if let Err(message) = state.validate() {
@@ -4579,10 +4579,10 @@ fn sync(ui: &mut egui::Ui, model: &mut Model, state: &mut SyncState) -> DialogAc
 fn about(ui: &mut egui::Ui, model: &mut Model) -> DialogAction {
     ui.heading("RCommander");
     ui.label(model.tf("app.version", &[("version", crate::VERSION)]));
-    ui.label("A cross-platform dual-pane file manager written in Rust.");
-    ui.label("Independent implementation — no code or assets from other file managers.");
+    ui.label(model.t("about.description"));
+    ui.label(model.t("about.independent"));
     ui.separator();
-    ui.label("MIT licence");
+    ui.label(model.t("about.license"));
     if ui.button(model.t("dialog.config.ok")).clicked() {
         return DialogAction::Close;
     }
