@@ -210,8 +210,8 @@ and actual Hex retained. Expose supported active features through explicit setti
 and scoped grants (including WebView development and browser modes). Unknown/unsupported formats must not pretend to
 render. Implemented slices: Markdown, CSV/TSV, JSON/TOML value trees and
 existing image formats, XML event trees (quick-xml 0.41.0 MIT, DTD/entity
-resolution disabled, upstream notice in Docs/ThirdParty). Pending build/test
-verification in PR #3: INI/CFG/CONF trees, JSONL/NDJSON trees, Netpbm/Farbfeld
+resolution disabled, upstream notice in Docs/ThirdParty). Integrated in main (PR #3), build/test
+verification pending: INI/CFG/CONF trees, JSONL/NDJSON trees, Netpbm/Farbfeld
 image decoding and bounded SRT/WebVTT timed cue tables (with literal cue
 markup and no media playback dependency). Next: static SVG
 (resvg MIT OR Apache-2.0 is a candidate); spreadsheet cell previews, PDF page rasterization, office
@@ -3683,3 +3683,12 @@ above are green.
 4. **Honest status.** `ImplementationStatus.md` records what is verified, with the
    evidence (test counts, commands). Pending work is listed, never implied to be
    finished.
+5. **Shared main branch (owner decision, 2026-11-28).** Keep `main` as the
+   canonical collaboration and handoff branch because a collaborating agent
+   works from the owner's local checkout rather than directly from GitHub.
+   Prefer small coherent commits to main, or promptly merge conflict-free
+   review branches. Run available checks before integration; never merge
+   a known broken change. If the toolchain or CI is unavailable, the owner
+   permits integration with verification explicitly pending in
+   ImplementationStatus.md, not a declaration that the feature is done.
+   Keep the plan, status and user-facing help synchronized with each slice.
