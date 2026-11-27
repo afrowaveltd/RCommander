@@ -115,15 +115,10 @@ impl Model {
         let connection = session.to_connection();
         let resolved = self.resolve_connection_credentials(&connection);
         if Self::requires_password(&resolved) && resolved.password.is_empty() {
-            // Ask rather than fail: the dialog is pre-filled with the session.
-            self.open_dialog(super::Dialog::FtpConnect(super::dialogs::FtpConnectState {
-                connection,
-                save_password: false,
-                status: self.tf("session.needs_password", &[("name", name)]),
-                session_choice: name.to_string(),
-                session_name: name.to_string(),
-                ..super::dialogs::FtpConnectState::default()
-            }));
+            let status = self.tf("session.needs_password", &[("name", name)]);
+            self.open_dialog(super::Dialog::FtpConnect(
+                super::dialogs::FtpConnectState::for_password(session, status),
+            ));
             return CommandOutcome::Ok;
         }
         self.start_connect(&connection, &session)
@@ -550,6 +545,10 @@ mod tests {
         match model.top_dialog() {
             Some(crate::model::Dialog::FtpConnect(state)) => {
                 assert_eq!(state.connection.host, "files.example.com");
+                assert_eq!(state.password_session.as_ref().map(|p| p.name.as_str()), Some("work"));
+                assert!(state.connection.password.is_empty());
+                assert!(!state.save_password);
+                assert!(state.validate().is_err());
                 assert_eq!(state.connection.port, 22);
                 assert_eq!(state.connection.user, "alice");
                 assert!(
