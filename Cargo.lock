@@ -3354,6 +3354,7 @@ dependencies = [
  "egui_kittest",
  "git2",
  "image",
+ "quick-xml",
  "rc-agent",
  "rc-archive",
  "rc-core",

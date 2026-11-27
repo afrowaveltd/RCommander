@@ -102,3 +102,4 @@ jobs:
           cargo test --locked -p rcommander --test ui_smoke markdown_f3_defaults_to_rendered_content_and_keeps_source_available
           cargo test --locked -p rcommander --lib ui::data_preview::tests
           cargo test --locked -p rcommander --test ui_smoke csv_f3_displays_records_as_separate_cells
+          cargo test --locked -p rcommander --test ui_smoke xml_f3_shows_attributes_in_a_tree

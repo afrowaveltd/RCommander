@@ -3682,3 +3682,14 @@ fn csv_f3_displays_records_as_separate_cells() {
     assert!(harness.root().query_all_by_label("Prague").count() > 0);
     assert!(harness.root().query_all_by_label("42").count() > 0);
 }
+
+#[test]
+fn xml_f3_shows_attributes_in_a_tree() {
+    let (left, right) = fixture();
+    let path = left.path().join("preview.xml");
+    write(&path, "<root id=\"42\"><item>hello</item></root>");
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.state_mut().open_viewer(path);
+    harness.run();
+    assert!(harness.root().query_all_by_label("@id: 42").count() > 0);
+}

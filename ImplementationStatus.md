@@ -2239,6 +2239,20 @@ fetch, or new codecs. Added parser tests and CSV GUI smoke test.
 Previous Markdown CI still running when this slice began; new CI pending.
 No local Rust toolchain.
 
+## Handoff — passive XML preview (2026-11-27)
+
+Reused quick-xml 0.41.0 already locked (MIT, no default features, memchr
+dependency). Added only rcommander's dependency edge. Exact upstream
+license copied to Docs/ThirdParty/quick-xml-LICENSE-MIT.md, included by
+the existing portable ZIP Docs copy. This is not a full dependency
+license audit. XML preview uses an event tree, preserves qualified
+names, attributes, order, text and CDATA; predefined/numeric references
+only. DTDs/custom entities refused; no external resources or PIs
+executed. Depth/node/input bounds; malformed, truncated or excessive
+documents fall back to source. This is a normalized preview, not a
+schema validator or SVG renderer. Unit and GUI regression added.
+No local toolchain; CI pending.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

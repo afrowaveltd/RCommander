@@ -38,6 +38,15 @@ impl DataPreview {
                     Err(()) => Self::Unavailable,
                 })
             }
+            "xml" => {
+                if truncated || text.len() > INPUT_LIMIT {
+                    return Some(Self::Unavailable);
+                }
+                Some(match xml_tree(text) {
+                    Ok((root, limited)) => Self::Tree { root, limited },
+                    Err(()) => Self::Unavailable,
+                })
+            }
             "json" | "toml" => {
                 if truncated || text.len() > INPUT_LIMIT {
                     return Some(Self::Unavailable);
@@ -245,8 +254,135 @@ fn node(
     Node { name, value: description, children }
 }
 
+/// Build a display tree from XML events, preserving child order, qualified
+/// names, attributes and mixed content. This is not an XML schema validator.
+/// DTDs and custom entities are deliberately unsupported. No I/O resolver
+/// exists here, so namespace URLs and processing instructions remain data.
+fn xml_tree(text: &str) -> Result<(Node, bool), ()> {
+    use quick_xml::events::Event;
+
+    let mut reader = quick_xml::Reader::from_str(text);
+    let mut stack: Vec<Node> = Vec::new();
+    let mut root = None;
+    let mut budget = MAX_NODES;
+    let mut limited = false;
+    loop {
+        match reader.read_event().map_err(|_| ())? {
+            Event::Start(tag) => {
+                if stack.len() >= MAX_DEPTH {
+                    return Err(());
+                }
+                let item = xml_element(&tag, &mut budget, &mut limited)?;
+                stack.push(item);
+            }
+            Event::Empty(tag) => {
+                if stack.len() >= MAX_DEPTH {
+                    return Err(());
+                }
+                let item = xml_element(&tag, &mut budget, &mut limited)?;
+                xml_attach(&mut stack, &mut root, item)?;
+            }
+            Event::End(_) => {
+                // Reader's default end-name check rejects mismatched tags.
+                let item = stack.pop().ok_or(())?;
+                xml_attach(&mut stack, &mut root, item)?;
+            }
+            Event::Text(text) => {
+                let value = std::str::from_utf8(text.as_ref()).map_err(|_| ())?;
+                if !value.trim().is_empty() {
+                    xml_leaf(&mut stack, "#text", value.to_owned(), &mut budget, &mut limited)?;
+                }
+            }
+            Event::CData(text) => {
+                let value = std::str::from_utf8(text.as_ref()).map_err(|_| ())?;
+                xml_leaf(&mut stack, "#CDATA", value.to_owned(), &mut budget, &mut limited)?;
+            }
+            Event::GeneralRef(reference) => {
+                let name = std::str::from_utf8(reference.as_ref()).map_err(|_| ())?;
+                // Only predefined XML entities and numeric references. Never
+                // consult a DTD, custom resolver, filesystem or network.
+                let escaped = format!("&{name};");
+                let value = quick_xml::escape::unescape(&escaped).map_err(|_| ())?;
+                xml_leaf(&mut stack, "#text", value.into_owned(), &mut budget, &mut limited)?;
+            }
+            Event::Comment(_) | Event::Decl(_) | Event::PI(_) => {
+                // Comments/declarations are available in the source; PIs
+                // are not instructions to this application.
+            }
+            Event::DocType(_) => return Err(()),
+            Event::Eof => {
+                if !stack.is_empty() {
+                    return Err(());
+                }
+                return root.map(|root| (root, limited)).ok_or(());
+            }
+        }
+    }
+}
+
+fn xml_element(
+    tag: &quick_xml::events::BytesStart<'_>,
+    budget: &mut usize,
+    limited: &mut bool,
+) -> Result<Node, ()> {
+    let name = std::str::from_utf8(tag.name().as_ref()).map_err(|_| ())?.to_owned();
+    let mut item = xml_node(name, String::new(), budget, limited)?;
+    for attr in tag.attributes() {
+        let attr = attr.map_err(|_| ())?;
+        let key = std::str::from_utf8(attr.key.as_ref()).map_err(|_| ())?;
+        let raw = std::str::from_utf8(attr.value.as_ref()).map_err(|_| ())?;
+        let value = quick_xml::escape::unescape(raw).map_err(|_| ())?;
+        item.children.push(xml_node(format!("@{key}"), value.into_owned(), budget, limited)?);
+    }
+    Ok(item)
+}
+
+fn xml_node(
+    name: String,
+    value: String,
+    budget: &mut usize,
+    limited: &mut bool,
+) -> Result<Node, ()> {
+    if *budget == 0 {
+        return Err(());
+    }
+    *budget -= 1;
+    Ok(Node {
+        name: shorten(name, limited),
+        value: shorten(value, limited),
+        children: Vec::new(),
+    })
+}
+
+fn xml_attach(stack: &mut [Node], root: &mut Option<Node>, item: Node) -> Result<(), ()> {
+    if let Some(parent) = stack.last_mut() {
+        parent.children.push(item);
+    } else if root.is_none() {
+        *root = Some(item);
+    } else {
+        return Err(());
+    }
+    Ok(())
+}
+
+fn xml_leaf(
+    stack: &mut [Node],
+    name: &str,
+    value: String,
+    budget: &mut usize,
+    limited: &mut bool,
+) -> Result<(), ()> {
+    let parent = stack.last_mut().ok_or(())?;
+    parent.children.push(xml_node(name.into(), value, budget, limited)?);
+    Ok(())
+}
+
 fn draw_node(ui: &mut egui::Ui, node: &Node, depth: usize, compact: bool) {
-    let label = format!("{}: {}", node.name, node.value);
+    let label = if node.value.is_empty() {
+        node.name.clone()
+    } else {
+        format!("{}: {}", node.name, node.value)
+    };
     if node.children.is_empty() {
         ui.add(egui::Label::new(label).selectable(true));
     } else {
@@ -309,5 +445,41 @@ mod tests {
         assert!(matches!(DataPreview::parse("json", "", "{", false), Some(DataPreview::Unavailable)));
         assert!(matches!(DataPreview::parse("json", "", "{}", true), Some(DataPreview::Unavailable)));
         assert!(DataPreview::parse("html", "", "<html>", false).is_none());
+    }
+
+    #[test]
+    fn xml_preview_preserves_attributes_order_and_text() {
+        let (root, limited) = xml_tree(r#"<root xmlns:x="urn:x" id="A&amp;B"><x:item>žluťoučký</x:item><empty/><![CDATA[a<b]]>&lt;</root>"#).unwrap();
+        assert!(!limited);
+        assert_eq!(root.name, "root");
+        assert_eq!(root.children[0].name, "@xmlns:x");
+        assert_eq!(root.children[1].value, "A&B");
+        assert_eq!(root.children[2].name, "x:item");
+        assert_eq!(root.children[2].children[0].value, "žluťoučký");
+        assert_eq!(root.children[3].name, "empty");
+        assert_eq!(root.children[4].value, "a<b");
+        assert_eq!(root.children[5].value, "<");
+    }
+
+    #[test]
+    fn xml_preview_rejects_dtd_entities_and_invalid_structure() {
+        for text in [
+            r#"<!DOCTYPE root SYSTEM "file:///private"><root/>"#,
+            r#"<!DOCTYPE root [<!ENTITY x "test">]><root>&x;</root>"#,
+            "<root>&unknown;</root>",
+            "<root a='&unknown;'/>",
+            "<root><a></root>",
+            "<root>",
+            "<a/><b/>",
+            "text<root/>",
+            "<root a='1' a='2'/>",
+        ] {
+            assert!(xml_tree(text).is_err(), "{text}");
+        }
+        let deep = "<a>".repeat(MAX_DEPTH + 1) + &"</a>".repeat(MAX_DEPTH + 1);
+        assert!(xml_tree(&deep).is_err());
+        let wide = format!("<a>{}</a>", "<b/>".repeat(MAX_NODES));
+        assert!(xml_tree(&wide).is_err());
+        assert!(matches!(DataPreview::parse("xml", "", "<a/>", true), Some(DataPreview::Unavailable)));
     }
 }

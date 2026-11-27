@@ -11,7 +11,8 @@ picks the best representation:
 | Markdown | rendered with the shared chat/help renderer; Source shows original text |
 | CSV / TSV | numbered records in a table, no assumed header |
 | JSON / TOML | expandable normalized value tree |
-| HTML / XML | source text; a dedicated renderer is not yet available |
+| XML | expandable element/attribute/text tree; DTD and custom entities not supported |
+| HTML / SVG | source or XML structure only; visual rendering is not yet available |
 | archives, executables, databases, media | described in the status bar; bytes available in hex |
 | anything unknown or binary | integrated hex dump |
 

@@ -11,7 +11,8 @@ zobrazení:
 | Markdown | vykreslený společným rendererem chatu a nápovědy; Zdroj ukáže původní text |
 | CSV / TSV | číslované záznamy v tabulce, bez předpokládané hlavičky |
 | JSON / TOML | rozbalovací strom normalizovaných hodnot |
-| HTML / XML | zdrojový text; vlastní renderer zatím není k dispozici |
+| XML | rozbalovací strom elementů, atributů a textu; DTD a vlastní entity nejsou podporovány |
+| HTML / SVG | zdroj nebo struktura XML; vizuální vykreslení zatím není k dispozici |
 | archivy, spustitelné soubory, databáze, média | popis ve stavovém řádku, data dostupná v hexu |
 | cokoli neznámého či binárního | integrovaný hexdump |
 

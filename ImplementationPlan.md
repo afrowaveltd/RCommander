@@ -195,9 +195,9 @@ Headless and fully testable; the UI is only a view over it.
 Prefer a passive, bounded renderer for each format, with original Source
 and actual Hex retained. Unknown/unsupported formats must not pretend to
 render. Implemented slices: Markdown, CSV/TSV, JSON/TOML value trees and
-existing image formats. Next: XML with a mature non-resolving parser
-(quick-xml MIT is a candidate); static SVG (resvg MIT OR Apache-2.0 is a
-candidate); spreadsheet cell previews, PDF page rasterization, office
+existing image formats, XML event trees (quick-xml 0.41.0 MIT, DTD/entity
+resolution disabled, upstream notice in Docs/ThirdParty). Next: static SVG
+(resvg MIT OR Apache-2.0 is a candidate); spreadsheet cell previews, PDF page rasterization, office
 document text/layout, and audio/video with explicitly supported codecs.
 Assess exact dependency versions, transitive licenses and notice obligations
 before adding them; distinguish library copyright licenses from patents,
