@@ -202,6 +202,14 @@ fn container(head: &[u8]) -> Option<(ContentKind, &'static str, &'static str)> {
         return hit(Image, "psd", "image/vnd.adobe.photoshop");
     }
 
+    // Netpbm's short signature needs a plausible header, not just "P1".
+    if looks_like_pnm(head) {
+        return hit(Image, "pnm", "image/x-portable-anymap");
+    }
+    if head.starts_with(b"farbfeld") && head.len() >= 16 {
+        return hit(Image, "farbfeld", "image/x-farbfeld");
+    }
+
     // ---------------- ISO base media (ftyp) ----------------
     //
     // The same box carries images (HEIC/AVIF) and audio/video (MP4/MOV/M4A/3GP),
@@ -368,6 +376,31 @@ fn container(head: &[u8]) -> Option<(ContentKind, &'static str, &'static str)> {
     }
 
     None
+}
+
+/// Require a Netpbm magic number followed by whitespace and plausible
+/// dimensions (or a PAM header field). Comments may precede dimensions.
+fn looks_like_pnm(head: &[u8]) -> bool {
+    let [b'P', kind @ b'1'..=b'7', separator, rest @ ..] = head else {
+        return false;
+    };
+    if !separator.is_ascii_whitespace() {
+        return false;
+    }
+    let mut tokens = rest
+        .split(|&byte| byte == b'\n' || byte == b'\r')
+        .flat_map(|line| {
+            let content = line.split(|&byte| byte == b'#').next().unwrap_or_default();
+            content.split(|byte| byte.is_ascii_whitespace()).filter(|token| !token.is_empty())
+        });
+    if *kind == b'7' {
+        return tokens.next().is_some_and(|token| {
+            matches!(token, b"WIDTH" | b"HEIGHT" | b"DEPTH" | b"MAXVAL" | b"TUPLTYPE")
+        });
+    }
+    (0..2).all(|_| tokens.next().is_some_and(|token| {
+        !token.is_empty() && token.iter().all(u8::is_ascii_digit)
+    }))
 }
 
 /// True for a DOS/PE executable: an `MZ` header whose `e_lfanew` points at a
@@ -545,6 +578,17 @@ mod tests {
         assert_eq!(kind, ContentKind::Image);
         assert_eq!(hint, "png");
         assert_eq!(mime, "image/png");
+    }
+
+    #[test]
+    fn netpbm_and_farbfeld_are_detected_from_content() {
+        for bytes in [&b"P1\n2 1\n0 1\n"[..], &b"P6\n# comment\n2 1\n255\n"[..], &b"P7\nWIDTH 1\nHEIGHT 1\n"[..]] {
+            let (kind, hint, _) = kind_of("wrong.txt", bytes);
+            assert_eq!(kind, ContentKind::Image);
+            assert_eq!(hint, "pnm");
+        }
+        assert_eq!(kind_of("notes.txt", b"P1 is the first priority").0, ContentKind::Text);
+        assert_eq!(kind_of("wrong.txt", b"farbfeld\x00\x00\x00\x01\x00\x00\x00\x01").1, "farbfeld");
     }
 
     #[test]
