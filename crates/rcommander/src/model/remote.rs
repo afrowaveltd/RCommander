@@ -272,6 +272,9 @@ impl Model {
         let panel = self.panel_mut(side);
         let read_options = panel.read_options(&settings);
         let sort = panel.sort();
+        // Remote history needs session-bound identities; until that is wired,
+        // do not leave stale local or remote targets in the navigation buttons.
+        panel.clear_navigation_history();
         panel.listing =
             rc_core::listing::Listing::from_entries(location.clone(), entries, &read_options, sort);
         panel.selection.clear();
