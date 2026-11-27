@@ -749,9 +749,24 @@ Slices delivered so far, each headless and offline-tested:
    requirement; a provider's statement about its own interface is evidence,
    not a grant.
 
-Remaining before the router: real quota enforcement wired into dispatch (the
-app does not create a ledger or call `admit` yet), provider-registry migration
-in the settings UI, then the deterministic router and the localized wizard. Test local defaults, shared quotas, multiple
+5. the first vertical of the headless runtime, `rc-runtime::dispatch`: one
+   request goes resolve → admit → reserve → **persist the dispatch intent** →
+   call → reconcile. A refusal reserves nothing and calls nothing; a request
+   whose cost cannot be recorded is never sent; a rate-limit answer releases
+   the allowance and records the announced wait per scope instead of being
+   charged; a request that may have been processed is charged in full; and the
+   receipt says which connection answered, whether the data left the machine
+   and what was booked. The backend is a trait, so the whole path is tested
+   against a fake with no socket, and `LlmBackend` builds the real client from
+   the resolved connection. Crates split along the existing boundary: engine
+   and contracts in `rc-core`, transport in `rc-llm`, orchestration in the new
+   `rc-runtime` (the Phase 25.5 boundary, started as one vertical instead of a
+   rewrite).
+
+Remaining before the router: the app does not use the dispatcher yet (chat
+still takes the legacy single-provider path, so no ledger is created and
+`admit` is not called from the UI), provider-registry migration in the
+settings UI, then the deterministic router and the localized wizard. Test local defaults, shared quotas, multiple
 periods, unknown metadata, insufficient context, concurrent reservations,
 exhausted hourly allowance with wait/fallback, cross-provider privacy refusal,
 and quota rollover: the offline parts are covered by the two new modules, while

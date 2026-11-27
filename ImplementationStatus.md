@@ -33,7 +33,7 @@ cargo test --workspace
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control and provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`) recorded; model-to-MCP calls, dispatch-time quota enforcement, registry migration UI and the routing wizard, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
+| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`) and the headless dispatch vertical (`rc-runtime`) recorded; model-to-MCP calls, the app using the dispatcher, registry migration UI and the routing wizard, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **partial** — shared rendering/highlighter and language extensions recorded; annotations, remaining consumer migration and TUI coverage need verification |
 | 17 | Rich document previewer | **partial** — Markdown/code/hex views; annotations, PDF/Office, binary inspection and viewer integration pending |
 | 18 | Plugin architecture | **partial** — location/registry, table capabilities, TOML command/MCP sources and on/off manager implemented; manifest verbs, renderers, isolation, installer, agent catalogue/calls and Workshop pending |
@@ -1833,6 +1833,55 @@ resolves a connection yet, so the legacy single-provider chat path is unchanged;
 used even when configured; no discovery run has been wired to the model picker;
 capability probes, provider-reported counters and the deterministic router and
 localized wizard remain planned.
+
+## Handoff — headless dispatch: the ledger finally has a consumer (2026-11-27)
+
+Fifth slice of Phase 16.20 and the first slice of the Phase 25.5 runtime
+boundary. The three previous slices were contracts without a consumer; this one
+runs a request through all of them.
+
+`crates/rc-runtime` is a new crate (`rc-core` + `rc-llm` only, no GUI, no async
+runtime, no new dependencies) with one vertical, `dispatch`:
+
+1. `providers::resolve` turns the catalogue model into a dialable connection, or
+   the request stops with the reason;
+2. `admission::admit` decides, and a refusal reserves nothing and calls nothing
+   — the tests assert the backend was never asked;
+3. `quota::QuotaLedger` reserves estimate + full output reserve, and the
+   **dispatch intent is persisted before the call**: if the ledger cannot be
+   written, the request is never sent and the allowance is released
+   (`QuotaLedger::abandon`, the new "the caller proved nothing was sent" path,
+   kept separate from the strict `release`);
+4. the answer reconciles against the provider's own counts; usage the provider
+   did not report is charged in full;
+5. a `429` is treated as an answer, not usage: nothing is charged, the
+   reservation is abandoned, and the announced delay is recorded on the model
+   scope *and* each quota scope so the next attempt waits instead of retrying
+   into the wall (a numeric `Retry-After` is a delay; unknown text is not
+   interpreted);
+6. any other failure may have been processed, so the reservation is charged.
+
+Every outcome carries a `Receipt`: request id, catalogue model, connection,
+provider model, whether the data left the machine, tokens reserved, tokens
+charged, whether usage was missing, and a note when the accounting could not be
+persisted after a real answer. `Backend` is a trait (`FakeBackend` in the tests
+records every call; `LlmBackend` builds the real client from the resolved
+connection), so the entire path is tested without a socket.
+
+Evidence, Linux 2026-11-27 at this revision:
+
+```bash
+cargo test --workspace --all-targets        # 1713 passed, 0 failed, 2 ignored
+cargo test --locked -p rc-runtime           # 10 passed
+cargo clippy --workspace --all-targets      # no warnings
+cargo fmt --all --check                     # clean
+```
+
+Still open: the app does not use the dispatcher yet — the chat pane still takes
+the legacy single-provider path, so the UI creates no ledger, calls no
+`admission::admit` and resolves no connection; the settings UI has no registry
+editor; provider-reported counters, capability probes, the deterministic router
+and the localized wizard remain planned. `rc-llm` still speaks plain HTTP only.
 
 ## Next steps (dependency-ordered)
 

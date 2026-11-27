@@ -16,6 +16,7 @@ on:
       - "crates/rc-core/src/admission.rs"
       - "crates/rc-core/src/providers.rs"
       - "crates/rc-llm/src/**"
+      - "crates/rc-runtime/**"
       - "crates/rc-core/src/lib.rs"
       - "crates/rc-core/src/policy.rs"
       - "crates/rcommander/src/model/sessions.rs"
@@ -64,6 +65,7 @@ jobs:
           cargo test --locked -p rc-core --lib admission::tests
           cargo test --locked -p rc-core --lib providers::tests
           cargo test --locked -p rc-llm
+          cargo test --locked -p rc-runtime
           cargo test --locked -p rc-core --lib drive::
           cargo test --locked -p rc-core --lib the_button_bar_round_trips_through_toml
           cargo test --locked -p rc-help --lib inline_math

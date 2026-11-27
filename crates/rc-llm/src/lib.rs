@@ -28,7 +28,12 @@ pub struct ProviderNotice {
 }
 
 impl ProviderNotice {
-    pub(crate) fn new(status: u16, retry_after_seconds: Option<u64>, body: &str) -> Self {
+    /// Build evidence from one failed answer.
+    ///
+    /// `body` is untrusted: it is bounded, and only the `error` field (or a `message` inside it) is
+    /// kept as text. Nothing here interprets it, and a caller must not either; a numeric
+    /// `Retry-After` is a delay relative to receipt, not a wall-clock time.
+    pub fn new(status: u16, retry_after_seconds: Option<u64>, body: &str) -> Self {
         let mut end = body.len().min(8192);
         while !body.is_char_boundary(end) {
             end -= 1;

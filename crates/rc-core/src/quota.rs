@@ -569,6 +569,20 @@ impl QuotaLedger {
         Ok(())
     }
 
+    /// Release a reservation for a request the caller has proved produced no output.
+    ///
+    /// Unlike [`Self::release`], this accepts a reservation that was already marked dispatched, so
+    /// the caller must hold evidence: the provider refused the request (a rate-limit answer), or
+    /// persisting the dispatch intent failed before anything was sent. Without such evidence the
+    /// strict [`Self::release`] applies, because a dispatched request may have been processed.
+    pub fn abandon(&mut self, id: &str) -> Result<(), LedgerError> {
+        if self.state.reservations.remove(id).is_none() {
+            return Err(LedgerError::UnknownReservation(id.to_string()));
+        }
+        self.dirty = true;
+        Ok(())
+    }
+
     /// Reconcile reservations left behind by a crash or a killed process.
     ///
     /// A dispatched request is charged in full (it may have produced output nobody reported), an
@@ -1061,6 +1075,29 @@ mod tests {
             LedgerError::AlreadyDispatched("sent".into())
         );
         assert!(ledger.reservation("sent").is_some());
+    }
+
+    #[test]
+    fn a_dispatched_reservation_is_only_abandoned_with_evidence() {
+        let mut ledger = ledger();
+        ledger
+            .reserve("refused", &ids(&["hour"]), 300, NOON)
+            .unwrap();
+        ledger.mark_dispatched("refused").unwrap();
+        // A plain release refuses a dispatched request: it may have been processed.
+        assert!(ledger.release("refused").is_err());
+        // A caller that holds evidence (the provider refused it) may abandon it.
+        ledger.abandon("refused").unwrap();
+        assert_eq!(known(ledger.remaining("hour", NOON)).0, 1_000);
+        assert!(ledger.reservation("refused").is_none());
+        assert_eq!(
+            ledger.abandon("refused").unwrap_err(),
+            LedgerError::UnknownReservation("refused".into())
+        );
+        assert!(
+            ledger.is_dirty(),
+            "an abandoned allowance is a state change worth saving"
+        );
     }
 
     #[test]

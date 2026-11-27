@@ -3323,6 +3323,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rc-runtime"
+version = "0.1.0"
+dependencies = [
+ "rc-core",
+ "rc-llm",
+ "tempfile",
+]
+
+[[package]]
 name = "rc-viewer"
 version = "0.1.0"
 dependencies = [
