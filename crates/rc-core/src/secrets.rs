@@ -196,9 +196,18 @@ impl SecretStore for EncryptedStore {
 }
 
 /// In-memory store used when no passphrase has been supplied yet and by tests.
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct MemoryStore {
     vault: Vault,
+}
+
+impl std::fmt::Debug for MemoryStore {
+    /// Report only the number of entries, never account identifiers or values.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MemoryStore")
+            .field("entries", &self.vault.len())
+            .finish()
+    }
 }
 
 impl MemoryStore {
@@ -316,7 +325,13 @@ fn decrypt(bytes: &[u8], passphrase: &str) -> CoreResult<Vault> {
     })?;
     let text = String::from_utf8(plaintext)
         .map_err(|_| CoreError::Invalid("secret store is not UTF-8".to_string()))?;
-    toml::from_str(&text).map_err(|e| CoreError::Config(e.to_string()))
+    parse_vault(&text)
+}
+
+/// TOML diagnostics may quote the original line, including a password.
+fn parse_vault(text: &str) -> CoreResult<Vault> {
+    toml::from_str(text)
+        .map_err(|_| CoreError::Invalid("invalid secret store payload".to_string()))
 }
 
 fn derive_key(passphrase: &str, salt: &[u8]) -> CoreResult<[u8; 32]> {
@@ -503,6 +518,36 @@ mod tests {
             account_id("ftp", "u", "h", 21),
             account_id("sftp", "u", "h", 22)
         );
+    }
+
+    #[test]
+    fn debug_never_exposes_wallet_credentials() {
+        let account = "private-account-marker";
+        let password = "private-password-marker";
+        let mut memory = MemoryStore::new();
+        memory.set(account, password).unwrap();
+        let mut encrypted = EncryptedStore::new("secrets.enc");
+        encrypted.set(account, password).unwrap();
+
+        for output in [
+            format!("{memory:?}"),
+            format!("{memory:#?}"),
+            format!("{encrypted:?}"),
+            format!("{encrypted:#?}"),
+        ] {
+            assert!(!output.contains(account), "account leaked in Debug");
+            assert!(!output.contains(password), "secret leaked in Debug");
+            assert!(output.contains("entries"));
+        }
+    }
+
+    #[test]
+    fn invalid_vault_payload_does_not_expose_source_text() {
+        let payload = "account = \"private-password-marker";
+        let error = parse_vault(payload).unwrap_err();
+        assert!(!error.to_string().contains("private-password-marker"));
+        assert!(!format!("{error:?}").contains("private-password-marker"));
+        assert!(error.to_string().contains("invalid secret store payload"));
     }
 
     #[test]
