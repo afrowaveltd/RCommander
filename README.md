@@ -10,7 +10,7 @@ and a keyboard map you can rewrite. **Linux** has recorded desktop verification,
 compile checks but no verified APK yet. RCommander also includes Git panels,
 streaming model chat, reviewed workspace copies and declarative plugin sources.
 It speaks **MCP** (Model Context Protocol) as a stdio server and a stdio/HTTP
-client, and ships with **English** and **Czech** — with help and language packs that are plain
+client, and ships with **English**, **Czech** and an experimental **Arabic** RTL pack — with help and language packs that are plain
 text files you can extend without recompiling anything.
 
 > **Independent project.** RCommander is an independent, clean-room
@@ -169,7 +169,7 @@ through a completely different application, that is a worthwhile result too.
 | **Agent workspace** | streaming chat, prompt catalogue/editor, copy-based file handoff, reviewed diffs/hunks and backup-backed apply; autonomous model-to-tool execution is not complete |
 | **Plugins** | TOML-defined command and MCP table sources, registry and enable/disable manager; not a sandbox for untrusted code |
 | **Credentials** | encrypted portable vault for saved credentials; agent-specific wallets and task-scoped brokerage are planned |
-| **Localisation** | TOML language packs (English + Czech included), RTL layouts, per-topic help in any language |
+| **Localisation** | TOML language packs (English, Czech and experimental Arabic included), RTL layouts, per-topic help in any language |
 
 ### Efficiency by design
 
@@ -299,6 +299,14 @@ headless `Model`, and widget-level tests use `egui_kittest`.
 ---
 
 ## Language packs
+
+Arabic (Modern Standard Arabic, `ar`, العربية) is included as an experimental
+right-to-left UI test pack. Choose it in Configuration → Language. It covers
+the English reference keys and preserves formatting placeholders. Native
+linguistic review, Arabic glyph coverage, contextual joining, bidirectional
+mixed paths/numbers and mirrored layouts still require visual acceptance.
+If needed, select an installed Arabic-capable font in the font settings.
+Arabic help topics are not included yet.
 
 A language pack is one TOML file in `locales/`:
 
@@ -457,7 +465,7 @@ crates/
 prompts/        built-in prompt catalogue, one TOML file per category
 plugins/        bundled declarative plugin examples
 themes/         runtime themes
-locales/        runtime language packs (en.toml, cs.toml)
+locales/        runtime language packs (en.toml, cs.toml, ar.toml)
 Docs/           in-app help, one folder per topic, one file per language
 analysis/       reverse-engineering evidence for the reconstructed feature set
 ```
