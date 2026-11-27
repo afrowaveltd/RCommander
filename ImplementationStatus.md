@@ -1783,8 +1783,16 @@ is the single scheduling source. Work on the first unverified gate and
 independent ready branches, not a numeric phase queue. Record exact
 commands, revision and platform evidence after each accepted slice.
 
-1. A: baseline and core usability; recheck current tests.
-2. B: common authorization, typed resolution/custodian contracts, model-to-tool broker, early headless runtime/ledger boundary, transport.
+1. A: baseline and core usability. The current suite is rechecked and
+   green on Linux (see the ledger handoff). What still needs the owner's own
+   verification: the dedicated password-only prompt or wallet-unlock flow,
+   real SFTP password/key/agent smoke tests and a retry after rejected
+   authentication, Windows and Android checks, and the release ZIP.
+2. B: common authorization, typed resolution/custodian contracts,
+   model-to-tool broker, early headless runtime/ledger boundary (the token
+   ledger and admission *contracts* are delivered; a provider registry,
+   discovery provenance, dispatch-time enforcement and the router are next),
+   transport.
 3. C: early read-only research/GitHub/Learn/search and safe downloads.
 4. D: SessionStore, durable native runtime/to-do ledger, safe-unit hibernation, verified effect recovery, background clients and workflow checkpoints.
 5. E: reference plugins, Discovery and visual foundations.
