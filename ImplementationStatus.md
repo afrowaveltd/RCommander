@@ -2110,6 +2110,11 @@ cargo clippy --workspace --all-targets               # no warnings
 cargo fmt --all --check                              # clean
 ```
 
+CI at `b2f6230`: Linux UI regressions
+[46060223039](https://github.com/afrowaveltd/RCommander/actions/runs/46060223039)
+completed successfully (8m38s — the workflow now runs several `ui_smoke` tests
+individually, each a separate harness start).
+
 Deliberately still open: reordering a route is a text edit rather than drag
 handles; `fallback_token_budget` and `return_to_primary` are recorded but not
 enforced (they need per-route accounting); provider-reported counters and
