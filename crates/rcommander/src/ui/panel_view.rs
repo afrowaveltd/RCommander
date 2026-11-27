@@ -123,8 +123,10 @@ pub fn show(
     actions
 }
 
-fn font(model: &Model) -> FontId {
-    FontId::proportional(model.settings.display.font_size)
+fn font(ui: &Ui, model: &Model) -> FontId {
+    let mut font = ui.style().text_styles[&egui::TextStyle::Body].clone();
+    font.size = model.settings.display.font_size;
+    font
 }
 
 fn tabs_row(
@@ -238,7 +240,7 @@ fn path_row(
             }
         }
     }
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         // A volume selector belongs to each panel, not to the window globally.
         // Enumerate drives only while the popup is open: probing disconnected
         // mapped drives on Windows can otherwise slow every rendered frame.
@@ -309,7 +311,7 @@ fn path_row(
             };
             let response =
                 ui.add(
-                    egui::Label::new(egui::RichText::new(&label).font(font(model)).color(
+                    egui::Label::new(egui::RichText::new(&label).font(font(ui, model)).color(
                         if active {
                             palette.foreground
                         } else {
@@ -707,7 +709,8 @@ fn menu_entry(ui: &mut egui::Ui, icon: Option<Icon>, label: &str) -> bool {
             .add(egui::Button::new(label).min_size(egui::vec2(230.0, 0.0)))
             .clicked();
     };
-    let size = ui.style().text_styles[&egui::TextStyle::Button].size;
+    let text_font = ui.style().text_styles[&egui::TextStyle::Button].clone();
+    let size = text_font.size;
     let colour = ui.visuals().widgets.inactive.fg_stroke.color;
     let mut job = egui::text::LayoutJob::default();
     job.append(
@@ -724,7 +727,7 @@ fn menu_entry(ui: &mut egui::Ui, icon: Option<Icon>, label: &str) -> bool {
         text,
         size * 0.7,
         egui::TextFormat {
-            font_id: egui::FontId::proportional(size),
+            font_id: text_font.clone(),
             color: colour,
             valign: egui::Align::Center,
             ..Default::default()
@@ -735,7 +738,7 @@ fn menu_entry(ui: &mut egui::Ui, icon: Option<Icon>, label: &str) -> bool {
             shortcut,
             size * 1.8,
             egui::TextFormat {
-                font_id: egui::FontId::proportional(size - 1.0),
+                font_id: egui::FontId::new((size - 1.0).max(8.0), text_font.family.clone()),
                 color: ui.visuals().weak_text_color(),
                 valign: egui::Align::Center,
                 ..Default::default()
