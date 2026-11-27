@@ -144,14 +144,18 @@ fn render(ctx: &Context, embedded: Option<&mut egui::Ui>, model: &mut Model, ui_
             }
             ui.separator();
             // The text fills what the window has left, so a maximized editor is a usable editor.
+            let viewport = ui.available_size().max(egui::vec2(1.0, 1.0));
             egui::ScrollArea::vertical()
+                .id_salt("document_editor")
+                .max_width(viewport.x)
+                .max_height(viewport.y)
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     let response = ui.add(
                         egui::TextEdit::multiline(&mut state.text)
                             .font(TextStyle::Monospace)
-                            .desired_width(f32::INFINITY)
-                            .desired_rows(24)
+                            .desired_width((viewport.x - 20.0).max(1.0))
+                            .desired_rows(1)
                             .lock_focus(true),
                     );
                     if response.changed() {

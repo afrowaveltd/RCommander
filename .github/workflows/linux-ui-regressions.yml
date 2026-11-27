@@ -37,6 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Native build dependencies
         run: |
           sudo apt-get update
@@ -52,6 +53,7 @@ jobs:
           cargo test --locked -p rcommander --lib model::remote::tests
           cargo test --locked -p rcommander --lib model::surfaces::tests
           cargo test --locked -p rcommander --test ui_smoke document_surfaces_can_share_the_two_panels_without_losing_editor_text
+          cargo test --locked -p rcommander --test ui_smoke f3_and_f4_open_the_expected_workspace_surface
           cargo test --locked -p rcommander --lib a_saved_connection_maps_to_a_connection_spec
           cargo test --locked -p rcommander --lib toolbar_
           cargo test --locked -p rcommander --lib action_catalogue

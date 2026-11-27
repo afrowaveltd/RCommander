@@ -897,11 +897,17 @@ impl RCommanderApp {
             } else {
                 [left_width, right_width]
             };
+            // Docked documents contain independent scroll areas. Reserve a fixed
+            // rectangle for each pane so a child's desired size cannot resize
+            // its sibling or the parent on the next frame.
+            let dock_width = (available.x - ui.spacing().item_spacing.x).max(2.0);
+            let dock_widths = if rtl {
+                [dock_width * (1.0 - split), dock_width * split]
+            } else {
+                [dock_width * split, dock_width * (1.0 - split)]
+            };
             for (index, side) in order.iter().enumerate() {
-                ui.allocate_ui_with_layout(
-                    egui::vec2(widths[index], available.y),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
+                let mut draw = |ui: &mut egui::Ui| {
                         let placement = DocumentPlacement::Panel(*side);
                         let editor_here = self.model.editor.as_ref().is_some_and(|s| s.placement == placement);
                         let viewer_here = self.model.viewer.as_ref().is_some_and(|s| s.placement == placement);
@@ -942,8 +948,27 @@ impl RCommanderApp {
                         for action in response {
                             actions.push((*side, action));
                         }
-                    },
-                );
+                };
+                if docked {
+                    let (rect, _) = ui.allocate_exact_size(
+                        egui::vec2(dock_widths[index], available.y.max(1.0)),
+                        egui::Sense::hover(),
+                    );
+                    let mut child = ui.new_child(
+                        egui::UiBuilder::new()
+                            .id_salt(("docked_pane", *side))
+                            .max_rect(rect)
+                            .layout(egui::Layout::top_down(egui::Align::Min)),
+                    );
+                    child.set_clip_rect(rect.intersect(ui.clip_rect()));
+                    draw(&mut child);
+                } else {
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(widths[index], available.y),
+                        egui::Layout::top_down(egui::Align::Min),
+                        draw,
+                    );
+                }
             }
         });
         for (side, action) in actions {

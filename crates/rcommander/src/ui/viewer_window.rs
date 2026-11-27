@@ -129,7 +129,7 @@ fn render(ctx: &Context, embedded: Option<&mut egui::Ui>, model: &mut Model, ui_
         contents(ui);
     } else {
         egui::Window::new(&title)
-            .id(egui::Id::new("document_viewer"))
+            .id(egui::Id::unique("document_viewer"))
             .open(&mut open)
             .resizable(true)
             .default_size([760.0, 560.0])
@@ -176,7 +176,11 @@ fn show_text(
         }
         ui.checkbox(&mut state.wraps, "wrap");
     });
+    let viewport = ui.available_size().max(egui::vec2(1.0, 1.0));
     egui::ScrollArea::both()
+        .id_salt("document_text")
+        .max_width(viewport.x)
+        .max_height(viewport.y)
         .auto_shrink([false, false])
         .show(ui, |ui| {
             // A borrowed str is a read-only TextBuffer: selection and copying
@@ -185,7 +189,8 @@ fn show_text(
             ui.add(
                 egui::TextEdit::multiline(&mut read_only)
                     .font(TextStyle::Monospace)
-                    .desired_width(f32::INFINITY),
+                    .desired_width((viewport.x - 20.0).max(1.0))
+                    .desired_rows(1),
             );
         });
 }

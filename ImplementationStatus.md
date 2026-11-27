@@ -1578,6 +1578,27 @@ widget. Persistent placement preference and separate native viewport are
 follow-ups. Keep
 main authoritative for the other developer.
 
+## Handoff — document pane layout regression (2026-11-27)
+
+Linux UI runs [#4](https://github.com/afrowaveltd/RCommander/actions/runs/45993221961)
+and [#5](https://github.com/afrowaveltd/RCommander/actions/runs/45993302811)
+failed. The #5 log verifies compilation and 46 passing targeted tests
+(14 drive, 1 settings, 2 Markdown, 10 sessions, 10 remote, 9 surfaces);
+the dual-document GUI test failed at Harness::run, with repeated repaint
+requests from both scroll areas. Subsequent test commands did not run.
+This is not a passing GUI acceptance result.
+
+Corrective source slice: reserve fixed, clipped rectangles for docked
+panes (stable per-side IDs, actual inter-item spacing); bound document
+scroll areas and avoid infinite editor/viewer desired width. Keep the
+existing settle assertion rather than increasing the harness limit.
+Extend the two-pane smoke test with a resize and both control rows;
+add F3/F4 keyboard dispatch coverage. Remove deprecated viewer ID API.
+New revision requires CI verification; no local Rust toolchain here.
+If repaint persists, investigate egui scroll layout rather than masking
+the failure. Windows real GUI acceptance still pending. Terminal is
+unchanged, planned in Phase 19.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
