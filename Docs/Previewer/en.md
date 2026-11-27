@@ -6,7 +6,7 @@ picks the best representation:
 
 | Content | How it is shown |
 | --- | --- |
-| images (PNG, JPEG, GIF, BMP, WebP) | decoded and scaled to fit the window |
+| images (PNG, JPEG, GIF, BMP, WebP, TIFF, ICO, PNM family: PBM/PGM/PPM/PAM, Farbfeld) | decoded and scaled to fit the window |
 | text (any encoding) | decoded with automatic encoding detection, RTL aware |
 | Markdown | rendered with the shared chat/help renderer; Source shows original text |
 | CSV / TSV | numbered records in a table, no assumed header |
@@ -15,8 +15,14 @@ picks the best representation:
 | INI / CFG / CONF | section and key/value tree for the common `key=value` dialect; duplicates retained |
 | XML | expandable element/attribute/text tree; DTD and custom entities not supported |
 | HTML / SVG | source or XML structure only; visual rendering is not yet available |
-| archives, executables, databases, media | described in the status bar; bytes available in hex |
+| archives, executables, database files, media | described in the status bar; bytes available in hex |
+| SQL scripts / dumps | source text; structured passive SQL preview planned |
+| SQL database connections | provider-specific schema and row browser planned (SQLite, PostgreSQL, MySQL/MariaDB, SQL Server) |
 | anything unknown or binary | integrated hex dump |
+
+## Planned SQL previews
+
+SQL is the generic category, not a synonym for SQLite. F3 will inspect script/dump files without executing them; live database browsing will reuse the appropriate database provider and its supported dialect/capabilities. Queries, imports and mutations are separate explicit operations. SQLite is one provider, while MongoDB remains a native document-store provider.
 
 ## Planned visual HTML and SVG previews
 
