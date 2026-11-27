@@ -16,7 +16,9 @@ text files you can extend without recompiling anything.
 > **Independent project.** RCommander is an independent, clean-room
 > implementation. It contains no code, icons, bitmaps or string resources from
 > any other file manager, is not affiliated with or endorsed by any commercial
-> commander product, and does not use their trademarks. The feature set was
+> commander product, and does not use their trademarks as its own branding.
+> Product names below are used solely to acknowledge their creators and work.
+> The feature set was
 > reconstructed from behavioural and documentation evidence (see
 > [`analysis/`](analysis/)) and every line of code here was written for this
 > project.
@@ -25,6 +27,10 @@ text files you can extend without recompiling anything.
 
 ## Table of contents
 
+- [Our roots, our respect, our direction](#our-roots-our-respect-our-direction)
+- [An open invitation to collaborate](#an-open-invitation-to-collaborate)
+- [Freedom of choice](#freedom-of-choice)
+- [What success means to us](#what-success-means-to-us)
 - [Features](#features)
 - [Screens and workflow](#screens-and-workflow)
 - [Project status and downloads](#project-status-and-downloads)
@@ -38,6 +44,105 @@ text files you can extend without recompiling anything.
 - [Reverse-engineering evidence](#reverse-engineering-evidence)
 - [Contributing](#contributing)
 - [Licence](#licence)
+
+---
+
+## Our roots, our respect, our direction
+
+**The evolution of the classic dual-pane file manager.**
+
+RCommander stands on the shoulders of decades of excellent software
+engineering. We would like to acknowledge two exceptional applications
+that inspired this project:
+
+- [Midnight Commander](https://midnight-commander.org/) — a remarkable
+  open-source file manager whose efficient, keyboard-oriented interface
+  has served generations of computer users.
+- [Total Commander](https://www.ghisler.com/) — an outstanding example
+  of high-quality, affordable commercial software, developed and refined
+  over decades.
+
+Both have earned their reputation through sustained work, thoughtful design
+and attention to their users. We respect their creators and communities.
+
+RCommander began with a simple goal: one graphical dual-pane file manager
+that looks, feels and behaves consistently on Linux and Windows. Midnight
+Commander's terminal-oriented design is excellent for its purpose, while
+Total Commander's native Windows desktop experience is a strong example of
+what a graphical file manager can be. We wanted to bring the familiar
+workflow to both desktop platforms without requiring users to relearn it.
+
+The idea has since evolved. File management in 2026 can encompass not only
+navigation, copying and renaming, but also content analysis, editing,
+transformation, version control, remote administration, automation and
+collaborative AI assistance. These are extensions of the original purpose,
+not a departure from it.
+
+Our aim is to continue the commander tradition, not to diminish the
+achievements of our predecessors or reproduce every feature of their
+products. RCommander need not be better at everything. Independent
+commercial developers deserve fair compensation for useful work, just as
+open-source contributors deserve recognition and respect.
+
+Traditional file operations must remain fast, practical and usable without
+AI, an AI account, a model installation or an internet connection. AI is
+an optional extension, not a prerequisite for ordinary local file management.
+
+**Preserve what works. Extend what is possible. Keep the user in control.**
+
+## An open invitation to collaborate
+
+We welcome cooperation with other file manager developers, including the
+creators and contributors of Midnight Commander and Total Commander.
+
+If our tools, libraries, algorithms or ideas prove useful to other projects,
+we are happy to see them adopted and improved, including in commercial
+applications, in accordance with their respective licenses. A small
+acknowledgement in your README or documentation would make us happy.
+This is a friendly request, not an additional license condition; retain
+the copyright and permission notices required by the MIT license when
+reusing MIT-licensed code.
+
+We welcome technical discussions, shared standards, interoperability,
+constructive criticism and joint development wherever our interests meet.
+We prefer independent implementations and respectful exchange to copying
+another project's proprietary code or assets.
+
+**Different projects. Different approaches. Shared progress.**
+
+We are developers, not adversaries. We compete with problems, not with people.
+
+## Freedom of choice
+
+**You do not have to switch to RCommander.**
+
+Keep using your favourite file manager. Use RCommander alongside it whenever
+you find its features useful. RCommander itself has no license fee, no
+required subscription and no obligation to choose between us and anyone else.
+Optional third-party services, including hosted AI providers, may have their
+own costs; users decide whether to use them.
+
+Even if RCommander solves only one of your problems while another application
+handles everything else, it has served its purpose.
+
+We are here to extend your possibilities, not to limit your choices.
+
+## What success means to us
+
+Afrowave values the trust people associate with its name more than market
+share, download counts or brand recognition purchased through advertising.
+We want our work to earn recommendations through useful software, honest
+documentation, responsiveness to feedback and respect for users.
+
+We aim to make our tools accessible to people with limited resources, keep
+users in control of their data, acknowledge limitations openly and help other
+developers build on our work. We do not want to treat users' data as a
+commodity or make essential local functionality dependent on paid services.
+
+Success does not require another project to fail. If our work helps someone
+through a completely different application, that is a worthwhile result too.
+
+**Let our work be the reason people talk about us, not our advertising.**
 
 ---
 
