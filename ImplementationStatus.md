@@ -33,7 +33,7 @@ cargo test --workspace
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`), the **deterministic router** (`routing`), the headless dispatch vertical (`rc-runtime`), routed chat with a metered receipt and a Models and routing settings page with per-connection discovery recorded; model-to-MCP calls, editable prices/quotas in the page, the routing wizard, per-route fallback budgets, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
+| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`), the **deterministic router** (`routing`), the headless dispatch vertical (`rc-runtime`), routed chat with a metered receipt, and a **routing wizard** (connections, discovery, model classification, quotas, ordered routes with a live preview) recorded; model-to-MCP calls, per-route fallback budgets, provider counters, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **partial** — shared rendering/highlighter and language extensions recorded; annotations, remaining consumer migration and TUI coverage need verification |
 | 17 | Rich document previewer | **partial** — Markdown/code/hex views; annotations, PDF/Office, binary inspection and viewer integration pending |
 | 18 | Plugin architecture | **partial** — location/registry, table capabilities, TOML command/MCP sources and on/off manager implemented; manifest verbs, renderers, isolation, installer, agent catalogue/calls and Workshop pending |
@@ -2067,6 +2067,55 @@ enforcement of `fallback_token_budget`, provider-reported counters, capability
 probes, and the `https` transport. The strategy of "local first, remote only
 when the owner says so" is now enforced end to end, but no live provider run at
 this revision — the tests use a fake backend and a fake listing.
+
+## Handoff — the routing wizard (2026-11-27)
+
+Ninth and final slice of the Phase 16.20 chain: the owner can now configure the
+whole routing decision in the interface, and see its consequence before saving.
+
+The Models and routing page grew from "connections and discovery" into the
+wizard the plan describes:
+
+- **Classification** per model: enabled, local/remote, price class 0–5 (or
+  unclassified), effective context and output limits, and the quota ids it draws
+  on. Locality is a switch, never inferred from an address; clearing it clears a
+  price class of 0, because "local and free" cannot describe a remote model.
+- **Token quotas**: allowance, period (hour/day/week/month) and reset semantics
+  (rolling/calendar/provider), with add and remove. Removing a quota detaches it
+  from every model, so no reference dangles.
+- **Routes**: task name, the ordered model list (first wins), what happens when
+  nothing is eligible (`ask`/`wait`/`fallback`), and the
+  `prefer_equivalent` switch. Add and remove; the models a route named are left
+  alone when the route goes.
+- **Every edit is validated before it is kept**: `Model::edit_catalogue` applies
+  the change to a copy and accepts it only when the whole catalogue still
+  validates. An unknown quota id, a route naming a missing model, an output
+  reserve larger than the context, or a zero allowance is refused with its
+  reason and nothing changes — the same rule the settings file already enforced,
+  now visible at the point of the edit.
+- **The wizard shows its work**: under every route the page prints what the
+  router would do for a 1 000-token request right now — the chosen model with
+  its preference position, locality and price class, or every skipped candidate
+  with its reason. Applying the options dialog drops the cached ledger so new
+  limits take effect on the next request while the spending history stays in the
+  file.
+
+Evidence, Linux 2026-11-27 at this revision:
+
+```bash
+cargo test --workspace --all-targets                 # 1746 passed, 0 failed, 2 ignored (22 targets)
+cargo test --locked -p rcommander --lib model::routing::tests  # 11 passed
+cargo test --locked -p rcommander --test ui_smoke the_route_editor_keeps_a_duplicate_out  # 1 passed
+cargo clippy --workspace --all-targets               # no warnings
+cargo fmt --all --check                              # clean
+```
+
+Deliberately still open: reordering a route is a text edit rather than drag
+handles; `fallback_token_budget` and `return_to_primary` are recorded but not
+enforced (they need per-route accounting); provider-reported counters and
+capability probes are unmodelled; `https` has no transport yet; and the model
+rows cannot create or delete models by hand (discovery creates them, the owner
+classifies them). No live provider was contacted at this revision.
 
 ## Next steps (dependency-ordered)
 

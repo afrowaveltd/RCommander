@@ -1720,53 +1720,468 @@ fn models_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) {
                     .strong()
                     .color(palette.accent),
             );
-            if state.draft.agent.model_catalog.models.is_empty() {
-                ui.label(
-                    egui::RichText::new(model.t("ai.route.no_models"))
-                        .small()
-                        .color(palette.hidden),
-                );
+            ui.label(
+                egui::RichText::new(model.t("ai.route.hint"))
+                    .small()
+                    .color(palette.hidden),
+            );
+            model_rows(ui, model, state, &palette);
+            quota_rows(ui, model, state, &palette);
+            route_rows(ui, model, state, &palette);
+        });
+}
+
+/// Everything the page can change about the catalogue, applied after the widgets are drawn.
+///
+/// The widgets edit copies so the rows can borrow the draft immutably while egui draws; every
+/// edit then goes through the validating setters in `model::routing`, so an impossible catalogue
+/// is refused instead of stored.
+enum CatalogueEdit {
+    ModelEnabled(String, bool),
+    ModelLocal(String, bool),
+    ModelPrice(String, Option<u8>),
+    ModelQuotas(String, String),
+    Quota(
+        String,
+        u64,
+        rc_core::model_catalog::QuotaPeriod,
+        rc_core::model_catalog::QuotaWindow,
+    ),
+    RouteModels(String, String),
+    RouteAction(String, rc_core::model_catalog::ExhaustedAction),
+    RouteEquivalent(String, bool),
+}
+
+/// The model list: classification, limits and the quotas each model draws on.
+fn model_rows(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut OptionsState,
+    palette: &crate::theme::Palette,
+) {
+    ui.add_space(10.0);
+    ui.label(
+        egui::RichText::new(model.t("ai.route.models_heading"))
+            .strong()
+            .color(palette.accent),
+    );
+    if state.draft.agent.model_catalog.models.is_empty() {
+        ui.label(
+            egui::RichText::new(model.t("ai.route.no_models"))
+                .small()
+                .color(palette.hidden),
+        );
+        return;
+    }
+    let labels = [
+        model.t("ai.route.enabled"),
+        model.t("ai.route.local"),
+        model.t("ai.route.remote"),
+        model.t("ai.route.unpriced"),
+        model.t("ai.route.quotas"),
+        model.t("ai.route.no_limit"),
+    ];
+    let entries: Vec<ModelRow> = state
+        .draft
+        .agent
+        .model_catalog
+        .models
+        .iter()
+        .map(ModelRow::of)
+        .collect();
+    let mut edits: Vec<CatalogueEdit> = Vec::new();
+    for row in entries {
+        ui.horizontal(|ui| {
+            let mut enabled = row.enabled;
+            if ui.checkbox(&mut enabled, &labels[0]).changed() {
+                edits.push(CatalogueEdit::ModelEnabled(row.id.clone(), enabled));
             }
-            for entry in &state.draft.agent.model_catalog.models {
-                let locality = if entry.local {
-                    model.t("ai.route.local")
-                } else {
-                    model.t("ai.route.remote")
-                };
-                let price = match entry.price_class {
-                    Some(price) => price.to_string(),
-                    None => model.t("ai.route.unpriced"),
-                };
-                let features = entry
-                    .observed
-                    .as_ref()
-                    .map(|observed| observed.capabilities.len() + observed.unmapped.len())
-                    .unwrap_or(0)
-                    .to_string();
-                let state_text = model.tf(
-                    "ai.route.model_state",
-                    &[
-                        ("locality", &locality),
-                        ("price", &price),
-                        ("features", &features),
-                    ],
-                );
-                // Read-only on purpose: enabled, price, locality and quotas are owner decisions
-                // that the catalogue file owns, and enabling a model here without showing its
-                // quotas would be a promise this page cannot keep.
-                let marker = if entry.enabled { "on" } else { "off" };
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(marker).small());
-                    ui.label(&entry.id);
-                    ui.label(egui::RichText::new(&entry.model_id).monospace().small());
-                    ui.label(
-                        egui::RichText::new(state_text)
-                            .small()
-                            .color(palette.hidden),
-                    );
+            let mut local = row.local;
+            let locality = if local {
+                labels[1].clone()
+            } else {
+                labels[2].clone()
+            };
+            if ui.checkbox(&mut local, locality).changed() {
+                edits.push(CatalogueEdit::ModelLocal(row.id.clone(), local));
+            }
+            // Price class 0..=5, or unclassified. It is evidence about cost, never a currency
+            // estimate, and it never reorders a route.
+            let selected = row
+                .price
+                .map(|price| price.to_string())
+                .unwrap_or_else(|| labels[3].clone());
+            egui::ComboBox::from_id_salt(format!("price-{}", row.id))
+                .selected_text(selected)
+                .width(90.0)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(row.price.is_none(), labels[3].clone())
+                        .clicked()
+                    {
+                        edits.push(CatalogueEdit::ModelPrice(row.id.clone(), None));
+                    }
+                    for class in 0..=5u8 {
+                        if ui
+                            .selectable_label(row.price == Some(class), class.to_string())
+                            .clicked()
+                        {
+                            edits.push(CatalogueEdit::ModelPrice(row.id.clone(), Some(class)));
+                        }
+                    }
                 });
+            ui.label(&row.id);
+            ui.label(egui::RichText::new(&row.provider_model).monospace().small());
+            let limits = model.tf(
+                "ai.route.limits",
+                &[
+                    ("context", &row.context_text(&labels[5])),
+                    ("output", &row.output_text(&labels[5])),
+                ],
+            );
+            ui.label(egui::RichText::new(limits).small().color(palette.hidden));
+            ui.label(
+                egui::RichText::new(format!("{} f", row.features))
+                    .small()
+                    .color(palette.hidden),
+            );
+        });
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&labels[4]).small());
+            let mut text = row.quotas.clone();
+            if ui
+                .add(
+                    egui::TextEdit::singleline(&mut text)
+                        .hint_text("pool, shared-hour")
+                        .desired_width(220.0)
+                        .id_salt(format!("quotas-{}", row.id)),
+                )
+                .changed()
+            {
+                edits.push(CatalogueEdit::ModelQuotas(row.id.clone(), text));
             }
         });
+    }
+    apply_edits(model, state, edits);
+}
+
+/// One model as the page shows it, copied out so the draft can stay borrowed immutably.
+struct ModelRow {
+    id: String,
+    provider_model: String,
+    enabled: bool,
+    local: bool,
+    price: Option<u8>,
+    context: Option<u64>,
+    output: Option<u64>,
+    quotas: String,
+    features: usize,
+}
+
+impl ModelRow {
+    fn of(entry: &rc_core::model_catalog::ModelProfile) -> ModelRow {
+        ModelRow {
+            id: entry.id.clone(),
+            provider_model: entry.model_id.clone(),
+            enabled: entry.enabled,
+            local: entry.local,
+            price: entry.price_class,
+            context: entry.context_tokens,
+            output: entry.max_output_tokens,
+            quotas: entry.quota_ids.join(", "),
+            features: entry
+                .observed
+                .as_ref()
+                .map(|observed| observed.capabilities.len() + observed.unmapped.len())
+                .unwrap_or(0),
+        }
+    }
+
+    fn context_text(&self, unstated: &str) -> String {
+        self.context
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| unstated.to_string())
+    }
+
+    fn output_text(&self, unstated: &str) -> String {
+        self.output
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| unstated.to_string())
+    }
+}
+
+/// The configured limits, with their period and reset semantics.
+fn quota_rows(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut OptionsState,
+    palette: &crate::theme::Palette,
+) {
+    ui.add_space(10.0);
+    ui.label(
+        egui::RichText::new(model.t("ai.route.quotas_heading"))
+            .strong()
+            .color(palette.accent),
+    );
+    let quotas: Vec<rc_core::model_catalog::TokenQuota> =
+        state.draft.agent.model_catalog.quotas.clone();
+    let mut edits: Vec<CatalogueEdit> = Vec::new();
+    let mut remove: Option<String> = None;
+    for quota in quotas {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&quota.id).monospace());
+            let mut tokens = quota.tokens;
+            if ui
+                .add(
+                    egui::DragValue::new(&mut tokens)
+                        .range(1..=100_000_000u64)
+                        .speed(1_000.0),
+                )
+                .changed()
+            {
+                edits.push(CatalogueEdit::Quota(
+                    quota.id.clone(),
+                    tokens,
+                    quota.period,
+                    quota.window,
+                ));
+            }
+            ui.label(egui::RichText::new(model.t("ai.route.tokens")).small());
+            let mut period = quota.period;
+            egui::ComboBox::from_id_salt(format!("period-{}", quota.id))
+                .selected_text(period_label(period))
+                .width(90.0)
+                .show_ui(ui, |ui| {
+                    for choice in [
+                        rc_core::model_catalog::QuotaPeriod::Hour,
+                        rc_core::model_catalog::QuotaPeriod::Day,
+                        rc_core::model_catalog::QuotaPeriod::Week,
+                        rc_core::model_catalog::QuotaPeriod::Month,
+                    ] {
+                        if ui
+                            .selectable_label(period == choice, period_label(choice))
+                            .clicked()
+                        {
+                            period = choice;
+                            edits.push(CatalogueEdit::Quota(
+                                quota.id.clone(),
+                                tokens,
+                                choice,
+                                quota.window,
+                            ));
+                        }
+                    }
+                });
+            let mut window = quota.window;
+            egui::ComboBox::from_id_salt(format!("window-{}", quota.id))
+                .selected_text(window_label(window))
+                .width(110.0)
+                .show_ui(ui, |ui| {
+                    for choice in [
+                        rc_core::model_catalog::QuotaWindow::Rolling,
+                        rc_core::model_catalog::QuotaWindow::Calendar,
+                        rc_core::model_catalog::QuotaWindow::ProviderDefined,
+                    ] {
+                        if ui
+                            .selectable_label(window == choice, window_label(choice))
+                            .clicked()
+                        {
+                            window = choice;
+                            edits.push(CatalogueEdit::Quota(
+                                quota.id.clone(),
+                                tokens,
+                                quota.period,
+                                choice,
+                            ));
+                        }
+                    }
+                });
+            if ui.small_button(model.t("ai.route.remove")).clicked() {
+                remove = Some(quota.id.clone());
+            }
+        });
+    }
+    if ui.button(model.t("ai.route.add_quota")).clicked() {
+        model.add_quota(&mut state.draft.agent.model_catalog);
+        state.routing_status.clear();
+    }
+    if let Some(id) = remove {
+        Model::remove_quota(&mut state.draft.agent.model_catalog, &id);
+        state.routing_status.clear();
+    }
+    apply_edits(model, state, edits);
+}
+
+/// The routes: which models, in which order, and what happens when nothing is eligible.
+fn route_rows(
+    ui: &mut egui::Ui,
+    model: &mut Model,
+    state: &mut OptionsState,
+    palette: &crate::theme::Palette,
+) {
+    ui.add_space(10.0);
+    ui.label(
+        egui::RichText::new(model.t("ai.route.routes_heading"))
+            .strong()
+            .color(palette.accent),
+    );
+    let routes: Vec<rc_core::model_catalog::RoutingPreference> =
+        state.draft.agent.model_catalog.routes.clone();
+    let labels = [
+        model.t("ai.route.preferred"),
+        model.t("ai.route.on_exhausted"),
+        model.t("ai.route.prefer_equivalent"),
+    ];
+    let mut edits: Vec<CatalogueEdit> = Vec::new();
+    let mut remove: Option<String> = None;
+    for route in routes {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&route.task).monospace().strong());
+            ui.label(egui::RichText::new(&labels[0]).small());
+            let mut text = route.model_ids.join(", ");
+            if ui
+                .add(
+                    egui::TextEdit::singleline(&mut text)
+                        .hint_text("local, remote")
+                        .desired_width(240.0)
+                        .id_salt(format!("route-models-{}", route.task)),
+                )
+                .changed()
+            {
+                edits.push(CatalogueEdit::RouteModels(route.task.clone(), text));
+            }
+            let mut prefer = route.prefer_equivalent;
+            if ui.checkbox(&mut prefer, &labels[2]).changed() {
+                edits.push(CatalogueEdit::RouteEquivalent(route.task.clone(), prefer));
+            }
+            if ui.small_button(model.t("ai.route.remove")).clicked() {
+                remove = Some(route.task.clone());
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&labels[1]).small());
+            for choice in [
+                rc_core::model_catalog::ExhaustedAction::Ask,
+                rc_core::model_catalog::ExhaustedAction::Wait,
+                rc_core::model_catalog::ExhaustedAction::Fallback,
+            ] {
+                if ui
+                    .selectable_label(route.on_exhausted == choice, action_label(choice))
+                    .clicked()
+                {
+                    edits.push(CatalogueEdit::RouteAction(route.task.clone(), choice));
+                }
+            }
+        });
+    }
+    if ui.button(model.t("ai.route.add_route")).clicked() {
+        // A new route starts named after the workload most installations need first.
+        let outcome = model.add_route(&mut state.draft.agent.model_catalog, "chat");
+        if let Err(message) = outcome {
+            state.routing_status = message;
+        } else {
+            state.routing_status.clear();
+        }
+    }
+    if let Some(task) = remove {
+        Model::remove_route(&mut state.draft.agent.model_catalog, &task);
+        state.routing_status.clear();
+    }
+    apply_edits(model, state, edits);
+    // The wizard's "why": what the router would do for each route right now.
+    let previews: Vec<(String, String)> = {
+        let shared = model.quota_ledger().ok().flatten();
+        let locked = shared.as_ref().map(|ledger| match ledger.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        });
+        let ledger = locked.as_deref();
+        let catalogue = state.draft.agent.model_catalog.clone();
+        catalogue
+            .routes
+            .iter()
+            .map(|route| {
+                (
+                    route.task.clone(),
+                    model.preview_line(&catalogue, ledger, &route.task),
+                )
+            })
+            .collect()
+    };
+    for (task, preview) in previews {
+        ui.label(
+            egui::RichText::new(format!("{task}: {preview}"))
+                .small()
+                .color(palette.hidden),
+        );
+    }
+}
+
+/// Apply the collected edits, reporting the first refusal on the page.
+fn apply_edits(model: &Model, state: &mut OptionsState, edits: Vec<CatalogueEdit>) {
+    let mut catalogue = std::mem::take(&mut state.draft.agent.model_catalog);
+    for edit in edits {
+        let outcome = match edit {
+            CatalogueEdit::ModelEnabled(id, enabled) => {
+                model.set_model_enabled(&mut catalogue, &id, enabled)
+            }
+            CatalogueEdit::ModelLocal(id, local) => {
+                model.set_model_local(&mut catalogue, &id, local)
+            }
+            CatalogueEdit::ModelPrice(id, price) => {
+                model.set_model_price(&mut catalogue, &id, price)
+            }
+            CatalogueEdit::ModelQuotas(id, text) => {
+                model.set_model_quotas(&mut catalogue, &id, &text)
+            }
+            CatalogueEdit::Quota(id, tokens, period, window) => {
+                model.set_quota(&mut catalogue, &id, tokens, period, window)
+            }
+            CatalogueEdit::RouteModels(task, text) => {
+                model.set_route_models(&mut catalogue, &task, &text)
+            }
+            CatalogueEdit::RouteAction(task, action) => {
+                Model::set_route_action(&mut catalogue, &task, action);
+                Ok(())
+            }
+            CatalogueEdit::RouteEquivalent(task, prefer) => {
+                Model::set_route_prefer_equivalent(&mut catalogue, &task, prefer);
+                Ok(())
+            }
+        };
+        if let Err(message) = outcome {
+            state.routing_status = message;
+        }
+    }
+    state.draft.agent.model_catalog = catalogue;
+}
+
+fn period_label(period: rc_core::model_catalog::QuotaPeriod) -> String {
+    use rc_core::model_catalog::QuotaPeriod;
+    match period {
+        QuotaPeriod::Hour => "hour".into(),
+        QuotaPeriod::Day => "day".into(),
+        QuotaPeriod::Week => "week".into(),
+        QuotaPeriod::Month => "month".into(),
+    }
+}
+
+fn window_label(window: rc_core::model_catalog::QuotaWindow) -> String {
+    use rc_core::model_catalog::QuotaWindow;
+    match window {
+        QuotaWindow::Rolling => "rolling".into(),
+        QuotaWindow::Calendar => "calendar".into(),
+        QuotaWindow::ProviderDefined => "provider".into(),
+    }
+}
+
+fn action_label(action: rc_core::model_catalog::ExhaustedAction) -> String {
+    use rc_core::model_catalog::ExhaustedAction;
+    match action {
+        ExhaustedAction::Ask => "ask".into(),
+        ExhaustedAction::Wait => "wait".into(),
+        ExhaustedAction::Fallback => "fallback".into(),
+    }
 }
 
 fn plugins_page(ui: &mut egui::Ui, model: &mut Model) {
@@ -2310,6 +2725,10 @@ fn options(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) -> Di
         state.commit_shortcuts();
         let language = state.language_choice.clone();
         model.settings = state.draft.clone();
+        // The ledger holds the limits it was loaded with; the catalogue just changed, so it is
+        // dropped and reloaded on the next request (its history stays in the file).
+        model.quota_ledger = None;
+        model.quota_ledger_error = None;
         model.set_language(&language);
         model.keymap = {
             let mut km = rc_core::keymap::KeyMap::defaults();

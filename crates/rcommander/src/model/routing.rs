@@ -273,6 +273,346 @@ pub fn observed_from_provider(models: &[rc_llm::Model]) -> Vec<ObservedModel> {
         .collect()
 }
 
+/// The editing half of the wizard: classification, limits and routes.
+///
+/// Every setter goes through [`Model::edit_catalogue`], which applies the change to a copy and
+/// keeps it only when the whole catalogue still validates. A half-edited profile is therefore
+/// impossible to leave behind: an unknown quota id, a route naming a model that is not there, or a
+/// price class on a remote model is refused with its reason and nothing changes.
+impl Model {
+    /// Apply `edit` to `catalogue`, keeping it only when the result validates.
+    pub fn edit_catalogue<F>(
+        &self,
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        edit: F,
+    ) -> Result<(), String>
+    where
+        F: FnOnce(&mut rc_core::model_catalog::ModelCatalog),
+    {
+        let mut candidate = catalogue.clone();
+        edit(&mut candidate);
+        match candidate.validate() {
+            Ok(()) => {
+                *catalogue = candidate;
+                Ok(())
+            }
+            Err(error) => Err(self.tf("ai.route.invalid", &[("reason", &format!("{error:?}"))])),
+        }
+    }
+
+    /// Enable or switch off one model.
+    pub fn set_model_enabled(
+        &self,
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        model_id: &str,
+        enabled: bool,
+    ) -> Result<(), String> {
+        self.edit_catalogue(catalogue, |catalogue| {
+            if let Some(model) = catalogue.models.iter_mut().find(|m| m.id == model_id) {
+                model.enabled = enabled;
+            }
+        })
+    }
+
+    /// Say whether the owner hosts this model. Locality is never inferred from an address.
+    pub fn set_model_local(
+        &self,
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        model_id: &str,
+        local: bool,
+    ) -> Result<(), String> {
+        self.edit_catalogue(catalogue, |catalogue| {
+            if let Some(model) = catalogue.models.iter_mut().find(|m| m.id == model_id) {
+                model.local = local;
+                // Price class 0 means "local and free"; a remote model cannot keep it.
+                if !local && model.price_class == Some(0) {
+                    model.price_class = None;
+                }
+            }
+        })
+    }
+
+    /// The owner's relative price class, 0 (local) to 5 (most expensive), or unclassified.
+    pub fn set_model_price(
+        &self,
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        model_id: &str,
+        price: Option<u8>,
+    ) -> Result<(), String> {
+        self.edit_catalogue(catalogue, |catalogue| {
+            if let Some(model) = catalogue.models.iter_mut().find(|m| m.id == model_id) {
+                model.price_class = price;
+            }
+        })
+    }
+
+    /// Effective context and maximum output for one configured model.
+    pub fn set_model_limits(
+        &self,
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        model_id: &str,
+        context: Option<u64>,
+        max_output: Option<u64>,
+    ) -> Result<(), String> {
+        self.edit_catalogue(catalogue, |catalogue| {
+            if let Some(model) = catalogue.models.iter_mut().find(|m| m.id == model_id) {
+                model.context_tokens = context;
+                model.max_output_tokens = max_output;
+            }
+        })
+    }
+
+    /// The quotas a model draws on, from a comma-separated list (`shared-hour, daily`).
+    pub fn set_model_quotas(
+        &self,
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        model_id: &str,
+        text: &str,
+    ) -> Result<(), String> {
+        let ids = split_list(text);
+        self.edit_catalogue(catalogue, |catalogue| {
+            if let Some(model) = catalogue.models.iter_mut().find(|m| m.id == model_id) {
+                model.quota_ids = ids;
+            }
+        })
+    }
+
+    /// Add a quota with a free id and a documented default; returns the id for the page to show.
+    pub fn add_quota(&self, catalogue: &mut rc_core::model_catalog::ModelCatalog) -> String {
+        let mut index = catalogue.quotas.len() + 1;
+        loop {
+            let id = format!("quota-{index}");
+            if !catalogue.quotas.iter().any(|quota| quota.id == id) {
+                let quota = rc_core::model_catalog::TokenQuota {
+                    id: id.clone(),
+                    tokens: 100_000,
+                    period: rc_core::model_catalog::QuotaPeriod::Month,
+                    window: rc_core::model_catalog::QuotaWindow::Calendar,
+                };
+                catalogue.quotas.push(quota);
+                return id;
+            }
+            index += 1;
+        }
+    }
+
+    /// Remove a quota and detach it from every model that used it.
+    pub fn remove_quota(
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        quota_id: &str,
+    ) -> bool {
+        let before = catalogue.quotas.len();
+        catalogue.quotas.retain(|quota| quota.id != quota_id);
+        if catalogue.quotas.len() == before {
+            return false;
+        }
+        for model in catalogue.models.iter_mut() {
+            model.quota_ids.retain(|id| id != quota_id);
+        }
+        true
+    }
+
+    /// Set a quota's allowance and reset semantics.
+    pub fn set_quota(
+        &self,
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        quota_id: &str,
+        tokens: u64,
+        period: rc_core::model_catalog::QuotaPeriod,
+        window: rc_core::model_catalog::QuotaWindow,
+    ) -> Result<(), String> {
+        self.edit_catalogue(catalogue, |catalogue| {
+            if let Some(quota) = catalogue.quotas.iter_mut().find(|q| q.id == quota_id) {
+                quota.tokens = tokens;
+                quota.period = period;
+                quota.window = window;
+            }
+        })
+    }
+
+    /// Add an empty route for `task`; refuses a duplicate name.
+    pub fn add_route(
+        &self,
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        task: &str,
+    ) -> Result<(), String> {
+        let task = task.trim().to_string();
+        if task.is_empty() {
+            return Err(self.t("ai.route.task_needed"));
+        }
+        if catalogue.routes.iter().any(|route| route.task == task) {
+            return Err(self.tf("ai.route.duplicate_route", &[("task", &task)]));
+        }
+        self.edit_catalogue(catalogue, |catalogue| {
+            catalogue
+                .routes
+                .push(rc_core::model_catalog::RoutingPreference {
+                    task,
+                    ..rc_core::model_catalog::RoutingPreference::default()
+                });
+        })
+    }
+
+    /// Remove a route (the models it named stay in the catalogue).
+    pub fn remove_route(catalogue: &mut rc_core::model_catalog::ModelCatalog, task: &str) -> bool {
+        let before = catalogue.routes.len();
+        catalogue.routes.retain(|route| route.task != task);
+        catalogue.routes.len() != before
+    }
+
+    /// The ordered models of a route, from a comma-separated list; the first one wins.
+    pub fn set_route_models(
+        &self,
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        task: &str,
+        text: &str,
+    ) -> Result<(), String> {
+        let ids = split_list(text);
+        self.edit_catalogue(catalogue, |catalogue| {
+            if let Some(route) = catalogue.routes.iter_mut().find(|r| r.task == task) {
+                route.model_ids = ids;
+            }
+        })
+    }
+
+    /// What the route does when nothing in it is eligible.
+    pub fn set_route_action(
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        task: &str,
+        action: rc_core::model_catalog::ExhaustedAction,
+    ) {
+        if let Some(route) = catalogue.routes.iter_mut().find(|r| r.task == task) {
+            route.on_exhausted = action;
+        }
+    }
+
+    /// Whether a verified equivalent binding may replace an unavailable primary.
+    pub fn set_route_prefer_equivalent(
+        catalogue: &mut rc_core::model_catalog::ModelCatalog,
+        task: &str,
+        prefer: bool,
+    ) {
+        if let Some(route) = catalogue.routes.iter_mut().find(|r| r.task == task) {
+            route.prefer_equivalent = prefer;
+        }
+    }
+
+    /// Ask the router the same question the chat asks, for a sample request.
+    ///
+    /// This is the wizard's "why": it returns the decision, including which candidates were
+    /// skipped and why, so a page can show the consequence of an edit before it is saved.
+    pub fn preview_route(
+        &self,
+        catalogue: &rc_core::model_catalog::ModelCatalog,
+        ledger: Option<&rc_core::quota::QuotaLedger>,
+        task: &str,
+        prompt_tokens: u64,
+    ) -> rc_core::routing::Decision {
+        let workload = rc_core::routing::Workload {
+            task: task.to_string(),
+            prompt_tokens,
+            max_output_tokens: rc_runtime::dispatch::DEFAULT_MAX_OUTPUT_TOKENS,
+            requires: [rc_core::model_catalog::Capability::Text]
+                .into_iter()
+                .collect(),
+            allow_remote: self.settings.agent.allow_remote_models,
+        };
+        match ledger {
+            Some(ledger) => rc_core::routing::choose(
+                catalogue,
+                ledger,
+                &workload,
+                chrono::Local::now().timestamp(),
+            ),
+            None => {
+                let empty = rc_core::quota::QuotaLedger::new(&catalogue.quotas);
+                match empty {
+                    Ok(empty) => rc_core::routing::choose(
+                        catalogue,
+                        &empty,
+                        &workload,
+                        chrono::Local::now().timestamp(),
+                    ),
+                    // A catalogue whose limits do not even load cannot be previewed; the caller
+                    // shows the validation error instead of a made-up decision.
+                    Err(_) => rc_core::routing::Decision::NoRoute {
+                        task: task.to_string(),
+                        fallback_task: None,
+                    },
+                }
+            }
+        }
+    }
+}
+
+impl Model {
+    /// One sentence describing what the router would do for `task` right now.
+    ///
+    /// The page shows this under every route, so an edit is visible before it is saved and a
+    /// refusal is never a surprise at chat time.
+    pub fn preview_line(
+        &self,
+        catalogue: &rc_core::model_catalog::ModelCatalog,
+        ledger: Option<&rc_core::quota::QuotaLedger>,
+        task: &str,
+    ) -> String {
+        let decision = self.preview_route(catalogue, ledger, task, 1_000);
+        let locality = |local: bool| {
+            if local {
+                self.t("ai.route.local")
+            } else {
+                self.t("ai.route.remote")
+            }
+        };
+        let price = |price: Option<u8>| match price {
+            Some(price) => price.to_string(),
+            None => self.t("ai.route.unpriced"),
+        };
+        let decision_text = match &decision {
+            rc_core::routing::Decision::Chosen {
+                model_id, reason, ..
+            } => self.tf(
+                "ai.route.preview_chosen",
+                &[
+                    ("model", model_id),
+                    ("preference", &reason.preference.to_string()),
+                    ("locality", &locality(reason.local)),
+                    ("price", &price(reason.price_class)),
+                ],
+            ),
+            rc_core::routing::Decision::NoRoute { task, .. } => {
+                self.tf("ai.route.no_route", &[("task", task)])
+            }
+            other => {
+                let mut text = self.t("ai.route.preview_none");
+                let skipped = other.skipped();
+                if !skipped.is_empty() {
+                    let reasons: Vec<String> = skipped
+                        .iter()
+                        .map(|skip| {
+                            format!("{} ({})", skip.model_id, self.refusal_message(&skip.reason))
+                        })
+                        .collect();
+                    text.push_str(&self.tf("ai.route.skips", &[("reasons", &reasons.join("; "))]));
+                }
+                text
+            }
+        };
+        self.tf("ai.route.preview", &[("decision", &decision_text)])
+    }
+}
+
+/// Split a comma- or semicolon-separated list, dropping blanks and duplicates.
+pub fn split_list(text: &str) -> Vec<String> {
+    let mut seen = std::collections::BTreeSet::new();
+    text.split([',', ';'])
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .filter(|part| seen.insert((*part).to_string()))
+        .map(str::to_string)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -482,6 +822,179 @@ mod tests {
         model.set_allow_remote_models(true);
         assert!(model.allow_remote_models());
         assert!(model.settings_dirty);
+    }
+
+    #[test]
+    fn classification_and_limits_are_validated_before_they_are_kept() {
+        let (model, _) = model_listing(Vec::new());
+        let mut catalogue =
+            rc_core::model_catalog::ModelCatalog::with_legacy_connection("ollama", "").unwrap();
+        catalogue.models.push(rc_core::model_catalog::ModelProfile {
+            id: "mine".into(),
+            connection_id: "default".into(),
+            model_id: "tiny:1b".into(),
+            enabled: false,
+            ..rc_core::model_catalog::ModelProfile::default()
+        });
+        model
+            .set_model_enabled(&mut catalogue, "mine", true)
+            .unwrap();
+        assert!(catalogue.models[0].enabled);
+        model.set_model_local(&mut catalogue, "mine", true).unwrap();
+        model
+            .set_model_price(&mut catalogue, "mine", Some(0))
+            .unwrap();
+        assert_eq!(catalogue.models[0].price_class, Some(0));
+        // A price class of zero belongs to a local model only.
+        model
+            .set_model_local(&mut catalogue, "mine", false)
+            .unwrap();
+        assert_eq!(
+            catalogue.models[0].price_class, None,
+            "a remote model cannot stay in the local price class"
+        );
+        // An impossible limit is refused and the catalogue keeps its previous state.
+        let before = catalogue.clone();
+        assert!(
+            model
+                .set_model_limits(&mut catalogue, "mine", Some(100), Some(1_000))
+                .is_err(),
+            "an output reserve larger than the context is refused"
+        );
+        assert_eq!(catalogue, before);
+        model
+            .set_model_limits(&mut catalogue, "mine", Some(8_192), Some(512))
+            .unwrap();
+        assert_eq!(catalogue.models[0].max_output_tokens, Some(512));
+        // A quota reference that does not exist is refused too.
+        assert!(
+            model
+                .set_model_quotas(&mut catalogue, "mine", "ghost")
+                .is_err()
+        );
+        assert!(catalogue.models[0].quota_ids.is_empty());
+    }
+
+    #[test]
+    fn quotas_can_be_added_attached_and_removed_without_leaving_references() {
+        let (model, _) = model_listing(Vec::new());
+        let mut catalogue =
+            rc_core::model_catalog::ModelCatalog::with_legacy_connection("ollama", "").unwrap();
+        catalogue.models.push(rc_core::model_catalog::ModelProfile {
+            id: "mine".into(),
+            connection_id: "default".into(),
+            model_id: "tiny:1b".into(),
+            ..rc_core::model_catalog::ModelProfile::default()
+        });
+        let id = model.add_quota(&mut catalogue);
+        assert_eq!(id, "quota-1");
+        model
+            .set_model_quotas(&mut catalogue, "mine", " quota-1 ,quota-1 ")
+            .unwrap();
+        assert_eq!(catalogue.models[0].quota_ids, vec!["quota-1".to_string()]);
+        assert_eq!(catalogue.validate(), Ok(()));
+        model
+            .set_quota(
+                &mut catalogue,
+                "quota-1",
+                5_000,
+                rc_core::model_catalog::QuotaPeriod::Hour,
+                rc_core::model_catalog::QuotaWindow::Rolling,
+            )
+            .unwrap();
+        assert_eq!(catalogue.quotas[0].tokens, 5_000);
+        // Removing the quota detaches it, so nothing dangles.
+        assert!(Model::remove_quota(&mut catalogue, "quota-1"));
+        assert!(catalogue.models[0].quota_ids.is_empty());
+        assert_eq!(catalogue.validate(), Ok(()));
+        assert!(!Model::remove_quota(&mut catalogue, "quota-1"));
+        // A zero allowance is refused by validation.
+        let id = model.add_quota(&mut catalogue);
+        assert!(
+            model
+                .set_quota(
+                    &mut catalogue,
+                    &id,
+                    0,
+                    rc_core::model_catalog::QuotaPeriod::Day,
+                    rc_core::model_catalog::QuotaWindow::Calendar,
+                )
+                .is_err()
+        );
+        assert_eq!(catalogue.quotas[0].tokens, 100_000);
+    }
+
+    #[test]
+    fn a_route_is_ordered_by_the_owner_and_previewed_before_it_is_saved() {
+        let (model, _) = model_listing(Vec::new());
+        let mut catalogue =
+            rc_core::model_catalog::ModelCatalog::with_legacy_connection("ollama", "").unwrap();
+        for (id, provider_model) in [("first", "a:1b"), ("second", "b:1b")] {
+            catalogue.models.push(rc_core::model_catalog::ModelProfile {
+                id: id.into(),
+                connection_id: "default".into(),
+                model_id: provider_model.into(),
+                enabled: true,
+                local: true,
+                capabilities: [rc_core::model_catalog::Capability::Text]
+                    .into_iter()
+                    .collect(),
+                ..rc_core::model_catalog::ModelProfile::default()
+            });
+        }
+        model.add_route(&mut catalogue, "chat").unwrap();
+        assert!(
+            model.add_route(&mut catalogue, "chat").is_err(),
+            "a duplicate is refused"
+        );
+        model
+            .set_route_models(&mut catalogue, "chat", "second, first")
+            .unwrap();
+        assert_eq!(
+            catalogue.routes[0].model_ids,
+            vec!["second".to_string(), "first".to_string()]
+        );
+        let preview = model.preview_line(&catalogue, None, "chat");
+        assert!(
+            preview.contains("second"),
+            "the first listed model wins: {preview}"
+        );
+        // A route naming a model that is not there is refused.
+        let before = catalogue.clone();
+        assert!(
+            model
+                .set_route_models(&mut catalogue, "chat", "ghost")
+                .is_err()
+        );
+        assert_eq!(catalogue, before);
+        Model::set_route_action(
+            &mut catalogue,
+            "chat",
+            rc_core::model_catalog::ExhaustedAction::Wait,
+        );
+        Model::set_route_prefer_equivalent(&mut catalogue, "chat", true);
+        assert_eq!(
+            catalogue.routes[0].on_exhausted,
+            rc_core::model_catalog::ExhaustedAction::Wait
+        );
+        assert!(catalogue.routes[0].prefer_equivalent);
+        assert!(Model::remove_route(&mut catalogue, "chat"));
+        assert!(!Model::remove_route(&mut catalogue, "chat"));
+        // With no route there is nothing to preview, and the line says so.
+        let preview = model.preview_line(&catalogue, None, "chat");
+        assert!(
+            preview.contains("no route"),
+            "the line names the missing route: {preview}"
+        );
+    }
+
+    #[test]
+    fn a_workload_list_splits_on_commas_and_drops_repeats() {
+        assert_eq!(
+            split_list(" a, b ;; a ,,c "),
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+        assert!(split_list("  ").is_empty());
     }
 
     #[test]

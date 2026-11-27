@@ -3500,6 +3500,59 @@ fn the_models_page_adds_a_connection_and_shows_the_egress_switch() {
 }
 
 #[test]
+fn the_route_editor_keeps_a_duplicate_out() {
+    let (left, right) = fixture();
+    let app = app(left.path(), right.path());
+    let mut harness = harness(app);
+    harness
+        .state_mut()
+        .model
+        .open_options_on(rcommander::model::dialogs::OptionsTab::Models);
+    harness.run();
+    // The wizard's three sections are all reachable from one page.
+    for key in [
+        "ai.route.connections",
+        "ai.route.models_heading",
+        "ai.route.quotas_heading",
+        "ai.route.routes_heading",
+    ] {
+        assert!(
+            harness.root().query_all_by_label_contains(key).count() > 0,
+            "the page shows the {key} section"
+        );
+    }
+    // A route written into the draft is drawn with its task name and a preview line, which is the
+    // page's "why". The editing rules themselves are unit-tested in `model::routing`.
+    let Some(rcommander::model::Dialog::Options(state)) =
+        harness.state_mut().model.top_dialog_mut()
+    else {
+        panic!("the options dialog is open");
+    };
+    state.draft.agent.model_catalog.routes = vec![rc_core::model_catalog::RoutingPreference {
+        task: "chat".into(),
+        model_ids: vec!["nobody".into()],
+        ..rc_core::model_catalog::RoutingPreference::default()
+    }];
+    // A route that names a model the catalogue does not have is reported, not silently accepted:
+    // the page draws the validation warning and the catalogue is not saved.
+    harness.run();
+    assert!(
+        harness
+            .root()
+            .query_all_by_label_contains("ai.route.issue")
+            .count()
+            > 0,
+        "the page warns that the catalogue cannot be saved"
+    );
+    let catalogue = harness.state().model.settings.agent.model_catalog.clone();
+    assert_eq!(
+        catalogue.validate(),
+        Ok(()),
+        "the live settings were not touched by the draft"
+    );
+}
+
+#[test]
 fn document_surfaces_can_share_the_two_panels_without_losing_editor_text() {
     use rcommander::model::{DocumentPlacement, Side, Surface};
     let (left, right) = fixture();

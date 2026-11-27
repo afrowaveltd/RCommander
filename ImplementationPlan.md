@@ -802,11 +802,26 @@ Slices delivered so far, each headless and offline-tested:
    judged per configured model: a workload asking for more than a model can
    produce may still use it.
 
-Remaining before the wizard: the model rows stay read-only (enabling a model,
-setting a price class or a quota is still a catalogue-file edit, and the page
-says so), `fallback_token_budget` and `return_to_primary` are recorded but not
+9. the wizard itself, on the Models and routing page: classification
+   (enabled, local/remote, price class 0–5), the quotas with their allowance,
+   period and reset semantics, and the routes with their ordered model list,
+   exhausted action and equivalent-preference switch. Every edit goes through a
+   validating setter that applies the change to a copy and keeps it only when
+   the whole catalogue still validates, so an unknown quota id, a route naming a
+   missing model, or an output reserve larger than the context is refused with
+   its reason and nothing changes. Removing a quota detaches it from every
+   model, removing a route leaves the models alone, and a new connection, quota
+   or route arrives with a free id. Under each route the page shows what the
+   router would do for a 1 000-token request right now, including why each
+   skipped candidate was skipped — the plan's "show why a model was chosen or
+   skipped, estimated reservation and expected reset". Applying the options
+   dialog drops the cached ledger so new limits take effect on the next request
+   while the spending history stays in the file.
+
+Remaining: `fallback_token_budget` and `return_to_primary` are recorded but not
 enforced (they need per-route accounting the ledger does not keep yet),
-provider-reported counters and capability probes, then the localized wizard. Test local defaults, shared quotas, multiple
+provider-reported counters and capability probes, the `https` transport, and
+reordering a route is a text edit rather than drag handles. Test local defaults, shared quotas, multiple
 periods, unknown metadata, insufficient context, concurrent reservations,
 exhausted hourly allowance with wait/fallback, cross-provider privacy refusal,
 and quota rollover: the offline parts are covered by the two new modules, while
