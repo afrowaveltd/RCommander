@@ -57,6 +57,63 @@ fn boot_lists_directories_first_and_sorts_naturally() {
 }
 
 #[test]
+fn parent_row_enter_navigates_the_selected_panel_and_restores_cursor() {
+    let (left, right, mut model) = fixture();
+    model.settings.display.show_parent_entry = true;
+    let child = left.path().join("sub");
+    model.navigate(Location::local(&child)).unwrap();
+    let row = model.left.entries().iter().position(|e| e.name == "..").expect("parent row");
+    model.left.set_cursor(row);
+    assert!(model.left.current().is_none(), "parent is not a file operation target");
+    assert_eq!(model.enter(), CommandOutcome::Ok);
+    assert_eq!(model.left.location(), &Location::local(left.path()));
+    assert_eq!(model.left.cursor_entry().unwrap().name, "sub");
+    assert_eq!(model.right.location(), &Location::local(right.path()));
+}
+
+#[test]
+fn navigation_history_is_chronological_and_panel_local() {
+    let (left, right, mut model) = fixture();
+    let a = Location::local(left.path());
+    let b = Location::local(left.path().join("sub"));
+    let c = Location::local(left.path().join("zeta"));
+    model.navigate(b.clone()).unwrap();
+    model.navigate(c.clone()).unwrap();
+    assert!(model.left.can_go_back());
+    assert!(!model.right.can_go_back());
+    assert_eq!(model.go_history(Side::Left, false), CommandOutcome::Ok);
+    assert_eq!(model.left.location(), &b);
+    assert_eq!(model.go_history(Side::Left, false), CommandOutcome::Ok);
+    assert_eq!(model.left.location(), &a);
+    assert!(!model.left.can_go_back());
+    assert!(model.left.can_go_forward());
+    assert_eq!(model.go_history(Side::Left, true), CommandOutcome::Ok);
+    assert_eq!(model.left.location(), &b);
+    assert_eq!(model.go_history(Side::Left, true), CommandOutcome::Ok);
+    assert_eq!(model.left.location(), &c);
+    assert!(!model.left.can_go_forward());
+    assert_eq!(model.go_history(Side::Left, false), CommandOutcome::Ok);
+    model.navigate(a.clone()).unwrap();
+    assert!(!model.left.can_go_forward(), "new visit clears forward history");
+    assert_eq!(model.right.location(), &Location::local(right.path()));
+}
+
+#[test]
+fn failed_history_navigation_does_not_consume_the_target() {
+    let (left, _right, mut model) = fixture();
+    let b = left.path().join("zeta");
+    model.navigate(Location::local(&b)).unwrap();
+    model.navigate(Location::local(left.path())).unwrap();
+    fs::remove_dir(&b).unwrap();
+    assert!(matches!(model.go_history(Side::Left, false), CommandOutcome::Failed(_)));
+    assert!(model.left.can_go_back());
+    assert_eq!(model.left.location(), &Location::local(left.path()));
+    fs::create_dir(&b).unwrap();
+    assert_eq!(model.go_history(Side::Left, false), CommandOutcome::Ok);
+    assert_eq!(model.left.location(), &Location::local(&b));
+}
+
+#[test]
 fn boot_survives_a_missing_directory() {
     let settings = Settings::default();
     let model = Model::for_test(
