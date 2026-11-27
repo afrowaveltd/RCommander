@@ -29,6 +29,8 @@ pub struct Settings {
     pub editor: Editor,
     pub packer: Packer,
     pub button_bar: ButtonBar,
+    /// Saved personal layout, independent of the currently active toolbar.
+    pub button_bar_custom: Option<ButtonBar>,
     pub ftp: Ftp,
     pub agent: Agent,
     /// Git integration preferences.
@@ -151,6 +153,7 @@ impl Default for Settings {
             editor: Editor::default(),
             packer: Packer::default(),
             button_bar: ButtonBar::default(),
+            button_bar_custom: None,
             ftp: Ftp::default(),
             agent: Agent::default(),
             git: Git::default(),
@@ -1318,9 +1321,11 @@ mod tests {
             parameters: String::new(),
             separator: true,
         });
+        settings.button_bar_custom = Some(settings.button_bar.clone());
         let text = settings.to_toml().unwrap();
         let back = Settings::from_toml(&text).unwrap();
         assert_eq!(back.button_bar, settings.button_bar);
+        assert_eq!(back.button_bar_custom, settings.button_bar_custom);
         assert!(text.contains("cm_SrcLong"));
     }
 

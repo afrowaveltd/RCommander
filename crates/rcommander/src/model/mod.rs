@@ -5,6 +5,7 @@
 //! a pure view over this state, which is what makes the behaviour testable
 //! without a display.
 
+pub mod actions;
 pub mod agentworkspace;
 pub mod ai;
 /// Re-export of the sound kinds, so the model can name one without importing the whole desktop

@@ -270,6 +270,7 @@ pub fn for_command(command: &str) -> Option<Icon> {
     let lower = command.to_ascii_lowercase();
     let base = strip_panel_prefix(&lower);
     match base.as_str() {
+        "cm_aichat" | "cm_chatpane" | "cm_processwithagent" | "cm_mcptools" => Some(Icon::Robot),
         "cm_copy" | "cm_copysamepanel" | "cm_renmov" => Some(Icon::Copy),
         "cm_mkdir" => Some(Icon::FolderPlus),
         "cm_delete" | "cm_deletepermanent" => Some(Icon::Delete),

@@ -147,6 +147,17 @@ impl Model {
     pub fn execute(&mut self, command: &str) -> CommandOutcome {
         // `cm_Left…`/`cm_Right…` are the same commands bound to one panel and
         // activating it, exactly like `cm_Src…` acting on the source panel.
+        // Explicit local navigation, never an external program. Keep case on Linux.
+        if let Some(path) = command.strip_prefix("rc_OpenDirectory:") {
+            let path = Path::new(path);
+            if !path.is_absolute() || !path.is_dir() {
+                return CommandOutcome::Failed(self.t("toolbar.directory_missing"));
+            }
+            return match self.open_in(self.focus, Location::local(path)) {
+                Ok(()) => CommandOutcome::Ok,
+                Err(e) => CommandOutcome::Failed(e.to_string()),
+            };
+        }
         let normalized = normalize_command(command);
         let (forced_side, normalized) = match panel_prefix(&normalized) {
             Some((side, rewritten)) => (Some(side), rewritten),
@@ -527,6 +538,24 @@ impl Model {
             "cm_viskeybuttons" => self.toggle_layout("keybuttons"),
             "cm_visstatusbar" => self.toggle_layout("statusbar"),
             "cm_visdirtabs" => self.toggle_layout("dirtabs"),
+            "cm_buttonadd" => {
+                let mut state = ButtonBarState::new();
+                state.start_add();
+                self.open_dialog(Dialog::ButtonBar(state));
+                CommandOutcome::Ok
+            }
+            "cm_buttonadddirectory" => self.add_current_directory_button(),
+            "cm_mcptools" => {
+                self.show_agent_panel = true;
+                CommandOutcome::Ok
+            }
+            "cm_plugins" => self.open_options_on(OptionsTab::Plugins),
+            "cm_secrets" => {
+                self.open_dialog(Dialog::UnlockSecrets(
+                    UnlockSecretsState::new(self.secrets_exist()),
+                ));
+                CommandOutcome::Ok
+            }
             "cm_buttonconfig" => {
                 self.open_dialog(Dialog::ButtonBar(ButtonBarState::new()));
                 CommandOutcome::Ok
@@ -2429,6 +2458,46 @@ impl Model {
     }
 
     // ----- button bar --------------------------------------------------
+
+    /// Add a local directory shortcut without executing it.
+    pub fn add_current_directory_button(&mut self) -> CommandOutcome {
+        let Some(path) = self.active().location().as_path() else {
+            return CommandOutcome::Failed(self.t("toolbar.local_directory_only"));
+        };
+        if !path.is_absolute() || !path.is_dir() {
+            return CommandOutcome::Failed(self.t("toolbar.directory_missing"));
+        }
+        let caption = path.file_name().unwrap_or(path.as_os_str()).to_string_lossy().into_owned();
+        let command = format!("rc_OpenDirectory:{}", path.display());
+        self.settings.button_bar.add(rc_core::config::BarButton::new(caption, command));
+        self.mark_settings_dirty();
+        CommandOutcome::Ok
+    }
+
+    /// Save a personal layout without changing the active one.
+    pub fn save_custom_button_bar(&mut self) {
+        self.settings.button_bar_custom = Some(self.settings.button_bar.clone());
+        self.mark_settings_dirty();
+    }
+
+    /// Restore factory layout, keeping the previous personal layout.
+    pub fn reset_button_bar(&mut self) {
+        if self.settings.button_bar != rc_core::config::ButtonBar::default() {
+            self.save_custom_button_bar();
+        }
+        self.settings.button_bar = rc_core::config::ButtonBar::default();
+        self.mark_settings_dirty();
+    }
+
+    /// Restore a saved personal layout.
+    pub fn restore_custom_button_bar(&mut self) -> bool {
+        let Some(saved) = self.settings.button_bar_custom.clone() else {
+            return false;
+        };
+        self.settings.button_bar = saved;
+        self.mark_settings_dirty();
+        true
+    }
 
     /// Apply the editor: store the draft button and refresh the bar.
     pub fn apply_button_bar(&mut self, state: &mut ButtonBarState) -> CommandOutcome {

@@ -1355,6 +1355,38 @@ fn moving_or_removing_without_a_selection_does_nothing() {
     );
 }
 
+#[test]
+fn toolbar_custom_layout_survives_factory_reset_and_restore() {
+    let (_l, _r, mut model) = fixture();
+    model.settings.button_bar.remove(0);
+    let mut state = ButtonBarState::new();
+    state.start_add();
+    state.edit_command = "cm_ChatPane".into();
+    assert!(model.apply_button_bar(&mut state).is_ok());
+    let custom = model.settings.button_bar.clone();
+    model.reset_button_bar();
+    assert_eq!(model.settings.button_bar, rc_core::config::ButtonBar::default());
+    assert!(model.restore_custom_button_bar());
+    assert_eq!(model.settings.button_bar, custom);
+    assert_eq!(model.settings.button_bar_custom, Some(custom));
+}
+
+#[test]
+fn toolbar_directory_shortcut_preserves_case_and_uses_active_panel() {
+    let (left, right, mut model) = fixture();
+    let mixed = left.path().join("MixedCase Directory");
+    std::fs::create_dir(&mixed).unwrap();
+    model.open_in(Side::Left, Location::local(&mixed)).unwrap();
+    model.focus = Side::Left;
+    assert!(model.add_current_directory_button().is_ok());
+    let button = model.settings.button_bar.buttons.last().unwrap().clone();
+    model.open_in(Side::Left, Location::local(left.path())).unwrap();
+    assert!(model.execute(&button.command).is_ok());
+    assert_eq!(model.panel(Side::Left).location().as_path(), Some(mixed.as_path()));
+    assert_eq!(model.panel(Side::Right).location().as_path(), Some(right.path()));
+    assert!(matches!(model.execute("rc_OpenDirectory:relative"), CommandOutcome::Failed(_)));
+}
+
 // ---------------- drag & drop ----------------
 
 #[test]

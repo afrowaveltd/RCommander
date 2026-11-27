@@ -1462,9 +1462,11 @@ directory mutation or a grant of privileges.
 
 ## Phase 10.11 — practical UI feedback (2026-11-27)
 
-Implementation in progress. Linux labelled drive filtering and lightweight
-inline numeric powers submitted with regression fixtures. Menu and toolbar
-changes follow in this slice. Verification pending; do not mark done until
+Shared action catalogue, top-level Agent/Git menus, localized default toolbar
+captions, personal layout save/reset/restore, local directory/function shortcuts
+and right-click edit/remove submitted along with Linux labelled drive filtering
+and lightweight inline numeric powers. Regression fixtures and Windows CI added.
+Verification pending; do not mark done until
 CI and real platform smoke tests. Unlabelled Linux mounts remain accessible
 through ordinary path navigation; full TeX is not claimed.
 

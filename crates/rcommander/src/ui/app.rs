@@ -667,248 +667,24 @@ impl RCommanderApp {
     fn menu_bar(&mut self, ui: &mut egui::Ui) {
         egui::MenuBar::new().ui(ui, |ui| {
             let mut command: Option<String> = None;
-            ui.menu_button(self.model.t("menu.file"), |ui| {
-                if ui.button(self.model.t("cmd.view")).clicked() {
-                    command = Some("cm_List".into());
-                }
-                if ui.button(self.model.t("cmd.edit")).clicked() {
-                    command = Some("cm_Edit".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.copy")).clicked() {
-                    command = Some("cm_Copy".into());
-                }
-                if ui.button(self.model.t("cmd.move")).clicked() {
-                    command = Some("cm_RenMov".into());
-                }
-                if ui.button(self.model.t("cmd.mkdir")).clicked() {
-                    command = Some("cm_MkDir".into());
-                }
-                if ui.button(self.model.t("cmd.delete")).clicked() {
-                    command = Some("cm_Delete".into());
-                }
-                if ui.button(self.model.t("cmd.rename")).clicked() {
-                    command = Some("cm_RenameOnly".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.pack")).clicked() {
-                    command = Some("cm_PackFiles".into());
-                }
-                if ui.button(self.model.t("cmd.unpack")).clicked() {
-                    command = Some("cm_UnpackFiles".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.split_file")).clicked() {
-                    command = Some("cm_Split".into());
-                }
-                if ui.button(self.model.t("cmd.combine_files")).clicked() {
-                    command = Some("cm_Combine".into());
-                }
-                if ui.button(self.model.t("cmd.encode")).clicked() {
-                    command = Some("cm_Encode".into());
-                }
-                if ui.button(self.model.t("cmd.decode")).clicked() {
-                    command = Some("cm_Decode".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.checksums")).clicked() {
-                    command = Some("cm_CRCcreate".into());
-                }
-                if ui.button(self.model.t("cmd.verify_checksums")).clicked() {
-                    command = Some("cm_CRCcheck".into());
-                }
-                if ui.button(self.model.t("cmd.compare_by_content")).clicked() {
-                    command = Some("cm_CompareFilesByContent".into());
-                }
-                if ui.button(self.model.t("cmd.duplicates")).clicked() {
-                    command = Some("cm_FindDuplicates".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.attributes")).clicked() {
-                    command = Some("cm_SetAttrib".into());
-                }
-                if ui.button(self.model.t("cmd.properties")).clicked() {
-                    command = Some("cm_VersionInfo".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.quit")).clicked() {
-                    command = Some("cm_Exit".into());
-                }
-            });
-            ui.menu_button(self.model.t("menu.mark"), |ui| {
-                if ui.button(self.model.t("cmd.select_all")).clicked() {
-                    command = Some("cm_SelectAll".into());
-                }
-                if ui.button(self.model.t("cmd.deselect_all")).clicked() {
-                    command = Some("cm_Clearall".into());
-                }
-                if ui.button(self.model.t("cmd.invert_selection")).clicked() {
-                    command = Some("cm_ExchangeSelection".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.save_selection")).clicked() {
-                    command = Some("cm_SaveSelectionToFile".into());
-                }
-                if ui.button(self.model.t("cmd.restore_selection")).clicked() {
-                    command = Some("cm_LoadSelectionFromFile".into());
-                }
-            });
-            ui.menu_button(self.model.t("menu.commands"), |ui| {
-                if ui.button(self.model.t("cmd.search")).clicked() {
-                    command = Some("cm_SearchFor".into());
-                }
-                if ui.button(self.model.t("cmd.sync_dirs")).clicked() {
-                    command = Some("cm_SynchronizeDirs".into());
-                }
-                if ui.button(self.model.t("cmd.multi_rename")).clicked() {
-                    command = Some("cm_MultiRename".into());
-                }
-                if ui.button(self.model.t("cmd.hotlist")).clicked() {
-                    command = Some("cm_DirectoryHotlist".into());
-                }
-                if ui.button(self.model.t("dialog.copy.background")).clicked() {
-                    self.model.show_transfer_manager = true;
-                }
-                if ui.button(self.model.t("cmd.duplicates")).clicked() {
-                    command = Some("cm_GetFileSpace".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.calculate_size")).clicked() {
-                    command = Some("cm_GetFileSpace".into());
-                }
-                if ui.button(self.model.t("cmd.new_tab")).clicked() {
-                    command = Some("cm_NewTab".into());
-                }
-            });
-            ui.menu_button(self.model.t("menu.show"), |ui| {
-                if ui.button(self.model.t("col.name")).clicked() {
-                    command = Some("cm_SrcByName".into());
-                }
-                if ui.button(self.model.t("col.size")).clicked() {
-                    command = Some("cm_SrcBySize".into());
-                }
-                if ui.button(self.model.t("col.date")).clicked() {
-                    command = Some("cm_SrcByDateTime".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.branch_view")).clicked() {
-                    command = Some("cm_BranchView".into());
-                }
-                if ui.button(self.model.t("cmd.all_files")).clicked() {
-                    command = Some("cm_SrcAllFiles".into());
-                }
-            });
-            ui.menu_button(self.model.t("menu.configuration"), |ui| {
-                if ui.button(self.model.t("cmd.config")).clicked() {
-                    command = Some("cm_Config".into());
-                }
-                if ui.button(self.model.t("cmd.refresh")).clicked() {
-                    command = Some("cm_RereadSource".into());
-                }
-                ui.separator();
-                // The pages that grew into features of their own, one click each.
-                if ui.button(self.model.t("dialog.config.colors")).clicked() {
-                    command = Some("cm_Colors".into());
-                }
-                if ui.button(self.model.t("dialog.config.fonts")).clicked() {
-                    command = Some("cm_Fonts".into());
-                }
-                if ui.button(self.model.t("dialog.config.security")).clicked() {
-                    command = Some("cm_Security".into());
-                }
-                if ui.button(self.model.t("dialog.config.dangerous")).clicked() {
-                    command = Some("cm_Dangerous".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.secrets")).clicked() {
-                    self.model.open_dialog(Dialog::UnlockSecrets(
-                        crate::model::dialogs::UnlockSecretsState::new(self.model.secrets_exist()),
-                    ));
-                }
-                if ui.button("dark <-> normal").clicked() {
-                    command = Some("cm_ThemeToggle".into());
-                }
-                if ui.button(self.model.t("cmd.themenext")).clicked() {
-                    command = Some("cm_ThemeNext".into());
-                }
-                ui.separator();
-                // Git and the agent each own enough entries to deserve a submenu; a flat list of
-                // eighteen buttons is not a menu, it is a wall.
-                ui.menu_button(self.model.t("menu.git"), |ui| {
-                    if ui.button(self.model.t("cmd.gitconfig")).clicked() {
-                        command = Some("cm_GitConfig".into());
-                    }
-                    if ui.button(self.model.t("cmd.gitpanel")).clicked() {
-                        command = Some("cm_GitPanel".into());
-                    }
-                    if ui.button(self.model.t("cmd.gitbranches")).clicked() {
-                        command = Some("cm_GitBranches".into());
-                    }
-                    if ui.button(self.model.t("cmd.gitremote")).clicked() {
-                        command = Some("cm_GitRemote".into());
-                    }
-                    ui.separator();
-                    if ui.button(self.model.t("cmd.gitcopyout")).clicked() {
-                        command = Some("cm_GitCopyOut".into());
-                    }
-                    if ui.button(self.model.t("cmd.gitstage")).clicked() {
-                        command = Some("cm_GitStage".into());
-                    }
-                    if ui.button(self.model.t("cmd.gitcommit")).clicked() {
-                        command = Some("cm_GitCommit".into());
-                    }
-                    if ui.button(self.model.t("cmd.gitclone")).clicked() {
-                        command = Some("cm_GitClone".into());
+            for &(group, actions) in crate::model::actions::ACTION_GROUPS {
+                ui.menu_button(self.model.t(group), |ui| {
+                    for &(action, key) in actions {
+                        if action == "cm_ChatFiles" && !self.model.any_panel_shows_chat() {
+                            continue;
+                        }
+                        if matches!(action, "cm_ReviewWorkspace" | "cm_OpenWorkspace" | "cm_DiscardWorkspace")
+                            && self.model.agent_workspace.is_none()
+                        {
+                            continue;
+                        }
+                        if ui.button(self.model.t(key)).clicked() {
+                            command = Some(action.to_owned());
+                            ui.close();
+                        }
                     }
                 });
-                ui.menu_button(self.model.t("menu.agent"), |ui| {
-                    if ui.button(self.model.t("cmd.aimodel")).clicked() {
-                        command = Some("cm_AiModel".into());
-                    }
-                    ui.separator();
-                    if ui.button(self.model.t("ai.chat.title")).clicked() {
-                        command = Some("cm_AiChat".into());
-                    }
-                    if ui.button(self.model.t("agent.pane.menu")).clicked() {
-                        command = Some("cm_ChatPane".into());
-                    }
-                    // Only offered when a pane is actually showing the chat: a menu entry that
-                    // does nothing is worse than no entry.
-                    if self.model.any_panel_shows_chat()
-                        && ui.button(self.model.t("agent.pane.files")).clicked()
-                    {
-                        command = Some("cm_ChatFiles".into());
-                    }
-                    if ui.button(self.model.t("prompt.page.manage")).clicked() {
-                        command = Some("cm_Prompts".into());
-                    }
-                    ui.separator();
-                    if ui.button(self.model.t("agent.panel")).clicked() {
-                        self.model.show_agent_panel = true;
-                    }
-                });
-            });
-            ui.menu_button(self.model.t("menu.net"), |ui| {
-                if ui.button(self.model.t("ftp.connect")).clicked() {
-                    command = Some("cm_FtpConnect".into());
-                }
-                if ui.button(self.model.t("ftp.disconnect")).clicked() {
-                    command = Some("cm_FtpDisconnect".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("agent.panel")).clicked() {
-                    self.model.show_agent_panel = true;
-                }
-            });
-            ui.menu_button(self.model.t("menu.help"), |ui| {
-                if ui.button(self.model.t("cmd.help")).clicked() {
-                    command = Some("cm_HelpIndex".into());
-                }
-                ui.separator();
-                if ui.button(self.model.t("cmd.about")).clicked() {
-                    command = Some("cm_About".into());
-                }
-            });
+            }
             if let Some(command) = command {
                 ui.close();
                 self.pending_command = Some(command);
@@ -918,36 +694,75 @@ impl RCommanderApp {
 
     fn tool_bar(&mut self, ui: &mut egui::Ui) {
         let mut command: Option<String> = None;
+        let mut edit: Option<usize> = None;
+        let mut remove: Option<usize> = None;
         let buttons = self.model.settings.button_bar.buttons.clone();
         let font_size = self.model.settings.display.font_size;
         let palette = self.palette.clone();
         let hint = self.model.t("cmd.button_bar");
         ui.horizontal_wrapped(|ui| {
-            for button in buttons.iter() {
+            for (index, button) in buttons.iter().enumerate() {
                 if button.separator {
                     ui.separator();
                 }
-                let caption = button.label();
-                let label = match crate::icons::for_command(&button.command) {
+                let caption = crate::model::actions::button_caption(&self.model, button);
+                let icon = if button.command.starts_with("rc_OpenDirectory:") {
+                    Some(crate::icons::Icon::Folder)
+                } else {
+                    crate::icons::for_command(&button.command)
+                };
+                let label = match icon {
                     Some(icon) => icon_button_text(icon, &caption, font_size, &palette),
                     None => egui::WidgetText::from(egui::RichText::new(&caption).size(font_size)),
                 };
                 let response = ui
                     .add(egui::Button::new(label).min_size(egui::vec2(0.0, font_size + 10.0)))
                     .on_hover_text(&button.command);
-                // Keep the accessible name free of the icon glyph, so screen
-                // readers and the UI tests see the plain caption.
                 response.widget_info(|| {
                     egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &caption)
                 });
                 if response.clicked() {
                     command = Some(button.command.clone());
                 }
+                response.context_menu(|ui| {
+                    if ui.button(self.model.t("cmd.edit")).clicked() {
+                        edit = Some(index);
+                        ui.close();
+                    }
+                    if ui.button(self.model.t("toolbar.remove")).clicked() {
+                        remove = Some(index);
+                        ui.close();
+                    }
+                });
             }
+            ui.menu_button("+", |ui| {
+                for (action, key) in [
+                    ("cm_ButtonAdd", "toolbar.add_action"),
+                    ("cm_ButtonAddDirectory", "toolbar.add_directory"),
+                    ("cm_ButtonConfig", "cmd.button_bar"),
+                ] {
+                    if ui.button(self.model.t(key)).clicked() {
+                        command = Some(action.to_owned());
+                        ui.close();
+                    }
+                }
+            }).response.on_hover_text(self.model.t("toolbar.add"));
             if ui.small_button("…").on_hover_text(hint).clicked() {
                 command = Some("cm_ButtonConfig".to_string());
             }
         });
+        if let Some(index) = remove {
+            let mut state = crate::model::dialogs::ButtonBarState::new();
+            state.selected = Some(index);
+            let _ = self.model.remove_button_bar(&mut state);
+        }
+        if let Some(index) = edit {
+            if let Some(button) = buttons.get(index) {
+                let mut state = crate::model::dialogs::ButtonBarState::new();
+                state.edit(index, button);
+                self.model.open_dialog(Dialog::ButtonBar(state));
+            }
+        }
         if let Some(command) = command {
             self.pending_command = Some(command);
         }

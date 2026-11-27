@@ -46,6 +46,14 @@ jobs:
           VCPKGRS_TRIPLET: x64-windows-static-md
         run: |
           cargo test --locked -p rc-core --lib windows_volumes_use_drive_letter_roots
+          cargo test --locked -p rc-core --lib linux_drive_picker_hides_system_and_path_only_labels
+          cargo test --locked -p rc-core --lib the_button_bar_round_trips_through_toml
+          cargo test --locked -p rc-help --lib inline_math
+          cargo test --locked -p rcommander --lib toolbar_
+          cargo test --locked -p rcommander --lib action_catalogue
+          cargo test --locked -p rcommander --test ui_smoke toolbar_default_captions_are_localized_and_custom_caption_is_preserved
+          cargo test --locked -p rcommander --test ui_smoke the_agent_menu_offers_the_way_back_only_while_a_pane_shows_the_chat
+          cargo test --locked -p rcommander --test ui_smoke tool_bar_and_function_keys_are_rendered
           if ($LASTEXITCODE -ne 0) { throw 'Windows drive enumeration test failed' }
           cargo test --locked -p rcommander --lib delete_confirmation_tests
           if ($LASTEXITCODE -ne 0) { throw 'Delete confirmation test failed' }

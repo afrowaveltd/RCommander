@@ -2628,15 +2628,11 @@ fn the_menu_leads_to_the_pages_that_became_features() {
 }
 
 #[test]
-fn the_agent_submenu_offers_the_way_back_only_while_a_pane_shows_the_chat() {
+fn the_agent_menu_offers_the_way_back_only_while_a_pane_shows_the_chat() {
     let (left, right) = fixture();
     let mut harness = harness(app(left.path(), right.path()));
-    // Open the Configuration menu: the agent submenu is there, the way back is not.
-    harness
-        .root()
-        .get_by_label("menu.configuration")
-        .click_accesskit();
-    harness.run();
+    // Agent is now a top-level menu, not hidden under Configuration.
+    harness.root().get_by_label("menu.git");
     harness.root().get_by_label("menu.agent").click_accesskit();
     harness.run();
     assert!(
@@ -2661,6 +2657,23 @@ fn the_agent_submenu_offers_the_way_back_only_while_a_pane_shows_the_chat() {
             > 0,
         "the menu offers to close the pane it opened"
     );
+}
+
+#[test]
+fn toolbar_default_captions_are_localized_and_custom_caption_is_preserved() {
+    let (left, right) = fixture();
+    let locale_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../rc-i18n/locales");
+    let strings = rcommander::i18n::TranslatorStrings::discover(&locale_dir, "cs");
+    let mut settings = Settings::default();
+    settings.language = "cs".into();
+    let mut app = RCommanderApp::with_strings(
+        settings, Box::new(strings),
+        Location::local(left.path()), Location::local(right.path()),
+    );
+    app.model.settings.button_bar.add(rc_core::config::BarButton::new("My button", "cm_Copy"));
+    let harness = harness(app);
+    harness.root().get_by_label("Stručně");
+    harness.root().get_by_label("My button");
 }
 
 #[test]

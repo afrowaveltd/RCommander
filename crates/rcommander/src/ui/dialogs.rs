@@ -2568,7 +2568,7 @@ fn button_bar(ui: &mut egui::Ui, model: &mut Model, state: &mut ButtonBarState) 
             for (index, button) in buttons.iter().enumerate() {
                 let selected = state.selected == Some(index);
                 if ui
-                    .selectable_label(selected, format!("{} — {}", button.label(), button.command))
+                    .selectable_label(selected, format!("{} — {}", crate::model::actions::button_caption(model, button), button.command))
                     .clicked()
                 {
                     state.edit(index, button);
@@ -2576,20 +2576,36 @@ fn button_bar(ui: &mut egui::Ui, model: &mut Model, state: &mut ButtonBarState) 
             }
         });
     ui.separator();
+    ui.menu_button(model.t("toolbar.choose_action"), |ui| {
+        egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+            for &(group, actions) in crate::model::actions::ACTION_GROUPS {
+                ui.collapsing(model.t(group), |ui| {
+                    for &(command, key) in actions {
+                        if ui.button(model.t(key)).clicked() {
+                            state.edit_command = command.to_owned();
+                            state.edit_caption.clear();
+                            state.edit_parameters.clear();
+                            ui.close();
+                        }
+                    }
+                });
+            }
+        });
+    });
     egui::Grid::new("buttonbar_grid")
         .num_columns(2)
         .show(ui, |ui| {
-            ui.label("caption");
+            ui.label(model.t("toolbar.caption"));
             ui.add(egui::TextEdit::singleline(&mut state.edit_caption).desired_width(260.0));
             ui.end_row();
-            ui.label("command");
+            ui.label(model.t("toolbar.command"));
             ui.add(
                 egui::TextEdit::singleline(&mut state.edit_command)
                     .desired_width(260.0)
                     .hint_text("cm_Copy"),
             );
             ui.end_row();
-            ui.label("parameters");
+            ui.label(model.t("toolbar.parameters"));
             ui.add(
                 egui::TextEdit::singleline(&mut state.edit_parameters)
                     .desired_width(260.0)
@@ -2601,7 +2617,7 @@ fn button_bar(ui: &mut egui::Ui, model: &mut Model, state: &mut ButtonBarState) 
         if ui.button("+").clicked() {
             state.start_add();
         }
-        if ui.button("apply").clicked() {
+        if ui.button(model.t("toolbar.apply")).clicked() {
             let mut snapshot = state.clone();
             if let crate::model::CommandOutcome::Failed(message) =
                 model.apply_button_bar(&mut snapshot)
@@ -2610,20 +2626,34 @@ fn button_bar(ui: &mut egui::Ui, model: &mut Model, state: &mut ButtonBarState) 
             }
             *state = snapshot;
         }
-        if ui.button("-").clicked() {
+        if ui.button(model.t("toolbar.remove")).clicked() {
             let mut snapshot = state.clone();
             let _ = model.remove_button_bar(&mut snapshot);
             *state = snapshot;
         }
-        if ui.button("up").clicked() {
+        if ui.button(model.t("toolbar.up")).clicked() {
             let mut snapshot = state.clone();
             let _ = model.move_button_bar(&mut snapshot, true);
             *state = snapshot;
         }
-        if ui.button("down").clicked() {
+        if ui.button(model.t("toolbar.down")).clicked() {
             let mut snapshot = state.clone();
             let _ = model.move_button_bar(&mut snapshot, false);
             *state = snapshot;
+        }
+    });
+    ui.horizontal_wrapped(|ui| {
+        if ui.button(model.t("toolbar.save_custom")).clicked() {
+            model.save_custom_button_bar();
+        }
+        if ui.button(model.t("toolbar.reset_default")).clicked() {
+            model.reset_button_bar();
+            *state = ButtonBarState::new();
+        }
+        let restore = model.t("toolbar.restore_custom");
+        if ui.add_enabled(model.settings.button_bar_custom.is_some(), egui::Button::new(restore)).clicked() {
+            model.restore_custom_button_bar();
+            *state = ButtonBarState::new();
         }
     });
     let (ok, cancel) = buttons_close(ui, model);
