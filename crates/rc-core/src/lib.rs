@@ -42,6 +42,7 @@ pub mod prompt;
 pub mod providers;
 pub mod quicksearch;
 pub mod quota;
+pub mod routing;
 pub mod secrets;
 pub mod selection;
 pub mod sessions;

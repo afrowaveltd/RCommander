@@ -122,26 +122,6 @@ thread_local! {
     static NEXT_REQUEST: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
-/// The catalogue entry whose provider model the chat is configured with.
-///
-/// Matched by provider model name, which is what the settings and the picker hold; an enabled
-/// entry wins over a switched-off one, so re-enabling a model takes effect without editing a
-/// second field.
-fn routed_catalogue_model<'a>(
-    catalogue: &'a rc_core::model_catalog::ModelCatalog,
-    model: &str,
-) -> Option<&'a rc_core::model_catalog::ModelProfile> {
-    let mut matches = catalogue
-        .models
-        .iter()
-        .filter(|entry| entry.model_id == model);
-    let first = matches.next()?;
-    let enabled = std::iter::once(first)
-        .chain(matches)
-        .find(|entry| entry.enabled);
-    enabled.or(Some(first))
-}
-
 /// A token estimate for a prompt.
 ///
 /// There is no tokenizer here and there will not be one per provider, so the estimate is the
@@ -313,33 +293,24 @@ impl Model {
         let worker_control = control.clone();
         let started = Instant::now();
         let routed = self.routing_enabled();
-        // The estimate is only a courtesy for the "loading a cold model" line; a routed request
-        // keys it by the connection it will actually use.
-        let estimate_key = match self.routed_estimate_key(&model) {
-            Some(key) if routed => key,
-            _ => {
-                let provider = self.ai_provider();
-                let (kind, base_url) = match &provider {
-                    Some(provider) => (provider.kind(), provider.base_url().to_string()),
-                    None => ("ollama", self.settings.agent.provider_url.clone()),
-                };
-                format!("{kind}|{base_url}|{model}")
-            }
-        };
-        let estimate = self
-            .settings
-            .agent
-            .model_load_seconds
-            .get(&estimate_key)
-            .copied();
+        // The estimate is only a courtesy for the "loading a cold model" line. A routed request
+        // learns its connection from the router, so the key comes back from there; the legacy path
+        // keys it on the single configured provider.
+        let estimate_key;
         if routed {
-            if let Err(message) =
-                self.spawn_routed_chat(model.clone(), messages.clone(), &control, &sender)
-            {
-                self.abort_chat_request(&message);
-                return CommandOutcome::Failed(message);
+            match self.spawn_routed_chat(model.clone(), messages.clone(), &control, &sender) {
+                Ok(key) => estimate_key = key,
+                Err(message) => {
+                    self.abort_chat_request(&message);
+                    return CommandOutcome::Failed(message);
+                }
             }
         } else {
+            let kind_and_url = match self.ai_provider() {
+                Some(provider) => (provider.kind(), provider.base_url().to_string()),
+                None => ("ollama", self.settings.agent.provider_url.clone()),
+            };
+            estimate_key = format!("{}|{}|{model}", kind_and_url.0, kind_and_url.1);
             let provider_message = self.t("ai.provider.unknown");
             let Some(provider) = self.ai_provider() else {
                 self.abort_chat_request(&provider_message);
@@ -393,6 +364,12 @@ impl Model {
                 worker_control.cancel();
             });
         }
+        let estimate = self
+            .settings
+            .agent
+            .model_load_seconds
+            .get(&estimate_key)
+            .copied();
         self.chat_session.job = Some(ChatJob {
             receiver,
             control,
@@ -423,38 +400,77 @@ impl Model {
         self.report_error(message.to_string());
     }
 
-    /// The load-time cache key a routed request would use, when the catalogue can say.
-    fn routed_estimate_key(&self, model: &str) -> Option<String> {
-        let catalogue = &self.settings.agent.model_catalog;
-        let entry = routed_catalogue_model(catalogue, model)?;
-        let connection = catalogue
-            .connections
-            .iter()
-            .find(|connection| connection.id == entry.connection_id)?;
-        Some(format!(
-            "{}|{}|{}",
-            connection.kind, connection.base_url, entry.model_id
-        ))
-    }
-
-    /// Start a routed answer: the catalogue decides the connection, admission decides whether it
-    /// may run, the ledger reserves the allowance, and only then does the request leave.
+    /// Start a routed answer: the owner's route picks the model, admission decides whether it may
+    /// run, the ledger reserves the allowance, and only then does the request leave.
+    ///
+    /// Returns the cache key for the chosen connection's cold-load estimate, because the model is
+    /// only known after the decision. The decision itself is taken here, on the calling thread,
+    /// and not on the worker: it is pure and cheap, and the transcript has to say which model
+    /// answered before anything is sent.
     fn spawn_routed_chat(
         &mut self,
-        model: String,
+        _model: String,
         messages: Vec<Message>,
         control: &StreamControl,
         sender: &std::sync::mpsc::Sender<ChatEvent>,
-    ) -> Result<(), String> {
+    ) -> Result<String, String> {
         let catalogue = self.settings.agent.model_catalog.clone();
-        let entry = routed_catalogue_model(&catalogue, &model)
-            .ok_or_else(|| self.tf("ai.route.no_model", &[("model", &model)]))?;
         let ledger = match self.quota_ledger()? {
             Some(ledger) => ledger,
             // `routing_enabled()` was true a moment ago, so this is a contradiction worth naming
             // rather than silently falling back to unmetered sending.
             None => return Err(self.t("ai.ledger.unavailable")),
         };
+        let allow_remote = self.settings.agent.allow_remote_models;
+        let prompt_tokens = estimate_prompt_tokens(&messages);
+        let workload = rc_core::routing::Workload {
+            task: "chat".into(),
+            prompt_tokens,
+            max_output_tokens: rc_runtime::dispatch::DEFAULT_MAX_OUTPUT_TOKENS,
+            requires: [rc_core::model_catalog::Capability::Text]
+                .into_iter()
+                .collect(),
+            allow_remote,
+        };
+        let decision = {
+            let guard = match ledger.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            rc_core::routing::choose(
+                &catalogue,
+                &guard,
+                &workload,
+                chrono::Local::now().timestamp(),
+            )
+        };
+        let chosen = match &decision {
+            rc_core::routing::Decision::Chosen { model_id, .. } => model_id.clone(),
+            other => return Err(self.routing_decision_message(other)),
+        };
+        let Some(entry) = catalogue
+            .models
+            .iter()
+            .find(|entry| entry.id == chosen)
+            .cloned()
+        else {
+            // `choose` returned an id from this catalogue, so this cannot happen; report rather
+            // than panic if a future refactor breaks that invariant.
+            return Err(self.tf("ai.route.unknown_model", &[("model", &chosen)]));
+        };
+        // The transcript says which model answered, before the request leaves.
+        self.chat_session.model = entry.model_id.clone();
+        let estimate_key = catalogue
+            .connections
+            .iter()
+            .find(|connection| connection.id == entry.connection_id)
+            .map(|connection| {
+                format!(
+                    "{}|{}|{}",
+                    connection.kind, connection.base_url, entry.model_id
+                )
+            })
+            .unwrap_or_default();
         let backend: std::sync::Arc<dyn rc_runtime::Backend> =
             self.ai_backend.clone().unwrap_or_else(|| {
                 std::sync::Arc::new(rc_runtime::LlmBackend {
@@ -463,11 +479,9 @@ impl Model {
                     )),
                 })
             });
-        let allow_remote = self.settings.agent.allow_remote_models;
         let max_output = entry
             .max_output_tokens
             .unwrap_or(rc_runtime::dispatch::DEFAULT_MAX_OUTPUT_TOKENS);
-        let prompt_tokens = estimate_prompt_tokens(&messages);
         let request_id = format!(
             "chat-{}-{}",
             std::process::id(),
@@ -577,7 +591,39 @@ impl Model {
             }
             worker_control.cancel();
         });
-        Ok(())
+        Ok(estimate_key)
+    }
+
+    /// A localized sentence for a routing decision that produced no model.
+    ///
+    /// The skipped candidates are named with the same per-refusal wording admission uses, so the
+    /// owner can see which model was passed over and why instead of a bare "nothing available".
+    fn routing_decision_message(&self, decision: &rc_core::routing::Decision) -> String {
+        let now = chrono::Local::now().timestamp();
+        match decision {
+            rc_core::routing::Decision::Chosen { .. } => String::new(),
+            rc_core::routing::Decision::NoRoute { task, .. } => {
+                self.tf("ai.route.no_route", &[("task", task)])
+            }
+            rc_core::routing::Decision::Unavailable { until, skipped, .. } => {
+                let mut message = self.t("ai.route.unavailable");
+                if let Some(until) = until {
+                    let seconds = (until - now).max(0).to_string();
+                    message.push_str(&self.tf("ai.route.recovery", &[("seconds", &seconds)]));
+                }
+                if !skipped.is_empty() {
+                    let reasons: Vec<String> = skipped
+                        .iter()
+                        .map(|skip| {
+                            format!("{} ({})", skip.model_id, self.refusal_message(&skip.reason))
+                        })
+                        .collect();
+                    message
+                        .push_str(&self.tf("ai.route.skips", &[("reasons", &reasons.join("; "))]));
+                }
+                message
+            }
+        }
     }
 
     /// A localized sentence for a refusal, so the reason reaches the reader in their language.
@@ -1187,7 +1233,11 @@ mod tests {
                 quota_ids: vec!["pool".into()],
                 ..rc_core::model_catalog::ModelProfile::default()
             }],
-            ..rc_core::model_catalog::ModelCatalog::default()
+            routes: vec![rc_core::model_catalog::RoutingPreference {
+                task: "chat".into(),
+                model_ids: vec!["tiny".into()],
+                ..rc_core::model_catalog::RoutingPreference::default()
+            }],
         };
         let calls = Arc::new(Mutex::new(Vec::new()));
         model.ai_backend = Some(Arc::new(RoutedBackend {
@@ -1224,9 +1274,11 @@ mod tests {
         use super::*;
         let (mut model, calls, _dir) = routed_model(true, 1_000);
         model.chat_session.input = "hello".into();
+        let outcome = model.chat_send();
         assert!(
-            matches!(model.chat_send(), CommandOutcome::Ok),
-            "a local model within the pool is dispatched"
+            matches!(outcome, CommandOutcome::Ok),
+            "a local model within the pool is dispatched: {outcome:?} / {:?}",
+            model.last_error
         );
         settle(&mut model);
         assert_eq!(calls.lock().unwrap().len(), 1, "the backend was asked once");
@@ -1325,6 +1377,70 @@ mod tests {
         assert!(
             error.contains("newer ledger"),
             "the reason is the ledger: {error}"
+        );
+    }
+
+    #[test]
+    fn the_route_order_decides_which_model_answers() {
+        use super::*;
+        let (mut model, calls, _dir) = routed_model(true, 1_000);
+        // A second, preferred model on the same connection: the owner listed it first.
+        model
+            .settings
+            .agent
+            .model_catalog
+            .models
+            .push(rc_core::model_catalog::ModelProfile {
+                id: "preferred".into(),
+                connection_id: "default".into(),
+                model_id: "preferred:3b".into(),
+                enabled: true,
+                local: true,
+                context_tokens: Some(8_192),
+                max_output_tokens: Some(256),
+                capabilities: [rc_core::model_catalog::Capability::Text]
+                    .into_iter()
+                    .collect(),
+                quota_ids: vec!["pool".into()],
+                ..rc_core::model_catalog::ModelProfile::default()
+            });
+        model.settings.agent.model_catalog.routes[0].model_ids =
+            vec!["preferred".into(), "tiny".into()];
+        model.chat_session.input = "hello".into();
+        assert!(matches!(model.chat_send(), CommandOutcome::Ok));
+        settle(&mut model);
+        let receipt = model
+            .chat_session
+            .last_receipt
+            .clone()
+            .expect("a routed answer carries a receipt");
+        assert_eq!(
+            receipt.model_id, "preferred",
+            "the first listed model answers"
+        );
+        assert_eq!(receipt.provider_model, "preferred:3b");
+        // The transcript belongs to the model that actually answered.
+        assert_eq!(model.chat_session.model, "preferred:3b");
+        assert_eq!(calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_catalogue_with_no_route_refuses_instead_of_guessing() {
+        use super::*;
+        let (mut model, calls, _dir) = routed_model(true, 1_000);
+        model.settings.agent.model_catalog.routes.clear();
+        model.chat_session.input = "hello".into();
+        let outcome = model.chat_send();
+        assert!(matches!(outcome, CommandOutcome::Failed(_)));
+        assert_eq!(
+            calls.lock().unwrap().len(),
+            0,
+            "nothing is sent without a route"
+        );
+        let error = model.last_error.clone().unwrap_or_default();
+        assert!(
+            error.contains("no route"),
+            "the sentence names the missing route: {error}"
         );
     }
 

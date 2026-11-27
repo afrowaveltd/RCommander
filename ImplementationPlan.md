@@ -788,10 +788,25 @@ Slices delivered so far, each headless and offline-tested:
    not an empty catalogue, and a profile that would not validate is refused
    before it is stored.
 
-Remaining before the router: the model rows stay read-only (enabling a model,
+8. the deterministic router, `rc_core::routing`: the owner's ordered route is
+   the ranking, price and locality never reorder it, and eligibility is the
+   same admission check a direct request gets, so a routed call and a direct
+   call cannot disagree about what is allowed. Every skipped candidate is
+   reported with its own reason; an exhausted route reports the earliest
+   recovery it can honestly name (a provider wait or a known window rollover)
+   and the action the owner chose; a workload with no route gets no model
+   instead of an implicit fallback. `prefer_equivalent` is honoured (a verified
+   equivalent binding moves ahead of unrelated candidates once the primary is
+   unavailable), and the chat now asks the router for the model, so the
+   transcript names the model that actually answered. The output reserve is
+   judged per configured model: a workload asking for more than a model can
+   produce may still use it.
+
+Remaining before the wizard: the model rows stay read-only (enabling a model,
 setting a price class or a quota is still a catalogue-file edit, and the page
-says so), provider-reported counters and capability probes, then the
-deterministic router and the localized wizard. Test local defaults, shared quotas, multiple
+says so), `fallback_token_budget` and `return_to_primary` are recorded but not
+enforced (they need per-route accounting the ledger does not keep yet),
+provider-reported counters and capability probes, then the localized wizard. Test local defaults, shared quotas, multiple
 periods, unknown metadata, insufficient context, concurrent reservations,
 exhausted hourly allowance with wait/fallback, cross-provider privacy refusal,
 and quota rollover: the offline parts are covered by the two new modules, while

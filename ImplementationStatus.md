@@ -33,7 +33,7 @@ cargo test --workspace
 | 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; what remains is the interactive password prompt for connections whose secret is not in the store (today the dialog reopens pre-filled instead) |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
-| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`), the headless dispatch vertical (`rc-runtime`), routed chat with a metered receipt and a **Models and routing settings page with per-connection discovery** recorded; model-to-MCP calls, editable prices/quotas in the page, the deterministic router and wizard, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
+| 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`), the **deterministic router** (`routing`), the headless dispatch vertical (`rc-runtime`), routed chat with a metered receipt and a Models and routing settings page with per-connection discovery recorded; model-to-MCP calls, editable prices/quotas in the page, the routing wizard, per-route fallback budgets, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
 | 17.0 | Shared Markdown, syntax highlighting and annotations | **partial** — shared rendering/highlighter and language extensions recorded; annotations, remaining consumer migration and TUI coverage need verification |
 | 17 | Rich document previewer | **partial** — Markdown/code/hex views; annotations, PDF/Office, binary inspection and viewer integration pending |
 | 18 | Plugin architecture | **partial** — location/registry, table capabilities, TOML command/MCP sources and on/off manager implemented; manifest verbs, renderers, isolation, installer, agent catalogue/calls and Workshop pending |
@@ -2008,6 +2008,61 @@ timeout (fine for a loopback server, a candidate for a worker thread when a
 remote connection arrives), provider-reported counters and capability probes
 are unmodelled, and the deterministic router and localized wizard remain
 planned.
+
+## Handoff — the deterministic router (2026-11-27)
+
+Eighth slice of Phase 16.20, and the piece the previous seven were building
+towards: a request now has a *model chosen for it*, not a model named in the
+settings file.
+
+`rc_core::routing::choose` is pure — catalogue, ledger, workload and instant in,
+decision out — and follows three rules, all of them the owner's:
+
+1. **The route order is the ranking.** Candidates come from the route the owner
+   wrote for the workload (`chat`, `coding`, …, or `default`), and the first
+   eligible one wins. Price class and locality are reported in the reason and
+   never reorder anything; a test pins that with an expensive remote model
+   listed first.
+2. **Eligibility is admission's own check.** Each candidate goes through the
+   same `admission::admit` a direct request uses, so the two paths cannot
+   disagree. The output reserve is judged per configured model, so a workload
+   asking for 1 024 tokens may still be served by a model that produces 256.
+3. **Refusal is explained.** Every skipped candidate carries its reason, an
+   exhausted route reports the earliest recovery it can honestly name (a
+   provider wait, or a known window rollover — never a guess) together with the
+   owner's `on_exhausted` action, and a workload with no route gets
+   `NoRoute` instead of an implicit fallback.
+
+`prefer_equivalent` is honoured: once the primary is unavailable, candidates in
+the same user-verified equivalence group move ahead of unrelated ones, and the
+choice records both the group and which model it substituted for.
+`return_to_primary` is satisfied by construction (the router is stateless and
+always prefers the owner's order) and `fallback_token_budget` is recorded but
+deliberately **not** enforced: that needs per-route accounting the ledger does
+not keep yet, and the router does not invent a budget.
+
+The chat asks the router now (`chat_send` → `spawn_routed_chat`): the decision
+is taken on the calling thread — it is pure and cheap — so the transcript can
+name the model that actually answered before the request leaves, and the
+cold-load estimate is keyed by the connection the router chose. A decision that
+yields no model becomes a localized sentence naming each skipped candidate and
+its reason, plus the recovery time when one is known.
+
+Evidence, Linux 2026-11-27 at this revision:
+
+```bash
+cargo test --workspace --all-targets                # 1741 passed, 0 failed, 2 ignored
+cargo test --locked -p rc-core --lib routing::tests # 11 passed
+cargo test --locked -p rcommander --lib model::chat::tests  # 14 passed
+cargo clippy --workspace --all-targets              # no warnings
+cargo fmt --all --check                             # clean
+```
+
+Still open: the routing wizard (a page that writes routes, prices and quotas),
+enforcement of `fallback_token_budget`, provider-reported counters, capability
+probes, and the `https` transport. The strategy of "local first, remote only
+when the owner says so" is now enforced end to end, but no live provider run at
+this revision — the tests use a fake backend and a fake listing.
 
 ## Next steps (dependency-ordered)
 
