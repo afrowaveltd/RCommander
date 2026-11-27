@@ -314,6 +314,12 @@ changing literal code, unsupported notation or raw conversation export.
 
 ## Phase 13 — Secure remote access (SFTP/SSH, sessions, credentials)
 
+Stage A handoff (2026-11-28): the focused saved-session password-only
+prompt is implemented in main with model/UI tests pending execution.
+It preserves the captured profile, uses masked input and optional
+remember-on-success; normal editable connection form is unchanged.
+Wallet-unlock and rejected-authentication retry acceptance remain open.
+
 Today the FTP/SFTP engine exists (`rc-remote`) and FTP is wired into the panels, but
 two things are not acceptable for SSH use: the SFTP transport is untested against a
 live server and, more importantly, **passwords are currently stored in plain text**
