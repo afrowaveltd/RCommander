@@ -167,6 +167,37 @@ authors = ["Somebody"]
     }
 
     #[test]
+    fn arabic_pack_covers_reference_keys_and_preserves_placeholders() {
+        const AR: &str = include_str!("../locales/ar.toml");
+        assert_eq!(AR, include_str!("../../../locales/ar.toml"));
+        let ar = Locale::parse("ar", AR).expect("Arabic TOML");
+        let en = english();
+        assert_eq!(ar.code(), "ar");
+        assert_eq!(ar.meta().native_name, "العربية");
+        assert!(ar.meta().is_rtl());
+        assert_eq!(ar.len(), en.len());
+        fn placeholders(text: &str) -> Vec<&str> {
+            let mut tokens: Vec<&str> = text.split('{').skip(1)
+                .filter_map(|tail| tail.split_once('}').map(|(key, _)| key))
+                .collect();
+            tokens.sort_unstable();
+            tokens
+        }
+        for (key, original) in en.iter() {
+            let translated = ar.get(key).unwrap_or_else(|| panic!("missing Arabic key: {key}"));
+            assert_eq!(placeholders(original), placeholders(translated), "{key}");
+        }
+        let mut translator = crate::Translator::new(en, vec![ar]);
+        assert!(translator.set_language("ar"));
+        assert!(translator.direction().is_rtl());
+        assert_eq!(translator.t("cmd.copy"), "نسخ");
+        let status = translator.t_args("panel.selection_of", &[("count", "3"), ("total", "10")]);
+        assert_eq!(status, "تم تحديد 3 من 10");
+        assert!(translator.set_language("en"));
+        assert!(!translator.direction().is_rtl());
+    }
+
+    #[test]
     fn bundled_packs_validate() {
         let english_meta = validate_pack(BUILTIN_EN).expect("built-in English is valid");
         assert_eq!(english_meta.code, "en");
