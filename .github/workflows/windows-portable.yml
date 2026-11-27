@@ -39,7 +39,7 @@ jobs:
           & 'C:\vcpkg\vcpkg.exe' install openssl:x64-windows-static-md
           if ($LASTEXITCODE -ne 0) { throw 'vcpkg OpenSSL installation failed' }
 
-      - name: Run Windows regression tests for drives, delete text and prompts
+      - name: Run Windows regression tests for drives, chat, plugins and prompts
         shell: pwsh
         env:
           VCPKG_ROOT: C:\vcpkg
@@ -59,6 +59,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'LLM transport tests failed' }
           cargo test --locked -p rcommander --lib model::chat::tests
           if ($LASTEXITCODE -ne 0) { throw 'Chat model tests failed' }
+          cargo test --locked -p rc-core --lib plugin
+          if ($LASTEXITCODE -ne 0) { throw 'Plugin manifest tests failed' }
+          cargo test --locked -p rcommander --lib model::plugins::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Plugin model tests failed' }
+          cargo test --locked -p rcommander --test ui_smoke the_chat_window_opens_from_the_menu_and_streams_an_answer
+          if ($LASTEXITCODE -ne 0) { throw 'Chat window UI test failed' }
+          cargo test --locked -p rcommander --test ui_smoke the_plugins_page_lists_what_is_installed_and_switches_it_off
+          if ($LASTEXITCODE -ne 0) { throw 'Plugin manager UI test failed' }
+          cargo test --locked -p rcommander --test ui_smoke processing_with_the_agent_opens_a_chat_about_a_copy
+          if ($LASTEXITCODE -ne 0) { throw 'Agent workspace handoff test failed' }
 
       - name: Compile Windows x64 release
         shell: pwsh
@@ -77,7 +87,7 @@ jobs:
           $dest = Join-Path $env:RUNNER_TEMP 'RCommander-Windows-x64'
           New-Item -ItemType Directory -Path $dest -Force | Out-Null
           Copy-Item $exe $dest
-          foreach ($name in @('locales', 'Docs', 'themes', 'prompts')) {
+          foreach ($name in @('locales', 'Docs', 'themes', 'prompts', 'plugins')) {
             if (-not (Test-Path $name -PathType Container)) { throw "Missing folder: $name" }
             Copy-Item $name (Join-Path $dest $name) -Recurse
           }
@@ -87,7 +97,7 @@ jobs:
             'RCommander - Windows x64 portable test build',
             '',
             'Extract the entire ZIP, then run rcommander.exe.',
-            'Keep Docs, locales, themes and prompts alongside the executable.',
+            'Keep Docs, locales, themes, prompts and plugins alongside the executable.',
             'No Rust installation is required on the target PC.',
             'This build is UNSIGNED; workplace endpoint policies may block it.',
             'Do not bypass your employer security policy.',
@@ -115,5 +125,5 @@ jobs:
         run: |
           $tag = "windows-test-${{ github.run_number }}"
           $sha = "${{ github.sha }}"
-          gh release create $tag 'RCommander-Windows-x64.zip' --repo "${{ github.repository }}" --target $sha --title "RCommander Windows test build #${{ github.run_number }}" --notes "Unsigned Windows x64 portable test build from commit $sha. Extract ZIP and start rcommander.exe; locales, Docs, themes and prompts are included. No Rust required. Obey workplace endpoint policies." --prerelease
+          gh release create $tag 'RCommander-Windows-x64.zip' --repo "${{ github.repository }}" --target $sha --title "RCommander Windows test build #${{ github.run_number }}" --notes "Unsigned Windows x64 portable test build from commit $sha. Extract ZIP and start rcommander.exe; locales, Docs, themes, prompts and plugin examples are included. No Rust required. Obey workplace endpoint policies." --prerelease
           if ($LASTEXITCODE -ne 0) { throw 'Release publishing failed' }
