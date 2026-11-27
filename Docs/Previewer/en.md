@@ -11,14 +11,35 @@ picks the best representation:
 | Markdown | rendered with the shared chat/help renderer; Source shows original text |
 | CSV / TSV | numbered records in a table, no assumed header |
 | JSON / TOML | expandable normalized value tree |
+| INI / CFG / CONF | section and key/value tree for the common `key=value` dialect; duplicates retained |
 | XML | expandable element/attribute/text tree; DTD and custom entities not supported |
 | HTML / SVG | source or XML structure only; visual rendering is not yet available |
 | archives, executables, databases, media | described in the status bar; bytes available in hex |
 | anything unknown or binary | integrated hex dump |
 
+## Planned visual HTML and SVG previews
+
+HTML should use an optional native WebView backend (candidate: Wry with
+WebView2 on Windows, WebKitGTK on Linux and WKWebView on macOS).
+The current egui/winit UI needs an explicit GTK/Wayland integration
+prototype before making this a default dependency. A static Rust HTML
+renderer may be evaluated if it supports the needed CSS subset.
+
+Treat every previewed file as untrusted. Default to passive rendering:
+no JavaScript, network requests, external navigation, downloads, host IPC,
+or unrestricted local-file access. Resource resolution must be explicitly
+restricted and tested, including CSS imports, frames, redirects and
+symlinks. If a backend cannot enforce these guarantees, keep Source mode
+as the fallback. Loading a file or switching panels must not launch a
+browser. Keep an explicit Source mode and bounded resource use.
+
+For SVG, evaluate resvg/usvg (static rendering, MIT/Apache-2.0) with
+external resources disabled and a bounded raster size. Verify dependency
+licenses and platform packaging before enabling either backend.
+
 ## Modes
 
-Choose **Preview**, **Source**, **Hex**, or **Image** on the toolbar. Markdown is cached and bounded; large documents show a limited-preview notice. Links show their destination without launching it. F4 edits the original source with lexical syntax colours.
+Choose **Preview**, **Source**, **Hex**, or **Image** on the toolbar. Markdown is cached and bounded; large documents show a limited-preview notice. Links show their destination without launching it. INI previews preserve section and assignment order, including duplicate names; interpolation and includes are never evaluated. Non-assignment dialects, invalid or oversized input fall back to Source. Comments and original whitespace remain available in Source mode. F4 edits the original source with lexical syntax colours.
 
 ### The hex dump
 
