@@ -1537,6 +1537,29 @@ dependency order and stage A/B work are unchanged. Implement the prompt as
 a versioned shared fragment and test coordination with mock providers before
 live model acceptance; do not give room messages or supervisor votes authority.
 
+## Handoff — connection completion and panel replacement (2026-11-27)
+
+- [Linux UI regression #2](https://github.com/afrowaveltd/RCommander/actions/runs/45988099299)
+  passed on `cac4b5c` (previous remote authentication slice). Windows
+  [portable #8](https://github.com/afrowaveltd/RCommander/actions/runs/45986044750)
+  succeeded on `75889f7`; it predates the subsequent wallet and remote changes.
+- Stage A / 7, 13: source fixes separate progress from the terminal result
+  of the current connection attempt. Headless wait no longer treats a stage,
+  old remote session or stale error as the new outcome. Timeout discards the
+  pending receiver and reports a localized failure. This does not interrupt
+  an already blocking socket operation; the worker may finish in isolation.
+- Initial directory listing is required before publishing a replacement
+  remote session/panel, preserving the previous panel on failed listing and
+  eliminating the duplicate model-level CWD. Tests cover progress vs result,
+  timeout/late events, failure preserving a remote session and a local panel.
+  Run `cargo test --locked -p rcommander --lib model::sessions::tests`
+  and `cargo test --locked -p rcommander --lib model::remote::tests`.
+  Linux CI includes both; verification of this revision pending.
+- Still open: move initial listing fully off the UI thread, reconcile engine
+  initial-directory handling (relative paths/home), navigation failure rollback,
+  typed authentication errors/retry and real SFTP/FTP smoke tests. Do not mark
+  Phase 7 or 13 complete. No local compilation in this editing environment.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

@@ -210,9 +210,19 @@ impl Model {
                 )));
             }
         };
+        // Do not replace an existing session until the new directory can be
+        // listed. A failed login/listing must not redirect the old panel.
         backend.cwd(&target).map_err(CoreError::Invalid)?;
+        let entries = backend.list(None).map_err(CoreError::Invalid)?;
+        let keep = self.panel(side).cursor_entry().map(|e| e.name.clone());
         self.remote_sessions[side as usize] = Some(RemoteSession::new(backend, location.clone()));
-        self.open_in(side, location)
+        self.set_remote_listing(side, location, entries);
+        if let Some(name) = keep
+            && let Some(index) = self.panel(side).listing.find(&name)
+        {
+            self.panel_mut(side).set_cursor(index);
+        }
+        Ok(())
     }
 
     /// Disconnect a panel from a remote server and fall back to the home dir.
@@ -253,6 +263,11 @@ impl Model {
         session.backend.cwd(&path).map_err(CoreError::Invalid)?;
         session.location = location.clone();
         let entries = session.backend.list(None).map_err(CoreError::Invalid)?;
+        self.set_remote_listing(side, location, entries);
+        Ok(())
+    }
+
+    fn set_remote_listing(&mut self, side: Side, location: Location, entries: Vec<Entry>) {
         let settings = self.settings.clone();
         let panel = self.panel_mut(side);
         let read_options = panel.read_options(&settings);
@@ -261,7 +276,6 @@ impl Model {
             rc_core::listing::Listing::from_entries(location.clone(), entries, &read_options, sort);
         panel.selection.clear();
         panel.tabs.set_active_location(location);
-        Ok(())
     }
 
     /// Download the marked (or cursor) remote entries into `local_dir`.
@@ -384,6 +398,9 @@ mod tests {
         }
 
         fn list(&mut self, _path: Option<&str>) -> Result<Vec<Entry>, String> {
+            if self.cwd == "/unlistable" {
+                return Err("listing refused".to_string());
+            }
             let mut out = Vec::new();
             for dir in &self.dirs {
                 out.push(Entry::new(
@@ -484,6 +501,36 @@ mod tests {
             model.remote_session(Side::Left).unwrap().backend.describe(),
             "fake:///pub"
         );
+    }
+
+    #[test]
+    fn failed_replacement_preserves_the_existing_remote_panel() {
+        let mut model = model();
+        let original = Location::remote("ftp", "old.example.com", None, "/pub");
+        model
+            .connect_remote(Side::Left, Box::new(FakeBackend::new("/pub")), original.clone())
+            .unwrap();
+        let replacement = Location::remote("ftp", "new.example.com", None, "/unlistable");
+        assert!(model
+            .connect_remote(Side::Left, Box::new(FakeBackend::new("/")), replacement)
+            .is_err());
+        assert_eq!(model.left.location(), &original);
+        let session = model.remote_session(Side::Left).unwrap();
+        assert_eq!(session.location, original);
+        assert_eq!(session.backend.describe(), "fake:///pub");
+        assert!(model.left.entries().iter().any(|entry| entry.name == "remote.txt"));
+    }
+
+    #[test]
+    fn failed_initial_listing_leaves_local_panel_unchanged() {
+        let mut model = model();
+        let original = model.left.location().clone();
+        let replacement = Location::remote("ftp", "new.example.com", None, "/unlistable");
+        assert!(model
+            .connect_remote(Side::Left, Box::new(FakeBackend::new("/")), replacement)
+            .is_err());
+        assert_eq!(model.left.location(), &original);
+        assert!(model.remote_session(Side::Left).is_none());
     }
 
     #[test]

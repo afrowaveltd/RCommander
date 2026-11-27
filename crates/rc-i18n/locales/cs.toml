@@ -448,6 +448,7 @@ authors = ["RCommander contributors"]
 "session.connecting" = "Připojuji se k {name}…"
 "session.busy" = "Pokus o připojení už běží"
 "session.failed" = "Připojení se nezdařilo"
+"session.timeout" = "Vypršel časový limit připojení"
 
 "theme.name" = "Téma"
 "theme.reload" = "Načíst témata znovu"

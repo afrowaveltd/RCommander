@@ -452,6 +452,7 @@ authors = ["RCommander contributors"]
 "session.connecting" = "Connecting to {name}…"
 "session.busy" = "A connection attempt is already running"
 "session.failed" = "The connection failed"
+"session.timeout" = "The connection attempt timed out"
 
 "theme.name" = "Theme"
 "theme.reload" = "Reload themes"

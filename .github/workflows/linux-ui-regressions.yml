@@ -44,6 +44,7 @@ jobs:
       - name: Model and headless UI regressions
         run: |
           cargo test --locked -p rcommander --lib model::sessions::tests
+          cargo test --locked -p rcommander --lib model::remote::tests
           cargo test --locked -p rcommander --lib a_saved_connection_maps_to_a_connection_spec
           cargo test --locked -p rcommander --lib toolbar_
           cargo test --locked -p rcommander --lib action_catalogue

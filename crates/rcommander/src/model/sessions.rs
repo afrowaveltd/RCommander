@@ -261,8 +261,13 @@ impl Model {
     /// Pick up a finished connection attempt; returns true when the state changed
     /// so the view can refresh immediately.
     pub fn poll_connect(&mut self) -> bool {
+        self.poll_connect_result().0
+    }
+
+    /// Separate progress notifications from the terminal result of this attempt.
+    fn poll_connect_result(&mut self) -> (bool, Option<CommandOutcome>) {
         let Some(job) = self.connect_job.as_mut() else {
-            return false;
+            return (false, None);
         };
         // Stages are drained first: they are what keeps the window talking while the socket
         // waits, and a stage alone is a state change worth a repaint.
@@ -291,13 +296,12 @@ impl Model {
             }
         }
         let Some(outcome) = outcome else {
-            let changed = job.stage.is_some();
             if let Some((name, key)) = progressed {
                 let stage = self.t(key);
                 let message = self.tf("connect.progress", &[("name", &name), ("stage", &stage)]);
                 self.report(message);
             }
-            return changed;
+            return (true, None);
         };
         if let Some((name, key)) = progressed {
             let stage = self.t(key);
@@ -305,7 +309,7 @@ impl Model {
             self.report(message);
         }
         let job = self.connect_job.take().expect("checked above");
-        match outcome {
+        let result = match outcome {
             Ok(backend) => {
                 let target = if job.session.remote_dir.trim().is_empty() {
                     ".".to_string()
@@ -333,16 +337,23 @@ impl Model {
                         {
                             self.report_error(error);
                         }
+                        // The panel connected successfully even if optional
+                        // credential persistence failed (reported separately).
+                        CommandOutcome::Ok
                     }
                     Err(error) => {
                         let message = error.to_string();
                         self.report_error(&message);
+                        CommandOutcome::Failed(message)
                     }
                 }
             }
-            Err(message) => self.report_error(&message),
-        }
-        true
+            Err(message) => {
+                self.report_error(&message);
+                CommandOutcome::Failed(message)
+            }
+        };
+        (true, Some(result))
     }
 
     /// Forget a running attempt (the window is closing, or the user gave up).
@@ -361,21 +372,27 @@ impl Model {
             CommandOutcome::Ok => {}
             other => return other,
         }
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
-        while std::time::Instant::now() < deadline {
-            if self.poll_connect() {
-                break;
+        self.wait_for_connect(std::time::Duration::from_secs(180))
+    }
+
+    fn wait_for_connect(&mut self, timeout: std::time::Duration) -> CommandOutcome {
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            if let (_, Some(result)) = self.poll_connect_result() {
+                return result;
+            }
+            if !self.is_connecting() {
+                let message = self.t("session.failed");
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+            if std::time::Instant::now() >= deadline {
+                self.cancel_connect();
+                let message = self.t("session.timeout");
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
             }
             std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-        if self.remote_sessions[self.focus as usize].is_some() {
-            CommandOutcome::Ok
-        } else {
-            CommandOutcome::Failed(
-                self.last_error
-                    .clone()
-                    .unwrap_or_else(|| self.t("session.failed")),
-            )
         }
     }
 
@@ -611,6 +628,57 @@ mod tests {
         );
         assert!(model.last_error.is_some());
         assert_eq!(model.focus, Side::Left);
+    }
+
+    fn staged_attempt(
+        model: &mut Model,
+    ) -> std::sync::mpsc::Sender<ConnectEvent> {
+        let connection = rc_core::config::SavedConnection::with_defaults("ftp");
+        let session = Session::from_connection("fixture", &connection);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        model.connect_job = Some(ConnectJob {
+            session,
+            connection,
+            remember_password: false,
+            side: Side::Left,
+            stage: None,
+            started: std::time::Instant::now(),
+            receiver,
+        });
+        sender
+    }
+
+    #[test]
+    fn progress_is_not_a_completed_connection() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        let sender = staged_attempt(&mut model);
+        sender
+            .send(ConnectEvent::Stage(rc_remote::ConnectStage::Connecting))
+            .unwrap();
+        assert_eq!(model.poll_connect_result(), (true, None));
+        assert!(model.is_connecting());
+        sender.send(ConnectEvent::Done(Err("fixture failure".into()))).unwrap();
+        assert_eq!(
+            model.wait_for_connect(std::time::Duration::from_secs(1)),
+            CommandOutcome::Failed("fixture failure".into())
+        );
+        assert!(!model.is_connecting());
+    }
+
+    #[test]
+    fn a_timeout_discards_the_receiver_and_does_not_report_old_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        model.report_error("old unrelated error");
+        let sender = staged_attempt(&mut model);
+        let expected = model.t("session.timeout");
+        assert_eq!(
+            model.wait_for_connect(std::time::Duration::ZERO),
+            CommandOutcome::Failed(expected)
+        );
+        assert!(!model.is_connecting());
+        assert!(sender.send(ConnectEvent::Done(Err("late failure".into()))).is_err());
     }
 
     #[test]
