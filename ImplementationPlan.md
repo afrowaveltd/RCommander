@@ -2303,6 +2303,56 @@ view first, resume only eligible steps. Do not run while host off. Test
 Windows and Linux separately; no assumption that every desktop supports
 tray or shutdown inhibition.
 
+#### Visible shutdown and hibernation progress (owner requirement)
+
+Never make a requested close or hibernation look like a frozen application.
+Intercept the normal window-close request while shutdown work remains;
+immediately show a compact, responsive progress window. Keep the UI event
+loop alive and perform drain, persistence and cleanup asynchronously in
+the runtime. Do not hide the window until the requested operation is safe
+to complete. If the user chooses to detach the GUI while work continues,
+report that distinction rather than claiming the tasks are finished.
+
+Publish typed, ordered lifecycle events from the runtime itself: current
+phase, task/step/unit ID, human-readable operation, remaining active units,
+elapsed waiting time and last confirmed progress; include error/recovery
+details when applicable. Take an initial status snapshot and subscribe to
+events without losing transitions; reconnect to the current snapshot if
+the client disconnects. Show actual adapter-reported work, not scripted
+messages or invented percentages. Where the duration is unknown use an
+indeterminate indicator. Parallel work may show a compact summary with
+details on demand. Keep the window responsive during a slow or stalled
+unit; distinguish waiting on a provider, storage flush, acknowledgement,
+or a lost runtime connection from confirmed progress. Heartbeats are
+liveness indicators, not evidence that an operation completed.
+
+Illustrative frame-colorization shutdown sequence (localized in the UI):
+
+1. "Finishing current task: saving colorized frame ID 13000."
+2. "Saving changes" while remaining durable receipts and shutdown state
+   are actually being committed and verified.
+3. "Completed - closing application" after the successful shutdown-ready
+   acknowledgement; display for about one second without blocking the
+   event loop, then close automatically.
+
+Already committed units are not saved again merely because shutdown was
+requested. No artificial delay except the brief final acknowledgement,
+which is skipped if the OS deadline does not permit it. For hibernation,
+say that the work is safely paused and can resume, not that the entire
+task finished. For background detach, say that work continues. Idle
+shutdown remains immediate when no settling work is required.
+
+If a step cannot settle or persistence fails, show the actual blocker,
+preserve the recorded state and offer appropriate controls: keep waiting,
+return to the application/continue in background where supported, or
+explicit emergency stop. Explain the possible recovery consequences of
+forced termination; never silently force-kill workers, automatically
+resume a draining runtime, or present success on timeout. Repeated close
+requests reuse the same shutdown transaction/window rather than creating
+another drain. Respect OS shutdown deadlines and platform limitations;
+never promise a visible dialog during forced OS termination. TUI/CLI
+clients and tray status use the same lifecycle event contract.
+
 Agent "meeting rooms" are durable per-task/workspace threads in SQLite:
 typed messages, sender/recipient, delegated step, artifact references,
 acknowledgement, task claims and result receipts; not permanent loaded
@@ -2317,10 +2367,10 @@ completed rooms according to policy.
 | --- | --- | --- | --- |
 | 25.5 | Headless runtime extraction and client boundary | UI-independent scheduler/broker/worker lifecycle, versioned local command/event API, GUI client and headless test client | no GUI dependency in runtime crate, existing model/MCP regressions, no window tick needed, detach/reattach while job completes, one authority and authenticated IPC |
 | 25.6 | Durable task graph and step/attempt ledger | versioned to-do graph, stable IDs, transactional state machine, immediate durable commit per transition/unit, durable claims/receipts and SQLite room/task board | illegal transitions refused, every action maps to a step, crash injection before/after intent and completion, parent only done after verified children, no double claims, exact progress; kill/reopen after each unit, failed commit prevents dependent dispatch, verify WAL/FULL configuration |
-| 25.7 | Safe-point and drain protocol | adapter checkpoint contract, unit granularity, freeze admission, flush and suspend/resume | video frame fixture commits every completed frame immediately and drains current frame only, file/DB units settle, no next dispatch/delegate during drain, pending approval preserved, interrupted drain never labeled suspended |
+| 25.7 | Safe-point and drain protocol | adapter checkpoint contract, unit granularity, freeze admission, flush, suspend/resume and typed lifecycle events | video frame fixture commits every completed frame immediately and drains current frame only, file/DB units settle, no next dispatch/delegate during drain, pending approval preserved, interrupted drain never labeled suspended; ordered real progress and shutdown-ready acknowledgement, error/timeout never reported as success |
 | 25.8 | External effect reconciliation | durable outbox/intents, idempotency/receipt query, typed recovery state and adapter capability matrix | mock mail Pending/Sending/Sent/Done, durable intent before dispatch, immediate receipt commit, forced crash before/after remote acceptance and receipt, recover from authoritative evidence, no duplicate mail/push/commit, non-queryable effect blocked and surfaced, no false exactly-once claim |
-| 25.9 | Desktop/background lifecycle and notifications | user-mode runtime, close choices, tray/notification and status, optional login/resume, stop/revoke | Windows/Linux real close/reopen, normal reboot/resume, forced kill recovery, no GUI loop dependency, no duplicate daemon, portable no unapproved autostart, unsupported tray fallback |
-| 25.10 | Integrated runtime acceptance | SQLite meeting rooms, resource custodian delegation, external/native agents and GUI/TUI-compatible clients share ledger | translator -> custodian -> reviewer handoff with durable receipts; crash/restart midway; budget/revocation, safe stop with client absent, exact remaining work; optional external runtime unsupported checkpoint displayed |
+| 25.9 | Desktop/background lifecycle and notifications | user-mode runtime, close choices, responsive shutdown/hibernate progress window, tray/notification and status, optional login/resume, stop/revoke | Windows/Linux real close/reopen, normal reboot/resume, forced kill recovery, no GUI loop dependency, no duplicate daemon, portable no unapproved autostart, unsupported tray fallback; slow frame 13000 fixture shows real unit, durable save and ~1s success notice, GUI stays responsive, repeated close is idempotent, failure/stall/OS deadline handled without false success |
+| 25.10 | Integrated runtime acceptance | SQLite meeting rooms, resource custodian delegation, external/native agents and GUI/TUI-compatible clients share ledger | translator -> custodian -> reviewer handoff with durable receipts; crash/restart midway; budget/revocation, safe stop with client absent, exact remaining work; equivalent GUI/TUI/CLI lifecycle events and close/reconnect snapshot; optional external runtime unsupported checkpoint displayed |
 
 **Delivery order:** define 25.5/25.6 contracts and headless event ownership
 during stage B, before additional integrations (including Phase 37 tools).

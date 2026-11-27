@@ -1442,6 +1442,11 @@ dependent-dispatch, crash-boundary and failed-commit tests are specified;
 physical power-loss durability depends on supported storage flush semantics.
 SMTP acceptance and local receipt cannot be assumed atomic; queryable
 external evidence/idempotency or explicit blocked recovery is required.
+Owner also requires visible, responsive shutdown/hibernate progress
+(25.7/25.9/25.10): real runtime lifecycle events, current unit and wait
+reason, durable-save phase, approximately one-second confirmed completion
+notice, then close. Failure/stall and explicit forced-stop paths remain
+distinct from successful shutdown; GUI, TUI and CLI share event semantics.
 No source changes or new runtime tests in this documentation update.
 
 ## Phases 29–36 — planned workbench extensions (2026-11-27)
