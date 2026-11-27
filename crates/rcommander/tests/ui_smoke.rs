@@ -1268,6 +1268,32 @@ fn the_connect_dialog_lists_saved_sessions_and_imports_ssh_config() {
 }
 
 #[test]
+fn saved_session_password_prompt_is_focused_and_cancel_does_not_connect() {
+    let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
+    let mut application = app(left.path(), right.path());
+    application.model.config_dir_override = Some(config.path().to_path_buf());
+    application.model.load_sessions();
+    let mut profile = rc_core::sessions::Session::new("work", "files.example.com", "sftp");
+    profile.user = "alice".into();
+    profile.port = 2222;
+    application.model.save_session(profile).unwrap();
+    assert!(application.model.connect_session("work").is_ok());
+    let mut harness = harness(application);
+    assert!(harness.root().query_all_by_label("ftp.password").count() > 0);
+    assert_eq!(harness.root().query_all_by_label("ftp.host").count(), 0);
+    assert_eq!(harness.root().query_all_by_label("ftp.port").count(), 0);
+    harness.root().get_by_label("dialog.config.ok").click();
+    harness.run();
+    assert!(!harness.state().model.is_connecting());
+    assert!(harness.state().dialog().is_some());
+    harness.root().get_by_label("dialog.config.cancel").click();
+    harness.run();
+    assert!(!harness.state().model.is_connecting());
+    assert!(harness.state().dialog().is_none());
+}
+
+#[test]
 fn loading_a_saved_session_fills_the_connect_dialog() {
     let (left, right) = fixture();
     let config = tempfile::tempdir().unwrap();
