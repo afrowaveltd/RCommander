@@ -125,10 +125,11 @@ fn decode(bytes: &[u8], format_hint: &str, max_pixels: u64) -> Result<ImageDocum
         });
     }
     // Cheap header probe: dimensions only, no pixel data.
-    let (width, height) = ImageReader::new(std::io::Cursor::new(bytes))
+    let probe = ImageReader::new(std::io::Cursor::new(bytes))
         .with_guessed_format()
-        .map_err(|e| ImageError::Decode(e.to_string()))?
-        .into_dimensions()
+        .map_err(|e| ImageError::Decode(e.to_string()))?;
+    let high_depth = matches!(probe.format(), Some(ImageFormat::Pnm | ImageFormat::Farbfeld));
+    let (width, height) = probe.into_dimensions()
         .map_err(|e| ImageError::Decode(e.to_string()))?;
     if width == 0 || height == 0 {
         return Err(ImageError::Decode(
@@ -137,7 +138,8 @@ fn decode(bytes: &[u8], format_hint: &str, max_pixels: u64) -> Result<ImageDocum
     }
 
     let pixels = width as u64 * height as u64;
-    let needed = pixels.saturating_mul(4);
+    // PNM and Farbfeld can decode to 16-bit channels before RGBA8 conversion.
+    let needed = pixels.saturating_mul(if high_depth { 8 } else { 4 });
     if needed > MAX_DECODED_BYTES {
         // Refuse before touching pixel memory: this is the decompression-bomb guard.
         return Err(ImageError::TooLargeToDecode {
@@ -209,6 +211,8 @@ fn format_name(format: ImageFormat) -> Option<&'static str> {
         ImageFormat::WebP => "webp",
         ImageFormat::Tiff => "tiff",
         ImageFormat::Ico => "ico",
+        ImageFormat::Pnm => "pnm",
+        ImageFormat::Farbfeld => "farbfeld",
         _ => return None,
     })
 }
@@ -323,6 +327,37 @@ mod tests {
             assert_eq!(doc.rgba.len(), 5 * 2 * 4, "{name}");
             assert_eq!(doc.format_hint, name);
         }
+    }
+
+    #[test]
+    fn netpbm_images_decode_to_actual_pixels() {
+        for (bytes, expected) in [
+            (&b"P1\n2 1\n0 1\n"[..], vec![255, 255, 255, 255, 0, 0, 0, 255]),
+            (&b"P5\n2 1\n255\n\x00\xff"[..], vec![0, 0, 0, 255, 255, 255, 255, 255]),
+            (&b"P6\n2 1\n255\n\xff\x00\x00\x00\xff\x00"[..], vec![255, 0, 0, 255, 0, 255, 0, 255]),
+            (&b"P7\nWIDTH 1\nHEIGHT 1\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n\xff\x00\x00\xff"[..], vec![255, 0, 0, 255]),
+        ] {
+            let doc = decode_image_bytes(bytes, "", 40_000_000).expect("Netpbm decode");
+            assert_eq!(doc.format_hint, "pnm");
+            assert_eq!(doc.rgba, expected);
+        }
+        assert!(decode_image_bytes(b"P6\n100000 100000\n255\n", "", 40_000_000).is_err());
+    }
+
+    #[test]
+    fn farbfeld_decodes_16_bit_channels_and_rejects_truncation() {
+        let mut bytes = b"farbfeld".to_vec();
+        bytes.extend_from_slice(&1u32.to_be_bytes());
+        bytes.extend_from_slice(&1u32.to_be_bytes());
+        for channel in [u16::MAX, 0, 0, u16::MAX] {
+            bytes.extend_from_slice(&channel.to_be_bytes());
+        }
+        let doc = decode_image_bytes(&bytes, "", 40_000_000).expect("farbfeld decode");
+        assert_eq!(doc.format_hint, "farbfeld");
+        assert_eq!((doc.width, doc.height), (1, 1));
+        assert_eq!(doc.rgba, vec![255, 0, 0, 255]);
+        bytes.pop();
+        assert!(decode_image_bytes(&bytes, "", 40_000_000).is_err());
     }
 
     #[test]

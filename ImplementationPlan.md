@@ -45,6 +45,19 @@ Measure binary and portable ZIP size at release; owner's target is a
 complete reference distribution within 100 MB, excluding separately
 installed runtimes and models. Do not remove tests to meet a size target.
 
+### Capability breadth and user control (owner decision, 2026-11-27)
+
+Design broadly across the application: if an underlying engine or plugin
+supports a useful capability that fits the project, retain an extensible way
+to expose and activate it rather than permanently removing it because the
+default posture is conservative. Separate capability discovery, availability,
+activation, configuration and authorization. Prefer safe defaults and explicit
+settings, presets and scoped grants; never imply that a disabled feature is
+unimplemented or that an enabled feature bypasses the shared policy broker.
+Technical, legal/licensing, platform and isolation limits remain explicit.
+Apply this principle to WebView scripting and browsing, mail, tools, data
+providers, renderers, runtimes and future plugins.
+
 ### One owner for shared contracts
 
 | Contract | Canonical owner and consumers |
@@ -192,11 +205,15 @@ Headless and fully testable; the UI is only a view over it.
 
 ### Preview format expansion (6 / 10.4)
 
-Prefer a passive, bounded renderer for each format, with original Source
-and actual Hex retained. Unknown/unsupported formats must not pretend to
+Prefer a passive, bounded renderer for each format by default, with original Source
+and actual Hex retained. Expose supported active features through explicit settings
+and scoped grants (including WebView development and browser modes). Unknown/unsupported formats must not pretend to
 render. Implemented slices: Markdown, CSV/TSV, JSON/TOML value trees and
 existing image formats, XML event trees (quick-xml 0.41.0 MIT, DTD/entity
-resolution disabled, upstream notice in Docs/ThirdParty). Next: static SVG
+resolution disabled, upstream notice in Docs/ThirdParty). Pending build/test
+verification in PR #3: INI/CFG/CONF trees, JSONL/NDJSON trees, Netpbm/Farbfeld
+image decoding and bounded SRT/WebVTT timed cue tables (with literal cue
+markup and no media playback dependency). Next: static SVG
 (resvg MIT OR Apache-2.0 is a candidate); spreadsheet cell previews, PDF page rasterization, office
 document text/layout, and audio/video with explicitly supported codecs.
 Assess exact dependency versions, transitive licenses and notice obligations
@@ -204,8 +221,10 @@ before adding them; distinguish library copyright licenses from patents,
 codec distribution rights and document/embedded resource rights. Preserve
 MIT licensing of our own code; do not bundle incompatible components or
 proprietary SDKs by default. Optional independently installed providers
-need separate licensing and security review. Never run macros, scripts,
-embedded programs, formula evaluation, or fetch external resources in F3.
+need separate licensing and security review. Do not run macros, scripts,
+embedded programs, formula evaluation, or fetch external resources in passive F3
+by default. Active capabilities require the relevant explicit user setting and
+policy authorization, with engine-specific security and technical limits.
 Apply input/decompression/pixel/depth/time budgets; use safe static
 fixtures and regressions. Candidate libraries are not yet integrated.
 
@@ -1433,9 +1452,17 @@ instructions, and the human — not any model, however large — is the one who 
 
 The **two panes are peers**. The chat pane is not a separate, blind command
 console: it can be paired with a file, archive, Git, remote or virtual-provider
-pane through a **WorkspaceContext**. With the user's configurable consent, the
-agent can inspect the other pane's current location, selected items, permitted
-metadata, read-only previews and approved file contents. Its tool actions can
+pane through a **WorkspaceContext**. Placement determines the default
+live context automatically (owner decision, 2026-11-27): agent in the left
+panel sees the right panel; agent in the right panel sees the left panel;
+agent in a floating, detached or other non-panel surface sees both panels.
+This applies to any panel content, including filesystem, archive, remote,
+Git, mail, database, WebView/DOM, document preview/editor and future plugin
+providers. Publish current permitted location, selection, metadata, previews
+and approved contents via typed provider-neutral context descriptors. No
+manual file attachment is required merely to establish this context.
+The user's settings and existing resource/action policy still determine
+which data may be read, modified or sent to a selected remote model. Its tool actions can
 then create or modify items in that pane; the pane immediately refreshes and
 highlights the result. A user can select a newly created file and press **F3**
 to view its standard preview, or open the proposed diff before saving. The
@@ -1449,6 +1476,11 @@ and task results back to the opposite pane. Use bounded/debounced events,
 generation IDs and correlation IDs to prevent loops, duplicate refreshes and
 stale previews. Workspace grants belong to a session and an explicit root or
 resource identity, **not** to an arbitrary mutable "active pane" path.
+Moving the agent or changing panel contents recomputes its context; revoke
+stale document-scoped access and reject in-flight calls against replaced
+surfaces. Placement alone does not grant writes, external egress or secrets.
+Acceptance tests cover left/right/floating placement, swaps, replacement,
+virtual providers, stale generations, permission denial and two-panel context.
 
 Concrete desktop scenario:
 
@@ -2352,6 +2384,19 @@ ordinary Windows/Linux file management unaffected when WSL is unavailable.
 This is a planned phase, not a claim of implemented support.
 
 ## Phase 23 — Database panels and administration (SQL and document stores) (requested 2026-11-25)
+
+Owner clarification (2026-11-27): expose **SQL**, not SQLite as the generic
+database preview category. Separate passive F3 preview of SQL script/dump
+files (dialect-aware source and, where verified, structured statements or
+schema summaries without execution) from browsing an actual database through
+the matching provider. SQLite database files are one concrete engine; a
+PostgreSQL/MySQL/SQL Server connection or dump requires its own supported
+adapter/format, not SQLite emulation. Reuse Phase 23 providers for schema and
+paginated row previews. Query execution and writes are explicit separate
+operations; do not run SQL merely by opening a file. Preserve native MongoDB
+document support. This clarification concerns preview and provider UX, not the
+existing default SQLite internal SessionStore.
+
 
 Treat a relational or document database as a first-class, capability-aware RCommander
 location, independently of Agent Commons. Provide a familiar two-pane browser
@@ -3258,6 +3303,15 @@ circumvent a managed proxy.
 
 ## Phase 30 — Browser and API Workbench (planned)
 
+Use the configurable native WebView and live agent-development requirements
+in [Previewer](Docs/Previewer/en.md). Preserve browser features as user-
+selectable capabilities, not permanent restrictions; provide the same
+viewer session to the authorized panel context and MCP broker. MailCraft
+remains a separate reference provider (Phase 18); evaluate the proposed
+MailKit integration through a compatible .NET helper or service rather
+than assuming that a Rust process can directly load a .NET library.
+
+
 Close the loop for Phase 16 developer workloads, Phase 21 deployments and
 Phase 26 creative web projects: a built website must be tested from the
 user's side, not only compiled. Use optional adapters to established browser
@@ -3280,6 +3334,44 @@ submit live forms, purchases or mutations without appropriate approval.
 Secrets live in Phase 13.4, never in captured screenshots, logs, exported
 collections or model prompts where avoidable. Avoid SSRF or arbitrary URL
 fetches from imported specifications; validate allowed destinations.
+
+### Reference workflow: Education Workbench (planned, owner request 2026-11-27)
+
+A teacher-led, prompt-first plugin reusing Phases 16.16–21 (prompt packs),
+18/27 (plugin and capability discovery), 25/32 (session/workflow state),
+37.1/37.5 (material retrieval) and 17/30 (shared renderers and WebView).
+Universal lesson stages: theory and illustration, practical demonstration
+where useful, student practice and assessment, and teacher-led review.
+The teacher remains the collaborating client throughout, or the learner
+can direct a self-study session. An adaptive, time-flexible entry assessment
+produces a private, editable knowledge profile for the course planner and
+teaching prompts. The planner generates a reviewable curriculum from a goal
+and the universal lesson template; lessons are authored manually, with an
+agent, or automatically using one portable versioned course format. Learners
+can share complete reusable courses without their private learning history.
+Offer a default Learning directory in the user's home, with ordinary files
+for chapters, agent outputs, student work and results; all logical storage
+roots are configurable and use the existing provider-neutral Location and
+file-operation contracts. Local, mounted, remote and cloud locations are
+interchangeable when their capabilities support the required operations.
+Plan an optional shared Afrowave Cloud source plugin (Phase 18/27, reusing
+Phase 37 transport and Phase 35 transfer/sync): configurable Nextcloud/WebDAV
+candidate or other compatible backend, not a required educational service.
+Personal-record synchronization and public sharing remain separate choices.
+Illustration and demonstration tools are discovered from available capabilities
+(web, local assets, ASCII/SVG/HTML, ImageMagick, PhotoCraft or other MCP tools),
+with useful offline fallbacks. A configurable material-server URL or IP
+provides categorized, versioned source files and assets through a dedicated
+capability. The basic lesson template does not
+depend on a browser, external model or complete plugin workshop; interactive
+web demonstrations can follow once the relevant capabilities exist.
+
+See [Education Workbench specification](analysis/spec-education-workbench.md)
+for workflow, prompt roles, proposed catalogue, delivery and acceptance tests.
+Schedule the prompt-first slice with D/J and the material adapter with C/E
+when shared prerequisites are verified; interactive demonstrations follow
+the relevant renderer/tools in H or later. These are optional reference
+workloads, not extra requirements for the file-manager 1.0 release.
 
 ## Phase 31 — Local Knowledge Engine (planned)
 

@@ -221,6 +221,9 @@ authors = ["RCommander contributors"]
 
 # Viewer --------------------------------------------------------------------
 "viewer.text" = "Text"
+"viewer.subtitle.id" = "Cue ID"
+"viewer.subtitle.start" = "Start"
+"viewer.subtitle.end" = "End"
 "viewer.hex" = "Hex"
 "viewer.image" = "Image"
 "viewer.media" = "Media"
