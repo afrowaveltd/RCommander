@@ -736,6 +736,34 @@ fn the_panel_offers_an_explicit_way_to_go_up() {
 }
 
 #[test]
+fn parent_row_and_history_buttons_navigate_the_same_panel() {
+    let (left, right) = fixture();
+    let child = left.path().join("sub");
+    let mut application = app(&child, right.path());
+    application.model.settings.display.show_parent_entry = true;
+    application.model.navigate(Location::local(&child)).unwrap();
+    let mut harness = harness(application);
+    harness.root().query_all_by_label("..")
+        .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
+        .expect("parent row").click();
+    harness.run();
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    assert_eq!(harness.state().model.left.location(), &Location::local(left.path()));
+    harness.root().query_all_by_label("cmd.go_back")
+        .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
+        .expect("back button").click();
+    harness.run();
+    assert_eq!(harness.state().model.left.location(), &Location::local(&child));
+    harness.root().query_all_by_label("cmd.go_forward")
+        .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
+        .expect("forward button").click();
+    harness.run();
+    assert_eq!(harness.state().model.left.location(), &Location::local(left.path()));
+    assert_eq!(harness.state().model.right.location(), &Location::local(right.path()));
+}
+
+#[test]
 fn the_bundled_icon_font_renders_every_icon() {
     let (left, right) = fixture();
     let harness = harness(app(left.path(), right.path()));
