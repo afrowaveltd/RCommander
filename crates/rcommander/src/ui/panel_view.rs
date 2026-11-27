@@ -97,12 +97,15 @@ pub fn show(
         // operations that are about the directory itself, not about one row.
         background.context_menu(|ui| {
             ui.set_min_width(230.0);
-            for item in folder_menu_items(model) {
-                if item.separator {
-                    ui.separator();
+            for item in folder_menu_items(model, side) {
+                if !model.allows(side, &item.command) {
                     continue;
                 }
+                if item.separator {
+                    ui.separator();
+                }
                 if menu_entry(ui, item.icon, &item.label) {
+                    model.focus = side;
                     actions.push(PanelAction::Command(item.command));
                     ui.close();
                 }
@@ -550,8 +553,6 @@ fn file_list(
     let columns = model.columns(side);
     let font_id = font(model);
     let mut clicked: Option<(usize, ClickKind)> = None;
-    let mut menu_command: Option<String> = None;
-    let mut source_command: Option<String> = None;
 
     let scroll = egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -621,37 +622,7 @@ fn file_list(
             if response.secondary_clicked() {
                 clicked = Some((index, ClickKind::ContextMenu));
             }
-            // Explorer-style menu on the row, with our own commands on top of the usual
-            // file operations, and the source's own verbs on top of those — a mail row offers
-            // "Reply", a document row "Export", and neither is something the panel could invent.
-            let verbs = model.sources.actions(model.panel(side).location(), entry);
-            response.context_menu(|ui| {
-                ui.set_min_width(230.0);
-                for item in row_menu_items(model) {
-                    if item.separator {
-                        ui.separator();
-                        continue;
-                    }
-                    // An operation this place does not allow is not shown as a greyed button:
-                    // a menu entry that cannot work is worse than no entry at all.
-                    if !item.separator && !model.allows(side, &item.command) {
-                        continue;
-                    }
-                    if menu_entry(ui, item.icon, &item.label) {
-                        menu_command = Some(item.command);
-                        ui.close();
-                    }
-                }
-                if !verbs.is_empty() {
-                    ui.separator();
-                    for verb in &verbs {
-                        if ui.button(&verb.label).clicked() {
-                            source_command = Some(verb.command.clone());
-                            ui.close();
-                        }
-                    }
-                }
-            });
+            show_row_context_menu(&response, model, side, index, entry, actions);
         }
     });
     if let Some((index, kind)) = clicked {
@@ -690,12 +661,6 @@ fn file_list(
                 actions.push(PanelAction::ContextMenu);
             }
         }
-    }
-    if let Some(command) = menu_command {
-        actions.push(PanelAction::Command(command));
-    }
-    if let Some(command) = source_command {
-        actions.push(PanelAction::SourceCommand(command));
     }
     if let Some(error) = error {
         ui.separator();
@@ -762,7 +727,7 @@ fn menu_entry(ui: &mut egui::Ui, icon: Option<Icon>, label: &str) -> bool {
 }
 
 /// The entries of the folder (empty area) menu.
-fn folder_menu_items(model: &Model) -> Vec<MenuItem> {
+fn folder_menu_items(model: &Model, side: Side) -> Vec<MenuItem> {
     let shortcut = |command: &str| {
         model
             .keymap
@@ -806,6 +771,10 @@ fn folder_menu_items(model: &Model) -> Vec<MenuItem> {
         Some(Icon::Check),
         true,
     );
+    push(model.t("cmd.new_file"), "cm_EditNewFile", Some(Icon::Edit), true);
+    push(model.t("cmd.search"), "cm_SearchFor", Some(Icon::Search), false);
+    push(model.t("cmd.new_tab"), "cm_NewTab", Some(Icon::Tab), false);
+    push(model.t("cmd.history"), "cm_DirectoryHistory", Some(Icon::History), false);
     push(model.t("cmd.secrets"), "cm_Secrets", Some(Icon::Lock), true);
     push(
         model.t("cmd.config"),
@@ -813,6 +782,10 @@ fn folder_menu_items(model: &Model) -> Vec<MenuItem> {
         Some(Icon::Settings),
         false,
     );
+    if matches!(model.panel(side).location(), rc_core::location::Location::Local(_)) {
+        push(model.t("cmd.system_folder"), "cm_OpenFolderExternal", Some(Icon::FolderOpen), true);
+        push(model.t("cmd.terminal_here"), "cm_TerminalHere", Some(Icon::Terminal), false);
+    }
     items
 }
 
@@ -825,12 +798,17 @@ struct MenuItem {
     separator: bool,
 }
 
-fn row_menu_items(model: &Model) -> Vec<MenuItem> {
-    let is_dir = model
-        .active()
-        .cursor_entry()
-        .map(|entry| entry.is_dir())
-        .unwrap_or(false);
+fn row_menu_items(model: &Model, side: Side, entry: &Entry) -> Vec<MenuItem> {
+    let is_dir = entry.is_dir();
+    let local = matches!(model.panel(side).location(), rc_core::location::Location::Local(_));
+    if entry.name == ".." {
+        return vec![MenuItem {
+            label: model.t("cmd.go_up"),
+            command: "cm_GoToParent".into(),
+            icon: Some(Icon::Up),
+            separator: false,
+        }];
+    }
     let shortcut = |command: &str| {
         model
             .keymap
@@ -912,6 +890,25 @@ fn row_menu_items(model: &Model) -> Vec<MenuItem> {
         Some(Icon::Settings),
         false,
     );
+    push(model.t("cmd.properties"), "cm_VersionInfo", Some(Icon::Text), false);
+    if local {
+        push(model.t("cmd.pack"), "cm_PackFiles", Some(Icon::Archive), true);
+        if model.settings.is_archive_name(&entry.name) && !is_dir {
+            push(model.t("cmd.unpack"), "cm_UnpackFiles", Some(Icon::Download), false);
+            push(model.t("cmd.test_archive"), "cm_TestArchive", Some(Icon::Check), false);
+        }
+        push(model.t("cmd.multi_rename"), "cm_MultiRename", Some(Icon::Tags), false);
+        if !is_dir {
+            push(model.t("cmd.checksums"), "cm_CRCcreate", Some(Icon::Fingerprint), false);
+            if model.panel(side.other()).current().is_some_and(|other| other.is_file())
+                && matches!(model.panel(side.other()).location(), rc_core::location::Location::Local(_))
+            {
+                push(model.t("cmd.compare_by_content"), "cm_CompareFilesByContent", Some(Icon::Compare), false);
+            }
+        }
+        push(model.t("cmd.copy_name"), "cm_CopyNamesToClip", Some(Icon::Copy), true);
+        push(model.t("cmd.copy_path"), "cm_CopyFullNamesToClip", Some(Icon::Copy), false);
+    }
     // The agent: the feature this file manager is built around, right where the file is.
     let (workspace_label, workspace_command) = if model.has_workspace() {
         (model.t("workspace.close"), "cm_DiscardWorkspace")
@@ -933,49 +930,88 @@ fn row_menu_items(model: &Model) -> Vec<MenuItem> {
             false,
         );
     }
-    // The system's own actions: what a file manager is expected to offer next to its own.
-    push(
-        model.t("cmd.open_with"),
-        "cm_OpenWith",
-        Some(Icon::Settings),
-        true,
-    );
-    if !is_dir {
-        push(
-            model.t("cmd.open_default"),
-            "cm_OpenExternal",
-            Some(Icon::FolderOpen),
-            false,
-        );
-    }
-    push(
-        model.t("cmd.send_email"),
-        "cm_SendByEmail",
-        Some(Icon::Download),
-        false,
-    );
-    if is_dir {
-        push(
-            model.t("cmd.terminal_here"),
-            "cm_TerminalHere",
-            Some(Icon::Terminal),
-            false,
-        );
-    } else {
-        push(
-            model.t("cmd.run_terminal"),
-            "cm_RunInTerminal",
-            Some(Icon::Terminal),
-            false,
-        );
-        push(
-            model.t("cmd.terminal_here"),
-            "cm_TerminalHere",
-            Some(Icon::Terminal),
-            false,
-        );
-    }
     items
+}
+
+/// Desktop actions are deliberately separate and only offered for real local paths.
+fn desktop_menu_items(model: &Model, side: Side, entry: &Entry) -> Vec<MenuItem> {
+    if entry.name == ".." || !matches!(model.panel(side).location(), rc_core::location::Location::Local(_)) {
+        return Vec::new();
+    }
+    let mut items = Vec::new();
+    let mut push = |key: &str, command: &str, icon: Icon| items.push(MenuItem {
+        label: model.t(key), command: command.into(), icon: Some(icon), separator: false,
+    });
+    push("cmd.open_default", "cm_OpenExternal", Icon::FolderOpen);
+    push("cmd.system_folder", "cm_OpenFolderExternal", Icon::Folder);
+    if !entry.is_dir() {
+        push("cmd.open_with", "cm_OpenWith", Icon::Settings);
+        push("cmd.send_email", "cm_SendByEmail", Icon::Download);
+        if rc_core::desktop::is_executable(&entry.path, rc_core::desktop::Platform::current()) {
+            push("cmd.run_terminal", "cm_RunInTerminal", Icon::Terminal);
+        }
+    }
+    push("cmd.terminal_here", "cm_TerminalHere", Icon::Terminal);
+    items
+}
+
+/// One menu for list and thumbnails; use the clicked entry, never the other pane's cursor.
+fn show_row_context_menu(
+    response: &egui::Response, model: &mut Model, side: Side, index: usize,
+    entry: &Entry, actions: &mut Vec<PanelAction>,
+) {
+    if response.secondary_clicked() {
+        model.focus = side;
+        let panel = model.panel_mut(side);
+        panel.set_cursor(index);
+        if entry.name != ".." && !panel.selection.contains(&entry.name) {
+            panel.selection.clear();
+        }
+    }
+    let verbs = if entry.name == ".." { Vec::new() } else {
+        model.sources.actions(model.panel(side).location(), entry)
+    };
+    response.context_menu(|ui| {
+        ui.set_min_width(230.0);
+        for item in row_menu_items(model, side, entry) {
+            if !model.allows(side, &item.command) {
+                continue;
+            }
+            if item.separator {
+                ui.separator();
+            }
+            if menu_entry(ui, item.icon, &item.label) {
+                model.focus = side;
+                model.panel_mut(side).set_cursor(index);
+                actions.push(PanelAction::Command(item.command));
+                ui.close();
+            }
+        }
+        if !verbs.is_empty() {
+            ui.separator();
+            for verb in &verbs {
+                if ui.button(&verb.label).clicked() {
+                    model.focus = side;
+                    model.panel_mut(side).set_cursor(index);
+                    actions.push(PanelAction::SourceCommand(verb.command.clone()));
+                    ui.close();
+                }
+            }
+        }
+        let desktop = desktop_menu_items(model, side, entry);
+        if !desktop.is_empty() {
+            ui.separator();
+            ui.label(egui::RichText::new(model.t("cmd.system_actions")).weak());
+            for item in desktop {
+                if menu_entry(ui, item.icon, &item.label) {
+                    model.focus = side;
+                    model.panel_mut(side).set_cursor(index);
+                    actions.push(PanelAction::Command(item.command));
+                    ui.close();
+                }
+            }
+        }
+    });
 }
 
 /// Thumbnail grid used by the `Ctrl+Shift+F1` view mode.
@@ -1134,6 +1170,7 @@ fn thumbnail_grid(
                         if response.double_clicked() {
                             clicked = Some((index, ClickKind::Open));
                         }
+                        show_row_context_menu(&response, model, side, index, entry, actions);
                     }
                 });
             }
@@ -1365,7 +1402,7 @@ mod menu_tests {
             rc_core::location::Location::local("/tmp"),
             rc_core::location::Location::local("/tmp"),
         );
-        let items = folder_menu_items(&model);
+        let items = folder_menu_items(&model, Side::Left);
         let commands: Vec<&str> = items.iter().map(|item| item.command.as_str()).collect();
         for expected in ["cm_MkDir", "cm_RereadSource", "cm_Config"] {
             assert!(commands.contains(&expected), "{expected} in {commands:?}");
@@ -1421,6 +1458,29 @@ mod menu_tests {
     }
 
     #[test]
+    fn desktop_actions_are_separate_and_parent_row_only_navigates() {
+        let dir = tempfile::tempdir().unwrap();
+        let model = Model::for_test(
+            rc_core::config::Settings::default(),
+            rc_core::location::Location::local(dir.path()),
+            rc_core::location::Location::local(dir.path()),
+        );
+        let entry = Entry::new("file.txt", dir.path().join("file.txt"), rc_core::entry::EntryKind::File, 0);
+        let app = row_menu_items(&model, Side::Right, &entry);
+        assert!(app.iter().any(|item| item.command == "cm_PackFiles"));
+        assert!(app.iter().any(|item| item.command == "cm_VersionInfo"));
+        assert!(!app.iter().any(|item| item.command == "cm_OpenWith"));
+        let desktop = desktop_menu_items(&model, Side::Right, &entry);
+        assert!(desktop.iter().any(|item| item.command == "cm_OpenWith"));
+        assert!(desktop.iter().any(|item| item.command == "cm_OpenFolderExternal"));
+        let parent = Entry::parent_entry(dir.path().to_path_buf());
+        let commands = row_menu_items(&model, Side::Right, &parent);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].command, "cm_GoToParent");
+        assert!(desktop_menu_items(&model, Side::Right, &parent).is_empty());
+    }
+
+    #[test]
     fn the_row_menu_maps_entries_to_real_commands() {
         let settings = rc_core::config::Settings::default();
         let model = Model::for_test(
@@ -1428,7 +1488,8 @@ mod menu_tests {
             rc_core::location::Location::local("/tmp"),
             rc_core::location::Location::local("/tmp"),
         );
-        let items = row_menu_items(&model);
+        let entry = Entry::new("example.txt", std::path::PathBuf::from("/tmp/example.txt"), rc_core::entry::EntryKind::File, 0);
+        let items = row_menu_items(&model, Side::Left, &entry);
         let commands: Vec<&str> = items.iter().map(|item| item.command.as_str()).collect();
         for expected in [
             "cm_Copy",
