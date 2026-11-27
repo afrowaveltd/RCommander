@@ -2342,6 +2342,21 @@ tests not executed here; owner must verify on real egui rendering.
 Full Arabic contextual shaping, bidi cursor/selection, complete menu/tab
 mirroring and mixed filenames remain acceptance items, not claimed fixed.
 
+## Handoff — adaptive file list row and header height (2026-11-28)
+
+File-list rows and column headers grow automatically to fit the measured
+font and glyph overhang, in both LTR and RTL. The configured row height
+is a minimum; headers have an 18-point minimum, and text has 6 points
+of total vertical padding. Virtual scrolling uses one measured height
+per panel based on representative text and localized column captions.
+Long captions in narrow columns remain clipped horizontally, with
+the full caption available on hover.
+
+Integrated in main. Added unit tests for minimum/padding and an egui
+font measurement regression. Build/test and real Arabic rendering remain
+unverified here; no Cargo toolchain available. Arbitrary fallback glyphs
+in individual filenames are not exhaustively measured.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
