@@ -2326,6 +2326,22 @@ joining, Unicode bidirectional layout, mixed Latin file names/paths,
 numbers, two-panel mirroring, dialogs, menus, editor/viewer and switch
 back to English. No Arabic help translation or new font bundled.
 
+## Handoff — RTL geometry and font fallback (2026-11-28)
+
+Owner's first Arabic screenshot showed missing glyphs in toolbar and
+headers, overlapping names/dates, LTR header order and mixed shortcut
+ordering. Integrated directly in main: shared mirrored column rectangles
+for headers and rows, per-cell clipping and correct numeric anchors;
+custom body font used for row/header/path, context and toolbar captions;
+wrap path controls; installed Arabic fallback preferred by family name
+(Noto Sans Arabic, Noto Naskh Arabic, Amiri, DejaVu Sans, Tahoma, Arial)
+on RTL language selection. No font downloaded or bundled. Added tests
+for mirrored nonoverlapping geometry and fallback selection; isolated
+Latin shortcuts in RTL labels, pending visual validation. Build and Rust
+tests not executed here; owner must verify on real egui rendering.
+Full Arabic contextual shaping, bidi cursor/selection, complete menu/tab
+mirroring and mixed filenames remain acceptance items, not claimed fixed.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
