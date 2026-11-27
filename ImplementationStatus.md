@@ -1488,6 +1488,9 @@ through ordinary path navigation; full TeX is not claimed.
   No Rust toolchain available in the editing environment; run
   `cargo test --locked -p rc-core --lib secrets::tests`, `cargo fmt --all --check`
   and the platform CI on the new revision. Do not mark 13.4a done until verified.
+  Dedicated [Wallet regressions](.github/workflows/wallet-regressions.yml)
+  runs the rc-core secret tests on Linux and Windows without building the GUI;
+  inspect the exact workflow revision and record results after completion.
 - README updated against source, documented features and historical CI evidence.
 - 5.5–5.6 [issue #1](https://github.com/afrowaveltd/RCommander/issues/1) and
   16.0i [issue #2](https://github.com/afrowaveltd/RCommander/issues/2) now have
