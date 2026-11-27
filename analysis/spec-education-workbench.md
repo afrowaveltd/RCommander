@@ -82,6 +82,97 @@ argument analysis is a valid practice activity. For Linux kernel examples,
 prefer an authorized disposable VM or isolated build environment; real host
 kernel changes are not a default teaching operation.
 
+## Learning workspace and location-independent storage (owner extension)
+
+On first use, offer to create a Learning directory in the current user's
+home directory (resolve it via the platform's home-directory API, not a
+hardcoded Linux path). The default is local and usable offline. The user can
+change the root or choose an existing folder in a Commander panel, including
+a supported remote/cloud location. Create missing directories through the
+same file-operation service and scoped policy as ordinary Commander actions;
+never overwrite an existing course or silently relocate user data.
+
+Illustrative workspace layout (names and format are provisional):
+
+```text
+Learning/
+  Courses/
+    advanced-c-linux-kernel/
+      manifest.json
+      curriculum.json
+      lessons/
+      assets/
+      examples/
+      assessments/
+  Learners/
+    <local-learner-id>/
+      profile.json
+      courses/
+        <course-id>/
+          progress.json
+          submissions/
+          feedback/
+          assessment-results/
+  Work/
+    <session-id>/
+      drafts/
+      agent-results/
+  Teacher/
+    <course-id>/
+      answer-keys/
+      review-notes/
+  Cache/
+    materials/
+```
+
+The teacher/learner chooses where course files, personal results, agent
+outputs and private teacher materials are stored. These are distinct logical
+roots, not mandatory physical subdirectories on the same disk. The agent
+creates chapters, saves explanations and demonstrations, and saves student
+work, assessment results and feedback as regular inspectable files through
+the shared workspace/file APIs. Reuse the existing durable session store
+for resumable work and checkpoint receipts; avoid a competing task ledger.
+A course package is self-contained or contains portable resource references;
+learner records and credentials are never included in its default export.
+
+Use provider-neutral resource references (provider identity, canonical
+location and relative resource ID/path) and stable course/learner IDs, not
+absolute OS-specific paths in course manifests. Learning must not depend on
+whether a directory resides on a local disk, a mounted/synced folder, SFTP,
+a cloud plugin, or another provider with the necessary capabilities.
+Resolve references through the existing Location/source abstraction and
+capability catalogue. Detect read-only or offline providers, unavailable
+resources and unsupported operations explicitly; allow a local working copy
+and reviewed transfer where needed. Never report a remote write as saved
+until its outcome is verified. Keep version/conflict evidence, use atomic
+replacement only where supported, and preserve both edits rather than
+silently overwriting a newer version.
+
+### Afrowave Cloud provider (future, shared Commander plugin)
+
+Plan an optional generic storage plugin with an Afrowave Cloud profile
+pointing to an administrator/user-configured Nextcloud instance (WebDAV as
+a candidate transport) or another compatible storage service. It is a
+normal Commander panel/source provider, not an education-only API.
+Education, document preview/editor, backup and other workloads can all use
+it. Reuse source registration, shared HTTP/TLS, credential references,
+policy, transfer, cache and synchronization services. Do not embed a server
+URL or require an Afrowave account for local learning. Validate actual
+provider capabilities, authentication and licenses before choosing the
+first adapter. Cloud use, personal-record sync, sharing and publication
+are independent user choices; default to private storage and no automatic
+upload of personal results. Keep teaching materials/catalogue retrieval
+separate from this general-purpose storage provider.
+
+Acceptance: first-run Learning creation on Linux/Windows with existing
+directories preserved; reopen and resume from local files; equivalent
+course/lesson operations on a mock remote provider and a real supported
+provider before claiming compatibility; copy/move course to a different
+root without broken relative links; read-only/offline failure and recovery;
+concurrent edits/conflicts, verified transfer, permission denial, and
+sharing without private learner records. A first local implementation does
+not depend on cloud support.
+
 ## Course authoring, packaging and sharing
 
 Support three authoring modes using the same course schema and editor:
@@ -123,7 +214,7 @@ course (including any assets whose licenses permit redistribution), subject
 to explicit user publication and attribution. Provide optional teacher-key
 export, excluding private progress, diagnostic answers, grades, conversations,
 credentials and model settings by default. Personalized progress is a
-separate local/session record; make any optional personal export explicit.
+separate private workspace/session record (local by default); make any optional personal export explicit.
 Version or fork shared courses without overwriting originals; support manual
 or agent-assisted translation in a later slice. External copyrighted material
 may need a reference instead of bundling. No public service is required for
