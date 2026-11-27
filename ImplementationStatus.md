@@ -2178,6 +2178,22 @@ deadlines (existing read timeouts are inactivity timeouts), HTTP-date
 Retry-After, SSE, endpoint-bound auth, registry integration. Unsupported
 encodings and informational status responses fail closed.
 
+## Handoff — consistent settings dialog geometry and keyboard (2026-11-27)
+
+Owner requested consistent window dimensions across settings pages and keyboard
+confirmation/cancellation. Options (all 14 pages), button bar and view modes
+now use a common viewport-bounded fixed client size, stable window IDs and
+scrolling bodies with a separate footer. Removed redundant page-level
+scroll areas; short lists retain their own scroll controls. Enter confirms
+when no other control owns it; focused buttons/text controls retain their
+normal behavior, Escape cancels/closes, and an open popup owns both keys.
+The settings draft is validated before saving (including direct connection
+edits). Button bar, view modes and immediate security/plugin/prompt actions
+retain their existing live-apply semantics; Escape is not an undo operation
+for actions already applied. Added geometry/key-policy unit regressions and
+a headless keyboard confirmation/cancellation test. No local Rust toolchain;
+CI and real desktop layout verification pending.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

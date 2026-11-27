@@ -91,3 +91,5 @@ jobs:
           cargo test --locked -p rcommander --test ui_smoke connecting_runs_in_the_background_and_reports_the_failure
           cargo test --locked -p rcommander --test ui_smoke the_models_page_adds_a_connection_and_shows_the_egress_switch
           cargo test --locked -p rcommander --test ui_smoke the_route_editor_keeps_a_duplicate_out
+          cargo test --locked -p rcommander --lib ui::dialogs::tests
+          cargo test --locked -p rcommander --test ui_smoke settings_keyboard_confirm_and_cancel_the_draft

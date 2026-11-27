@@ -3633,3 +3633,24 @@ fn f3_and_f4_open_the_expected_workspace_surface() {
         DocumentPlacement::Workspace
     );
 }
+
+#[test]
+fn settings_keyboard_confirm_and_cancel_the_draft() {
+    use rcommander::model::{Dialog, dialogs::OptionsTab};
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    let original = harness.state().model.settings.display.show_hidden;
+    for (key, expected) in [(egui::Key::Escape, original), (egui::Key::Enter, !original)] {
+        harness.state_mut().model.open_options_on(OptionsTab::Display);
+        harness.run();
+        let Some(Dialog::Options(state)) = harness.state_mut().model.top_dialog_mut() else {
+            panic!("settings dialog expected");
+        };
+        state.draft.display.show_hidden = !original;
+        harness.run();
+        harness.key_press(key);
+        harness.run();
+        assert!(harness.state().dialog().is_none(), "{key:?} closes the dialog");
+        assert_eq!(harness.state().model.settings.display.show_hidden, expected);
+    }
+}
