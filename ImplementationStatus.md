@@ -1696,6 +1696,24 @@ reset scheduling or settings wizard yet. The plan specifies those steps,
 privacy/egress checks and deterministic automation before AI. CI pending;
 no local Rust toolchain.
 
+## Handoff — provider rate-limit evidence and equivalent bindings (2026-11-27)
+
+Catalogue CI [passed](https://github.com/afrowaveltd/RCommander/actions/runs/46009468301)
+at `027a572`. Extended catalogue metadata with an owner-verified equivalence
+group and temporary fallback preferences (prefer equivalent, token ceiling,
+return to primary). Added typed HTTP ProviderNotice for failed chat requests,
+including status, numeric Retry-After and bounded untrusted body evidence.
+Non-streaming and streaming HTTP failures preserve 429 evidence without
+forwarding it as assistant text or displaying it in Debug/Display. Streaming
+samples non-chunked error bodies only; HTTP-date, chunked error bodies and
+provider-specific text-to-reset interpretation remain to implement. Existing
+HTTP 200 JSON error path and UI string conversion are not yet integrated
+with typed scheduler events. Two fake HTTP tests plus catalogue round-trip
+extension, wired into Linux CI. No new dependencies. No live provider calls,
+actual fallback, token ledger, reset scheduler or automatic switching;
+no local toolchain, new CI pending. Plan specifies explicit authorization,
+local interpretation with validation, checkpoints and cost-conserving fallback.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)

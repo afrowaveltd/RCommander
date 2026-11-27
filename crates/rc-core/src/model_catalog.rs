@@ -21,6 +21,8 @@ pub struct ModelProfile {
     /// Reference to a configured provider connection, not a URL or secret.
     pub connection_id: String,
     pub model_id: String,
+    /// Owner-verified equivalence group; never infer from names alone.
+    pub equivalence_group: Option<String>,
     pub enabled: bool,
     /// Explicit owner classification; never infer locality from price.
     pub local: bool,
@@ -73,6 +75,12 @@ pub struct RoutingPreference {
     /// Ordered catalogue IDs, never implicit cross-provider fallback.
     pub model_ids: Vec<String>,
     pub on_exhausted: ExhaustedAction,
+    /// Prefer a qualified, explicitly listed equivalent binding on fallback.
+    pub prefer_equivalent: bool,
+    /// Optional aggregate token ceiling for temporary fallback; not a reservation.
+    pub fallback_token_budget: Option<u64>,
+    /// At the next safe checkpoint, prefer the original binding after recovery.
+    pub return_to_primary: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -202,6 +210,7 @@ mod tests {
             routes: vec![RoutingPreference {
                 task: "coding".into(), model_ids: vec!["local".into(), "remote".into()],
                 on_exhausted: ExhaustedAction::Wait,
+                ..Default::default()
             }],
         }
     }
@@ -210,6 +219,11 @@ mod tests {
     fn catalogue_round_trips_in_settings_and_accepts_shared_quotas() {
         let mut settings = crate::config::Settings::default();
         settings.agent.model_catalog = fixture();
+        settings.agent.model_catalog.models[0].equivalence_group = Some("verified-example".into());
+        settings.agent.model_catalog.models[1].equivalence_group = Some("verified-example".into());
+        settings.agent.model_catalog.routes[0].prefer_equivalent = true;
+        settings.agent.model_catalog.routes[0].fallback_token_budget = Some(20_000);
+        settings.agent.model_catalog.routes[0].return_to_primary = true;
         assert_eq!(settings.agent.model_catalog.validate(), Ok(()));
         let encoded = settings.to_toml().unwrap();
         let decoded = crate::config::Settings::from_toml(&encoded).unwrap();

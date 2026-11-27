@@ -12,6 +12,7 @@ on:
       - "crates/rc-core/src/drive.rs"
       - "crates/rc-core/src/config.rs"
       - "crates/rc-core/src/model_catalog.rs"
+      - "crates/rc-llm/src/**"
       - "crates/rc-core/src/lib.rs"
       - "crates/rc-core/src/policy.rs"
       - "crates/rcommander/src/model/sessions.rs"
@@ -56,6 +57,7 @@ jobs:
           cargo test --locked -p rc-remote --lib spec::tests
           cargo test --locked -p rc-core --lib policy::tests
           cargo test --locked -p rc-core --lib model_catalog::tests
+          cargo test --locked -p rc-llm
           cargo test --locked -p rc-core --lib drive::
           cargo test --locked -p rc-core --lib the_button_bar_round_trips_through_toml
           cargo test --locked -p rc-help --lib inline_math

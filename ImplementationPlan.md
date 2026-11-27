@@ -697,6 +697,33 @@ reset; allow cancel and bounded waiting. Escalating model capability never
 escalates OS/tool/credential permissions. Do not send context to another
 provider unless allowed for that data and task.
 
+Temporary provider exhaustion: preserve structured status, provider reset
+headers and bounded untrusted error evidence separately from model output.
+Prefer verified metadata, parse known provider error formats, and optionally
+use a qualified local model to propose a typed interpretation of free text
+(e.g. quota exhausted until 21:45). Validate time zone/date, clock, freshness,
+plausibility and provenance; ambiguous reset remains unknown. Neither a
+provider message nor the local interpreter can issue tool rights, change
+budgets or authorize egress. Numeric Retry-After is relative to receipt;
+HTTP-date and provider-specific reset formats require explicit parsing.
+429 alone means rate limiting, not necessarily a token quota. Never pass
+arbitrary error text as instructions or retry continuously.
+
+Separate logical model identity from provider/account/model binding. User-
+verified equivalence groups can prefer the same qualified model on another
+approved provider (e.g. Ollama Cloud subscription exhausted, DeepSeek direct
+metered API). Check actual version, context, adapter capabilities, remaining
+shared quotas, budget and data-egress policy, not names alone. Optionally
+limit total temporary fallback tokens, conserve usage, and return to the
+primary at a safe task checkpoint after a confirmed or cautiously probed
+reset plus configurable safety margin. A manager may postpone blocked
+steps, execute independent ready work or delegate within approved scopes;
+never replay an uncertain side effect or silently discard partial results.
+Persist wait-until times, dependency state and receipts in the Phase 25/32
+runtime; resume after restart, avoid retry storms. Test with synthetic
+provider messages, same-name unrelated models, ambiguous times, two accounts
+with separate/shared quotas, and fallback budget exhaustion.
+
 First slice: persisted metadata and structural validation only. Next:
 provider registry, discovery provenance, usage ledger and admission control,
 then deterministic router and localized wizard. Test local defaults,

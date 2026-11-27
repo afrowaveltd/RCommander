@@ -16,6 +16,7 @@ use std::time::Duration;
 pub struct Response {
     pub status: u16,
     pub body: String,
+    pub retry_after_seconds: Option<u64>,
 }
 
 impl Response {
@@ -28,12 +29,14 @@ impl Response {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HttpError {
     pub message: String,
+    pub(crate) notice: Option<crate::ProviderNotice>,
 }
 
 impl HttpError {
     fn new(message: impl Into<String>) -> Self {
         HttpError {
             message: message.into(),
+            notice: None,
         }
     }
 }
@@ -157,6 +160,7 @@ fn request(
         .and_then(|code| code.parse::<u16>().ok())
         .ok_or_else(|| HttpError::new(format!("bad status line “{}”", status_line.trim())))?;
     let mut content_length: Option<usize> = None;
+    let mut retry_after_seconds = None;
     let mut chunked = false;
     loop {
         let mut line = String::new();
@@ -169,6 +173,8 @@ fn request(
         let lower = line.to_ascii_lowercase();
         if let Some(value) = lower.strip_prefix("content-length:") {
             content_length = value.trim().parse().ok();
+        } else if let Some(value) = lower.strip_prefix("retry-after:") {
+            retry_after_seconds = value.trim().parse::<u64>().ok();
         } else if lower.starts_with("transfer-encoding:") && lower.contains("chunked") {
             chunked = true;
         }
@@ -188,7 +194,7 @@ fn request(
             .map_err(|error| HttpError::new(error.to_string()))?;
         text
     };
-    Ok(Response { status, body })
+    Ok(Response { status, body, retry_after_seconds })
 }
 
 /// Owns only the active request socket; cancelling never kills the Ollama server.
@@ -330,11 +336,8 @@ fn stream_impl(
         .nth(1)
         .and_then(|code| code.parse::<u16>().ok())
         .ok_or_else(|| HttpError::new(format!("bad status line “{}”", status_line.trim())))?;
-    if !(200..300).contains(&status) {
-        return Err(HttpError::new(format!(
-            "the server answered {status} for {full_path}"
-        )));
-    }
+    let mut content_length: Option<usize> = None;
+    let mut retry_after_seconds = None;
     let mut chunked = false;
     loop {
         let mut line = String::new();
@@ -348,11 +351,29 @@ fn stream_impl(
         if line.trim().is_empty() {
             break;
         }
-        if let Some(encoding) = line.to_ascii_lowercase().strip_prefix("transfer-encoding:")
-            && encoding.contains("chunked")
-        {
+        let lower = line.to_ascii_lowercase();
+        if let Some(value) = lower.strip_prefix("content-length:") {
+            content_length = value.trim().parse().ok();
+        } else if let Some(value) = lower.strip_prefix("retry-after:") {
+            retry_after_seconds = value.trim().parse::<u64>().ok();
+        } else if lower.starts_with("transfer-encoding:") && lower.contains("chunked") {
             chunked = true;
         }
+    }
+    if !(200..300).contains(&status) {
+        // Error evidence is never forwarded as generated assistant text.
+        // Bound the body sample and deadline; chunked error bodies are not
+        // decoded by this slice. Keep status even if reading evidence fails.
+        let mut sample = Vec::new();
+        if !chunked && reader.get_ref().set_read_timeout(Some(timeout.min(Duration::from_secs(5)))).is_ok() {
+            let limit = content_length.unwrap_or(8192).min(8192);
+            let _ = reader.by_ref().take(limit as u64).read_to_end(&mut sample);
+        }
+        let mut error = HttpError::new(format!("the server answered {status} for {full_path}"));
+        error.notice = Some(crate::ProviderNotice::new(
+            status, retry_after_seconds, &String::from_utf8_lossy(&sample),
+        ));
+        return Err(error);
     }
     if !chunked {
         // A plain body: forward each line as it arrives.

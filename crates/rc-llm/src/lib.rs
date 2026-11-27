@@ -17,16 +17,77 @@ use std::time::Duration;
 /// Timeout for one request; a local model can be slow to start, a hung one must not hang us.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// Untrusted provider error evidence, not an instruction or an authorization.
+/// A 429 can mean quota exhaustion or transient rate limiting; not all 429s
+/// have a known reset. Numeric Retry-After is a delay, not a wall-clock time.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ProviderNotice {
+    pub status: u16,
+    pub retry_after_seconds: Option<u64>,
+    message: String,
+}
+
+impl ProviderNotice {
+    pub(crate) fn new(status: u16, retry_after_seconds: Option<u64>, body: &str) -> Self {
+        let mut end = body.len().min(8192);
+        while !body.is_char_boundary(end) {
+            end -= 1;
+        }
+        let sample = &body[..end];
+        let json = serde_json::from_str::<serde_json::Value>(sample).ok();
+        let message = json.as_ref().and_then(|value| {
+            value.get("error").and_then(|error| {
+                error.as_str().or_else(|| error.get("message").and_then(|m| m.as_str()))
+            })
+        }).unwrap_or(sample);
+        Self { status, retry_after_seconds, message: message.to_owned() }
+    }
+
+    pub fn is_rate_limited(&self) -> bool {
+        self.status == 429
+    }
+
+    /// Only a trusted consumer may interpret this bounded, untrusted text.
+    pub fn provider_message(&self) -> &str {
+        &self.message
+    }
+}
+
+impl std::fmt::Debug for ProviderNotice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProviderNotice")
+            .field("status", &self.status)
+            .field("retry_after_seconds", &self.retry_after_seconds)
+            .field("message", &"[UNTRUSTED PROVIDER TEXT OMITTED]")
+            .finish()
+    }
+}
+
 /// A failure of either the transport or the provider's protocol.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LlmError {
     pub message: String,
+    pub notice: Option<ProviderNotice>,
 }
 
 impl LlmError {
     pub fn new(message: impl Into<String>) -> Self {
         LlmError {
             message: message.into(),
+            notice: None,
+        }
+    }
+
+    fn from_http(error: http::HttpError) -> Self {
+        Self { message: error.to_string(), notice: error.notice }
+    }
+
+    fn from_response(response: http::Response, path: &str) -> Self {
+        Self {
+            message: format!("the server answered {} for {path}", response.status),
+            notice: Some(ProviderNotice::new(
+                response.status, response.retry_after_seconds, &response.body,
+            )),
         }
     }
 }
@@ -427,10 +488,7 @@ impl Provider for OllamaProvider {
         let body = chat_body(request);
         let response = self.post("/api/chat", &body)?;
         if !response.is_success() {
-            return Err(LlmError::new(format!(
-                "the server answered {} for /api/chat",
-                response.status
-            )));
+            return Err(LlmError::from_response(response, "/api/chat"));
         }
         parse_chat(&response.body)
     }
@@ -553,7 +611,7 @@ impl OllamaProvider {
         if control.is_some_and(StreamControl::is_cancelled) {
             return Err(LlmError::new("request cancelled"));
         }
-        result.map_err(|error| LlmError::new(error.to_string()))?;
+        result.map_err(LlmError::from_http)?;
         if let Some(error) = failure {
             return Err(error);
         }

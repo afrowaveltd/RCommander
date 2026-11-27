@@ -305,3 +305,62 @@ fn a_stream_line_is_parsed_or_ignored() {
     );
     assert!(parse_stream_line("not json").is_err());
 }
+
+#[test]
+fn rate_limit_evidence_survives_both_chat_transports_without_becoming_output() {
+    let server = FakeServer::start(vec![(
+        "/api/chat".into(), 429,
+        r#"{"error":"Quota exhausted until 21:45; fixture private text"}"#.into(),
+    )]);
+    let provider = OllamaProvider::new(&server.base_url);
+    let request = ChatRequest::new("model", vec![Message::user("hello")]);
+    let plain = provider.chat(&request).unwrap_err();
+    let mut chunks = Vec::new();
+    let streaming = provider.chat_stream(&request, &mut |chunk| {
+        chunks.push(chunk.to_owned());
+    }).unwrap_err();
+    assert!(chunks.is_empty());
+    for failure in [plain, streaming] {
+        assert!(!format!("{failure:?}").contains("fixture private text"));
+        assert!(!failure.to_string().contains("fixture private text"));
+        let notice = failure.notice.unwrap();
+        assert!(notice.is_rate_limited());
+        assert!(notice.provider_message().contains("21:45"));
+        assert_eq!(notice.retry_after_seconds, None);
+    }
+}
+
+#[test]
+fn numeric_retry_after_is_preserved_for_both_chat_transports() {
+    for streaming in [false, true] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let worker = std::thread::spawn(move || {
+            use std::io::Read;
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut length = 0usize;
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap() == 0 || line.trim().is_empty() {
+                    break;
+                }
+                if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = value.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            stream.write_all(b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 300\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+        });
+        let provider = OllamaProvider::new(format!("http://{address}"));
+        let request = ChatRequest::new("model", vec![Message::user("hello")]);
+        let error = if streaming {
+            provider.chat_stream(&request, &mut |_| {}).unwrap_err()
+        } else {
+            provider.chat(&request).unwrap_err()
+        };
+        assert_eq!(error.notice.unwrap().retry_after_seconds, Some(300));
+        worker.join().unwrap();
+    }
+}
