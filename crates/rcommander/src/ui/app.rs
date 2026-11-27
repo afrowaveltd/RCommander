@@ -258,13 +258,13 @@ impl RCommanderApp {
     /// The path the desktop actions act on: the cursor entry, or the panel's own directory.
     fn desktop_target(&self, want_directory: bool) -> Option<std::path::PathBuf> {
         let panel = self.model.active();
+        let rc_core::location::Location::Local(directory) = panel.location() else {
+            return None;
+        };
         if want_directory {
-            return panel.location().as_path().map(|path| path.to_path_buf());
+            return Some(directory.clone());
         }
-        panel
-            .cursor_entry()
-            .map(|entry| entry.path.clone())
-            .or_else(|| panel.location().as_path().map(|path| path.to_path_buf()))
+        panel.current().map(|entry| entry.path.clone())
     }
 
     /// Run one of the desktop actions the context menu offers.
@@ -301,6 +301,14 @@ impl RCommanderApp {
             "cm_ViewerReload" => {
                 if let Some(state) = &self.model.viewer {
                     let _ = self.viewer_ui.load(std::path::Path::new(&state.path));
+                }
+                return;
+            }
+            "cm_OpenFolderExternal" => {
+                // Open the actual panel directory in the platform file manager.
+                // Unlike a row action this is safe for the background menu too.
+                if let Some(path) = self.desktop_target(true) {
+                    self.run_desktop_action(rc_core::desktop::Action::Open(path));
                 }
                 return;
             }
@@ -926,7 +934,10 @@ impl RCommanderApp {
             }
             for (side, action) in actions {
                 match action {
-                    PanelAction::Command(command) => self.pending_command = Some(command),
+                    PanelAction::Command(command) => {
+                        self.model.focus = side;
+                        self.pending_command = Some(command);
+                    }
                     PanelAction::OpenFile(path) => self.open_viewer(path),
                     PanelAction::OpenExternal(path) => self.open_externally(path),
                     PanelAction::Enter => self.enter_pressed(),
@@ -1052,7 +1063,10 @@ impl RCommanderApp {
         });
         for (side, action) in actions {
             match action {
-                PanelAction::Command(command) => self.pending_command = Some(command),
+                PanelAction::Command(command) => {
+                        self.model.focus = side;
+                        self.pending_command = Some(command);
+                    }
                 PanelAction::OpenFile(path) => self.open_viewer(path),
                 PanelAction::OpenExternal(path) => self.open_externally(path),
                 PanelAction::Enter => self.enter_pressed(),
