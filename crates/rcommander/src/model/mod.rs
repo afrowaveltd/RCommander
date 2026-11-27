@@ -135,6 +135,9 @@ pub struct Panel {
     pub listing: Listing,
     pub selection: Selection,
     pub history: DirHistory,
+    // Chronological navigation is separate from the deduplicated MRU list.
+    back_locations: Vec<Location>,
+    forward_locations: Vec<Location>,
     pub quick: QuickSearch,
     pub view_mode: ViewMode,
     /// Mask used to filter files (`*.*` = everything).
@@ -179,6 +182,8 @@ impl Panel {
             listing,
             selection: Selection::new(),
             history,
+            back_locations: Vec::new(),
+            forward_locations: Vec::new(),
             quick: QuickSearch::new(),
             view_mode,
             mask_spec,
@@ -209,6 +214,34 @@ impl Panel {
         self.cursor_entry().filter(|e| e.name != "..")
     }
 
+    /// Whether the panel has an earlier chronological visit.
+    pub fn can_go_back(&self) -> bool {
+        !self.back_locations.is_empty()
+    }
+
+    /// Whether the panel has a later chronological visit.
+    pub fn can_go_forward(&self) -> bool {
+        !self.forward_locations.is_empty()
+    }
+
+    fn record_navigation(&mut self, target: &Location, capacity: usize) {
+        if self.location() == target {
+            return;
+        }
+        let previous = self.location().clone();
+        self.back_locations.push(previous);
+        if self.back_locations.len() > capacity.max(1) {
+            let excess = self.back_locations.len() - capacity.max(1);
+            self.back_locations.drain(..excess);
+        }
+        self.forward_locations.clear();
+    }
+
+    pub fn clear_navigation_history(&mut self) {
+        self.back_locations.clear();
+        self.forward_locations.clear();
+    }
+
     pub fn sort(&self) -> SortSpec {
         self.listing.sort_spec()
     }
@@ -236,6 +269,7 @@ impl Panel {
         let sort = self.sort();
         self.git_status.clear();
         self.git_label.clear();
+        self.record_navigation(&location, settings.history_length);
         self.listing = Listing::from_entries(location.clone(), entries, &opts, sort);
         self.error = None;
         self.selection.clear();
@@ -400,6 +434,7 @@ impl Panel {
                 None => Listing::read(&location, &opts, sort)?,
             }
         };
+        self.record_navigation(&location, settings.history_length);
         self.listing = listing;
         self.error = None;
         self.selection.clear();
@@ -881,6 +916,32 @@ impl Model {
         self.open_in(side, location)
     }
 
+    /// Traverse chronological visits in the specified panel, preserving the
+    /// forward branch and leaving both stacks unchanged on an unsuccessful open.
+    pub fn go_history(&mut self, side: Side, forward: bool) -> CommandOutcome {
+        let panel = self.panel(side);
+        let current = panel.location().clone();
+        let mut back = panel.back_locations.clone();
+        let mut next = panel.forward_locations.clone();
+        let target = if forward { next.pop() } else { back.pop() };
+        let Some(target) = target else {
+            return CommandOutcome::None;
+        };
+        if let Err(error) = self.open_in(side, target) {
+            return CommandOutcome::Failed(error.to_string());
+        }
+        if forward {
+            back.push(current);
+        } else {
+            next.push(current);
+        }
+        let panel = self.panel_mut(side);
+        panel.back_locations = back;
+        panel.forward_locations = next;
+        self.focus = side;
+        CommandOutcome::Ok
+    }
+
     /// Go to the parent directory. The cursor is placed on the directory we
     /// came from, which is what makes `Backspace` navigation pleasant.
     pub fn go_parent(&mut self) -> CoreResult<()> {
@@ -902,6 +963,13 @@ impl Model {
     /// Open the entry under the cursor: directories and (optionally) archives
     /// are entered, files open in the viewer.
     pub fn enter(&mut self) -> CommandOutcome {
+        // Parent is navigable, but must stay excluded from ordinary file operations.
+        if self.active().cursor_entry().is_some_and(|entry| entry.name == "..") {
+            return match self.go_parent() {
+                Ok(()) => CommandOutcome::Ok,
+                Err(error) => CommandOutcome::Failed(error.to_string()),
+            };
+        }
         let Some(entry) = self.active().current().cloned() else {
             return CommandOutcome::None;
         };
