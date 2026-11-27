@@ -1939,6 +1939,12 @@ cargo clippy --workspace --all-targets                     # no warnings
 cargo fmt --all --check                                    # clean
 ```
 
+CI at `385f449`: Linux UI regressions
+[46053577038](https://github.com/afrowaveltd/RCommander/actions/runs/46053577038)
+and Wallet regressions
+[46053576881](https://github.com/afrowaveltd/RCommander/actions/runs/46053576881)
+both completed successfully.
+
 Still open: the catalogue and `allow_remote_models` are edited by hand (no
 settings UI, no discovery button in the model picker), provider-reported
 counters and capability probes are not modelled, HTTP-date `Retry-After` and
