@@ -43,6 +43,7 @@ mod img;
 mod load;
 mod media;
 mod options;
+mod pdf;
 mod text;
 
 pub use classify::{ContentKind, FileFormat, detect, probe};
@@ -55,3 +56,5 @@ pub use load::{LoadedViewer, ViewerContent, describe, load, open_bytes};
 pub use media::{BinaryDocument, MediaDocument};
 pub use options::{EncodingChoice, ViewerOptions};
 pub use text::{TextDocument, load_text, load_text_window};
+
+pub use pdf::{PdfError, PdfPage, render_pdf_page};
