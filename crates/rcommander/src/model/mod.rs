@@ -609,6 +609,8 @@ pub struct Model {
     pub sources: sources::SourceRegistry,
     /// Every installed plugin, switched on or off, from the last scan.
     pub plugins_loaded: Vec<plugins::PluginSummary>,
+    /// Plugin-owned dictionaries, separate from the host translator.
+    plugin_strings: std::collections::BTreeMap<String, Vec<rc_i18n::Locale>>,
     /// Manifests the last scan refused, with the reason, for the status line and diagnostics.
     pub plugin_problems: Vec<rc_core::plugin::PluginProblem>,
 }
@@ -792,6 +794,7 @@ impl Model {
             agent_workspace: None,
             sources: sources::SourceRegistry::new(),
             plugins_loaded: Vec::new(),
+            plugin_strings: std::collections::BTreeMap::new(),
             plugin_problems: Vec::new(),
             keymap,
             settings,
