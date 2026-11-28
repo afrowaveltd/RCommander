@@ -915,3 +915,16 @@ authors = ["RCommander contributors"]
 "plugins.status.none" = "لم يتم العثور على إضافات"
 "dialog.decode.envelope" = "من الترويسة"
 "dialog.viewmode.comments" = "التعليقات"
+
+# MCP and window controls
+"mcp.servers.summary" = "الخوادم المُعدّة: {configured}؛ المتصلة: {connected}"
+"mcp.tools.count" = "عدد الأدوات: {count}"
+"mcp.arguments" = "وسائط JSON"
+"mcp.servers.empty" = "أضف خوادم MCP ضمن [agent] clients في settings.toml."
+"window.pin" = "تثبيت"
+"window.unpin" = "إلغاء التثبيت"
+"window.cover_panels" = "تغطية اللوحات أثناء العمل"
+"window.maximize" = "تكبير النافذة"
+"window.restore" = "استعادة"
+"window.minimize" = "تصغير النافذة"
+"window.expand" = "توسيع"
