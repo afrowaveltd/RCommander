@@ -939,3 +939,11 @@ authors = ["RCommander contributors"]
 "viewer.pdf.failed" = "تعذر عرض الصفحة. قد يكون ملف PDF تالفاً أو محمياً بكلمة مرور."
 "viewer.pdf.timeout" = "انتهت مهلة عرض PDF."
 "viewer.pdf.cancelled" = "أُلغي عرض PDF."
+
+# Saved connection credential recovery
+"session.wallet_unlock" = "فتح قفل بيانات الاعتماد المحفوظة"
+"session.wallet_passphrase_required" = "أدخل عبارة مرور المخزن."
+"session.wallet_unlock_failed" = "تعذر فتح قفل مخزن بيانات الاعتماد الحالي. تحقق من عبارة المرور أو ملف المخزن."
+"session.wallet_ready" = "تتوفر كلمة مرور محفوظة لهذا الحساب. اختر استخدامها أو أدخل كلمة مرور أخرى."
+"session.wallet_no_password" = "فُتح قفل المخزن. لا توجد كلمة مرور محفوظة لهذا الحساب."
+"session.wallet_use_password" = "الاتصال باستخدام كلمة المرور المحفوظة"
