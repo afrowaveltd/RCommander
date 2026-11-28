@@ -182,3 +182,13 @@ it to the left or right panel or a floating child window inside the main app.
 Moving it preserves the open document and editor buffer. Click the other
 panel to use it. A separate OS window and embedded terminal are not included
 in this slice.
+
+## PDF preview (optional system renderer)
+
+F3 Preview opens local PDFs as actual rasterized pages when `pdfinfo` and
+`pdftoppm` are installed on PATH. On Debian: `sudo apt install poppler-utils`.
+Page navigation, zoom and fit are available; Hex remains available. No
+Poppler binary is bundled or linked. The external process has a deadline and
+is cancelled on viewer close/reload; only one page is rasterized per request.
+This is not a sandbox. Keep Poppler updated. Encrypted/invalid PDFs show a
+failure; text selection, remote PDFs and quick view are not supported yet.
