@@ -1703,6 +1703,45 @@ agents cannot seize another agent's tools, overwrite its work or expand
 their own authority through a collective vote. Read-only evidence sharing
 is allowed within approved scopes.
 
+##### Office heads and delegated subagents
+
+An inaugurated office may appoint a head through its validated charter.
+The office head may propose and, after agreement with the other team members
+according to the charter's decision protocol, instantiate scoped subagents
+within that office. Record the proposal, purpose, agreed decision, assigned
+responsibility, executor, resource allocation and parent office/task before
+activation. Peer agreement is an organizational decision, not a new user
+grant. The existing broker must validate the requested scope against the
+user's approved providers, data destinations, permissions and resource
+envelope. Additional resources or authority require existing approval paths.
+
+The office head remains accountable for delegated outcomes, coordination,
+quality checks and handoff. A subagent receives a separate bounded context,
+its own task identity and only the subset of the office's authorized tools,
+workspace access and budget needed for the delegated task. It cannot borrow
+another office's capabilities, inherit credentials or broaden authority.
+Reuse Agent Pool and the common scheduler/ledger for reservations, exclusive
+claims, queueing and cancellation. Count all descendants against office,
+team, project and provider/account limits; bound nesting and prevent recursive
+delegation cycles. Further delegation is permitted only by explicit validated
+charter policy within the same limits. Independent review requirements remain
+in force; an office's own subagent is not automatically an independent reviewer.
+
+Release temporary subagents after durable handoff and reconciliation of their
+effects; retire their scoped handles and return unused reserved resources.
+Office dissolution, head replacement or permission revocation must reconcile
+and cancel or explicitly reassign descendants, without transferring stale
+leases or approval authority. Report subagent creation, agreement, actual
+usage, results and lifecycle in the Blackboard. Do not silently create workers
+on a rejected proposal, absent agreement, exhausted budget or invalid scope.
+
+Acceptance: mock office head requests extra workers, other members agree
+under charter policy and scoped workers are activated; denied/missing agreement,
+cross-office scope expansion, unapproved provider, recursive spawning,
+concurrent budget exhaustion and conflicting write claims fail closed;
+completion/reorganization preserves evidence, revokes old handles and
+releases reservations. No implementation or live experiment claimed.
+
 Permit reorganization through a versioned charter amendment at a safe
 handoff boundary: reconcile in-flight effects, preserve artifacts, contracts,
 receipts and unresolved findings, retire or revoke previous role-scoped
