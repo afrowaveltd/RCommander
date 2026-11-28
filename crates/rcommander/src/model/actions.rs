@@ -116,6 +116,7 @@ pub const ACTION_GROUPS: &[(&str, &[(&str, &str)])] = &[
         "menu.configuration",
         &[
             ("cm_Config", "cmd.config"),
+            ("cm_Language", "dialog.config.language"),
             ("cm_ButtonConfig", "cmd.button_bar"),
             ("cm_Plugins", "dialog.config.plugins"),
             ("cm_ReloadPlugins", "toolbar.reload_plugins"),
