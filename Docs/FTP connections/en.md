@@ -160,3 +160,16 @@ If the saved-session password prompt opens while an encrypted credential store i
 ### Retry a saved password connection
 
 If a saved password-based connection fails with an authentication error, the focused password prompt reopens for the original server/account and panel. Type a password and explicitly submit to retry, or cancel. The failed password is not automatically retried or saved; the previous stored credential is not deleted. Remember is off by default. Network, timeout and host-key/protocol failures keep their normal error handling. An authentication failure does not necessarily prove the password is incorrect.
+
+## Local authentication protection
+
+RCommander blocks further connections to the same host, port and user for
+15 minutes after five password authentication failures within 15 minutes.
+This works across application restarts and applies to the shared GUI and
+headless connection path. Correct passwords do not bypass an active ban.
+Network failures do not count; an authentication error is not necessarily
+proof of an incorrect password. Expired records are automatically removed
+before connection checks. The local `auth-guard/` directory contains account
+identifiers and timestamps, not passwords. Other accounts are independent.
+There is no UI switch to disable this default protection. This is local
+defense in depth, not a server-side ban or protection against other clients.
