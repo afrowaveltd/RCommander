@@ -368,6 +368,9 @@ impl KeyMap {
     pub fn apply_overrides(&mut self, overrides: &BTreeMap<String, String>) {
         for (sc, cmd) in overrides {
             if let Ok(shortcut) = Shortcut::parse(sc) {
+                if shortcut == Shortcut::parse("ctrl+l").expect("constant shortcut") {
+                    continue; // Reserved language recovery chord.
+                }
                 self.set(shortcut, cmd.clone());
             }
         }
@@ -412,6 +415,14 @@ mod tests {
         assert!(Shortcut::parse("").is_err());
         assert!(Shortcut::parse("ctrl").is_err());
         assert!(Shortcut::parse("ctrl+a+b").is_err());
+    }
+
+    #[test]
+    fn language_rescue_shortcut_survives_old_overrides() {
+        let mut map = KeyMap::defaults();
+        map.apply_overrides(&BTreeMap::from([("ctrl+l".into(), "cm_GetFileSpace".into())]));
+        assert_eq!(map.lookup(&Shortcut::parse("ctrl+l").unwrap()), Some("cm_Language"));
+        assert_eq!(map.lookup(&Shortcut::parse("ctrl+shift+l").unwrap()), Some("cm_GetFileSpace"));
     }
 
     #[test]
