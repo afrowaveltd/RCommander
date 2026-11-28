@@ -981,3 +981,14 @@ authors = ["RCommander contributors"]
 "window.restore" = "Obnovit"
 "window.minimize" = "Minimalizovat"
 "window.expand" = "Rozbalit"
+
+# PDF preview
+"viewer.pdf.page" = "Strana {page} / {total}"
+"viewer.pdf.previous" = "Předchozí strana"
+"viewer.pdf.next" = "Následující strana"
+"viewer.pdf.loading" = "Vykresluji stránku PDF…"
+"viewer.pdf.missing" = "Renderer PDF není dostupný. Nainstalujte nástroje Poppler (pdfinfo a pdftoppm) do PATH."
+"viewer.pdf.input" = "PDF není dostupné nebo překračuje limit náhledu 256 MiB."
+"viewer.pdf.failed" = "Stránku nelze vykreslit. PDF může být poškozené nebo chráněné heslem."
+"viewer.pdf.timeout" = "Vypršel časový limit vykreslování PDF."
+"viewer.pdf.cancelled" = "Vykreslování PDF zrušeno."
