@@ -2402,6 +2402,22 @@ real GUI verification remain pending. The stable English recovery heading
 is deliberately independent of the currently selected locale. External
 native windows are outside the application's shortcut handling.
 
+## Handoff — optional PDF page preview (2026-11-28)
+
+Integrated in main: F3 Auto renders real PDF pages using separately installed
+Poppler utilities (pdfinfo/pdftoppm) on absolute PATH entries. Local files,
+page count, previous/next, zoom, fit and localized failures; worker renders
+one page at a time with cancellation on viewer close/reload, a 15-second
+subprocess deadline, 256 MiB input limit and 1600px raster bound. No new
+locked crates (existing tempfile promoted to runtime dependency), no bundled
+Poppler binaries or direct linking. The process is not a security sandbox or
+an OS memory limit; use an up-to-date system renderer. CLI smoke test in
+editing environment rendered page 2 of a two-page PDF at 1132x1600; Cargo
+unavailable, so Rust integration and real GUI tests pending. Quick view,
+remote/in-memory PDF, password input, text selection/search, Android and
+higher-quality rerendering remain future work. Keep pure-Rust/PDFium backend
+as a possible alternative subject to license and packaging review.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
