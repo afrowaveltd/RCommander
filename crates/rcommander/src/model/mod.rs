@@ -1142,6 +1142,13 @@ impl Model {
 
     // ----- dialogs -------------------------------------------------------
 
+    /// Open the rescue picker above any current dialog without discarding it.
+    pub fn open_language_picker(&mut self) {
+        if !matches!(self.top_dialog(), Some(Dialog::LanguagePicker)) {
+            self.open_dialog(Dialog::LanguagePicker);
+        }
+    }
+
     pub fn open_dialog(&mut self, dialog: Dialog) {
         self.dialogs.push(dialog);
     }
