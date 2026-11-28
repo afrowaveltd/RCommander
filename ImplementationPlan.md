@@ -4578,6 +4578,10 @@ speed. GUI smoke tests cover hidden activation, focus/key isolation, closing
 and preservation of file-manager state. Verify desktop behavior before
 marking implemented. The hidden trigger, working name and visual design
 are proposed defaults, not a public feature promise.
+Owner documentation preference: after implementation and verification, mention
+RCSnake and its activation briefly near the very end of the detailed user
+help, not in prominent feature lists, menus or README.md. Preserve the
+Easter egg character; do not advertise the game before it works.
 
 ## Working rules
 
