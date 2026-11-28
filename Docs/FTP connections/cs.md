@@ -145,3 +145,7 @@ automaticky nezkoušejí ani nepřesouvají.
 ### Odemknutí existujícího úložiště
 
 Pokud je při otevření uloženého připojení šifrované úložiště zamčené, zvolte **Odemknout uložené přihlašovací údaje** a zadejte jeho přístupovou frázi. Odemknutí samo nevyvolá připojení. Pokud je pro daný účet uloženo heslo, použijte **Připojit pomocí uloženého hesla**, nebo zadejte jiné heslo ručně. Uložené heslo se nezobrazuje. Chybějící či neplatné úložiště se v tomto dialogu nevytváří ani nemaže.
+
+### Opakování přihlášení k uloženému připojení
+
+Pokud u uloženého připojení s heslem selže ověření identity, znovu se otevře dialog hesla pro původní server, účet a panel. Zadejte heslo a potvrďte nový pokus, nebo dialog zrušte. Neúspěšné heslo se automaticky nepoužije ani neuloží; dříve uložené heslo se nemaže. Volba zapamatování je ve výchozím nastavení vypnutá. Síťové chyby, časové limity a chyby ověření hostitele mají vlastní obsluhu. Selhání autentizace nemusí nutně znamenat nesprávné heslo.
