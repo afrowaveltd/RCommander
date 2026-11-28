@@ -2842,7 +2842,9 @@ fn a_prompt_with_a_variable_the_program_cannot_fill_says_so_in_the_preview() {
 #[test]
 fn the_prompt_page_edits_a_copy_and_resets_it_to_the_shipped_text() {
     let (left, right) = fixture();
-    let app = app(left.path(), right.path());
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
     let mut harness = harness(app);
     harness.state_mut().execute("cm_Prompts");
     harness.run();
@@ -3115,7 +3117,9 @@ fn a_held_modifier_turns_the_bar_into_the_other_function() {
 #[test]
 fn processing_with_the_agent_opens_a_chat_about_a_copy() {
     let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
     let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
     // A file to hand over, created before the model reads the directory.
     std::fs::write(left.path().join("handover.txt"), b"the original").unwrap();
     app.model.refresh_all();
@@ -3164,7 +3168,9 @@ fn processing_with_the_agent_opens_a_chat_about_a_copy() {
 #[test]
 fn the_workspace_review_shows_the_diff_and_writes_only_what_is_ticked() {
     let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
     let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
     std::fs::write(left.path().join("a.txt"), b"one\ntwo\nthree\n").unwrap();
     std::fs::write(left.path().join("b.txt"), b"keep this\n").unwrap();
     app.model.refresh_all();
@@ -3233,7 +3239,9 @@ fn the_workspace_review_shows_the_diff_and_writes_only_what_is_ticked() {
 #[test]
 fn the_review_blocks_a_file_with_a_syntax_error_and_offers_hunks() {
     let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
     let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
     std::fs::write(left.path().join("data.json"), "{\n  \"a\": 1\n}\n").unwrap();
     app.model.refresh_all();
     let mut harness = harness(app);
