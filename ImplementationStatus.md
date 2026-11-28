@@ -30,7 +30,7 @@ cargo test --workspace
 | 10 | egui user interface | **partial** — dual panels, thumbnails, dialogs, configurable button bar, editor/viewer/help, Git UI and background jobs are reported working; inline tree, search result views and thumbnail controls still need refinement |
 | 11 | Platforms | **partial** — historical live Linux and Windows checks; Windows MSVC portable build #7 succeeded at 351baeaa; Linux UI regression #1 succeeded at 482618a; #8 is a separate revision; current Android APK unverified |
 | 12 | Verification | **partial** — Linux: `cargo test --workspace --all-targets` 1687 passed / 0 failed / 2 ignored, `cargo clippy --workspace --all-targets` and `cargo fmt --all --check` clean, `cargo build --release --workspace` green (2026-11-27, local, newly available toolchain; the previously failing `connecting_runs_in_the_background_and_reports_the_failure` is fixed and now registered in CI). Windows/Android and live-server acceptance still need their own evidence |
-| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; focused saved-session password prompt implemented, verification pending; wallet unlock/retry and live acceptance remain |
+| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; focused saved-session password prompt and existing-wallet unlock implemented, verification pending; authentication retry and live acceptance remain |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
 | 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`), the **deterministic router** (`routing`), the headless dispatch vertical (`rc-runtime`), routed chat with a metered receipt, and a **routing wizard** (connections, discovery, model classification, quotas, ordered routes with a live preview) recorded; model-to-MCP calls, per-route fallback budgets, provider counters, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
@@ -2418,6 +2418,22 @@ remote/in-memory PDF, password input, text selection/search, Android and
 higher-quality rerendering remain future work. Keep pure-Rust/PDFium backend
 as a possible alternative subject to license and packaging review.
 
+## Handoff — saved-session wallet unlock (2026-11-28)
+
+Stage A / 7 / 13, integrated directly in main; verification pending.
+The focused saved-session password prompt offers unlocking an existing
+encrypted credential store in place. Unlocking alone never initiates a
+network connection; the user may explicitly use a matching stored login
+or type another password. The existing-only unlock API cannot create
+or reset a missing wallet. Credential lookup respects the account,
+protocol and port through the existing resolver. Pending credentials
+are retained on a failed vault save rather than drained prematurely.
+Added model regressions for incorrect passphrase, missing wallet,
+exact account/port and no connection on unlock. New EN/CS/AR keys
+and mirrored packs. Cargo and GUI/live-server acceptance not run here;
+authentication rejection retry remains open. The vault unlock itself
+uses the existing synchronous crypto path.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
@@ -2427,7 +2443,7 @@ commands, revision and platform evidence after each accepted slice.
 
 1. A: baseline and core usability. The current suite is rechecked and
    green on Linux (see the ledger handoff). What still needs the owner's own
-   verification: the newly implemented password-only prompt, wallet-unlock flow,
+   verification: the newly implemented password-only prompt and wallet-unlock flow,
    real SFTP password/key/agent smoke tests and a retry after rejected
    authentication, Windows and Android checks, and the release ZIP.
 2. B: common authorization, typed resolution/custodian contracts,
