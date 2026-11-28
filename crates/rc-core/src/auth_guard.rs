@@ -181,24 +181,27 @@ impl Attempt {
             return Err(GuardError::Blocked(record.blocked_until - now));
         }
         if record.empty() { remove(&path)?; }
+        // Test persistence before permitting any network request. A read-only
+        // or full store is not a reason to silently disable the protection.
+        save(&path, &record)?;
         Ok(Self { path, record, _lock: lock })
     }
 
-    /// Record a server-reported authentication failure, or clear the history
-    /// on successful login. Network errors are neither success nor failure.
+    /// Record a server-reported authentication failure. Success and ordinary
+    /// network errors never increase or reset the rolling failure count.
     /// Returns the ban duration when this failure triggered a new ban.
     pub fn finish(self, authenticated: bool, rejected: bool) -> Result<Option<u64>, GuardError> {
         self.finish_at(authenticated, rejected, now()?)
     }
 
     fn finish_at(mut self, authenticated: bool, rejected: bool, now: u64) -> Result<Option<u64>, GuardError> {
-        if authenticated {
-            remove(&self.path)?;
-        } else if rejected {
+        self.record.prune(now);
+        if !authenticated && rejected {
             let blocked = self.record.fail(now);
             save(&self.path, &self.record)?;
             return Ok(blocked);
         }
+        if self.record.empty() { remove(&self.path)?; } else { save(&self.path, &self.record)?; }
         Ok(None)
     }
 }
@@ -223,12 +226,12 @@ mod tests {
         assert!(Attempt::begin_at(p, "example.test", 22, "bob", 1005).is_ok());
         assert!(Attempt::begin_at(p, "example.test", 23, "alice", 1005).is_ok());
         assert!(matches!(Attempt::begin_at(p, "example.test", 22, "alice", 1903), Err(GuardError::Blocked(1))));
-        assert!(attempt(p, 1904).record.empty());
+        attempt(p, 1904).finish_at(true, false, 1904).unwrap();
         assert_eq!(fs::read_dir(p).unwrap().filter_map(Result::ok).filter(|e| e.path().extension().is_some_and(|s| s == "json")).count(), 0);
     }
 
     #[test]
-    fn rolling_window_success_and_non_authentication_errors() {
+    fn rolling_window_is_not_reset_by_success_or_network_errors() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path();
         for i in 0..4 { attempt(p, 1000 + i).finish_at(false, true, 1000 + i).unwrap(); }
@@ -236,7 +239,8 @@ mod tests {
         assert_eq!(attempt(p, 1005).record.failures.len(), 4);
         assert_eq!(attempt(p, 1900).record.failures.len(), 3);
         attempt(p, 1901).finish_at(true, false, 1901).unwrap();
-        assert!(attempt(p, 1902).record.empty());
+        assert_eq!(attempt(p, 1902).record.failures.len(), 1);
+        assert!(attempt(p, 1903).record.empty());
     }
 
     #[test]
