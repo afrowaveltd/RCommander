@@ -3763,6 +3763,64 @@ target; fail closed on unknown scope and enforce structured grants in the
 broker/runtime. See the upstream Windows sandbox documentation: partial
 write confinement is not general read or network isolation.
 
+### Reference adapter: OpenAI Codex (owner direction, 2026-11-28)
+
+Add Codex as an optional peer runtime through the same Phase 26.1
+AgentRuntime contract, not a required dependency or a second orchestration
+system. Official integration guidance:
+https://developers.openai.com/blog/codex-as-a-platform
+and https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server
+(documented integration options, not verified RC behavior).
+Use the installed, version-checked Codex CLI with its supported app-server
+protocol over stdio for interactive persistent integration; consider
+`codex exec` for bounded noninteractive jobs and the official SDK as an
+alternative where suitable. Do not scrape the terminal or build new
+integration around the removed Codex MCP server entry point (upstream
+September 2026 change). Codex as MCP client remains a separate capability.
+Use supported authentication only, with explicit user choice and verified
+account/plan eligibility; never copy CLI tokens, borrow another agent's
+credentials, assume ChatGPT subscription quotas are API credit, or silently
+switch billing routes. Review current upstream protocol schemas and version
+compatibility before implementation.
+
+Map initialize/initialized, thread/start, thread/resume, turn/start,
+streamed items, completion status and supported interrupt/approval messages
+to the common runtime contract. Pin compatible wire schemas; verify exact
+event names and capabilities against the installed version before advertising
+them. Keep Codex-owned thread history authoritative, persist RC task/thread
+references and verified result artifacts, distinguish completed turns from
+successful acceptance tests. Apply existing scope, sandbox, approval,
+credential and resource rules; no self-approved escalation or arbitrary
+network access. Bind each worker to its approved workspace/worktree and
+role; isolate concurrent writes and reconcile effects before retry.
+Use Phase 26.4 scoped MCP for Codex access to RC tools and shared Blackboard
+operations, where actually supported. Native RC agents, Codex, DeepSeek
+Harness, Goose or other qualified adapters may collaborate through shared
+task contracts, handoffs, messages and evidence without access to each
+other's private transcripts or credentials.
+
+Reuse Agent Pool and the token ledger: record reported usage/rate limits
+when available, distinguish subscription quota, API cost, local compute
+and estimates; missing usage remains unknown. Allow the Manager to propose
+reallocating future tasks or unused internal budget within an approved
+envelope, not trade provider tokens or bypass account limits. On quota
+exhaustion checkpoint and wait, or propose an authorized replacement;
+never silently switch accounts or paid providers. Provide a common activity
+view for native and external workers with origin, task, role, status,
+approval requests, usage provenance and acceptance evidence.
+
+Reference team-building workload: RC Manager assigns an isolated PR review
+to Codex; Codex executes targeted and workspace tests, returns exact
+commands, exit codes, test counts, revision and artifact references; another
+qualified worker reviews the evidence and RC's Git role handles authorized
+commit/push. Reproduce the manual PR #5 handoff as an automated test fixture
+without claiming that the live chat assistant is directly connected to the
+local machine. Acceptance: fake app-server protocol, version mismatch,
+malformed/late events, auth failure, approval denial, cancellation, resume,
+quota exhaustion, concurrent workspace isolation and no unauthorized
+credential use; opt-in real Linux/Windows integration after mocks pass.
+Keep optional adapter independent of base file-manager operation.
+
 ### MCP and independent roles
 
 Expose approved RC tools through Phase 8 stdio MCP first; secure HTTP
