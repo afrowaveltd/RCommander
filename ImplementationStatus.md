@@ -2371,6 +2371,24 @@ performed; Rust compilation and visual verification pending. This is not
 a whole-application localization audit. The screenshot also shows an audit
 hash-chain warning; do not reset or rewrite the log as part of localization.
 
+## Handoff — localization coverage and plugin dictionaries (2026-11-28)
+
+Integrated directly in main: checked EN/CS/AR dictionary key and placeholder
+parity; audited the main menu action catalogue, default toolbar, context
+menus and GUI label call sites in the app, panel, dialogs, F3/F4, chat,
+help, MCP, and workspace chrome. Added translations for remaining viewer
+controls, plugin status, free space, view-mode selections, MCP status and
+window buttons. Added a menu/toolbar key-coverage regression.
+Plugin loader reads its own `locales/<language>.toml` with per-key regional,
+English and manifest fallback. A scoped registry and lookup/format API
+avoid host or inter-plugin key collisions. Plugin name, description,
+source name and column labels are mapped; arbitrary plugin UIs may use
+the scoped API. Invalid packs are nonfatal. Reload plugins after changing
+language; live retranslation without clearing source caches remains future
+work. Tests added for scope, fallback, malformed packs and unchanged
+manifest identity/commands. Cargo unavailable here; compilation and Rust
+tests pending, as are full visual coverage and backend error translation.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
