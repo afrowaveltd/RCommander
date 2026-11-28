@@ -149,3 +149,14 @@ Pokud je při otevření uloženého připojení šifrované úložiště zamče
 ### Opakování přihlášení k uloženému připojení
 
 Pokud u uloženého připojení s heslem selže ověření identity, znovu se otevře dialog hesla pro původní server, účet a panel. Zadejte heslo a potvrďte nový pokus, nebo dialog zrušte. Neúspěšné heslo se automaticky nepoužije ani neuloží; dříve uložené heslo se nemaže. Volba zapamatování je ve výchozím nastavení vypnutá. Síťové chyby, časové limity a chyby ověření hostitele mají vlastní obsluhu. Selhání autentizace nemusí nutně znamenat nesprávné heslo.
+
+## Místní ochrana přihlašování
+
+Po pěti neúspěšných autentizacích heslem během 15 minut RCommander na dalších
+15 minut zablokuje nové připojení ke stejnému hostiteli, portu a účtu.
+Ochrana platí i po restartu a pro společnou cestu připojování GUI a headless.
+Ani správné heslo aktivní blokaci neobejde. Běžné síťové chyby se nepočítají.
+Záznamy po vypršení platnosti se automaticky odstraňují před kontrolou.
+Adresář `auth-guard/` obsahuje identifikátory účtů a časy, nikoliv hesla.
+Ostatní účty jsou nezávislé. Ochranu nelze vypnout volbou v GUI.
+Jde o místní ochranu Commanderu, nikoli náhradu zabezpečení serveru.
