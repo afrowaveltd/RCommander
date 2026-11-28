@@ -619,6 +619,11 @@ impl RCommanderApp {
     }
 
     fn handle_shortcuts(&mut self, ctx: &Context) {
+        // Reserved rescue chord: check before modal and focused-widget gates.
+        if ctx.input_mut(|input| input.consume_key(Modifiers::CTRL, Key::L)) {
+            self.model.open_language_picker();
+            return;
+        }
         if self.model.modal() {
             return;
         }
