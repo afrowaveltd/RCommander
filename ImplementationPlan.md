@@ -1853,14 +1853,36 @@ is allowed within approved scopes.
 ##### Office heads and delegated subagents
 
 An inaugurated office may appoint a head through its validated charter.
-The office head may propose and, after agreement with the other team members
-according to the charter's decision protocol, instantiate scoped subagents
-within that office. Record the proposal, purpose, agreed decision, assigned
-responsibility, executor, resource allocation and parent office/task before
-activation. Peer agreement is an organizational decision, not a new user
-grant. The existing broker must validate the requested scope against the
-user's approved providers, data destinations, permissions and resource
-envelope. Additional resources or authority require existing approval paths.
+Every office head is autonomous in its internal organization and may create,
+select, direct and retire its own subagents as needed. The team agrees on the
+office mandate and delegation envelope in the charter; this standing agreement
+authorizes internal staffing within that envelope without repeated peer votes
+or Manager approval for each worker. A charter may explicitly require closer
+review. Changes affecting another office, shared contracts, overall resource
+limits or authority require the applicable team/user approval. Record the
+office mandate, task, parent linkage and resource allocation at the level
+actually observable; do not fabricate internal worker records for opaque
+external runtimes. Organizational agreement is not a new security grant.
+The broker enforces approved providers, data destinations, permissions and
+resource envelope. Additional resources or authority require existing
+approval paths.
+
+Preserve the selected agent's persona, native system instructions, internal
+planning, tool loop and delegation mechanism. RCHarness supplies an additive
+office brief: objective, expected deliverables, interfaces, acceptance tests,
+scope, resource envelope, handoff and progress/evidence requirements. Do not
+rewrite an external runtime's personality or impose a duplicate subagent
+scheduler. For native RC agents, use the common Agent Pool when requested;
+for external runtimes, use their own supported delegation facilities.
+Delegate whole coherent work packages rather than micromanage every child.
+The common office principle is: "Organize your office as you see fit. Use
+additional workers when useful. Avoid unnecessary expenditure of tokens,
+time and other resources. Deliver verified results within the agreed
+scope and budget." Resource efficiency is subordinate to correctness,
+required verification and security, not a reason to skip checks.
+An office may operate with one agent if that suffices; no artificial staffing
+minimum within each office. This autonomy applies across Manual, Assisted,
+Adaptive and Collective modes, subject to explicit owner constraints.
 
 The office head remains accountable for delegated outcomes, coordination,
 quality checks and handoff. A subagent receives a separate bounded context,
@@ -1878,13 +1900,14 @@ Release temporary subagents after durable handoff and reconciliation of their
 effects; retire their scoped handles and return unused reserved resources.
 Office dissolution, head replacement or permission revocation must reconcile
 and cancel or explicitly reassign descendants, without transferring stale
-leases or approval authority. Report subagent creation, agreement, actual
+leases or approval authority. Report observable subagent creation, mandate, actual
 usage, results and lifecycle in the Blackboard. Do not silently create workers
-on a rejected proposal, absent agreement, exhausted budget or invalid scope.
+outside the agreed mandate, on exhausted budget or invalid scope.
 
-Acceptance: mock office head requests extra workers, other members agree
-under charter policy and scoped workers are activated; denied/missing agreement,
-cross-office scope expansion, unapproved provider, recursive spawning,
+Acceptance: mock office head creates scoped workers under an existing approved
+delegation envelope without repeated votes; explicit per-worker approval policy
+is honored; missing/denied mandate, cross-office scope expansion, unapproved
+provider, recursive spawning,
 concurrent budget exhaustion and conflicting write claims fail closed;
 completion/reorganization preserves evidence, revokes old handles and
 releases reservations. No implementation or live experiment claimed.
@@ -3798,6 +3821,20 @@ operations, where actually supported. Native RC agents, Codex, DeepSeek
 Harness, Goose or other qualified adapters may collaborate through shared
 task contracts, handoffs, messages and evidence without access to each
 other's private transcripts or credentials.
+
+Treat an external runtime as an autonomous office when assigned an office
+mandate. Preserve its native persona/system instructions and supported
+internal subagent management. RC supplies task/acceptance contracts and
+a bounded delegation envelope, not mandatory internal job titles or prompts.
+If child activity or costs are not exposed, report aggregate observed
+office usage and mark detailed accounting unknown; never invent child events.
+Verify that required resource and permission limits cover descendants before
+allowing native delegation; if enforcement is unavailable, disable that mode
+where supported or use stronger isolation, otherwise report the limitation
+and do not dispatch under an unenforceable hard constraint. Test that native
+delegation does not require RC approval for each authorized internal worker,
+that independent office-level review remains independent and that aggregate
+handoff/cancellation/recovery works even for opaque internal organization.
 
 Reuse Agent Pool and the token ledger: record reported usage/rate limits
 when available, distinguish subscription quota, API cost, local compute
