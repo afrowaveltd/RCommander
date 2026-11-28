@@ -2635,6 +2635,62 @@ The local SFTP evidence covers the key-authenticated client transport.
 Desktop and live-server authentication retry through the UI, Windows and
 Android verification remain pending.
 
+## CI quality baseline (2026-11-28)
+
+Started from merged main `de64dbf6ea79ef17acb9724ccf7c063fd46cfab0` in a
+separate `ci/quality-gates` worktree. Reviewed all three existing workflows.
+Linux UI regressions and Wallet regressions retain their targeted coverage.
+Windows portable builds retain their separate packaging and publication
+workflow. The new `quality-gates.yml` runs on PRs targeting main and pushes
+to main, with read-only repository contents, checkout credentials removed,
+and no repository secrets. It cancels superseded runs for the same event
+and ref, constrains job time, and restores Rust caches. Only main runs can
+save caches. The snapshot job restores the Linux workspace cache.
+
+Linux runs all five quality gates in one job so Cargo can reuse dependencies
+and build outputs. Windows runs the core authentication tests to exercise
+native locking and cleanup without a second full desktop build. The
+workspace tests use a fresh `RCOMMANDER_CONFIG_DIR` and runner loopback
+sockets. Manual dispatch exposes two independent opt-in jobs. The SFTP
+job uses ephemeral keys, a loopback-only OpenSSH server and a temporary
+remote directory. The headless rendering job uses software Vulkan with a
+private runtime directory and uploads PNGs as a workflow artifact.
+
+The FTP background smoke test now listens on a port assigned by the OS.
+The listener withholds the FTP greeting until the UI has closed the
+connect dialog and the model has a live background job. It then sends a
+`421` response whose text is asserted in the UI error. The test advances
+frames explicitly while the spinner is active and bounds the socket and
+completion waits. The strengthened assertion on the original fixed port
+failed with connection refused (exit 101, 0 passed, 1 failed, 94 filtered).
+An intermediate fixture run exposed the harness's settle limit on the
+spinner and Clippy's newline lint. The final reruns below include the
+frame stepping and the CRLF reply.
+
+Verified source commit `1cc6f3fda1d1efc70d5cabd205a6739dd442daf8`.
+Local environment: Debian 13 x86_64 Linux (kernel 6.12.118+deb13-amd64),
+Rust and Cargo 1.97.1, rustfmt 1.9.0-stable, Clippy 0.1.97, Python 3.13.5
+and OpenSSH 10.0p2.
+
+| Command | Result |
+| --- | --- |
+| `actionlint .github/workflows/*.yml` | Exit 0 with actionlint 1.7.12. Parsed all four workflows. |
+| `bash -n` on each Linux workflow `run` block and Python `compile(..., "exec")` on the SFTP script | Exit 0. |
+| `cargo fmt --all --check` | Exit 0. |
+| `cargo test --locked -p rc-core auth_guard` | Exit 0. 6 passed, 0 failed, 0 ignored, 0 measured, 460 filtered out. |
+| `cargo test --locked --workspace` | Exit 0 with a fresh profile and loopback access. Across 33 test targets, 1,836 passed, 0 failed, 2 ignored, 0 measured, 0 filtered out. No warnings. The two opt-in tests ran separately below. |
+| `cargo clippy --locked --workspace --all-targets -- -D warnings` | Exit 0, zero warnings. |
+| `cargo build --locked --workspace --release` | Exit 0, zero warnings. Used `CARGO_TARGET_DIR=/tmp/rc-pr5-quality-release-target`. The build completed in 40.52s, followed by a successful 0.25s rerun using the same release target directory. |
+| `cargo test --locked -p rcommander --test ui_smoke -- --exact connecting_runs_in_the_background_and_reports_the_failure` | Exit 0 with a fresh profile and loopback access. 1 passed, 0 failed, 0 ignored, 0 measured, 94 filtered out. This is also the command used for the fixed-port red run. |
+| `python3 .github/scripts/test-local-sftp.py` | Exit 0. Its nested command `cargo test --locked -p rc-remote --features sftp --test sftp_local -- --ignored --exact sftp_against_a_real_server --nocapture` ran 1 test, which passed. 0 failed, 0 ignored, 0 measured, 0 filtered out. OpenSSH logged a local PAM MOTD permission warning after authentication. The SFTP round trip and scratch-directory cleanup succeeded. |
+| `cargo test --locked -p rcommander --test ui_smoke -- --ignored --exact render_snapshots` | Exit 0 with `WGPU_BACKEND=vulkan` and temporary profile and runtime directories. 1 passed, 0 failed, 0 ignored, 0 measured, 94 filtered out. Five 1100×700 PNGs generated under `work/snapshots`. |
+| `cargo check --locked -p rc-core --tests --target x86_64-pc-windows-gnu` | Exit 0. Compile-only check with two pre-existing warnings (unused `home` in `font.rs` and unnecessary `mut` in `listing.rs`). No Windows tests executed locally. |
+
+The Windows MSVC test execution, hosted runner setup and cache behavior
+require GitHub Actions evidence. The two manual jobs were exercised locally
+only. Once the PR checks have run, the repository can require the Linux
+workspace and Windows authentication jobs in its main branch rules.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
