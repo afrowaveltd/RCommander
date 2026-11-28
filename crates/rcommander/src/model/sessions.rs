@@ -666,6 +666,44 @@ mod tests {
     }
 
     #[test]
+    fn saved_session_wallet_unlock_is_explicit_and_account_scoped() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        let mut session = Session::new("work", "example.test", "sftp");
+        session.user = "alice".into();
+        session.port = 2222;
+        let account = session.to_connection().account_id();
+        model.unlock_secrets("fixture-passphrase").unwrap();
+        model.secrets.set(&account, "fixture-password").unwrap();
+        model.persist_secrets().unwrap();
+        model.lock_secrets();
+        assert!(!model.saved_login_available(&session));
+        assert!(model.unlock_existing_secrets("wrong-passphrase").is_err());
+        assert!(!model.secrets_unlocked());
+        assert!(!model.is_connecting());
+        model.unlock_existing_secrets("fixture-passphrase").unwrap();
+        assert!(model.saved_login_available(&session));
+        assert!(!model.is_connecting(), "unlock alone must not connect");
+        let mut other = session.clone();
+        other.port = 2223;
+        assert!(!model.saved_login_available(&other));
+        other = session.clone();
+        other.user = "bob".into();
+        assert!(!model.saved_login_available(&other));
+        model.lock_secrets();
+        assert!(!model.saved_login_available(&session));
+    }
+
+    #[test]
+    fn unlocking_a_missing_wallet_does_not_create_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        assert!(model.unlock_existing_secrets("fixture").is_err());
+        assert!(!model.secrets_exist());
+        assert!(!model.secrets_unlocked());
+    }
+
+    #[test]
     fn missing_password_stops_before_starting_a_worker() {
         let dir = tempfile::tempdir().unwrap();
         let mut model = model_in(dir.path());
