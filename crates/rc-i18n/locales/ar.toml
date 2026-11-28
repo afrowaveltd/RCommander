@@ -901,3 +901,17 @@ authors = ["RCommander contributors"]
 "prompt.catalogue.general.review_this.about" = "الاختلاف في الرأي مسموح"
 "prompt.catalogue.general.teach_me.title" = "علّمني هذا"
 "prompt.catalogue.general.teach_me.about" = "من معرفتي الحالية إلى ما أحتاجه"
+
+# Viewer and plugin status
+"viewer.truncated" = "مقتطع"
+"viewer.goto" = "انتقل إلى الإزاحة"
+"viewer.bytes_per_line" = "بايت لكل سطر"
+"viewer.total_bytes" = "عدد البايتات: {count}"
+"viewer.image_unavailable" = "الصورة غير متاحة"
+"viewer.hex_detail" = "الإزاحة {offset} (0x{hex}) · {count} بايت"
+"plugins.status.active" = "الإضافات النشطة: {count}"
+"plugins.status.off" = "المعطّلة: {count}"
+"plugins.status.failed" = "تعذر تحميل: {count}"
+"plugins.status.none" = "لم يتم العثور على إضافات"
+"dialog.decode.envelope" = "من الترويسة"
+"dialog.viewmode.comments" = "التعليقات"
