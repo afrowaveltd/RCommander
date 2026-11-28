@@ -1287,6 +1287,94 @@ A model/provider change is a distinct data destination under the outbound policy
 Local-only and offline work must remain supported; unavailable optional roles
 degrade gracefully or pause with a clear explanation.
 
+#### Portable project team profiles and instance bindings (owner direction, 2026-11-28)
+
+Make a team template a reusable, ordered description of roles, their
+responsibilities, capability requirements, acceptance criteria and role prompts.
+Every team-mode template has exactly one primary Manager/coordinator role
+(first in assignment priority); its display name may be Director, Supervisor
+or any user-chosen alias. Ordinary single-model chat remains unchanged.
+The role order determines assignment priority, never truth, review authority
+or task dependency order. Shipped editable examples: software development
+(Manager, Developer, Tester, Designer, Reviewer, Documentation), education
+(Director, Teacher, Inspector, Examiner, Assistant), administration, research
+and creative work. Custom templates and aliases are first-class.
+
+Keep stable identities separate: project ID, instance/profile ID, template ID
+and version, role ID, agent configuration ID, and session/task/attempt IDs.
+User-visible names are editable per project/workload and are not database keys
+or security principals. One provider/model may serve several roles with
+separate role contexts and task identities. The user assigns any available
+provider, model, reasoning effort and role-specific settings to each role;
+one model may cover every role, two may divide all responsibilities, and
+larger teams can assign dedicated specialists. Do not require a minimum model
+count or equate a role with a provider account.
+
+Proposed project discovery directory: `.rcommander_agent_profiles/`.
+Store a versioned, portable, non-secret project manifest (project identity,
+selected template/version, stable roles, aliases and session references).
+Keep bindings keyed by a stable locally generated RC instance/profile ID,
+not a hostname or machine name. Recommended default: private local
+configuration holds actual instance bindings, while the project directory
+holds portable descriptors and optional explicitly exported non-secret
+binding hints. If instance-specific descriptors are saved alongside the
+project, keep them separate by ID and excluded from version control by default.
+API keys, OAuth tokens, passwords, grants, private prompts/transcripts and
+live runtime credentials never travel implicitly with the project. Reuse
+the existing vault and SessionStore; the directory is not a second task ledger.
+Final serialization and directory names are implementation choices.
+
+On entering an agent-enabled project, discover and validate the manifest
+without executing it. If no bindings exist for the current instance, or a
+required provider/capability is unavailable, show an assignment wizard:
+ordered roles, editable names, installed/configured providers and models,
+reasoning and budget settings, capability availability, fallback and
+independent-review warnings. Suggest a locally available qualified Manager
+first; allow the user to assign one model to all roles or distribute them
+arbitrarily, review outbound data destinations, then save. Reopen with the
+same bindings on the same instance. Copy the project to another computer
+and configure that instance without overwriting the first machine's settings.
+A missing/offline worker may be covered by the Manager or another authorized
+qualified worker according to the saved policy. Log the substitution, preserve
+the role context, and pause if capability, budget, authorization or a required
+independent review cannot be satisfied. No silent cloud fallback.
+
+Ship an editable, versioned universal Manager prompt fragment with the
+template's role instructions. The Manager reads the entire user request,
+resolves named/role-addressed instructions (e.g. `Tester:` or `@alias`),
+delegates structured tasks with explicit dependencies and acceptance criteria,
+checks actual test evidence and coverage, requests corrections and repeats
+within limits until accepted or blocked. Ambiguous aliases must be resolved,
+not silently routed. The scheduler/ledger enforces claims, dependencies,
+budgets, grants and acceptance evidence; the Manager cannot override them.
+A role's self-review is not independent verification. The shared project
+Blackboard is a view of the existing durable task/attempt/evidence store
+(16.34/25.6), with role-filtered context, targeted messages, receipts and
+unresolved objections rather than repeated entire transcripts.
+
+For a developer task, support an observable reference workflow: a selected
+.NET project is built and run with an approved tool in the scoped workspace,
+a local test URL is opened in an RC pane where the user can observe it, and
+a Tester uses the Phase 30 browser/API adapter to inspect and run acceptance
+scenarios. The user sees agent/tool ownership, execution progress and
+evidence; native embedded WebView availability and agent browser interaction
+must be verified separately, with an external browser fallback if needed.
+No automatic external exposure, arbitrary browser control or access to an
+unrelated user browser session. Integrate through existing Phase 25 runtime,
+Phase 26 adapters, Phase 30 browser workbench and Phase 32 workflow graph.
+
+**Acceptance extensions (16.27–30/16.33–34/25.1–4):** mock one-, two- and
+multi-model assignment; rename and change role aliases without losing history;
+same-instance reopen and cross-instance copy/rebind without modifying the
+original bindings; invalid/missing/future manifest handling; no credential or
+grant transfer; disabled provider and denied fallback; address resolution
+including ambiguous aliases; bounded repair loop with failing/inadequate
+tests; independent-review gate; concurrent claim and stale result detection.
+Verify the wizard and headless execution against the same contract. The .NET
+live preview example requires a real build, isolated test endpoint and
+browser evidence before it is marked complete. No implementation claimed by
+this specification.
+
 #### Collective collaboration and group chat (owner decision, 2026-11-27)
 
 Expose the existing team coordinator and durable Meeting Rooms (25.6/25.10)
