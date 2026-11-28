@@ -48,6 +48,42 @@ pub enum ChromeAction {
     Close,
 }
 
+/// Translated window controls, captured before the contents borrow the model.
+pub struct ChromeLabels {
+    close: String,
+    pin: String,
+    unpin: String,
+    cover: String,
+    maximize: String,
+    restore: String,
+    minimize: String,
+    expand: String,
+}
+
+impl ChromeLabels {
+    pub fn new(model: &crate::model::Model) -> Self {
+        Self {
+            close: model.t("dialog.config.close"),
+            pin: model.t("window.pin"),
+            unpin: model.t("window.unpin"),
+            cover: model.t("window.cover_panels"),
+            maximize: model.t("window.maximize"),
+            restore: model.t("window.restore"),
+            minimize: model.t("window.minimize"),
+            expand: model.t("window.expand"),
+        }
+    }
+
+    #[cfg(test)]
+    fn english() -> Self {
+        Self {
+            close: "Close".into(), pin: "Pin".into(), unpin: "Unpin".into(),
+            cover: "Cover the panels while you work".into(), maximize: "Maximize".into(),
+            restore: "Restore".into(), minimize: "Minimize".into(), expand: "Expand".into(),
+        }
+    }
+}
+
 /// Height of the title row we draw ourselves.
 const TITLE_HEIGHT: f32 = 30.0;
 
@@ -63,6 +99,7 @@ pub fn show(
     workspace: Rect,
     chrome: &mut Chrome,
     palette: &Palette,
+    labels: &ChromeLabels,
     add_contents: impl FnOnce(&mut egui::Ui),
 ) -> ChromeAction {
     if chrome.closed {
@@ -111,13 +148,13 @@ pub fn show(
             };
             ui.label(RichText::new(title).strong().color(accent));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ui.small_button("x").on_hover_text("Close").clicked() {
+                if ui.small_button("x").on_hover_text(&labels.close).clicked() {
                     action = ChromeAction::Close;
                 }
-                let pin_label = if chrome.pinned { "unpin" } else { "pin" };
+                let pin_label = if chrome.pinned { labels.unpin.as_str() } else { labels.pin.as_str() };
                 if ui
                     .small_button(pin_label)
-                    .on_hover_text("Cover the panels while you work")
+                    .on_hover_text(&labels.cover)
                     .clicked()
                 {
                     chrome.pinned = !chrome.pinned;
@@ -126,7 +163,7 @@ pub fn show(
                         chrome.collapsed = false;
                     }
                 }
-                let max_label = if chrome.maximized { "restore" } else { "max" };
+                let max_label = if chrome.maximized { labels.restore.as_str() } else { labels.maximize.as_str() };
                 if ui.small_button(max_label).clicked() {
                     chrome.maximized = !chrome.maximized;
                     if chrome.maximized {
@@ -134,7 +171,7 @@ pub fn show(
                         chrome.collapsed = false;
                     }
                 }
-                let min_label = if chrome.collapsed { "expand" } else { "min" };
+                let min_label = if chrome.collapsed { labels.expand.as_str() } else { labels.minimize.as_str() };
                 if ui.small_button(min_label).clicked() {
                     chrome.collapsed = !chrome.collapsed;
                     if chrome.collapsed {
@@ -244,6 +281,7 @@ mod tests {
             Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(800.0, 600.0)),
             &mut chrome,
             &Palette::light(),
+            &ChromeLabels::english(),
             |_| {},
         );
         assert_eq!(action, ChromeAction::Close);
@@ -266,6 +304,7 @@ mod tests {
                 workspace,
                 &mut chrome,
                 &palette,
+                &ChromeLabels::english(),
                 |ui| {
                     drawn += 1;
                     ui.label("body");
