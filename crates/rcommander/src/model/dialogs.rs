@@ -941,6 +941,8 @@ pub struct FtpConnectState {
     pub status: String,
     /// A saved-profile credential prompt, not an editable connection form.
     pub password_session: Option<rc_core::sessions::Session>,
+    /// Optional existing-wallet unlock form within the saved-session prompt.
+    pub wallet_passphrase: Option<String>,
     /// Session selected in the "saved sessions" list of the dialog.
     pub session_choice: String,
     /// Name to store the current settings under.
@@ -961,6 +963,7 @@ impl Default for FtpConnectState {
             save_password: false,
             status: String::new(),
             password_session: None,
+            wallet_passphrase: None,
             session_choice: String::new(),
             session_name: String::new(),
             ssh_config_path: rc_core::sessions::expand_home("~/.ssh/config"),
