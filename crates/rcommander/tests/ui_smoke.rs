@@ -166,6 +166,21 @@ fn pressing_tab_switches_the_active_panel() {
 }
 
 #[test]
+fn ctrl_l_opens_language_picker_even_above_an_existing_dialog() {
+    let (left, right) = fixture();
+    let mut harness = harness(app(left.path(), right.path()));
+    harness.key_press(egui::Key::F7);
+    harness.run();
+    harness.key_press_modifiers(egui::Modifiers { ctrl: true, ..Default::default() }, egui::Key::L);
+    harness.run();
+    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::LanguagePicker)));
+    assert_eq!(harness.state().model.dialogs.len(), 2);
+    harness.key_press(egui::Key::Escape);
+    harness.run();
+    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::MakeDir(_))));
+}
+
+#[test]
 fn clicking_a_row_moves_the_cursor() {
     let (left, right) = fixture();
     let mut harness = harness(app(left.path(), right.path()));
