@@ -321,6 +321,11 @@ remember-on-success; normal editable connection form is unchanged.
 Existing-wallet unlock and interactive saved-session password authentication
 retry are implemented in main; build/test verification and live acceptance
 remain open. No automatic retry; preserve original profile and panel.
+Owner-required default anti-brute-force guard: five password authentication
+failures per host/port/user in 15 minutes, then a persistent 15-minute
+lockout. Enforce before shared GUI/headless connection workers, retain
+no secrets, prune expired records and serialize attempts per account.
+Implemented in main; verification pending.
 
 Today the FTP/SFTP engine exists (`rc-remote`) and FTP is wired into the panels, but
 two things are not acceptable for SSH use: the SFTP transport is untested against a
