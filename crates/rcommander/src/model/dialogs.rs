@@ -93,6 +93,8 @@ pub enum Dialog {
     SaveSelection(SaveSelectionState),
     /// Load a selection from a file.
     LoadSelection(LoadSelectionState),
+    /// Emergency language picker, independent of the current locale.
+    LanguagePicker,
     /// About box.
     About,
     /// Generic confirmation (used by the view layer).
