@@ -958,3 +958,17 @@ authors = ["RCommander contributors"]
 "prompt.catalogue.general.review_this.about" = "Disagreement is allowed"
 "prompt.catalogue.general.teach_me.title" = "Teach me this"
 "prompt.catalogue.general.teach_me.about" = "From what I know to what I need"
+
+# Viewer and plugin status
+"viewer.truncated" = "Truncated"
+"viewer.goto" = "Go to offset"
+"viewer.bytes_per_line" = "Bytes per line"
+"viewer.total_bytes" = "{count} bytes"
+"viewer.image_unavailable" = "Image not available"
+"viewer.hex_detail" = "Offset {offset} (0x{hex}) · {count} bytes"
+"plugins.status.active" = "Active plugins: {count}"
+"plugins.status.off" = "Disabled: {count}"
+"plugins.status.failed" = "Failed to load: {count}"
+"plugins.status.none" = "No plugins found"
+"dialog.decode.envelope" = "From the envelope"
+"dialog.viewmode.comments" = "Comments"
