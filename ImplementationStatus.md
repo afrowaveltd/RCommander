@@ -2389,6 +2389,19 @@ work. Tests added for scope, fallback, malformed packs and unchanged
 manifest identity/commands. Cargo unavailable here; compilation and Rust
 tests pending, as are full visual coverage and backend error translation.
 
+## Handoff — emergency language selector (2026-11-28)
+
+Integrated in main: reserved Ctrl+L opens the language picker before the
+focused-widget or modal shortcut gates. Languages are discovered from the
+same main locale directory and labelled by native name, English name and
+code; English is always offered. Selecting a language applies it immediately
+and updates any underlying options draft; Escape dismisses only the picker.
+The previous default size command moves to Ctrl+Shift+L. Old Ctrl+L overrides
+are ignored. Added keymap, dialog stack and GUI regression tests; Cargo and
+real GUI verification remain pending. The stable English recovery heading
+is deliberately independent of the currently selected locale. External
+native windows are outside the application's shortcut handling.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
