@@ -1763,19 +1763,40 @@ impl Model {
             return Err("the passphrase must not be empty".to_string());
         }
         let path = self.secrets_file();
-        let mut store = if path.is_file() {
+        let store = if path.is_file() {
             rc_core::secrets::EncryptedStore::load(&path, passphrase).map_err(|e| e.to_string())?
         } else {
             rc_core::secrets::EncryptedStore::new(path.clone())
         };
+        self.activate_secret_store(store, passphrase)
+    }
+
+    /// Unlock only an existing wallet. Never create or reset a wallet from a
+    /// connection prompt, even if its file vanished after the prompt opened.
+    pub fn unlock_existing_secrets(&mut self, passphrase: &str) -> Result<(), String> {
+        if passphrase.is_empty() {
+            return Err(self.t("session.wallet_passphrase_required"));
+        }
+        let store = rc_core::secrets::EncryptedStore::load(self.secrets_file(), passphrase)
+            .map_err(|_| self.t("session.wallet_unlock_failed"))?;
+        self.activate_secret_store(store, passphrase)
+    }
+
+    fn activate_secret_store(
+        &mut self,
+        mut store: rc_core::secrets::EncryptedStore,
+        passphrase: &str,
+    ) -> Result<(), String> {
+        let path = self.secrets_file();
         // Move everything that was waiting into the store.
-        let pending: Vec<(String, String)> = self.pending_secrets.drain(..).collect();
-        for (account, secret) in pending {
-            store.insert(account, secret);
+        for (account, secret) in &self.pending_secrets {
+            store.insert(account.clone(), secret.clone());
         }
         if store.is_dirty() || !path.is_file() {
             store.save(passphrase).map_err(|e| e.to_string())?;
         }
+        // Only discard pending credentials after successful persistence.
+        self.pending_secrets.clear();
         self.secrets = Box::new(store);
         self.secret_passphrase = Some(passphrase.to_string());
         let count = self.secrets.accounts().len().to_string();
