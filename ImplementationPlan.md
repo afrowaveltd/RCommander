@@ -1539,6 +1539,77 @@ actual receipts and acceptance quality before claiming cost savings or
 performance improvements. No live model selection or execution is implied
 by this specification.
 
+#### RCHarness Tuning — worker interviews, qualification and calibration (owner direction, 2026-11-28)
+
+Offer an optional Agent Qualification workbench for the human or authorized
+Manager to interview and practically test candidate workers before assignment
+and recalibrate them later. This is empirical executor/configuration selection,
+not neural-network training, fine-tuning model weights or a universal ranking.
+A qualification subject is a versioned provider/model/runtime configuration:
+model revision when exposed, reasoning settings, role/system prompt version,
+context/output budgets, permitted tools, runtime/toolchain and environment.
+Identical model sessions may perform differently; separate trials and actual
+observations from guarantees. Include the Manager role itself in qualification.
+
+Ship editable versioned interview and practical test suites per role/workload:
+instruction following, contract comprehension, programming/debugging, test
+design and defect discovery, architecture, documentation, research with
+source verification, education, collaboration/handoffs, tool use, security,
+and bounded-context work. Permit a Manager to propose original project-specific
+fixtures, expected behavior, rubric, pass thresholds, repetitions and resource
+limits; validate these before execution through existing policy/quality gates.
+Distinguish interview assertions from demonstrated skill. Prefer executable
+checks, hidden acceptance tests, seeded bugs and exact source/artifact receipts;
+for subjective work use a declared rubric and separate evaluator/human review
+where required. Do not let a candidate's self-rating or its own generated tests
+alone establish qualification. Keep evaluation answers and hidden tests out of
+candidate context. Treat candidate output as untrusted data, not instructions.
+
+Run tests as ordinary scoped attempts through the shared scheduler, ContextBuilder,
+broker, SessionStore and toolchain adapters. Use disposable working copies,
+synthetic data, local fixture services or explicitly approved test environments.
+No real production deployment, live customer data, credential exposure, external
+publication or uncontrolled commands as a qualification exercise. Cross-provider
+egress requires the existing approved scope. Use a separate user-defined tuning
+budget and concurrency/time/token caps, with explicit opt-in for automatic
+qualification and no automatic purchases. Offer quick screening, role-specific
+qualification, comparative calibration and targeted recheck; allow manual stop,
+skip or selection without qualification (clearly mark evidence missing).
+
+Compare on equivalent task contracts and declared tool/context/time allowances;
+record differing conditions when configurations cannot be matched. Repeat
+variable model trials within budget, retain failed/skipped/timeout results,
+and report uncertainty/sample count rather than unsupported precision.
+Separate model task failures, evaluator failures, unavailable tool/runtime
+capabilities and infrastructure failures. Record actual usage, cache effects,
+latency, estimated versus reported costs, corrections, verified quality,
+coverage and constraint violations. Use minimum mandatory gates before
+cost/speed preferences; do not average away a failed security/acceptance gate.
+For cost-effectiveness, include retries and failed attempts, not only price
+per token or the cheapest successful sample.
+
+Persist qualification evidence locally as versioned role-specific capability
+profiles referencing exact suites, receipts and executor configuration.
+Profiles distinguish untested, provisional, qualified, failed and stale;
+record date, sample size, limitations and applicable workload. Requalify
+selectively after a meaningful model/runtime/prompt/toolchain change, stale
+evidence or repeated real-work failure; do not invalidate unrelated evidence.
+Feed the Phase 16.27–30 adaptive allocator measured capability/cost evidence,
+not an invented global score. Keep user pins, human authority, required
+independent review and approved resource envelope. If evidence is insufficient,
+the Manager may propose a bounded trial or report uncertainty. Live project
+results may supplement benchmark evidence, never silently weaken test criteria
+or share private project data with another project/provider.
+
+**Acceptance extensions (16.20/16.27–30/25.5–10/26.1/36):** fake providers
+with different role strengths and cost/retry profiles; same-model configurations
+with differing effort/tool access; hidden-test isolation, self-rating rejected,
+repeatable fixture scoring, incomplete/stale/failed evidence, security gate,
+infrastructure failure, cancellation and exhausted tuning budget; Manager
+proposes a qualified allocation from measured results, preserves pins and
+reports uncertainty. Compare mock and opt-in live trials separately. No claims
+of actual model performance or savings until measured.
+
 #### Collective collaboration and group chat (owner decision, 2026-11-27)
 
 Expose the existing team coordinator and durable Meeting Rooms (25.6/25.10)
