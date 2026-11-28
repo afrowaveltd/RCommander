@@ -2497,16 +2497,40 @@ invalid records for that check; an unrelated account is not blocked by
 the malformed record. The five-failure threshold, 900-second rolling
 window and 900-second ban are unchanged.
 
-Test-first commits add regressions for expired mismatched records,
-unrelated account access, and cleanup of expired valid records while
-retaining a different active account. Source review only; the editing
-environment has no Rust toolchain and cannot resolve GitHub for cloning.
-At baseline d829f81, the available GitHub status queries returned no
-checks; earlier green runs are not current evidence. Required before
-acceptance: cargo test --locked -p rc-core auth_guard, cargo test --locked
---workspace, cargo fmt --check, cargo clippy --locked --workspace
---all-targets, and real desktop/server verification on supported platforms.
-No new dependencies, locale changes or completion claim.
+The PR's test-first commits cover expired mismatched records, unrelated
+account access, and cleanup of expired valid records while retaining a
+different active account.
+
+Local PR #5 verification ran on x86_64 Linux with Rust 1.97.1 in a
+separate Git worktree. Reviewed PR head
+`5c58821664c1ce001c40beba6897ec75787940ad`. Verified changes recorded in
+`b32e143ac95b364ee4c84980bb920c779efb2357` before this status update.
+
+| Command | Result |
+| --- | --- |
+| `cargo test --locked -p rc-core auth_guard` | Exit 0. 6 passed, 0 failed, 0 ignored, 0 measured, 460 filtered out. |
+| `cargo test --locked --workspace` | Exit 0 with loopback access. Across 33 test binaries and doctest suites, 1836 passed, 0 failed, 2 ignored, 0 measured, 0 filtered out. The ignored tests were `sftp_against_a_real_server` and `render_snapshots`. |
+| `cargo fmt --check` | Exit 1. Rustfmt reported changes in 28 files. Before the smoke-test corrections, the PR and base `d829f81cc52656e714611859e9691f8b53f1432a` produced identical formatting edits and both exited 1. The corrected run still reports differences in those same files. |
+| `cargo clippy --locked --workspace --all-targets` | Exit 0. Four distinct warnings: one unused mutable binding in rc-llm tests and two collapsible conditions and one argument-count warning in rcommander. |
+
+The initial sandboxed workspace run exited 101 after two rc-agent HTTP
+tests were denied loopback binds. Retrying with loopback access on the
+original PR head reached the UI smoke suite, which exited 101 with
+92 passed, 2 failed and 1 ignored. The failing language-picker test
+panicked on missing Arabic glyphs under the harness policy. The
+column-editor test could select a panel header through its broad label
+query. The correction uses the app's missing-glyph policy for the
+language-picker test and targets the exact column-removal button, then
+asserts that the intended column was removed. Both tests passed in the
+final workspace run.
+
+An intermediate sandboxed run of
+`cargo test --locked -p rcommander --test ui_smoke -- --skip connecting_runs_in_the_background_and_reports_the_failure`
+exited 101 with 89 passed, 4 failed, 1 ignored, 0 measured and 1 filtered
+out. The agent-copy, prompt edit/reset and two workspace-review tests
+that failed in that run passed in the final workspace run.
+
+Real desktop and server verification on supported platforms remains pending.
 
 ## Next steps (dependency-ordered)
 
