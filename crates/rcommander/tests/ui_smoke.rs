@@ -169,15 +169,32 @@ fn pressing_tab_switches_the_active_panel() {
 fn ctrl_l_opens_language_picker_even_above_an_existing_dialog() {
     let (left, right) = fixture();
     let mut harness = harness(app(left.path(), right.path()));
+    // Language names can use scripts unavailable in the harness's fonts.
+    // Match the application's default rendering policy for those glyphs.
+    harness
+        .ctx
+        .set_missing_glyph_policy(egui::MissingGlyphPolicy::Tofu);
     harness.key_press(egui::Key::F7);
     harness.run();
-    harness.key_press_modifiers(egui::Modifiers { ctrl: true, ..Default::default() }, egui::Key::L);
+    harness.key_press_modifiers(
+        egui::Modifiers {
+            ctrl: true,
+            ..Default::default()
+        },
+        egui::Key::L,
+    );
     harness.run();
-    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::LanguagePicker)));
+    assert!(matches!(
+        harness.state().dialog(),
+        Some(rcommander::model::Dialog::LanguagePicker)
+    ));
     assert_eq!(harness.state().model.dialogs.len(), 2);
     harness.key_press(egui::Key::Escape);
     harness.run();
-    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::MakeDir(_))));
+    assert!(matches!(
+        harness.state().dialog(),
+        Some(rcommander::model::Dialog::MakeDir(_))
+    ));
 }
 
 #[test]
@@ -485,19 +502,11 @@ fn the_column_editor_opens_and_hides_a_column() {
         "the editor opens"
     );
     let before = harness.state().model.settings.display.columns.len();
-    // Every current column is offered as a removable chip.
-    {
-        // The chip in the dialog, not the header button behind it.
-        let node = harness
-            .root()
-            .query_all_by_label_contains("col.attrs")
-            .max_by(|a, b| a.rect().top().total_cmp(&b.rect().top()))
-            .expect("the attrs chip in the editor");
-        node.click();
-    }
+    harness.root().get_by_label("col.attrs ×").click();
     harness.run();
-    let after = harness.state().model.settings.display.columns.len();
-    assert_eq!(after, before - 1, "clicking a column chip removes it");
+    let columns = &harness.state().model.settings.display.columns;
+    assert_eq!(columns.len(), before - 1);
+    assert!(columns.iter().all(|column| column.id != "attrs"));
 }
 
 #[test]
