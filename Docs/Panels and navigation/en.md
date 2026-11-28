@@ -161,3 +161,7 @@ of total vertical padding. Virtual scrolling uses one measured height
 per panel based on representative text and localized column captions.
 Long captions in narrow columns remain clipped horizontally, with
 the full caption available on hover.
+
+## Emergency language selection
+
+Press **Ctrl+L** anywhere in the RCommander GUI, including an open dialog or an editor, to choose an installed language by its own name and code. Select a language to apply it immediately; Escape closes just the picker. Ctrl+L is reserved even when older shortcut settings exist. Calculate size now defaults to Ctrl+Shift+L.
