@@ -968,3 +968,16 @@ authors = ["RCommander contributors"]
 "plugins.status.none" = "Nebyly nalezeny žádné pluginy"
 "dialog.decode.envelope" = "Z obálky"
 "dialog.viewmode.comments" = "Komentáře"
+
+# MCP and window controls
+"mcp.servers.summary" = "Nastavené servery: {configured}; připojené: {connected}"
+"mcp.tools.count" = "Nástroje: {count}"
+"mcp.arguments" = "Argumenty JSON"
+"mcp.servers.empty" = "Přidejte servery MCP v části [agent] clients v souboru settings.toml."
+"window.pin" = "Připnout"
+"window.unpin" = "Odepnout"
+"window.cover_panels" = "Překrýt panely během práce"
+"window.maximize" = "Maximalizovat"
+"window.restore" = "Obnovit"
+"window.minimize" = "Minimalizovat"
+"window.expand" = "Rozbalit"
