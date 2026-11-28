@@ -3208,15 +3208,20 @@ Add an optional presentation-layer Personalities plugin between human-facing
 chat and the existing AI gateway, independently of workload/persona prompts,
 provider identity and internal agent personalities. This extends 24.1/24.5,
 not a second agent runtime. Preserve the underlying model/runtime's own
-instructions, role, tool loop and native subagents. Default to output-only
-styling: forward the original user input unchanged to the task runtime,
-retain the authoritative original response and transform only eligible
-human-facing natural-language spans into the selected dialect. Optional
-inbound normalization, if ever enabled, must be explicit, preserve the
-original input and require confirmation on material ambiguity; never
-silently reinterpret a user request. Internal agent communication, task
-contracts, Blackboard evidence, tool calls/results and approvals bypass
-the presentation proxy entirely.
+instructions, role, tool loop and native subagents. Strictly one-way
+output-only styling (owner clarification): the original user input goes
+directly to the task runtime, never through or to Personalities. Do not
+expose user messages, conversation history, prompt stores, project memory
+or inbound gateway hooks to this plugin. There is no inbound normalization
+mode. Retain the authoritative original response and pass only eligible
+human-facing natural-language spans, style definition and minimal rendering
+metadata through a narrow output-only interface. Internal agent communication,
+task contracts, Blackboard evidence, tool calls/results and approvals bypass
+the presentation proxy entirely. An agent response may itself quote or reveal
+user data; output-only access is data minimization, not a confidentiality
+guarantee. Exclude sensitive spans and enforce existing destination/privacy
+policy before any rewriting. The plugin cannot submit messages to the task
+runtime, modify conversation history or acquire task tools.
 
 Support user-selectable versioned style packs and separate optional
 rewriter model/provider (prefer inexpensive local models when suitable),
@@ -3251,7 +3256,9 @@ If the plugin is absent/disabled, the original response passes through
 without extra model calls or added dependency.
 
 Acceptance: mock task runtime receives unchanged prompt and tool contracts
-under all styles; mock rewriter changes tone without changing protected
+under all styles; verify via interface and negative tests that the rewriter
+never receives inbound messages/history, cannot retrieve them or submit
+messages/tools to the runtime; mock rewriter changes tone without changing protected
 spans, factual/negative/conditional content or structured results; test
 unsupported providers, changed meaning, injection attempts, malformed
 Markdown, partial streams, timeout/cancellation, denied data transfer,
