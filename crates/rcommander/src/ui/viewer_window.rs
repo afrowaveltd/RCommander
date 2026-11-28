@@ -8,6 +8,124 @@ use crate::theme::Palette;
 use egui::{Context, RichText, TextStyle};
 use rc_viewer::{LoadedViewer, ViewerContent, ViewerOptions};
 
+/// One page at a time; workers never touch egui or the original document.
+struct PdfPreview {
+    path: std::path::PathBuf,
+    page: u32,
+    pages: Option<u32>,
+    pending: Option<std::sync::mpsc::Receiver<Result<rc_viewer::PdfPage, rc_viewer::PdfError>>>,
+    cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    texture: Option<egui::TextureHandle>,
+    error: Option<rc_viewer::PdfError>,
+}
+
+impl Drop for PdfPreview {
+    fn drop(&mut self) {
+        self.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+impl PdfPreview {
+    fn new(path: std::path::PathBuf) -> Self {
+        Self {
+            path, page: 1, pages: None, pending: None,
+            cancel: Default::default(), texture: None, error: None,
+        }
+    }
+
+    fn request(&mut self, page: u32) {
+        if self.pending.is_some() || page == 0 || self.pages.is_some_and(|count| page > count) {
+            return;
+        }
+        self.page = page;
+        self.texture = None;
+        self.error = None;
+        let path = self.path.clone();
+        let pages = self.pages;
+        let cancel = self.cancel.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        match std::thread::Builder::new().name("pdf-preview".into()).spawn(move || {
+            let _ = tx.send(rc_viewer::render_pdf_page(&path, page, pages, &cancel));
+        }) {
+            Ok(_) => self.pending = Some(rx),
+            Err(_) => self.error = Some(rc_viewer::PdfError::Render),
+        }
+    }
+
+    fn poll(&mut self, ctx: &Context) {
+        let Some(rx) = &self.pending else { return; };
+        let result = match rx.try_recv() {
+            Ok(result) => result,
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(50));
+                return;
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(rc_viewer::PdfError::Render),
+        };
+        self.pending = None;
+        match result {
+            Ok(result) => {
+                self.pages = Some(result.pages);
+                let image = result.image;
+                let color = egui::ColorImage::from_rgba_unmultiplied(
+                    [image.width as usize, image.height as usize], &image.rgba,
+                );
+                self.texture = Some(ctx.load_texture("pdf-page", color, egui::TextureOptions::LINEAR));
+            }
+            Err(error) => self.error = Some(error),
+        }
+    }
+
+    fn show(&mut self, ui: &mut egui::Ui, model: &Model, zoom: &mut f32) {
+        self.poll(ui.ctx());
+        if self.pending.is_none() && self.texture.is_none() && self.error.is_none() {
+            self.request(self.page);
+        }
+        let busy = self.pending.is_some();
+        ui.horizontal_wrapped(|ui| {
+            if ui.add_enabled(!busy && self.page > 1, egui::Button::new("←"))
+                .on_hover_text(model.t("viewer.pdf.previous")).clicked() {
+                self.request(self.page - 1);
+            }
+            ui.label(model.tf("viewer.pdf.page", &[
+                ("page", &self.page.to_string()),
+                ("total", &self.pages.map(|n| n.to_string()).unwrap_or_else(|| "?".into())),
+            ]));
+            if ui.add_enabled(!busy && self.pages.is_some_and(|n| self.page < n), egui::Button::new("→"))
+                .on_hover_text(model.t("viewer.pdf.next")).clicked() {
+                self.request(self.page + 1);
+            }
+            if ui.button("−").clicked() { *zoom = if *zoom <= 0.0 { 0.75 } else { (*zoom * 0.8).max(0.05) }; }
+            if ui.button("+").clicked() { *zoom = if *zoom <= 0.0 { 1.0 } else { (*zoom * 1.25).min(8.0) }; }
+            if ui.button(model.t("viewer.fit")).clicked() { *zoom = 0.0; }
+        });
+        if self.pending.is_some() {
+            ui.spinner();
+            ui.label(model.t("viewer.pdf.loading"));
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
+        } else if let Some(error) = self.error {
+            let key = match error {
+                rc_viewer::PdfError::MissingRenderer => "viewer.pdf.missing",
+                rc_viewer::PdfError::Input => "viewer.pdf.input",
+                rc_viewer::PdfError::Render => "viewer.pdf.failed",
+                rc_viewer::PdfError::Timeout => "viewer.pdf.timeout",
+                rc_viewer::PdfError::Cancelled => "viewer.pdf.cancelled",
+            };
+            ui.label(model.t(key));
+            if ui.button(model.t("cmd.refresh")).clicked() { self.request(self.page); }
+        } else if let Some(texture) = &self.texture {
+            let size = texture.size_vec2();
+            let available = ui.available_size();
+            let scale = if *zoom <= 0.0 {
+                (available.x / size.x).min(available.y / size.y).clamp(0.01, 1.0)
+            } else { *zoom };
+            egui::ScrollArea::both().id_salt("pdf-page-scroll").auto_shrink([false, false]).show(ui, |ui| {
+                ui.image((texture.id(), size * scale));
+            });
+        }
+    }
+}
+
 /// Loaded content plus the texture of a decoded image.
 #[derive(Default)]
 pub struct ViewerUi {
@@ -20,11 +138,13 @@ pub struct ViewerUi {
     markdown_limited: bool,
     hex: Option<Result<rc_viewer::HexDocument, String>>,
     link_target: Option<String>,
+    pdf: Option<PdfPreview>,
 }
 
 impl ViewerUi {
     /// Load `path` into the viewer, honouring the options.
     pub fn load(&mut self, path: &std::path::Path) -> bool {
+        self.pdf = None;
         self.image_texture = None;
         self.markdown = None;
         self.data = None;
@@ -49,6 +169,9 @@ impl ViewerUi {
                         &loaded.format.format_hint, &loaded.format.mime, &text.text, text.truncated,
                     );
                 }
+                if loaded.format.format_hint == "pdf" {
+                    self.pdf = Some(PdfPreview::new(path.to_path_buf()));
+                }
                 self.loaded = Some(loaded);
                 true
             }
@@ -59,6 +182,9 @@ impl ViewerUi {
             }
         }
     }
+
+    /// Cancel an outstanding PDF worker when the viewer closes.
+    pub fn cancel_pdf(&mut self) { self.pdf = None; }
 
     /// Reuse the chat/help renderer. Links are displayed, never opened automatically.
     pub fn markdown_preview(
@@ -177,6 +303,12 @@ fn render(
         });
         ui.separator();
         ui_state.ensure_texture(ctx);
+        if state.mode == ViewerMode::Auto {
+            if let Some(pdf) = &mut ui_state.pdf {
+                pdf.show(ui, model, &mut state.zoom);
+                return;
+            }
+        }
         if state.mode == ViewerMode::Auto
             && (ui_state.markdown_preview(ui, palette, model, false)
                 || ui_state.data_preview(ui, model, false))
@@ -233,6 +365,7 @@ fn render(
             .show(ctx, contents);
     }
     open = open && !close_requested;
+    if !open { ui_state.cancel_pdf(); }
     model.viewer = if open { Some(state) } else { None };
     !open
 }
