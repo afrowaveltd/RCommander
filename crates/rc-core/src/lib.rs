@@ -11,6 +11,7 @@
 
 pub mod admission;
 pub mod audit;
+pub mod auth_guard;
 pub mod branch;
 pub mod checksum;
 pub mod command;
