@@ -920,7 +920,7 @@ mod tests {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let worker = std::thread::spawn(move || {
-            let (mut socket, _) = listener.accept().unwrap();
+            let (socket, _) = listener.accept().unwrap();
             socket
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .unwrap();

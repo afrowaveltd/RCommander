@@ -199,9 +199,11 @@ fn render(
     } else {
         crate::ui::workspace_window::show(
             ctx,
-            "editor_window",
-            &title,
-            workspace,
+            crate::ui::workspace_window::WindowSpec {
+                id: "editor_window",
+                title: &title,
+                workspace,
+            },
             &mut chrome,
             palette,
             &chrome_labels,

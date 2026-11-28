@@ -495,17 +495,17 @@ fn language_picker(ui: &mut egui::Ui, model: &mut Model) -> DialogAction {
                 }
             }
         });
-    if let Some(code) = chosen {
-        if model.set_language(&code) {
-            // An options draft below the picker must not undo the rescue on OK.
-            for dialog in &mut model.dialogs {
-                if let Dialog::Options(state) = dialog {
-                    state.language_choice = code.clone();
-                    state.draft.language = code.clone();
-                }
+    if let Some(code) = chosen
+        && model.set_language(&code)
+    {
+        // An options draft below the picker must not undo the rescue on OK.
+        for dialog in &mut model.dialogs {
+            if let Dialog::Options(state) = dialog {
+                state.language_choice = code.clone();
+                state.draft.language = code.clone();
             }
-            return DialogAction::Close;
         }
+        return DialogAction::Close;
     }
     ui.separator();
     if ui

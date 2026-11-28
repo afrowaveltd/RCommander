@@ -378,11 +378,11 @@ fn render(
         });
         ui.separator();
         ui_state.ensure_texture(ctx);
-        if state.mode == ViewerMode::Auto {
-            if let Some(pdf) = &mut ui_state.pdf {
-                pdf.show(ui, model, &mut state.zoom);
-                return;
-            }
+        if state.mode == ViewerMode::Auto
+            && let Some(pdf) = &mut ui_state.pdf
+        {
+            pdf.show(ui, model, &mut state.zoom);
+            return;
         }
         if state.mode == ViewerMode::Auto
             && (ui_state.markdown_preview(ui, palette, model, false)
