@@ -2532,6 +2532,109 @@ that failed in that run passed in the final workspace run.
 
 Real desktop and server verification on supported platforms remains pending.
 
+## PR #5 quality gates and baseline cleanup (2026-11-28)
+
+Fetched PR #5 at `28bdb7d7517a633bf7e76583845d01906f8e1dc8` and
+confirmed the cleanup identity check and both prior UI smoke-test fixes
+in the separate worktree. `cargo fmt --all` exited 0 and formatted 28
+Rust files in a dedicated commit. The formatting diff was reviewed for
+whitespace, line wrapping and rustfmt's punctuation and ordering changes.
+The lint commit removes one redundant mutable binding, collapses two
+conditional blocks and groups the workspace window's ID, title and area
+in one argument. No lint suppressions were added.
+
+Final verified source commit
+`84ee4175a7ccdba4b1849029b3237f533a80bbb5`. Environment: Debian 13
+x86_64 Linux, kernel 6.12.118+deb13-amd64, Rust and Cargo 1.97.1,
+rustfmt 1.9.0-stable and Clippy 0.1.97.
+
+| Command | Result |
+| --- | --- |
+| `cargo fmt --all --check` | Exit 0. No formatting differences. |
+| `cargo test --locked -p rc-core auth_guard` | Exit 0. 6 passed, 0 failed, 0 ignored, 0 measured, 460 filtered out. |
+| `cargo test --locked --workspace` | Exit 0. Across 33 test binaries and doctest suites, 1,836 passed, 0 failed, 2 ignored, 0 measured, 0 filtered out. No warnings. Ran with loopback access and a fresh temporary `RCOMMANDER_CONFIG_DIR`. |
+| `cargo clippy --locked --workspace --all-targets -- -D warnings` | Exit 0. Zero warnings and errors. |
+| `cargo build --locked --workspace --release` | Exit 0. No warnings. Used `CARGO_TARGET_DIR=/tmp/rc-pr5-quality-release-target` so the build could run separately from test and lint jobs. The initial release build completed in 1m 06s on the lint commit. The final invocation reused the release artifacts and completed in 0.18s on the verified commit, whose added changes are integration-test code. |
+
+### Test isolation and opt-in checks
+
+- Four UI tests used the default application profile for prompt edits or
+  agent workspace copies. The workspace directory name includes the
+  process ID and a second-resolution timestamp, so tests running in
+  parallel in one process can share that directory when they also share a
+  profile. A default path that cannot be written causes the same tests to
+  fail at profile writes. Reproduced 0 passed, 4 failed and 91 filtered
+  out (exit 101) by passing the same four filters below directly to the
+  original `target/debug/deps/ui_smoke-9d1d481b97e347d8` binary from
+  `28bdb7d7517a633bf7e76583845d01906f8e1dc8` and a regular file as
+  `RCOMMANDER_CONFIG_DIR`. Each affected test now uses its own temporary
+  profile directory. With the same unusable default, the following rerun
+  exited 0 with 4 passed, 0 failed, 0 ignored, 0 measured and 91 filtered
+  out:
+
+  ```sh
+  cargo test --locked -p rcommander --test ui_smoke -- \
+    processing_with_the_agent_opens_a_chat_about_a_copy \
+    the_prompt_page_edits_a_copy_and_resets_it_to_the_shipped_text \
+    the_review_blocks_a_file_with_a_syntax_error_and_offers_hunks \
+    the_workspace_review_shows_the_diff_and_writes_only_what_is_ticked
+  ```
+
+- Network integration tests require loopback sockets. The previous
+  sandboxed workspace run was denied permission to bind them. The final
+  run used the normal parallel test harness with loopback access and an
+  isolated process profile to keep remaining default-path readers and
+  writers away from the interactive profile. The FTP background failure
+  smoke test still assumes loopback port 65533 is unused. This was not a
+  failure in the verified run.
+- `cargo test --locked -p rcommander --test ui_smoke -- --ignored --exact render_snapshots`
+  exited 0 with 1 passed, 0 failed, 0 ignored, 0 measured and 94 filtered
+  out. It needs a headless wgpu adapter and writable output. This run
+  used `WGPU_BACKEND=vulkan`, a private temporary `XDG_RUNTIME_DIR` and
+  a temporary application profile. It wrote five 1100×700 PNGs to
+  `work/snapshots` in the PR worktree.
+- `cargo test --locked -p rc-remote --features sftp --test sftp_local -- --ignored --exact sftp_against_a_real_server --nocapture`
+  exited 0 with 1 passed, 0 failed, 0 ignored, 0 measured and 0 filtered
+  out. The test used a disposable loopback-only OpenSSH 10.0p2 server,
+  an ephemeral port, temporary Ed25519 host and client keys, and a
+  writable scratch directory. The server allowed only public-key SFTP
+  for the local test user and required no system configuration changes.
+  The test exercised listing, upload, size, download, byte comparison
+  and deletion. The scratch directory was empty afterward.
+- Previously, explicitly selecting the SFTP test without its environment
+  reported 1 passed while returning before the connection. Retesting the
+  corrected version with
+  `env -u RC_SFTP_TEST_HOST -u RC_SFTP_TEST_USER -u RC_SFTP_TEST_KEY -u RC_SFTP_TEST_DIR -u RC_SFTP_TEST_PORT cargo test --locked -p rc-remote --features sftp --test sftp_local -- --ignored --exact sftp_against_a_real_server`
+  exited 101 as expected with 0 passed and 1 failed, naming the missing
+  host. Set the host, user, key and dedicated remote scratch directory to
+  execute the body. The test stores host keys locally in its temp
+  directory and uses a unique remote probe name.
+
+### GitHub Actions configuration review
+
+- `linux-ui-regressions.yml` runs selected locked tests on manual
+  dispatch and path-filtered pushes to main. It has no pull-request
+  trigger or full workspace test, formatting, strict Clippy or release
+  build step. The filter does not include `auth_guard.rs`.
+- `wallet-regressions.yml` runs the credential-store subset on Linux
+  and Windows for wallet-specific PRs and main pushes, plus manual
+  dispatch. It provides focused coverage.
+- `windows-portable.yml` runs selected tests and a locked release build
+  of the application on Windows. It is triggered by manual dispatch or
+  changes to the packaging workflow on main and publishes a prerelease
+  on success. It is unsuitable as a routine PR build gate.
+- Separate follow-up PR proposed: add a read-only workflow for ordinary
+  pull requests and main pushes that runs workspace formatting, strict
+  all-target Clippy, locked workspace tests and a locked release build.
+  Give the tests a temporary profile and loopback access. Keep targeted
+  wallet coverage and Windows publication workflows independent. Leave
+  the live SFTP and snapshot checks opt-in or run them in dedicated jobs
+  with their prerequisites. No workflow was changed or dispatched here.
+
+The local SFTP evidence covers the key-authenticated client transport.
+Desktop and live-server authentication retry through the UI, Windows and
+Android verification remain pending.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
