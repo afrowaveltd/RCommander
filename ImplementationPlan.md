@@ -4554,6 +4554,31 @@ above are green.
 | Per-directory action menus | `.rcommander.toml` next to a folder defines buttons (build, test, deploy) with confirmations | medium |
 | Accessibility pass | full keyboard navigation and screen-reader labels (the panels already carry accessible names) | medium |
 
+### Optional Easter egg — RCSnake (owner direction, 2026-11-28)
+
+Schedule as a small Stage K polish task, independent of AI, networking and
+external runtimes. Add an original retro Snake-style mini-game, working name
+RCSnake, hidden behind a deliberate gesture in the About dialog (proposed:
+five clicks on the RCommander logo). Offer a keyboard-accessible equivalent
+inside that dialog and avoid accidental activation during file operations.
+No ordinary menu clutter, external assets, copied Nokia code/branding,
+additional runtime dependency, advertising, telemetry or network activity.
+
+Use a small themed egui dialog or temporary panel, preserving both file
+panels, selections and ongoing tasks. Original grid-based snake mechanics:
+arrow/WASD movement, food, growth, score, increasing bounded speed, wall/self
+collision, pause, restart and Escape to close. Respect input focus and
+prevent gameplay keys from invoking file-manager commands. Pause when focus
+is lost; only request periodic repaint while actively playing. No AI calls,
+token usage or GPU-specific features. Optional local best score, resettable
+and without player identity. Keep the game core deterministic with injected
+time and seeded food placement; test movement, reversal rejection, growth,
+collision, full-board completion, pause/resume, restart, score and bounded
+speed. GUI smoke tests cover hidden activation, focus/key isolation, closing
+and preservation of file-manager state. Verify desktop behavior before
+marking implemented. The hidden trigger, working name and visual design
+are proposed defaults, not a public feature promise.
+
 ## Working rules
 
 1. **Tests first.** A step's tests exist before its implementation; a step is done
