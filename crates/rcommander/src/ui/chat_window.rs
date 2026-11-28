@@ -73,6 +73,7 @@ pub fn show(
 ) -> bool {
     let title = model.t("ai.chat.title");
     let mut chrome = ui_state.chrome;
+    let chrome_labels = crate::ui::workspace_window::ChromeLabels::new(model);
     let action = crate::ui::workspace_window::show(
         ctx,
         "chat_window",
@@ -80,6 +81,7 @@ pub fn show(
         workspace,
         &mut chrome,
         palette,
+        &chrome_labels,
         |ui| {
             body(ui, model, ui_state, palette, false);
         },
