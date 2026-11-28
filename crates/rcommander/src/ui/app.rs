@@ -1435,10 +1435,7 @@ impl RCommanderApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if let Some(space) = self.model.free_space {
                     ui.label(
-                        egui::RichText::new(format!(
-                            "{} free",
-                            rc_core::format::format_size_unit(space.available)
-                        ))
+                        egui::RichText::new(self.model.tf("panel.free_space", &[("size", &rc_core::format::format_size_unit(space.available))]))
                         .small()
                         .color(palette.hidden),
                     );
