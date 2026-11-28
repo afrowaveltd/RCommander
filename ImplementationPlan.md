@@ -1524,6 +1524,88 @@ provider disclosure or publication. Verify the beginner game example
 with an original fixture and real supported acceptance evidence before
 claiming it works. No implementation or live game creation claimed.
 
+#### RCHarness — creative capability discovery and task-specific model profiles (owner direction, 2026-11-28)
+
+The Manager actively discovers installed and enabled capabilities when planning
+a creative or development workload and again when a task needs an unavailable
+capability. Reuse Phase 18/27 discovery, Phase 26 multi-runtime integration and
+the existing MCP catalogue/broker. Inspect actual schemas, supported formats,
+tool versions, availability, cost, latency and required permissions rather
+than assume a named application is installed or supports a particular action.
+A complete Craft suite is a reference ecosystem, not a mandatory dependency.
+Prefer appropriate specialist tools for original visual design, images,
+illustration, animation and effects when their verified capabilities fit the
+brief. Do not silently install, activate, purchase or disclose data to tools
+outside the existing approved scope.
+
+A creative web/application reference workload should divide visual identity,
+art direction, illustration/assets, motion/effects, implementation, integration,
+visual review and functional/accessibility testing into coordinated tasks where
+useful. Use a shared versioned design brief and asset contracts: dimensions,
+formats, typography, palette, accessibility, performance budgets, reduced
+motion, licensing/provenance and integration requirements. Allow distinct
+concepts to be proposed and reviewed before selecting a direction; avoid
+defaulting to a repeated generic visual template or unnecessary decorative
+effects. The Manager may delegate to PhotoCraft, DesignCraft, AniCraft,
+EffectCraft or equivalent verified MCP capabilities. Inspect the actual
+rendered application through Phase 30, not only code or verbal descriptions;
+check responsive layout, interactions, visual consistency, accessibility,
+performance and original/licensed assets. The user can select a fast/simple
+or more elaborate creative workflow within the existing budget. Additional
+creative work must serve the brief, not merely increase token usage. No
+guarantee of originality or quality solely from using multiple agents.
+
+Add reusable, versioned model behavioral profiles (inference configuration,
+not weight training) separately from role prompts, provider/model identity
+and authority. A role/task may request creative exploration, factual research,
+academic writing, implementation, debugging, review or a custom profile.
+Store typed, provider-specific options, validated ranges/defaults, supported
+model/version, reasoning and context/output budgets and qualification evidence.
+A Manager may select or adjust an allowed profile for a subtask if the user
+permits adaptive tuning; respect pinned values and resource envelopes.
+Show requested versus effective options and reject/report unsupported options;
+never silently translate unlike settings between providers. Preserve
+provider-recommended defaults unless an override is explicit or measured
+useful. Never lower safety/acceptance gates or change permissions through
+a sampling or reasoning configuration.
+
+Ollama documentation basis (2026-11-28):
+https://docs.ollama.com/modelfile documents temperature, top_k, top_p,
+min_p, repeat_penalty, seed, num_ctx and num_predict;
+https://docs.ollama.com/api/chat documents per-request options and model-specific
+think values. Use supported per-request overrides when possible rather than
+create separate model weights or mutate shared defaults. Discover supported
+thinking values for the selected model via the documented API, validate in
+the actual installed version, and do not assume a universal effort scale.
+A seed can aid reproducibility, not guarantee identical output across
+runtime/hardware/model changes. Sampling variability does not guarantee
+creativity, and low temperature does not guarantee factual correctness;
+academic precision requires sources, evidence and review. More reasoning
+or larger contexts are not inherently better. Include effective inference
+options in qualification identity and audit/usage evidence; compare tested
+profiles with the same task contracts and bounded tuning budget. Schedule
+profile changes at task/attempt boundaries; isolate concurrent requests
+and prevent one agent's settings from leaking into another's session.
+
+Example: a children's book can use a creative story/illustration profile,
+a factual university essay a research and evidence-verification profile,
+and an application a combination of creative UI, engineering, debugging
+and rigorous review profiles, potentially on one underlying model.
+Ship conservative editable presets and treat numeric values as
+model-specific starting points, not universal optimal settings.
+If the provider exposes no tuning controls, retain its defaults and use
+role instructions, task decomposition, tool access and validation.
+
+Acceptance extensions (16.20/16.27–30/18/26/27/30/32): mock specialist
+discovery, missing/disabled/incompatible tools, approved creative delegation,
+original asset provenance and integration contracts, visual-review evidence
+and budget enforcement; mock providers with different supported settings,
+unsupported or out-of-range values, pinned profiles, concurrent isolation,
+effective-configuration reporting and qualification invalidation on relevant
+changes. A real creative web reference workload and opt-in Ollama smoke
+tests must be separately executed before claiming integration or improved
+quality/cost. No actual Craft or Ollama integration claimed by this plan.
+
 #### RCHarness — adaptive team composition and Agent Pool (owner direction, 2026-11-28)
 
 Support user-controlled team formation modes: Manual (fixed user assignments),
