@@ -77,9 +77,14 @@ impl ChromeLabels {
     #[cfg(test)]
     fn english() -> Self {
         Self {
-            close: "Close".into(), pin: "Pin".into(), unpin: "Unpin".into(),
-            cover: "Cover the panels while you work".into(), maximize: "Maximize".into(),
-            restore: "Restore".into(), minimize: "Minimize".into(), expand: "Expand".into(),
+            close: "Close".into(),
+            pin: "Pin".into(),
+            unpin: "Unpin".into(),
+            cover: "Cover the panels while you work".into(),
+            maximize: "Maximize".into(),
+            restore: "Restore".into(),
+            minimize: "Minimize".into(),
+            expand: "Expand".into(),
         }
     }
 }
@@ -151,7 +156,11 @@ pub fn show(
                 if ui.small_button("x").on_hover_text(&labels.close).clicked() {
                     action = ChromeAction::Close;
                 }
-                let pin_label = if chrome.pinned { labels.unpin.as_str() } else { labels.pin.as_str() };
+                let pin_label = if chrome.pinned {
+                    labels.unpin.as_str()
+                } else {
+                    labels.pin.as_str()
+                };
                 if ui
                     .small_button(pin_label)
                     .on_hover_text(&labels.cover)
@@ -163,7 +172,11 @@ pub fn show(
                         chrome.collapsed = false;
                     }
                 }
-                let max_label = if chrome.maximized { labels.restore.as_str() } else { labels.maximize.as_str() };
+                let max_label = if chrome.maximized {
+                    labels.restore.as_str()
+                } else {
+                    labels.maximize.as_str()
+                };
                 if ui.small_button(max_label).clicked() {
                     chrome.maximized = !chrome.maximized;
                     if chrome.maximized {
@@ -171,7 +184,11 @@ pub fn show(
                         chrome.collapsed = false;
                     }
                 }
-                let min_label = if chrome.collapsed { labels.expand.as_str() } else { labels.minimize.as_str() };
+                let min_label = if chrome.collapsed {
+                    labels.expand.as_str()
+                } else {
+                    labels.minimize.as_str()
+                };
                 if ui.small_button(min_label).clicked() {
                     chrome.collapsed = !chrome.collapsed;
                     if chrome.collapsed {

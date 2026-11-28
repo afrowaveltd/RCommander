@@ -169,7 +169,11 @@ fn render(
                 let wraps = model.settings.editor.word_wrap;
                 let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, width: f32| {
                     let mut job = crate::ui::markdown_view::source_layout(
-                        path, buffer.as_str(), palette, font.clone(), highlight,
+                        path,
+                        buffer.as_str(),
+                        palette,
+                        font.clone(),
+                        highlight,
                     );
                     job.wrap.max_width = if wraps { width } else { f32::INFINITY };
                     ui.fonts_mut(|fonts| fonts.layout_job(job))

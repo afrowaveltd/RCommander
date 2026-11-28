@@ -391,16 +391,23 @@ fn looks_like_pnm(head: &[u8]) -> bool {
         .split(|&byte| byte == b'\n' || byte == b'\r')
         .flat_map(|line| {
             let content = line.split(|&byte| byte == b'#').next().unwrap_or_default();
-            content.split(|byte| byte.is_ascii_whitespace()).filter(|token| !token.is_empty())
+            content
+                .split(|byte| byte.is_ascii_whitespace())
+                .filter(|token| !token.is_empty())
         });
     if *kind == b'7' {
         return tokens.next().is_some_and(|token| {
-            matches!(token, b"WIDTH" | b"HEIGHT" | b"DEPTH" | b"MAXVAL" | b"TUPLTYPE")
+            matches!(
+                token,
+                b"WIDTH" | b"HEIGHT" | b"DEPTH" | b"MAXVAL" | b"TUPLTYPE"
+            )
         });
     }
-    (0..2).all(|_| tokens.next().is_some_and(|token| {
-        !token.is_empty() && token.iter().all(u8::is_ascii_digit)
-    }))
+    (0..2).all(|_| {
+        tokens
+            .next()
+            .is_some_and(|token| !token.is_empty() && token.iter().all(u8::is_ascii_digit))
+    })
 }
 
 /// True for a DOS/PE executable: an `MZ` header whose `e_lfanew` points at a
@@ -591,13 +598,23 @@ mod tests {
 
     #[test]
     fn netpbm_and_farbfeld_are_detected_from_content() {
-        for bytes in [&b"P1\n2 1\n0 1\n"[..], &b"P6\n# comment\n2 1\n255\n"[..], &b"P7\nWIDTH 1\nHEIGHT 1\n"[..]] {
+        for bytes in [
+            &b"P1\n2 1\n0 1\n"[..],
+            &b"P6\n# comment\n2 1\n255\n"[..],
+            &b"P7\nWIDTH 1\nHEIGHT 1\n"[..],
+        ] {
             let (kind, hint, _) = kind_of("wrong.txt", bytes);
             assert_eq!(kind, ContentKind::Image);
             assert_eq!(hint, "pnm");
         }
-        assert_eq!(kind_of("notes.txt", b"P1 is the first priority").0, ContentKind::Text);
-        assert_eq!(kind_of("wrong.txt", b"farbfeld\x00\x00\x00\x01\x00\x00\x00\x01").1, "farbfeld");
+        assert_eq!(
+            kind_of("notes.txt", b"P1 is the first priority").0,
+            ContentKind::Text
+        );
+        assert_eq!(
+            kind_of("wrong.txt", b"farbfeld\x00\x00\x00\x01\x00\x00\x00\x01").1,
+            "farbfeld"
+        );
     }
 
     #[test]
@@ -939,11 +956,20 @@ mod tests {
         assert_eq!(kind_of("data.json", b"{\"a\":1}").1, "json");
         assert_eq!(kind_of("events.JSONL", b"{}\n{}\n").1, "jsonl");
         assert_eq!(kind_of("events.ndjson", b"{}\n").2, "application/x-ndjson");
-        assert_eq!(kind_of("lesson.SRT", b"1\n00:00:01,000 --> 00:00:02,000\nHi").1, "srt");
+        assert_eq!(
+            kind_of("lesson.SRT", b"1\n00:00:01,000 --> 00:00:02,000\nHi").1,
+            "srt"
+        );
         assert_eq!(kind_of("lesson.vtt", b"WEBVTT\n\n").2, "text/vtt");
-        assert_eq!(kind_of("unnamed.txt", b"WEBVTT\n\n00:01.000 --> 00:02.000\nHi").1, "vtt");
+        assert_eq!(
+            kind_of("unnamed.txt", b"WEBVTT\n\n00:01.000 --> 00:02.000\nHi").1,
+            "vtt"
+        );
         assert_ne!(kind_of("notes.txt", b"WEBVTTish").1, "vtt");
-        assert_eq!(kind_of("fake.jsonl", b"\x89PNG\r\n\x1a\n").0, ContentKind::Image);
+        assert_eq!(
+            kind_of("fake.jsonl", b"\x89PNG\r\n\x1a\n").0,
+            ContentKind::Image
+        );
         assert_eq!(kind_of("table.csv", b"a,b\n1,2\n").1, "csv");
         assert_eq!(kind_of("table.tsv", b"a\tb\n1\t2\n").1, "csv");
         assert_eq!(kind_of("conf.yml", b"a: 1\n").1, "yaml");

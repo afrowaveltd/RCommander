@@ -304,9 +304,14 @@ mod tests {
         for (name, bytes) in [("sample.ppm", &pnm[..]), ("sample.ff", ff.as_slice())] {
             let path = dir.path().join(name);
             std::fs::write(&path, bytes).expect("fixture");
-            for loaded in [load(&path, &opts).expect("load"), open_bytes(name, bytes, &opts)] {
+            for loaded in [
+                load(&path, &opts).expect("load"),
+                open_bytes(name, bytes, &opts),
+            ] {
                 assert_eq!(loaded.format.kind, ContentKind::Image);
-                let ViewerContent::Image(image) = loaded.content else { panic!("visual preview expected") };
+                let ViewerContent::Image(image) = loaded.content else {
+                    panic!("visual preview expected")
+                };
                 assert_eq!((image.width, image.height), (1, 1));
                 assert_eq!(image.rgba, vec![255, 0, 0, 255]);
             }

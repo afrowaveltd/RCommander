@@ -767,24 +767,45 @@ fn parent_row_and_history_buttons_navigate_the_same_panel() {
     application.model.settings.display.show_parent_entry = true;
     application.model.navigate(Location::local(&child)).unwrap();
     let mut harness = harness(application);
-    harness.root().query_all_by_label("..")
+    harness
+        .root()
+        .query_all_by_label("..")
         .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
-        .expect("parent row").click();
+        .expect("parent row")
+        .click();
     harness.run();
     harness.key_press(egui::Key::Enter);
     harness.run();
-    assert_eq!(harness.state().model.left.location(), &Location::local(left.path()));
-    harness.root().query_all_by_label("cmd.go_back")
+    assert_eq!(
+        harness.state().model.left.location(),
+        &Location::local(left.path())
+    );
+    harness
+        .root()
+        .query_all_by_label("cmd.go_back")
         .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
-        .expect("back button").click();
+        .expect("back button")
+        .click();
     harness.run();
-    assert_eq!(harness.state().model.left.location(), &Location::local(&child));
-    harness.root().query_all_by_label("cmd.go_forward")
+    assert_eq!(
+        harness.state().model.left.location(),
+        &Location::local(&child)
+    );
+    harness
+        .root()
+        .query_all_by_label("cmd.go_forward")
         .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
-        .expect("forward button").click();
+        .expect("forward button")
+        .click();
     harness.run();
-    assert_eq!(harness.state().model.left.location(), &Location::local(left.path()));
-    assert_eq!(harness.state().model.right.location(), &Location::local(right.path()));
+    assert_eq!(
+        harness.state().model.left.location(),
+        &Location::local(left.path())
+    );
+    assert_eq!(
+        harness.state().model.right.location(),
+        &Location::local(right.path())
+    );
 }
 
 #[test]
@@ -3719,7 +3740,10 @@ fn settings_keyboard_confirm_and_cancel_the_draft() {
     let mut harness = harness(app(left.path(), right.path()));
     let original = harness.state().model.settings.display.show_hidden;
     for (key, expected) in [(egui::Key::Escape, original), (egui::Key::Enter, !original)] {
-        harness.state_mut().model.open_options_on(OptionsTab::Display);
+        harness
+            .state_mut()
+            .model
+            .open_options_on(OptionsTab::Display);
         harness.run();
         let Some(Dialog::Options(state)) = harness.state_mut().model.top_dialog_mut() else {
             panic!("settings dialog expected");
@@ -3728,7 +3752,10 @@ fn settings_keyboard_confirm_and_cancel_the_draft() {
         harness.run();
         harness.key_press(key);
         harness.run();
-        assert!(harness.state().dialog().is_none(), "{key:?} closes the dialog");
+        assert!(
+            harness.state().dialog().is_none(),
+            "{key:?} closes the dialog"
+        );
         assert_eq!(harness.state().model.settings.display.show_hidden, expected);
     }
 }

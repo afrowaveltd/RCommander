@@ -128,8 +128,12 @@ fn decode(bytes: &[u8], format_hint: &str, max_pixels: u64) -> Result<ImageDocum
     let probe = ImageReader::new(std::io::Cursor::new(bytes))
         .with_guessed_format()
         .map_err(|e| ImageError::Decode(e.to_string()))?;
-    let high_depth = matches!(probe.format(), Some(ImageFormat::Pnm | ImageFormat::Farbfeld));
-    let (width, height) = probe.into_dimensions()
+    let high_depth = matches!(
+        probe.format(),
+        Some(ImageFormat::Pnm | ImageFormat::Farbfeld)
+    );
+    let (width, height) = probe
+        .into_dimensions()
         .map_err(|e| ImageError::Decode(e.to_string()))?;
     if width == 0 || height == 0 {
         return Err(ImageError::Decode(

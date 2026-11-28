@@ -250,8 +250,8 @@ impl Model {
         }
         let remember_password =
             remember && Self::requires_password(&resolved) && !connection.password.is_empty();
-        let retry_password = interactive && Self::requires_password(&resolved)
-            && !resolved.user.trim().is_empty();
+        let retry_password =
+            interactive && Self::requires_password(&resolved) && !resolved.user.trim().is_empty();
         let mut spec = super::remote::connection_spec(&resolved, None);
         spec.timeout =
             std::time::Duration::from_secs(self.settings.ftp.timeout_seconds.clamp(3, 120));
@@ -268,7 +268,10 @@ impl Model {
             spec.user.as_str()
         };
         let attempt = match rc_core::auth_guard::Attempt::begin(
-            &self.config_dir().join("auth-guard"), &spec.host, spec.effective_port(), user,
+            &self.config_dir().join("auth-guard"),
+            &spec.host,
+            spec.effective_port(),
+            user,
         ) {
             Ok(attempt) => attempt,
             Err(error) => {
@@ -282,17 +285,21 @@ impl Model {
         let (sender, receiver) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let stage_sender = sender.clone();
-            let result = super::remote::RcRemoteBackend::connect_reporting_typed(&spec, &mut |stage| {
-                // A closed receiver means the user gave up; the connect then finishes into
-                // nothing, which is fine.
-                let _ = stage_sender.send(ConnectEvent::Stage(stage));
-            })
-            .map(|backend| Box::new(backend) as Box<dyn super::remote::RemoteBackend>);
-            let rejected = password_auth && matches!(&result, Err(rc_remote::RemoteError::Authentication(_)));
+            let result =
+                super::remote::RcRemoteBackend::connect_reporting_typed(&spec, &mut |stage| {
+                    // A closed receiver means the user gave up; the connect then finishes into
+                    // nothing, which is fine.
+                    let _ = stage_sender.send(ConnectEvent::Stage(stage));
+                })
+                .map(|backend| Box::new(backend) as Box<dyn super::remote::RemoteBackend>);
+            let rejected =
+                password_auth && matches!(&result, Err(rc_remote::RemoteError::Authentication(_)));
             // Persist before sending the event, even if the UI cancelled its
             // receiver. Hold the account lock throughout the network attempt.
             let result = match attempt.finish(result.is_ok(), rejected) {
-                Ok(Some(seconds)) => Err(ConnectFailure::from_guard(rc_core::auth_guard::GuardError::Blocked(seconds))),
+                Ok(Some(seconds)) => Err(ConnectFailure::from_guard(
+                    rc_core::auth_guard::GuardError::Blocked(seconds),
+                )),
                 Ok(None) => result.map_err(ConnectFailure::from_remote),
                 Err(error) => Err(ConnectFailure::from_guard(error)),
             };
@@ -321,7 +328,10 @@ impl Model {
     fn auth_guard_message(&self, error: &rc_core::auth_guard::GuardError) -> String {
         use rc_core::auth_guard::GuardError;
         match error {
-            GuardError::Blocked(seconds) => self.tf("session.auth_guard_blocked", &[("seconds", &seconds.to_string())]),
+            GuardError::Blocked(seconds) => self.tf(
+                "session.auth_guard_blocked",
+                &[("seconds", &seconds.to_string())],
+            ),
             GuardError::Busy => self.t("session.auth_guard_busy"),
             GuardError::Storage(_) => self.t("session.auth_guard_storage"),
         }
@@ -342,7 +352,8 @@ impl Model {
         // waits, and a stage alone is a state change worth a repaint.
         let session_name = job.session.name.clone();
         let mut progressed: Option<(String, &'static str)> = None;
-        let mut outcome: Option<Result<Box<dyn super::remote::RemoteBackend>, ConnectFailure>> = None;
+        let mut outcome: Option<Result<Box<dyn super::remote::RemoteBackend>, ConnectFailure>> =
+            None;
         loop {
             match job.receiver.try_recv() {
                 Ok(ConnectEvent::Stage(stage)) => {
@@ -357,9 +368,11 @@ impl Model {
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => break,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    outcome = Some(Err(
-                        ConnectFailure { message: "the connection attempt stopped unexpectedly".to_string(), authentication: false, guard: None }
-                    ));
+                    outcome = Some(Err(ConnectFailure {
+                        message: "the connection attempt stopped unexpectedly".to_string(),
+                        authentication: false,
+                        guard: None,
+                    }));
                     break;
                 }
             }
@@ -422,7 +435,10 @@ impl Model {
                     self.auth_guard_message(guard)
                 } else if error.authentication && job.retry_password {
                     let status = self.t("session.password_rejected");
-                    let mut state = super::dialogs::FtpConnectState::for_password(job.session.clone(), status.clone());
+                    let mut state = super::dialogs::FtpConnectState::for_password(
+                        job.session.clone(),
+                        status.clone(),
+                    );
                     state.target_side = Some(job.side);
                     state.password_rejected = true;
                     self.open_dialog(super::Dialog::FtpConnect(state));
@@ -518,12 +534,20 @@ struct ConnectFailure {
 
 impl ConnectFailure {
     fn from_guard(error: rc_core::auth_guard::GuardError) -> Self {
-        Self { message: String::new(), authentication: false, guard: Some(error) }
+        Self {
+            message: String::new(),
+            authentication: false,
+            guard: Some(error),
+        }
     }
 
     fn from_remote(error: rc_remote::RemoteError) -> Self {
         let authentication = matches!(&error, rc_remote::RemoteError::Authentication(_));
-        Self { message: error.to_string(), authentication, guard: None }
+        Self {
+            message: error.to_string(),
+            authentication,
+            guard: None,
+        }
     }
 }
 
@@ -652,7 +676,10 @@ mod tests {
         match model.top_dialog() {
             Some(crate::model::Dialog::FtpConnect(state)) => {
                 assert_eq!(state.connection.host, "files.example.com");
-                assert_eq!(state.password_session.as_ref().map(|p| p.name.as_str()), Some("work"));
+                assert_eq!(
+                    state.password_session.as_ref().map(|p| p.name.as_str()),
+                    Some("work")
+                );
                 assert!(state.connection.password.is_empty());
                 assert!(!state.save_password);
                 assert!(state.validate().is_err());
@@ -873,14 +900,24 @@ mod tests {
         connection.password = "fixture".into();
         for _ in 0..5 {
             rc_core::auth_guard::Attempt::begin(
-                &dir.path().join("auth-guard"), "example.test", 22, "alice",
-            ).unwrap().finish(false, true).unwrap();
+                &dir.path().join("auth-guard"),
+                "example.test",
+                22,
+                "alice",
+            )
+            .unwrap()
+            .finish(false, true)
+            .unwrap();
         }
-        assert!(matches!(model.start_connect(&connection, &session), CommandOutcome::Failed(_)));
+        assert!(matches!(
+            model.start_connect(&connection, &session),
+            CommandOutcome::Failed(_)
+        ));
         assert!(!model.is_connecting());
-        assert!(matches!(model.start_saved_session_connection(
-            &connection, &session, false, Side::Right
-        ), CommandOutcome::Failed(_)));
+        assert!(matches!(
+            model.start_saved_session_connection(&connection, &session, false, Side::Right),
+            CommandOutcome::Failed(_)
+        ));
         assert!(!model.is_connecting());
         assert!(model.top_dialog().is_none());
     }
@@ -891,9 +928,11 @@ mod tests {
         let mut model = model_in(dir.path());
         let sender = staged_attempt(&mut model);
         model.connect_job.as_mut().unwrap().retry_password = true;
-        sender.send(ConnectEvent::Done(Err(ConnectFailure::from_guard(
-            rc_core::auth_guard::GuardError::Blocked(900)
-        )))).unwrap();
+        sender
+            .send(ConnectEvent::Done(Err(ConnectFailure::from_guard(
+                rc_core::auth_guard::GuardError::Blocked(900),
+            ))))
+            .unwrap();
         assert!(model.poll_connect());
         assert!(!model.is_connecting());
         assert!(model.top_dialog().is_none());
@@ -914,9 +953,11 @@ mod tests {
         job.remember_password = true;
         job.side = Side::Left;
         model.focus = Side::Right;
-        sender.send(ConnectEvent::Done(Err(ConnectFailure::from_remote(
-            rc_remote::RemoteError::Authentication("rejected".into())
-        )))).unwrap();
+        sender
+            .send(ConnectEvent::Done(Err(ConnectFailure::from_remote(
+                rc_remote::RemoteError::Authentication("rejected".into()),
+            ))))
+            .unwrap();
         assert!(model.poll_connect());
         assert!(!model.is_connecting());
         assert!(model.secrets.accounts().is_empty());
@@ -934,9 +975,15 @@ mod tests {
     #[test]
     fn non_authentication_and_headless_failures_do_not_prompt() {
         for (interactive, error) in [
-            (true, rc_remote::RemoteError::Protocol("host key changed".into())),
+            (
+                true,
+                rc_remote::RemoteError::Protocol("host key changed".into()),
+            ),
             (true, rc_remote::RemoteError::Timeout("network".into())),
-            (false, rc_remote::RemoteError::Authentication("rejected".into())),
+            (
+                false,
+                rc_remote::RemoteError::Authentication("rejected".into()),
+            ),
         ] {
             let dir = tempfile::tempdir().unwrap();
             let mut model = model_in(dir.path());
@@ -946,7 +993,9 @@ mod tests {
             job.session.user = "alice".into();
             job.connection = job.session.to_connection();
             job.retry_password = interactive;
-            sender.send(ConnectEvent::Done(Err(ConnectFailure::from_remote(error)))).unwrap();
+            sender
+                .send(ConnectEvent::Done(Err(ConnectFailure::from_remote(error))))
+                .unwrap();
             assert!(model.poll_connect());
             assert!(model.top_dialog().is_none());
             assert!(!model.is_connecting());
@@ -964,7 +1013,11 @@ mod tests {
         assert_eq!(model.poll_connect_result(), (true, None));
         assert!(model.is_connecting());
         sender
-            .send(ConnectEvent::Done(Err(ConnectFailure { message: "fixture failure".into(), authentication: false, guard: None })))
+            .send(ConnectEvent::Done(Err(ConnectFailure {
+                message: "fixture failure".into(),
+                authentication: false,
+                guard: None,
+            })))
             .unwrap();
         assert_eq!(
             model.wait_for_connect(std::time::Duration::from_secs(1)),
@@ -987,7 +1040,11 @@ mod tests {
         assert!(!model.is_connecting());
         assert!(
             sender
-                .send(ConnectEvent::Done(Err(ConnectFailure { message: "late failure".into(), authentication: false, guard: None })))
+                .send(ConnectEvent::Done(Err(ConnectFailure {
+                    message: "late failure".into(),
+                    authentication: false,
+                    guard: None
+                })))
                 .is_err()
         );
     }

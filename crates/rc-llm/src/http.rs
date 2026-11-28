@@ -62,9 +62,7 @@ impl Target {
     /// Parse a base URL without credentials, query or fragment.
     pub fn parse(base_url: &str) -> Result<Target, HttpError> {
         let trimmed = base_url.trim().trim_end_matches('/');
-        if trimmed.bytes().any(|b| !b.is_ascii_graphic())
-            || trimmed.contains(['\\', '?', '#'])
-        {
+        if trimmed.bytes().any(|b| !b.is_ascii_graphic()) || trimmed.contains(['\\', '?', '#']) {
             return Err(HttpError::new("invalid characters in provider base URL"));
         }
         let (tls, without_scheme) = match trimmed.split_once("://") {
@@ -73,7 +71,13 @@ impl Target {
             Some(_) => return Err(HttpError::new("unsupported provider URL scheme")),
             None => (false, trimmed),
         };
-        if tls && !cfg!(any(target_os = "linux", target_os = "windows", target_os = "macos")) {
+        if tls
+            && !cfg!(any(
+                target_os = "linux",
+                target_os = "windows",
+                target_os = "macos"
+            ))
+        {
             return Err(HttpError::new("HTTPS is not supported on this platform"));
         }
         let (authority, prefix) = match without_scheme.split_once('/') {
@@ -81,7 +85,9 @@ impl Target {
             None => (without_scheme, String::new()),
         };
         if authority.is_empty() || authority.contains('@') {
-            return Err(HttpError::new("missing host or credentials in provider URL"));
+            return Err(HttpError::new(
+                "missing host or credentials in provider URL",
+            ));
         }
         let default_port = if tls { 443 } else { 80 };
         let parse_port = |port: &str| {
@@ -91,15 +97,18 @@ impl Target {
                 .ok_or_else(|| HttpError::new("invalid provider port"))
         };
         let (host, port) = if let Some(rest) = authority.strip_prefix('[') {
-            let (host, tail) = rest.split_once(']')
+            let (host, tail) = rest
+                .split_once(']')
                 .ok_or_else(|| HttpError::new("invalid IPv6 authority"))?;
             host.parse::<std::net::Ipv6Addr>()
                 .map_err(|_| HttpError::new("invalid IPv6 host"))?;
             let port = if tail.is_empty() {
                 default_port
             } else {
-                parse_port(tail.strip_prefix(':')
-                    .ok_or_else(|| HttpError::new("invalid IPv6 authority"))?)?
+                parse_port(
+                    tail.strip_prefix(':')
+                        .ok_or_else(|| HttpError::new("invalid IPv6 authority"))?,
+                )?
             };
             (host.to_owned(), port)
         } else {
@@ -107,12 +116,21 @@ impl Target {
                 Some((host, port)) => (host, parse_port(port)?),
                 None => (authority, default_port),
             };
-            if host.is_empty() || !host.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-') {
+            if host.is_empty()
+                || !host
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+            {
                 return Err(HttpError::new("invalid provider host"));
             }
             (host.to_owned(), port)
         };
-        Ok(Target { host, port, prefix, tls })
+        Ok(Target {
+            host,
+            port,
+            prefix,
+            tls,
+        })
     }
 
     pub fn is_tls(&self) -> bool {
@@ -128,7 +146,8 @@ impl Target {
     }
 
     fn request_path(&self, path: &str) -> Result<String, HttpError> {
-        if !path.starts_with('/') || path.starts_with("//")
+        if !path.starts_with('/')
+            || path.starts_with("//")
             || path.bytes().any(|b| !b.is_ascii_graphic())
             || path.contains(['\\', '#'])
         {
@@ -204,13 +223,19 @@ fn connect_socket(
     Err(HttpError::new(format!(
         "cannot reach {}: {} (is the server running?)",
         target.authority(),
-        last_error.map(|e| e.to_string()).unwrap_or_else(|| "no address".into())
+        last_error
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "no address".into())
     )))
 }
 
 fn open_wire(target: &Target, stream: TcpStream, timeout: Duration) -> Result<Wire, HttpError> {
-    stream.set_read_timeout(Some(timeout)).map_err(|e| HttpError::new(e.to_string()))?;
-    stream.set_write_timeout(Some(timeout)).map_err(|e| HttpError::new(e.to_string()))?;
+    stream
+        .set_read_timeout(Some(timeout))
+        .map_err(|e| HttpError::new(e.to_string()))?;
+    stream
+        .set_write_timeout(Some(timeout))
+        .map_err(|e| HttpError::new(e.to_string()))?;
     if !target.tls {
         return Ok(Wire::Plain(stream));
     }
@@ -220,7 +245,8 @@ fn open_wire(target: &Target, stream: TcpStream, timeout: Duration) -> Result<Wi
             .min_protocol_version(Some(native_tls::Protocol::Tlsv12))
             .build()
             .map_err(|e| HttpError::new(format!("TLS initialization failed: {e}")))?;
-        connector.connect(&target.host, stream)
+        connector
+            .connect(&target.host, stream)
             .map(Wire::Tls)
             .map_err(|e| HttpError::new(format!("TLS connection failed: {e}")))
     }
@@ -334,7 +360,9 @@ impl StreamControl {
             return Err(HttpError::new("request cancelled"));
         }
         if slot.is_some() {
-            return Err(HttpError::new("stream control already owns an active request"));
+            return Err(HttpError::new(
+                "stream control already owns an active request",
+            ));
         }
         *slot = Some(
             stream
@@ -395,7 +423,13 @@ fn stream_impl(
     // Attach the underlying socket before TLS so cancellation can interrupt a handshake too.
     let _guard = control.map(|c| c.attach(&socket)).transpose()?;
     let mut stream = open_wire(target, socket, timeout)?;
-    stream.socket().set_read_timeout(if control.is_some() { None } else { Some(timeout) })
+    stream
+        .socket()
+        .set_read_timeout(if control.is_some() {
+            None
+        } else {
+            Some(timeout)
+        })
         .map_err(|error| HttpError::new(error.to_string()))?;
     let head = format!(
         "POST {full_path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nAccept: application/json\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
@@ -421,7 +455,10 @@ fn stream_impl(
                 Ok(())
             });
         }
-        let mut error = HttpError::new(format!("the server answered {} for {full_path}", head.status));
+        let mut error = HttpError::new(format!(
+            "the server answered {} for {full_path}",
+            head.status
+        ));
         error.notice = Some(crate::ProviderNotice::new(
             head.status,
             head.retry_after_seconds,
@@ -475,8 +512,8 @@ fn protocol_line(reader: &mut impl BufRead) -> Result<Vec<u8>, HttpError> {
 fn read_head(reader: &mut impl BufRead) -> Result<Head, HttpError> {
     let line = protocol_line(reader)?;
     let mut total = line.len() + 2;
-    let status_line = std::str::from_utf8(&line)
-        .map_err(|_| HttpError::new("invalid HTTP status line"))?;
+    let status_line =
+        std::str::from_utf8(&line).map_err(|_| HttpError::new("invalid HTTP status line"))?;
     let mut fields = status_line.split_whitespace();
     if !matches!(fields.next(), Some("HTTP/1.0" | "HTTP/1.1")) {
         return Err(HttpError::new("unsupported HTTP response version"));
@@ -498,8 +535,7 @@ fn read_head(reader: &mut impl BufRead) -> Result<Head, HttpError> {
         if line.is_empty() {
             break;
         }
-        let line = std::str::from_utf8(&line)
-            .map_err(|_| HttpError::new("invalid HTTP header"))?;
+        let line = std::str::from_utf8(&line).map_err(|_| HttpError::new("invalid HTTP header"))?;
         let (name, value) = line
             .split_once(':')
             .ok_or_else(|| HttpError::new("malformed HTTP header"))?;
@@ -511,7 +547,11 @@ fn read_head(reader: &mut impl BufRead) -> Result<Head, HttpError> {
             if length.is_some() || value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
                 return Err(HttpError::new("ambiguous or invalid Content-Length"));
             }
-            length = Some(value.parse::<usize>().map_err(|_| HttpError::new("invalid Content-Length"))?);
+            length = Some(
+                value
+                    .parse::<usize>()
+                    .map_err(|_| HttpError::new("invalid Content-Length"))?,
+            );
         } else if name.eq_ignore_ascii_case("transfer-encoding") {
             if chunked || !value.eq_ignore_ascii_case("chunked") {
                 return Err(HttpError::new("unsupported Transfer-Encoding"));
@@ -537,7 +577,11 @@ fn read_head(reader: &mut impl BufRead) -> Result<Head, HttpError> {
     } else {
         Framing::UntilEof
     };
-    Ok(Head { status, retry_after_seconds, framing })
+    Ok(Head {
+        status,
+        retry_after_seconds,
+        framing,
+    })
 }
 
 /// Deliver decoded body bytes in small blocks. For an error sample, stop exactly at the
@@ -560,13 +604,20 @@ fn read_body(
         }
         Framing::UntilEof => loop {
             if remaining == 0 {
-                if sample || reader.fill_buf().map_err(|e| HttpError::new(e.to_string()))?.is_empty() {
+                if sample
+                    || reader
+                        .fill_buf()
+                        .map_err(|e| HttpError::new(e.to_string()))?
+                        .is_empty()
+                {
                     return Ok(());
                 }
                 return Err(HttpError::new("HTTP response body exceeds limit"));
             }
             let size = remaining.min(buffer.len());
-            let n = reader.read(&mut buffer[..size]).map_err(|e| HttpError::new(e.to_string()))?;
+            let n = reader
+                .read(&mut buffer[..size])
+                .map_err(|e| HttpError::new(e.to_string()))?;
             if n == 0 {
                 return Ok(());
             }
@@ -609,7 +660,9 @@ fn read_body(
                 return Ok(());
             }
             let mut crlf = [0; 2];
-            reader.read_exact(&mut crlf).map_err(|e| HttpError::new(e.to_string()))?;
+            reader
+                .read_exact(&mut crlf)
+                .map_err(|e| HttpError::new(e.to_string()))?;
             if crlf != *b"\r\n" {
                 return Err(HttpError::new("invalid HTTP chunk terminator"));
             }
@@ -625,7 +678,9 @@ fn read_fixed(
 ) -> Result<(), HttpError> {
     while count > 0 {
         let size = count.min(buffer.len());
-        let n = reader.read(&mut buffer[..size]).map_err(|e| HttpError::new(e.to_string()))?;
+        let n = reader
+            .read(&mut buffer[..size])
+            .map_err(|e| HttpError::new(e.to_string()))?;
         if n == 0 {
             return Err(HttpError::new("truncated HTTP response body"));
         }
@@ -741,8 +796,15 @@ mod tests {
 
     #[test]
     fn malformed_authorities_and_request_lines_are_refused() {
-        for url in ["http://user:secret@host", "http://host:0", "http://host/a?b",
-            "http://host/a#b", "http://host/a\r\nX:1", "http://[::1]bad", "http://::1"] {
+        for url in [
+            "http://user:secret@host",
+            "http://host:0",
+            "http://host/a?b",
+            "http://host/a#b",
+            "http://host/a\r\nX:1",
+            "http://[::1]bad",
+            "http://::1",
+        ] {
             assert!(Target::parse(url).is_err(), "{url}");
         }
         let target = Target::parse("http://[::1]:11434/v1").unwrap();
@@ -761,12 +823,16 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let worker = std::thread::spawn(move || {
             let (mut socket, _) = listener.accept().unwrap();
-            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
             let mut first = [0; 1];
             socket.read_exact(&mut first).unwrap();
             // A TLS handshake record, not the first byte of GET or POST.
             assert_eq!(first[0], 0x16);
-            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
         });
         let target = Target::parse(&format!("https://{addr}")).unwrap();
         assert!(get(&target, "/api/tags", Duration::from_secs(5)).is_err());
@@ -775,9 +841,13 @@ mod tests {
 
     #[test]
     fn chunk_boundaries_preserve_utf8_and_extensions() {
-        let mut body = std::io::Cursor::new(b"2;test=yes\r\nA\xc5\r\n3\r\n\xbe!\n\r\n0\r\nX-End: yes\r\n\r\n");
+        let mut body =
+            std::io::Cursor::new(b"2;test=yes\r\nA\xc5\r\n3\r\n\xbe!\n\r\n0\r\nX-End: yes\r\n\r\n");
         let mut lines = Vec::new();
-        read_stream(&mut body, Framing::Chunked, &mut |line| lines.push(line.to_owned())).unwrap();
+        read_stream(&mut body, Framing::Chunked, &mut |line| {
+            lines.push(line.to_owned())
+        })
+        .unwrap();
         assert_eq!(lines, vec!["Až!"]);
     }
 
@@ -785,7 +855,10 @@ mod tests {
     fn fixed_length_stream_stops_at_the_declared_boundary() {
         let mut body = std::io::Cursor::new(b"ok\nextra");
         let mut lines = Vec::new();
-        read_stream(&mut body, Framing::Length(3), &mut |line| lines.push(line.to_owned())).unwrap();
+        read_stream(&mut body, Framing::Length(3), &mut |line| {
+            lines.push(line.to_owned())
+        })
+        .unwrap();
         assert_eq!(lines, vec!["ok"]);
         assert_eq!(body.position(), 3);
     }
@@ -802,17 +875,23 @@ mod tests {
             assert!(read_head(&mut std::io::Cursor::new(head.as_bytes())).is_err());
         }
         for body in ["2\r\na", "1\r\naXX0\r\n\r\n", "1\r\na\r\n", "0\r\n"] {
-            assert!(read_stream(
-                &mut std::io::Cursor::new(body.as_bytes()),
-                Framing::Chunked,
-                &mut |_| {},
-            ).is_err());
+            assert!(
+                read_stream(
+                    &mut std::io::Cursor::new(body.as_bytes()),
+                    Framing::Chunked,
+                    &mut |_| {},
+                )
+                .is_err()
+            );
         }
-        assert!(read_stream(
-            &mut std::io::Cursor::new(b"a"),
-            Framing::Length(2),
-            &mut |_| {},
-        ).is_err());
+        assert!(
+            read_stream(
+                &mut std::io::Cursor::new(b"a"),
+                Framing::Length(2),
+                &mut |_| {},
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -820,7 +899,16 @@ mod tests {
         let mut empty = std::io::Cursor::new(b"");
         assert!(read_body(&mut empty, Framing::Length(100), 10, false, &mut |_| Ok(())).is_err());
         let mut huge_chunk = std::io::Cursor::new(b"fffffff\r\n");
-        assert!(read_body(&mut huge_chunk, Framing::Chunked, 10, false, &mut |_| Ok(())).is_err());
+        assert!(
+            read_body(
+                &mut huge_chunk,
+                Framing::Chunked,
+                10,
+                false,
+                &mut |_| Ok(())
+            )
+            .is_err()
+        );
         let mut line = std::io::Cursor::new(vec![b'a'; MAX_STREAM_LINE + 1]);
         assert!(read_stream(&mut line, Framing::UntilEof, &mut |_| {}).is_err());
         let mut head = std::io::Cursor::new(vec![b'a'; MAX_HEADER_LINE + 1]);
@@ -833,13 +921,17 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let worker = std::thread::spawn(move || {
             let (mut socket, _) = listener.accept().unwrap();
-            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
             let mut reader = BufReader::new(socket);
             let mut line = String::new();
             loop {
                 line.clear();
                 assert_ne!(reader.read_line(&mut line).unwrap(), 0);
-                if line == "\r\n" { break; }
+                if line == "\r\n" {
+                    break;
+                }
             }
             let mut body = [0; 2];
             reader.read_exact(&mut body).unwrap();
@@ -847,7 +939,14 @@ mod tests {
         });
         let target = Target::parse(&format!("http://{addr}")).unwrap();
         let mut lines = Vec::new();
-        let error = post_json_stream(&target, "/api/chat", "{}", Duration::from_secs(5), &mut |line| lines.push(line.to_owned())).unwrap_err();
+        let error = post_json_stream(
+            &target,
+            "/api/chat",
+            "{}",
+            Duration::from_secs(5),
+            &mut |line| lines.push(line.to_owned()),
+        )
+        .unwrap_err();
         assert!(lines.is_empty());
         let notice = error.notice.unwrap();
         assert_eq!(notice.retry_after_seconds, Some(300));
@@ -861,7 +960,8 @@ mod tests {
         read_body(&mut body, Framing::Chunked, 4, true, &mut |part| {
             sample.extend_from_slice(part);
             Ok(())
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(sample, b"wait");
     }
 }

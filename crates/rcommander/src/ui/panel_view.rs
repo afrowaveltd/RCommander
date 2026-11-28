@@ -309,18 +309,17 @@ fn path_row(
                 // A Git panel shows which branch (or revision) it is looking at.
                 format!("{path}  [{}]", model.panel(side).git_label)
             };
-            let response =
-                ui.add(
-                    egui::Label::new(egui::RichText::new(&label).font(font(ui, model)).color(
-                        if active {
-                            palette.foreground
-                        } else {
-                            palette.hidden
-                        },
-                    ))
-                    .truncate()
-                    .sense(Sense::click()),
-                );
+            let response = ui.add(
+                egui::Label::new(egui::RichText::new(&label).font(font(ui, model)).color(
+                    if active {
+                        palette.foreground
+                    } else {
+                        palette.hidden
+                    },
+                ))
+                .truncate()
+                .sense(Sense::click()),
+            );
             if response.clicked() {
                 model.panel_mut(side).path_edit = Some(path.clone());
                 model.focus = side;
@@ -341,9 +340,11 @@ fn path_row(
                 model.panel(side).can_go_back()
             };
             let caption = model.t(label);
-            let response = ui.add_enabled(enabled, egui::Button::new(arrow))
+            let response = ui
+                .add_enabled(enabled, egui::Button::new(arrow))
                 .on_hover_text(format!("{caption} ({shortcut})"));
-            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, &caption));
+            response
+                .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, &caption));
             if response.clicked()
                 && let crate::model::CommandOutcome::Failed(error) = model.go_history(side, forward)
             {
@@ -354,8 +355,15 @@ fn path_row(
         // the row (or a provider does not supply it), retain a mouse-accessible
         // parent action; there is no parent action at a real root.
         if model.panel(side).location().parent().is_some()
-            && !model.panel(side).entries().iter().any(|entry| entry.name == "..")
-            && ui.small_button(model.t("cmd.up")).on_hover_text(model.t("cmd.go_up")).clicked()
+            && !model
+                .panel(side)
+                .entries()
+                .iter()
+                .any(|entry| entry.name == "..")
+            && ui
+                .small_button(model.t("cmd.up"))
+                .on_hover_text(model.t("cmd.go_up"))
+                .clicked()
         {
             model.focus = side;
             actions.push(PanelAction::Command("cm_GoToParent".to_string()));
@@ -426,20 +434,30 @@ fn column_widths(columns: &[PanelColumn], width: f32) -> Vec<f32> {
 /// and rows. In RTL the first (name) column is the rightmost one.
 fn column_rects(columns: &[PanelColumn], rect: Rect, rtl: bool) -> Vec<Rect> {
     let widths = column_widths(columns, rect.width());
-    let mut edge = if rtl { rect.right() - 4.0 } else { rect.left() + 4.0 };
-    widths.into_iter().map(|width| {
-        let (left, right) = if rtl {
-            let right = edge;
-            edge -= width;
-            (edge, right)
-        } else {
-            let left = edge;
-            edge += width;
-            (left, edge)
-        };
-        Rect::from_min_max(egui::pos2(left, rect.top()), egui::pos2(right, rect.bottom()))
+    let mut edge = if rtl {
+        rect.right() - 4.0
+    } else {
+        rect.left() + 4.0
+    };
+    widths
+        .into_iter()
+        .map(|width| {
+            let (left, right) = if rtl {
+                let right = edge;
+                edge -= width;
+                (edge, right)
+            } else {
+                let left = edge;
+                edge += width;
+                (left, edge)
+            };
+            Rect::from_min_max(
+                egui::pos2(left, rect.top()),
+                egui::pos2(right, rect.bottom()),
+            )
             .intersect(rect)
-    }).collect()
+        })
+        .collect()
 }
 
 /// Which sort field a configured column stands for, if any.
@@ -475,14 +493,15 @@ fn padded_row_height(minimum: f32, text_height: f32) -> f32 {
 /// Measure the actual font stack, including fallback glyphs used by the
 /// current language, rather than assuming that font size equals line height.
 fn measured_line_height(ui: &Ui, font: &FontId, sample: &str) -> f32 {
-    let galley = ui.painter().layout_no_wrap(sample.to_owned(), font.clone(), Color32::WHITE);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(sample.to_owned(), font.clone(), Color32::WHITE);
     let mut height = galley.rect.height().max(font.size);
     if galley.num_vertices > 0 {
         // The painter centers the logical galley, but glyphs can extend beyond
         // it asymmetrically (accents, descenders and fallback faces).
         let center = galley.rect.center().y;
-        let extent = (center - galley.mesh_bounds.top())
-            .max(galley.mesh_bounds.bottom() - center);
+        let extent = (center - galley.mesh_bounds.top()).max(galley.mesh_bounds.bottom() - center);
         height = height.max(2.0 * extent);
     }
     height
@@ -511,7 +530,11 @@ fn list_header(
         measured_line_height(ui, &font_id, "Ag 0123456789"),
         |height, column| {
             // Include the possible sort indicator when measuring the header.
-            height.max(measured_line_height(ui, &font_id, &format!("{} ^v", column.label)))
+            height.max(measured_line_height(
+                ui,
+                &font_id,
+                &format!("{} ^v", column.label),
+            ))
         },
     );
     let header_height = padded_row_height(18.0, header_text_height);
@@ -541,17 +564,19 @@ fn list_header(
             ""
         };
         let (anchor, align) = if rtl {
-            (egui::pos2(column_rect.right() - 2.0, column_rect.center().y), Align2::RIGHT_CENTER)
+            (
+                egui::pos2(column_rect.right() - 2.0, column_rect.center().y),
+                Align2::RIGHT_CENTER,
+            )
         } else {
-            (egui::pos2(column_rect.left() + 2.0, column_rect.center().y), Align2::LEFT_CENTER)
+            (
+                egui::pos2(column_rect.left() + 2.0, column_rect.center().y),
+                Align2::LEFT_CENTER,
+            )
         };
-        painter.with_clip_rect(column_rect.intersect(ui.clip_rect())).text(
-            anchor,
-            align,
-            &label,
-            font_id.clone(),
-            palette.foreground,
-        );
+        painter
+            .with_clip_rect(column_rect.intersect(ui.clip_rect()))
+            .text(anchor, align, &label, font_id.clone(), palette.foreground);
         // Every header gets a name, sortable or not: a caption a screen reader cannot see is a
         // caption that does not exist. Only the ones that sort are buttons.
         let sortable = !command.is_empty();
@@ -606,7 +631,11 @@ fn file_list(
     // One resolution per frame: the columns do not change between rows.
     let columns = model.columns(side);
     let font_id = font(ui, model);
-    let sample = format!("Ag 0123456789 {} {}", crate::icons::Icon::Folder.glyph(), model.t("col.name"));
+    let sample = format!(
+        "Ag 0123456789 {} {}",
+        crate::icons::Icon::Folder.glyph(),
+        model.t("col.name")
+    );
     let mut line_height = measured_line_height(ui, &font_id, &sample);
     // Sample localized column captions too, including provider-specific scripts.
     // Keep virtual scrolling bounded; do not shape every filename.
@@ -834,10 +863,25 @@ fn folder_menu_items(model: &Model, side: Side) -> Vec<MenuItem> {
         Some(Icon::Check),
         true,
     );
-    push(model.t("cmd.new_file"), "cm_EditNewFile", Some(Icon::Edit), true);
-    push(model.t("cmd.search"), "cm_SearchFor", Some(Icon::Search), false);
+    push(
+        model.t("cmd.new_file"),
+        "cm_EditNewFile",
+        Some(Icon::Edit),
+        true,
+    );
+    push(
+        model.t("cmd.search"),
+        "cm_SearchFor",
+        Some(Icon::Search),
+        false,
+    );
     push(model.t("cmd.new_tab"), "cm_NewTab", Some(Icon::Tab), false);
-    push(model.t("cmd.history"), "cm_DirectoryHistory", Some(Icon::History), false);
+    push(
+        model.t("cmd.history"),
+        "cm_DirectoryHistory",
+        Some(Icon::History),
+        false,
+    );
     push(model.t("cmd.secrets"), "cm_Secrets", Some(Icon::Lock), true);
     push(
         model.t("cmd.config"),
@@ -845,9 +889,22 @@ fn folder_menu_items(model: &Model, side: Side) -> Vec<MenuItem> {
         Some(Icon::Settings),
         false,
     );
-    if matches!(model.panel(side).location(), rc_core::location::Location::Local(_)) {
-        push(model.t("cmd.system_folder"), "cm_OpenFolderExternal", Some(Icon::FolderOpen), true);
-        push(model.t("cmd.terminal_here"), "cm_TerminalHere", Some(Icon::Terminal), false);
+    if matches!(
+        model.panel(side).location(),
+        rc_core::location::Location::Local(_)
+    ) {
+        push(
+            model.t("cmd.system_folder"),
+            "cm_OpenFolderExternal",
+            Some(Icon::FolderOpen),
+            true,
+        );
+        push(
+            model.t("cmd.terminal_here"),
+            "cm_TerminalHere",
+            Some(Icon::Terminal),
+            false,
+        );
     }
     items
 }
@@ -863,7 +920,10 @@ struct MenuItem {
 
 fn row_menu_items(model: &Model, side: Side, entry: &Entry) -> Vec<MenuItem> {
     let is_dir = entry.is_dir();
-    let local = matches!(model.panel(side).location(), rc_core::location::Location::Local(_));
+    let local = matches!(
+        model.panel(side).location(),
+        rc_core::location::Location::Local(_)
+    );
     if entry.name == ".." {
         return vec![MenuItem {
             label: model.t("cmd.go_up"),
@@ -953,24 +1013,75 @@ fn row_menu_items(model: &Model, side: Side, entry: &Entry) -> Vec<MenuItem> {
         Some(Icon::Settings),
         false,
     );
-    push(model.t("cmd.properties"), "cm_VersionInfo", Some(Icon::Text), false);
+    push(
+        model.t("cmd.properties"),
+        "cm_VersionInfo",
+        Some(Icon::Text),
+        false,
+    );
     if local {
-        push(model.t("cmd.pack"), "cm_PackFiles", Some(Icon::Archive), true);
+        push(
+            model.t("cmd.pack"),
+            "cm_PackFiles",
+            Some(Icon::Archive),
+            true,
+        );
         if model.settings.is_archive_name(&entry.name) && !is_dir {
-            push(model.t("cmd.unpack"), "cm_UnpackFiles", Some(Icon::Download), false);
-            push(model.t("cmd.test_archive"), "cm_TestArchive", Some(Icon::Check), false);
+            push(
+                model.t("cmd.unpack"),
+                "cm_UnpackFiles",
+                Some(Icon::Download),
+                false,
+            );
+            push(
+                model.t("cmd.test_archive"),
+                "cm_TestArchive",
+                Some(Icon::Check),
+                false,
+            );
         }
-        push(model.t("cmd.multi_rename"), "cm_MultiRename", Some(Icon::Tags), false);
+        push(
+            model.t("cmd.multi_rename"),
+            "cm_MultiRename",
+            Some(Icon::Tags),
+            false,
+        );
         if !is_dir {
-            push(model.t("cmd.checksums"), "cm_CRCcreate", Some(Icon::Fingerprint), false);
-            if model.panel(side.other()).current().is_some_and(|other| other.is_file())
-                && matches!(model.panel(side.other()).location(), rc_core::location::Location::Local(_))
+            push(
+                model.t("cmd.checksums"),
+                "cm_CRCcreate",
+                Some(Icon::Fingerprint),
+                false,
+            );
+            if model
+                .panel(side.other())
+                .current()
+                .is_some_and(|other| other.is_file())
+                && matches!(
+                    model.panel(side.other()).location(),
+                    rc_core::location::Location::Local(_)
+                )
             {
-                push(model.t("cmd.compare_by_content"), "cm_CompareFilesByContent", Some(Icon::Compare), false);
+                push(
+                    model.t("cmd.compare_by_content"),
+                    "cm_CompareFilesByContent",
+                    Some(Icon::Compare),
+                    false,
+                );
             }
         }
-        push(model.t("cmd.copy_name"), "cm_CopyNamesToClip", Some(Icon::Copy), true);
-        push(model.t("cmd.copy_path"), "cm_CopyFullNamesToClip", Some(Icon::Copy), false);
+        push(
+            model.t("cmd.copy_name"),
+            "cm_CopyNamesToClip",
+            Some(Icon::Copy),
+            true,
+        );
+        push(
+            model.t("cmd.copy_path"),
+            "cm_CopyFullNamesToClip",
+            Some(Icon::Copy),
+            false,
+        );
     }
     // The agent: the feature this file manager is built around, right where the file is.
     let (workspace_label, workspace_command) = if model.has_workspace() {
@@ -998,13 +1109,23 @@ fn row_menu_items(model: &Model, side: Side, entry: &Entry) -> Vec<MenuItem> {
 
 /// Desktop actions are deliberately separate and only offered for real local paths.
 fn desktop_menu_items(model: &Model, side: Side, entry: &Entry) -> Vec<MenuItem> {
-    if entry.name == ".." || !matches!(model.panel(side).location(), rc_core::location::Location::Local(_)) {
+    if entry.name == ".."
+        || !matches!(
+            model.panel(side).location(),
+            rc_core::location::Location::Local(_)
+        )
+    {
         return Vec::new();
     }
     let mut items = Vec::new();
-    let mut push = |key: &str, command: &str, icon: Icon| items.push(MenuItem {
-        label: model.t(key), command: command.into(), icon: Some(icon), separator: false,
-    });
+    let mut push = |key: &str, command: &str, icon: Icon| {
+        items.push(MenuItem {
+            label: model.t(key),
+            command: command.into(),
+            icon: Some(icon),
+            separator: false,
+        })
+    };
     push("cmd.open_default", "cm_OpenExternal", Icon::FolderOpen);
     push("cmd.system_folder", "cm_OpenFolderExternal", Icon::Folder);
     if !entry.is_dir() {
@@ -1020,8 +1141,12 @@ fn desktop_menu_items(model: &Model, side: Side, entry: &Entry) -> Vec<MenuItem>
 
 /// One menu for list and thumbnails; use the clicked entry, never the other pane's cursor.
 fn show_row_context_menu(
-    response: &egui::Response, model: &mut Model, side: Side, index: usize,
-    entry: &Entry, actions: &mut Vec<PanelAction>,
+    response: &egui::Response,
+    model: &mut Model,
+    side: Side,
+    index: usize,
+    entry: &Entry,
+    actions: &mut Vec<PanelAction>,
 ) {
     if response.secondary_clicked() {
         model.focus = side;
@@ -1031,7 +1156,9 @@ fn show_row_context_menu(
             panel.selection.clear();
         }
     }
-    let verbs = if entry.name == ".." { Vec::new() } else {
+    let verbs = if entry.name == ".." {
+        Vec::new()
+    } else {
         model.sources.actions(model.panel(side).location(), entry)
     };
     response.context_menu(|ui| {
@@ -1252,8 +1379,12 @@ fn thumbnail_grid(
         model.panel_mut(side).set_cursor(index);
         if kind == ClickKind::Open {
             match model.enter() {
-                crate::model::CommandOutcome::OpenFile(path) => actions.push(PanelAction::OpenFile(path)),
-                crate::model::CommandOutcome::OpenExternally(path) => actions.push(PanelAction::OpenExternal(path)),
+                crate::model::CommandOutcome::OpenFile(path) => {
+                    actions.push(PanelAction::OpenFile(path))
+                }
+                crate::model::CommandOutcome::OpenExternally(path) => {
+                    actions.push(PanelAction::OpenExternal(path))
+                }
                 crate::model::CommandOutcome::Failed(error) => model.report_error(error),
                 _ => {}
             }
@@ -1312,26 +1443,43 @@ fn draw_row(
         return;
     }
 
-    for (index, (column, cell)) in columns.iter().zip(column_rects(columns, rect, rtl)).enumerate() {
+    for (index, (column, cell)) in columns
+        .iter()
+        .zip(column_rects(columns, rect, rtl))
+        .enumerate()
+    {
         if !cell.is_positive() {
             continue;
         }
-        let align = if column.numeric { Align2::RIGHT_CENTER } else { Align2::LEFT_CENTER };
+        let align = if column.numeric {
+            Align2::RIGHT_CENTER
+        } else {
+            Align2::LEFT_CENTER
+        };
         let align = if rtl { flip_align(align) } else { align };
         let anchor = if align.x() == egui::Align::RIGHT {
             egui::pos2(cell.right() - 2.0, y)
         } else {
             egui::pos2(cell.left() + 2.0, y)
         };
-        let text = cell_texts.get(index).map(String::as_str).unwrap_or_default();
+        let text = cell_texts
+            .get(index)
+            .map(String::as_str)
+            .unwrap_or_default();
         let shown = elide(text, (cell.width() - 4.0).max(0.0), font.size);
-        painter.with_clip_rect(cell.intersect(painter.clip_rect())).text(
-            anchor,
-            align,
-            shown,
-            font.clone(),
-            if column.id == "attrs" { palette.hidden } else { color },
-        );
+        painter
+            .with_clip_rect(cell.intersect(painter.clip_rect()))
+            .text(
+                anchor,
+                align,
+                shown,
+                font.clone(),
+                if column.id == "attrs" {
+                    palette.hidden
+                } else {
+                    color
+                },
+            );
     }
 }
 
@@ -1448,8 +1596,10 @@ mod tests {
     #[test]
     fn columns_share_mirrored_non_overlapping_geometry() {
         let specs = rc_core::config::Settings::default().display.columns;
-        let columns: Vec<PanelColumn> = specs.iter()
-            .map(|spec| PanelColumn::configured(spec, spec.id.clone())).collect();
+        let columns: Vec<PanelColumn> = specs
+            .iter()
+            .map(|spec| PanelColumn::configured(spec, spec.id.clone()))
+            .collect();
         let rect = Rect::from_min_size(egui::pos2(10.0, 20.0), Vec2::new(600.0, 24.0));
         let ltr = column_rects(&columns, rect, false);
         let rtl = column_rects(&columns, rect, true);
@@ -1546,14 +1696,23 @@ mod menu_tests {
             rc_core::location::Location::local(dir.path()),
             rc_core::location::Location::local(dir.path()),
         );
-        let entry = Entry::new("file.txt", dir.path().join("file.txt"), rc_core::entry::EntryKind::File, 0);
+        let entry = Entry::new(
+            "file.txt",
+            dir.path().join("file.txt"),
+            rc_core::entry::EntryKind::File,
+            0,
+        );
         let app = row_menu_items(&model, Side::Right, &entry);
         assert!(app.iter().any(|item| item.command == "cm_PackFiles"));
         assert!(app.iter().any(|item| item.command == "cm_VersionInfo"));
         assert!(!app.iter().any(|item| item.command == "cm_OpenWith"));
         let desktop = desktop_menu_items(&model, Side::Right, &entry);
         assert!(desktop.iter().any(|item| item.command == "cm_OpenWith"));
-        assert!(desktop.iter().any(|item| item.command == "cm_OpenFolderExternal"));
+        assert!(
+            desktop
+                .iter()
+                .any(|item| item.command == "cm_OpenFolderExternal")
+        );
         let parent = Entry::parent_entry(dir.path().to_path_buf());
         let commands = row_menu_items(&model, Side::Right, &parent);
         assert_eq!(commands.len(), 1);
@@ -1569,7 +1728,12 @@ mod menu_tests {
             rc_core::location::Location::local("/tmp"),
             rc_core::location::Location::local("/tmp"),
         );
-        let entry = Entry::new("example.txt", std::path::PathBuf::from("/tmp/example.txt"), rc_core::entry::EntryKind::File, 0);
+        let entry = Entry::new(
+            "example.txt",
+            std::path::PathBuf::from("/tmp/example.txt"),
+            rc_core::entry::EntryKind::File,
+            0,
+        );
         let items = row_menu_items(&model, Side::Left, &entry);
         let commands: Vec<&str> = items.iter().map(|item| item.command.as_str()).collect();
         for expected in [

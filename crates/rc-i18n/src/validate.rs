@@ -177,14 +177,18 @@ authors = ["Somebody"]
         assert!(ar.meta().is_rtl());
         assert_eq!(ar.len(), en.len());
         fn placeholders(text: &str) -> Vec<&str> {
-            let mut tokens: Vec<&str> = text.split('{').skip(1)
+            let mut tokens: Vec<&str> = text
+                .split('{')
+                .skip(1)
                 .filter_map(|tail| tail.split_once('}').map(|(key, _)| key))
                 .collect();
             tokens.sort_unstable();
             tokens
         }
         for (key, original) in en.iter() {
-            let translated = ar.get(key).unwrap_or_else(|| panic!("missing Arabic key: {key}"));
+            let translated = ar
+                .get(key)
+                .unwrap_or_else(|| panic!("missing Arabic key: {key}"));
             assert_eq!(placeholders(original), placeholders(translated), "{key}");
         }
         let mut translator = crate::Translator::new(en, vec![ar]);
@@ -204,14 +208,18 @@ authors = ["Somebody"]
         let en = english();
         assert_eq!(cs.len(), en.len());
         fn placeholders(text: &str) -> Vec<&str> {
-            let mut tokens: Vec<&str> = text.split('{').skip(1)
+            let mut tokens: Vec<&str> = text
+                .split('{')
+                .skip(1)
                 .filter_map(|tail| tail.split_once('}').map(|(key, _)| key))
                 .collect();
             tokens.sort_unstable();
             tokens
         }
         for (key, original) in en.iter() {
-            let translated = cs.get(key).unwrap_or_else(|| panic!("missing Czech key: {key}"));
+            let translated = cs
+                .get(key)
+                .unwrap_or_else(|| panic!("missing Czech key: {key}"));
             assert_eq!(placeholders(original), placeholders(translated), "{key}");
         }
     }

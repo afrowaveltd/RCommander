@@ -973,7 +973,11 @@ impl Model {
     /// are entered, files open in the viewer.
     pub fn enter(&mut self) -> CommandOutcome {
         // Parent is navigable, but must stay excluded from ordinary file operations.
-        if self.active().cursor_entry().is_some_and(|entry| entry.name == "..") {
+        if self
+            .active()
+            .cursor_entry()
+            .is_some_and(|entry| entry.name == "..")
+        {
             return match self.go_parent() {
                 Ok(()) => CommandOutcome::Ok,
                 Err(error) => CommandOutcome::Failed(error.to_string()),

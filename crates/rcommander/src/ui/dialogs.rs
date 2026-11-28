@@ -44,58 +44,58 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
         window = window.resizable(true).default_width(460.0);
     }
     window.show(ctx, |ui| {
-            action = match &mut dialog {
-                Dialog::WorkspaceReview(state) => workspace_review(ui, model, state),
-                Dialog::OpenWith(state) => open_with(ui, model, state),
-                Dialog::Transfer(state) => transfer(ui, model, state),
-                Dialog::Overwrite(state) => overwrite(ui, model, state),
-                Dialog::MakeDir(state) => mkdir(ui, model, state),
-                Dialog::Rename(state) => rename(ui, model, state),
-                Dialog::Delete(state) => delete(ui, model, state),
-                Dialog::Search(state) => search(ui, model, state),
-                Dialog::Pack(state) => pack(ui, model, state),
-                Dialog::Unpack(state) => unpack(ui, model, state),
-                Dialog::MultiRename(state) => multi_rename(ui, model, state),
-                Dialog::Attributes(state) => attributes(ui, model, state),
-                Dialog::Comment(state) => comment(ui, model, state),
-                Dialog::Hotlist(state) => hotlist(ui, model, state),
-                Dialog::Options(state) => options(ui, model, state, keys),
-                Dialog::FtpConnect(state) => ftp(ui, model, state),
-                Dialog::Synchronize(state) => sync(ui, model, state),
-                Dialog::History(state) => history(ui, model, state),
-                Dialog::MaskPrompt(state) => mask_prompt(ui, model, state),
-                Dialog::Compare(state) => compare(ui, model, state),
-                Dialog::Tree(state) => tree(ui, model, state),
-                Dialog::ButtonBar(state) => button_bar(ui, model, state, keys),
-                Dialog::ViewModes(state) => view_modes(ui, model, state, keys),
-                Dialog::Split(state) => split(ui, model, state),
-                Dialog::Combine(state) => combine(ui, model, state),
-                Dialog::Checksum(state) => checksum(ui, model, state),
-                Dialog::VerifyChecksum(state) => verify_checksum(ui, model, state),
-                Dialog::CompareFiles(state) => compare_files(ui, model, state),
-                Dialog::Duplicates(state) => duplicates(ui, model, state),
-                Dialog::UnlockSecrets(state) => unlock_secrets(ui, model, state),
-                Dialog::GitConfig(state) => git_config(ui, model, state),
-                Dialog::GitCommit(state) => git_commit(ui, model, state),
-                Dialog::GitBranches(state) => git_branches(ui, model, state),
-                Dialog::GitRemote(state) => git_remote(ui, model, state),
-                Dialog::GitClone(state) => git_clone(ui, model, state),
-                Dialog::AgentApproval(state) => agent_approval(ui, model, state),
-                Dialog::AiModel(state) => ai_model(ui, model, state),
-                Dialog::Encode(state) => encode_dialog(ui, model, state),
-                Dialog::Decode(state) => decode_dialog(ui, model, state),
-                Dialog::SaveSelection(state) => save_selection(ui, model, state),
-                Dialog::LoadSelection(state) => load_selection(ui, model, state),
-                Dialog::LanguagePicker => language_picker(ui, model),
-                Dialog::About => about(ui, model),
-                Dialog::Confirm {
-                    message,
-                    action: confirm_action,
-                    ..
-                } => confirm(ui, model, message, *confirm_action),
-                Dialog::Progress(state) => progress(ui, model, state),
-            };
-        });
+        action = match &mut dialog {
+            Dialog::WorkspaceReview(state) => workspace_review(ui, model, state),
+            Dialog::OpenWith(state) => open_with(ui, model, state),
+            Dialog::Transfer(state) => transfer(ui, model, state),
+            Dialog::Overwrite(state) => overwrite(ui, model, state),
+            Dialog::MakeDir(state) => mkdir(ui, model, state),
+            Dialog::Rename(state) => rename(ui, model, state),
+            Dialog::Delete(state) => delete(ui, model, state),
+            Dialog::Search(state) => search(ui, model, state),
+            Dialog::Pack(state) => pack(ui, model, state),
+            Dialog::Unpack(state) => unpack(ui, model, state),
+            Dialog::MultiRename(state) => multi_rename(ui, model, state),
+            Dialog::Attributes(state) => attributes(ui, model, state),
+            Dialog::Comment(state) => comment(ui, model, state),
+            Dialog::Hotlist(state) => hotlist(ui, model, state),
+            Dialog::Options(state) => options(ui, model, state, keys),
+            Dialog::FtpConnect(state) => ftp(ui, model, state),
+            Dialog::Synchronize(state) => sync(ui, model, state),
+            Dialog::History(state) => history(ui, model, state),
+            Dialog::MaskPrompt(state) => mask_prompt(ui, model, state),
+            Dialog::Compare(state) => compare(ui, model, state),
+            Dialog::Tree(state) => tree(ui, model, state),
+            Dialog::ButtonBar(state) => button_bar(ui, model, state, keys),
+            Dialog::ViewModes(state) => view_modes(ui, model, state, keys),
+            Dialog::Split(state) => split(ui, model, state),
+            Dialog::Combine(state) => combine(ui, model, state),
+            Dialog::Checksum(state) => checksum(ui, model, state),
+            Dialog::VerifyChecksum(state) => verify_checksum(ui, model, state),
+            Dialog::CompareFiles(state) => compare_files(ui, model, state),
+            Dialog::Duplicates(state) => duplicates(ui, model, state),
+            Dialog::UnlockSecrets(state) => unlock_secrets(ui, model, state),
+            Dialog::GitConfig(state) => git_config(ui, model, state),
+            Dialog::GitCommit(state) => git_commit(ui, model, state),
+            Dialog::GitBranches(state) => git_branches(ui, model, state),
+            Dialog::GitRemote(state) => git_remote(ui, model, state),
+            Dialog::GitClone(state) => git_clone(ui, model, state),
+            Dialog::AgentApproval(state) => agent_approval(ui, model, state),
+            Dialog::AiModel(state) => ai_model(ui, model, state),
+            Dialog::Encode(state) => encode_dialog(ui, model, state),
+            Dialog::Decode(state) => decode_dialog(ui, model, state),
+            Dialog::SaveSelection(state) => save_selection(ui, model, state),
+            Dialog::LoadSelection(state) => load_selection(ui, model, state),
+            Dialog::LanguagePicker => language_picker(ui, model),
+            Dialog::About => about(ui, model),
+            Dialog::Confirm {
+                message,
+                action: confirm_action,
+                ..
+            } => confirm(ui, model, message, *confirm_action),
+            Dialog::Progress(state) => progress(ui, model, state),
+        };
+    });
     if !open {
         // The window's × was pressed: close this dialog instead of writing the
         // state back (the previous code ignored `open` and the × did nothing).
@@ -483,13 +483,18 @@ fn language_picker(ui: &mut egui::Ui, model: &mut Model) -> DialogAction {
     }
     let current = model.strings.language();
     let mut chosen = None;
-    egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
-        for (code, name) in languages {
-            if ui.selectable_label(current == code, format!("{name} [{code}]")).clicked() {
-                chosen = Some(code);
+    egui::ScrollArea::vertical()
+        .max_height(340.0)
+        .show(ui, |ui| {
+            for (code, name) in languages {
+                if ui
+                    .selectable_label(current == code, format!("{name} [{code}]"))
+                    .clicked()
+                {
+                    chosen = Some(code);
+                }
             }
-        }
-    });
+        });
     if let Some(code) = chosen {
         if model.set_language(&code) {
             // An options draft below the picker must not undo the rescue on OK.
@@ -503,7 +508,9 @@ fn language_picker(ui: &mut egui::Ui, model: &mut Model) -> DialogAction {
         }
     }
     ui.separator();
-    if ui.button(format!("{} / Esc", model.t("dialog.config.cancel"))).clicked()
+    if ui
+        .button(format!("{} / Esc", model.t("dialog.config.cancel")))
+        .clicked()
         || ui.input(|input| input.key_pressed(egui::Key::Escape))
     {
         return DialogAction::Close;
@@ -886,15 +893,24 @@ fn attributes(ui: &mut egui::Ui, model: &mut Model, state: &mut AttributesState)
         state.readonly = Some(readonly);
         changed = true;
     }
-    if ui.checkbox(&mut hidden, model.t("attributes.hidden")).changed() {
+    if ui
+        .checkbox(&mut hidden, model.t("attributes.hidden"))
+        .changed()
+    {
         state.hidden = Some(hidden);
         changed |= true;
     }
-    if ui.checkbox(&mut system, model.t("attributes.system")).changed() {
+    if ui
+        .checkbox(&mut system, model.t("attributes.system"))
+        .changed()
+    {
         state.system = Some(system);
         changed |= true;
     }
-    if ui.checkbox(&mut archive, model.t("attributes.archive")).changed() {
+    if ui
+        .checkbox(&mut archive, model.t("attributes.archive"))
+        .changed()
+    {
         state.archive = Some(archive);
         changed |= true;
     }
@@ -1429,213 +1445,203 @@ fn prompts_page(ui: &mut egui::Ui, model: &mut Model) {
     let palette = crate::theme::Palette::for_model(model);
     // The catalogue is read on first use, so a startup that never opens this page pays nothing.
     let _ = model.prompts();
-        ui.label(
-            egui::RichText::new(model.t("prompt.page.help"))
-                .small()
-                .color(palette.hidden),
-        );
-        let problems: Vec<String> = model.prompts().problems().to_vec();
-        for problem in problems {
-            ui.label(egui::RichText::new(problem).color(palette.warning).small());
+    ui.label(
+        egui::RichText::new(model.t("prompt.page.help"))
+            .small()
+            .color(palette.hidden),
+    );
+    let problems: Vec<String> = model.prompts().problems().to_vec();
+    for problem in problems {
+        ui.label(egui::RichText::new(problem).color(palette.warning).small());
+    }
+    ui.separator();
+
+    // ---- category tabs and the list -------------------------------------
+    ui.horizontal_wrapped(|ui| {
+        for category in Category::ALL {
+            let label = model.t(category.label_key());
+            let chosen = model.prompt_picker.category == Some(category);
+            if ui.selectable_label(chosen, label).clicked() {
+                model.prompt_picker.category = Some(category);
+            }
         }
-        ui.separator();
-
-        // ---- category tabs and the list -------------------------------------
-        ui.horizontal_wrapped(|ui| {
-            for category in Category::ALL {
-                let label = model.t(category.label_key());
-                let chosen = model.prompt_picker.category == Some(category);
-                if ui.selectable_label(chosen, label).clicked() {
-                    model.prompt_picker.category = Some(category);
-                }
+        if ui
+            .selectable_label(
+                model.prompt_picker.category.is_none(),
+                model.t("prompt.all"),
+            )
+            .clicked()
+        {
+            model.prompt_picker.category = None;
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui.button(model.t("prompt.new")).clicked() {
+                let category = model.prompt_picker.category.unwrap_or(Category::General);
+                model.new_prompt(category);
             }
-            if ui
-                .selectable_label(
-                    model.prompt_picker.category.is_none(),
-                    model.t("prompt.all"),
-                )
-                .clicked()
-            {
-                model.prompt_picker.category = None;
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(model.t("prompt.new")).clicked() {
-                    let category = model.prompt_picker.category.unwrap_or(Category::General);
-                    model.new_prompt(category);
-                }
-            });
         });
+    });
 
-        let entries = model.visible_prompts();
-        let mut selected: Option<String> = None;
-        let mut copy: Option<String> = None;
-        let mut reset: Option<String> = None;
-        let mut delete: Option<String> = None;
-        let current = model.prompt_editor.id.clone();
-        egui::ScrollArea::vertical()
-            .max_height(150.0)
-            .auto_shrink([false, true])
-            .id_salt("prompt_editor_list")
-            .show(ui, |ui| {
-                for entry in &entries {
-                    let id = entry.prompt.id.clone();
-                    let overridden = model.prompts().is_overridden(&id);
-                    let mut label = entry.prompt.title.clone();
-                    if !entry.builtin {
-                        label.push_str(&format!("  ({})", model.t("prompt.badge.mine")));
-                    } else if overridden {
-                        label.push_str(&format!("  ({})", model.t("prompt.badge.edited")));
-                    }
-                    if ui
-                        .selectable_label(current.as_deref() == Some(id.as_str()), label)
-                        .clicked()
-                    {
-                        selected = Some(id.clone());
-                    }
-                    ui.horizontal(|ui| {
-                        if entry.builtin {
-                            if ui.small_button(model.t("prompt.copy")).clicked() {
-                                copy = Some(id.clone());
-                            }
-                        } else {
-                            if ui.small_button(model.t("prompt.reset")).clicked() {
-                                reset = Some(id.clone());
-                            }
-                            if ui.small_button(model.t("prompt.delete")).clicked() {
-                                delete = Some(id.clone());
-                            }
+    let entries = model.visible_prompts();
+    let mut selected: Option<String> = None;
+    let mut copy: Option<String> = None;
+    let mut reset: Option<String> = None;
+    let mut delete: Option<String> = None;
+    let current = model.prompt_editor.id.clone();
+    egui::ScrollArea::vertical()
+        .max_height(150.0)
+        .auto_shrink([false, true])
+        .id_salt("prompt_editor_list")
+        .show(ui, |ui| {
+            for entry in &entries {
+                let id = entry.prompt.id.clone();
+                let overridden = model.prompts().is_overridden(&id);
+                let mut label = entry.prompt.title.clone();
+                if !entry.builtin {
+                    label.push_str(&format!("  ({})", model.t("prompt.badge.mine")));
+                } else if overridden {
+                    label.push_str(&format!("  ({})", model.t("prompt.badge.edited")));
+                }
+                if ui
+                    .selectable_label(current.as_deref() == Some(id.as_str()), label)
+                    .clicked()
+                {
+                    selected = Some(id.clone());
+                }
+                ui.horizontal(|ui| {
+                    if entry.builtin {
+                        if ui.small_button(model.t("prompt.copy")).clicked() {
+                            copy = Some(id.clone());
                         }
-                    });
-                }
-            });
-        if let Some(id) = selected {
-            model.edit_prompt(&id);
-        }
-        if let Some(id) = copy
-            && let Err(error) = model.copy_prompt_to_mine(&id)
-        {
-            model.report_error(error);
-        }
-        if let Some(id) = reset
-            && let Err(error) = model.reset_prompt(&id)
-        {
-            model.report_error(error);
-        }
-        if let Some(id) = delete
-            && let Err(error) = model.delete_prompt(&id)
-        {
-            model.report_error(error);
-        }
-
-        ui.separator();
-        // ---- the editor ------------------------------------------------------
-        if model.prompt_editor.id.is_none() {
-            ui.label(
-                egui::RichText::new(model.t("prompt.editor.none"))
-                    .italics()
-                    .color(palette.hidden),
-            );
-            return;
-        }
-        ui.label(
-            egui::RichText::new(model.t("prompt.editor.title"))
-                .strong()
-                .color(palette.accent),
-        );
-        egui::Grid::new("prompt_editor_grid")
-            .num_columns(2)
-            .show(ui, |ui| {
-                ui.label(model.t("prompt.field.title"));
-                ui.add(
-                    egui::TextEdit::singleline(&mut model.prompt_editor.title)
-                        .desired_width(340.0),
-                );
-                ui.end_row();
-                ui.label(model.t("prompt.field.about"));
-                ui.add(
-                    egui::TextEdit::singleline(&mut model.prompt_editor.about)
-                        .desired_width(340.0),
-                );
-                ui.end_row();
-                if model.prompt_editor.creating {
-                    ui.label(model.t("prompt.field.category"));
-                    egui::ComboBox::from_id_salt("prompt_editor_category")
-                        .selected_text(model.t(model.prompt_editor.category.label_key()))
-                        .show_ui(ui, |ui| {
-                            for category in Category::ALL {
-                                let label = model.t(category.label_key());
-                                ui.selectable_value(
-                                    &mut model.prompt_editor.category,
-                                    category,
-                                    label,
-                                );
-                            }
-                        });
-                    ui.end_row();
-                }
-            });
-        ui.label(model.t("prompt.field.text"));
-        ui.add(
-            egui::TextEdit::multiline(&mut model.prompt_editor.text)
-                .desired_rows(5)
-                .desired_width(f32::INFINITY),
-        );
-        // What the variables will be replaced with, so nobody has to guess.
-        ui.label(
-            egui::RichText::new(model.t("prompt.field.variables"))
-                .small()
-                .color(palette.hidden),
-        );
-        let variables = rc_core::prompt::variables(&model.prompt_editor.text);
-        if variables.is_empty() {
-            ui.label(egui::RichText::new(model.t("prompt.field.variables.none")).small());
-        } else {
-            let values = model.prompt_values();
-            for name in variables {
-                let value = values
-                    .get(&name)
-                    .cloned()
-                    .unwrap_or_else(|| model.t("prompt.field.variables.missing").to_string());
-                ui.label(
-                    egui::RichText::new(format!("{{{{{name}}}}} → {value}"))
-                        .small()
-                        .monospace(),
-                );
-            }
-        }
-        if let Some(target) = model.prompt_reset_target() {
-            ui.separator();
-            ui.label(
-                egui::RichText::new(model.t("prompt.editor.original"))
-                    .small()
-                    .color(palette.hidden),
-            );
-            ui.label(egui::RichText::new(&target.text).small().italics());
-        }
-        if !model.prompt_editor.status.is_empty() {
-            ui.label(
-                egui::RichText::new(&model.prompt_editor.status)
-                    .small()
-                    .color(palette.accent),
-            );
-        }
-        ui.horizontal(|ui| {
-            if ui.button(model.t("prompt.save")).clicked() {
-                match model.save_edited_prompt() {
-                    Ok(_) => {}
-                    Err(error) => model.report_error(error),
-                }
-            }
-            if ui.button(model.t("dialog.config.cancel")).clicked() {
-                model.clear_prompt_editor();
+                    } else {
+                        if ui.small_button(model.t("prompt.reset")).clicked() {
+                            reset = Some(id.clone());
+                        }
+                        if ui.small_button(model.t("prompt.delete")).clicked() {
+                            delete = Some(id.clone());
+                        }
+                    }
+                });
             }
         });
+    if let Some(id) = selected {
+        model.edit_prompt(&id);
+    }
+    if let Some(id) = copy
+        && let Err(error) = model.copy_prompt_to_mine(&id)
+    {
+        model.report_error(error);
+    }
+    if let Some(id) = reset
+        && let Err(error) = model.reset_prompt(&id)
+    {
+        model.report_error(error);
+    }
+    if let Some(id) = delete
+        && let Err(error) = model.delete_prompt(&id)
+    {
+        model.report_error(error);
+    }
+
+    ui.separator();
+    // ---- the editor ------------------------------------------------------
+    if model.prompt_editor.id.is_none() {
         ui.label(
-            egui::RichText::new(model.t("prompt.page.where"))
-                .small()
+            egui::RichText::new(model.t("prompt.editor.none"))
                 .italics()
                 .color(palette.hidden),
         );
+        return;
+    }
+    ui.label(
+        egui::RichText::new(model.t("prompt.editor.title"))
+            .strong()
+            .color(palette.accent),
+    );
+    egui::Grid::new("prompt_editor_grid")
+        .num_columns(2)
+        .show(ui, |ui| {
+            ui.label(model.t("prompt.field.title"));
+            ui.add(egui::TextEdit::singleline(&mut model.prompt_editor.title).desired_width(340.0));
+            ui.end_row();
+            ui.label(model.t("prompt.field.about"));
+            ui.add(egui::TextEdit::singleline(&mut model.prompt_editor.about).desired_width(340.0));
+            ui.end_row();
+            if model.prompt_editor.creating {
+                ui.label(model.t("prompt.field.category"));
+                egui::ComboBox::from_id_salt("prompt_editor_category")
+                    .selected_text(model.t(model.prompt_editor.category.label_key()))
+                    .show_ui(ui, |ui| {
+                        for category in Category::ALL {
+                            let label = model.t(category.label_key());
+                            ui.selectable_value(&mut model.prompt_editor.category, category, label);
+                        }
+                    });
+                ui.end_row();
+            }
+        });
+    ui.label(model.t("prompt.field.text"));
+    ui.add(
+        egui::TextEdit::multiline(&mut model.prompt_editor.text)
+            .desired_rows(5)
+            .desired_width(f32::INFINITY),
+    );
+    // What the variables will be replaced with, so nobody has to guess.
+    ui.label(
+        egui::RichText::new(model.t("prompt.field.variables"))
+            .small()
+            .color(palette.hidden),
+    );
+    let variables = rc_core::prompt::variables(&model.prompt_editor.text);
+    if variables.is_empty() {
+        ui.label(egui::RichText::new(model.t("prompt.field.variables.none")).small());
+    } else {
+        let values = model.prompt_values();
+        for name in variables {
+            let value = values
+                .get(&name)
+                .cloned()
+                .unwrap_or_else(|| model.t("prompt.field.variables.missing").to_string());
+            ui.label(
+                egui::RichText::new(format!("{{{{{name}}}}} → {value}"))
+                    .small()
+                    .monospace(),
+            );
+        }
+    }
+    if let Some(target) = model.prompt_reset_target() {
+        ui.separator();
+        ui.label(
+            egui::RichText::new(model.t("prompt.editor.original"))
+                .small()
+                .color(palette.hidden),
+        );
+        ui.label(egui::RichText::new(&target.text).small().italics());
+    }
+    if !model.prompt_editor.status.is_empty() {
+        ui.label(
+            egui::RichText::new(&model.prompt_editor.status)
+                .small()
+                .color(palette.accent),
+        );
+    }
+    ui.horizontal(|ui| {
+        if ui.button(model.t("prompt.save")).clicked() {
+            match model.save_edited_prompt() {
+                Ok(_) => {}
+                Err(error) => model.report_error(error),
+            }
+        }
+        if ui.button(model.t("dialog.config.cancel")).clicked() {
+            model.clear_prompt_editor();
+        }
+    });
+    ui.label(
+        egui::RichText::new(model.t("prompt.page.where"))
+            .small()
+            .italics()
+            .color(palette.hidden),
+    );
 }
 
 /// The security page: who may do what, what is pre-approved, and what the log says.
@@ -1655,129 +1661,129 @@ fn prompts_page(ui: &mut egui::Ui, model: &mut Model) {
 /// catalogue file owns today, and a page that half-edited them would be worse than none.
 fn models_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) {
     let palette = crate::theme::Palette::for_model(model);
+    ui.label(
+        egui::RichText::new(model.catalogue_summary_for(&state.draft.agent.model_catalog))
+            .small()
+            .color(palette.hidden),
+    );
+    ui.add_space(6.0);
+    let mut allow_remote = state.draft.agent.allow_remote_models;
+    if ui
+        .checkbox(&mut allow_remote, model.t("ai.route.allow_remote"))
+        .changed()
+    {
+        state.draft.agent.allow_remote_models = allow_remote;
+    }
+    ui.add_space(8.0);
+    ui.label(
+        egui::RichText::new(model.t("ai.route.connections"))
+            .strong()
+            .color(palette.accent),
+    );
+    if state.draft.agent.model_catalog.connections.is_empty() {
         ui.label(
-            egui::RichText::new(model.catalogue_summary_for(&state.draft.agent.model_catalog))
+            egui::RichText::new(model.t("ai.route.no_connections"))
                 .small()
                 .color(palette.hidden),
         );
-        ui.add_space(6.0);
-        let mut allow_remote = state.draft.agent.allow_remote_models;
-        if ui
-            .checkbox(&mut allow_remote, model.t("ai.route.allow_remote"))
-            .changed()
-        {
-            state.draft.agent.allow_remote_models = allow_remote;
-        }
-        ui.add_space(8.0);
-        ui.label(
-            egui::RichText::new(model.t("ai.route.connections"))
-                .strong()
-                .color(palette.accent),
-        );
-        if state.draft.agent.model_catalog.connections.is_empty() {
-            ui.label(
-                egui::RichText::new(model.t("ai.route.no_connections"))
-                    .small()
-                    .color(palette.hidden),
+    }
+    // Collected first: the rows need the model for translations while the draft is
+    // borrowed mutably for the text fields.
+    let labels = [
+        model.t("ai.route.enabled"),
+        model.t("ai.route.id"),
+        model.t("ai.route.base_url"),
+        model.t("ai.route.account"),
+        model.t("ai.route.discover"),
+        model.t("ai.route.remove"),
+    ];
+    let mut remove: Option<String> = None;
+    let mut discover: Option<String> = None;
+    let mut add = false;
+    for index in 0..state.draft.agent.model_catalog.connections.len() {
+        let connection = &mut state.draft.agent.model_catalog.connections[index];
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut connection.enabled, &labels[0]);
+            ui.add(
+                egui::TextEdit::singleline(&mut connection.id)
+                    .hint_text(&labels[1])
+                    .desired_width(110.0)
+                    .id_salt(format!("conn-id-{index}")),
             );
-        }
-        // Collected first: the rows need the model for translations while the draft is
-        // borrowed mutably for the text fields.
-        let labels = [
-            model.t("ai.route.enabled"),
-            model.t("ai.route.id"),
-            model.t("ai.route.base_url"),
-            model.t("ai.route.account"),
-            model.t("ai.route.discover"),
-            model.t("ai.route.remove"),
-        ];
-        let mut remove: Option<String> = None;
-        let mut discover: Option<String> = None;
-        let mut add = false;
-        for index in 0..state.draft.agent.model_catalog.connections.len() {
-            let connection = &mut state.draft.agent.model_catalog.connections[index];
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut connection.enabled, &labels[0]);
-                ui.add(
-                    egui::TextEdit::singleline(&mut connection.id)
-                        .hint_text(&labels[1])
-                        .desired_width(110.0)
-                        .id_salt(format!("conn-id-{index}")),
-                );
-                ui.label(egui::RichText::new(connection.kind.label()).small());
-                ui.add(
-                    egui::TextEdit::singleline(&mut connection.base_url)
-                        .hint_text(&labels[2])
-                        .desired_width(220.0)
-                        .id_salt(format!("conn-url-{index}")),
-                );
-                let mut account = connection.account.clone().unwrap_or_default();
-                if ui
-                    .add(
-                        egui::TextEdit::singleline(&mut account)
-                            .hint_text(&labels[3])
-                            .desired_width(90.0)
-                            .id_salt(format!("conn-account-{index}")),
-                    )
-                    .changed()
-                {
-                    connection.account = Some(account).filter(|text| !text.trim().is_empty());
-                }
-                if ui.small_button(&labels[4]).clicked() {
-                    discover = Some(connection.id.clone());
-                }
-                if ui.small_button(&labels[5]).clicked() {
-                    remove = Some(connection.id.clone());
-                }
-            });
-        }
-        if ui.button(model.t("ai.route.add_connection")).clicked() {
-            add = true;
-        }
-        if add {
-            let connection = model.new_connection_for(&state.draft.agent.model_catalog);
-            match model.add_connection_to(&mut state.draft.agent.model_catalog, connection) {
-                Ok(()) => state.routing_status.clear(),
-                Err(message) => state.routing_status = message,
-            }
-        }
-        if let Some(id) = remove {
-            Model::remove_connection_from(&mut state.draft.agent.model_catalog, &id);
-            state.routing_status.clear();
-        }
-        if let Some(id) = discover {
-            match model.discover_connection_in(&mut state.draft.agent.model_catalog, &id) {
-                Ok(note) => state.routing_status = note,
-                Err(message) => state.routing_status = message,
-            }
-        }
-        if !state.routing_status.is_empty() {
-            ui.add_space(4.0);
-            ui.label(
-                egui::RichText::new(&state.routing_status)
-                    .small()
-                    .color(palette.accent),
+            ui.label(egui::RichText::new(connection.kind.label()).small());
+            ui.add(
+                egui::TextEdit::singleline(&mut connection.base_url)
+                    .hint_text(&labels[2])
+                    .desired_width(220.0)
+                    .id_salt(format!("conn-url-{index}")),
             );
+            let mut account = connection.account.clone().unwrap_or_default();
+            if ui
+                .add(
+                    egui::TextEdit::singleline(&mut account)
+                        .hint_text(&labels[3])
+                        .desired_width(90.0)
+                        .id_salt(format!("conn-account-{index}")),
+                )
+                .changed()
+            {
+                connection.account = Some(account).filter(|text| !text.trim().is_empty());
+            }
+            if ui.small_button(&labels[4]).clicked() {
+                discover = Some(connection.id.clone());
+            }
+            if ui.small_button(&labels[5]).clicked() {
+                remove = Some(connection.id.clone());
+            }
+        });
+    }
+    if ui.button(model.t("ai.route.add_connection")).clicked() {
+        add = true;
+    }
+    if add {
+        let connection = model.new_connection_for(&state.draft.agent.model_catalog);
+        match model.add_connection_to(&mut state.draft.agent.model_catalog, connection) {
+            Ok(()) => state.routing_status.clear(),
+            Err(message) => state.routing_status = message,
         }
-        if let Some(issue) = state.draft.agent.model_catalog.validate().err() {
-            let reason = format!("{issue:?}");
-            let text = model.tf("ai.route.issue", &[("reason", &reason)]);
-            ui.label(egui::RichText::new(text).small().color(palette.warning));
+    }
+    if let Some(id) = remove {
+        Model::remove_connection_from(&mut state.draft.agent.model_catalog, &id);
+        state.routing_status.clear();
+    }
+    if let Some(id) = discover {
+        match model.discover_connection_in(&mut state.draft.agent.model_catalog, &id) {
+            Ok(note) => state.routing_status = note,
+            Err(message) => state.routing_status = message,
         }
-        ui.add_space(10.0);
+    }
+    if !state.routing_status.is_empty() {
+        ui.add_space(4.0);
         ui.label(
-            egui::RichText::new(model.t("ai.route.models_heading"))
-                .strong()
-                .color(palette.accent),
-        );
-        ui.label(
-            egui::RichText::new(model.t("ai.route.hint"))
+            egui::RichText::new(&state.routing_status)
                 .small()
-                .color(palette.hidden),
+                .color(palette.accent),
         );
-        model_rows(ui, model, state, &palette);
-        quota_rows(ui, model, state, &palette);
-        route_rows(ui, model, state, &palette);
+    }
+    if let Some(issue) = state.draft.agent.model_catalog.validate().err() {
+        let reason = format!("{issue:?}");
+        let text = model.tf("ai.route.issue", &[("reason", &reason)]);
+        ui.label(egui::RichText::new(text).small().color(palette.warning));
+    }
+    ui.add_space(10.0);
+    ui.label(
+        egui::RichText::new(model.t("ai.route.models_heading"))
+            .strong()
+            .color(palette.accent),
+    );
+    ui.label(
+        egui::RichText::new(model.t("ai.route.hint"))
+            .small()
+            .color(palette.hidden),
+    );
+    model_rows(ui, model, state, &palette);
+    quota_rows(ui, model, state, &palette);
+    route_rows(ui, model, state, &palette);
 }
 
 /// Everything the page can change about the catalogue, applied after the widgets are drawn.
@@ -2236,95 +2242,95 @@ fn action_label(action: rc_core::model_catalog::ExhaustedAction) -> String {
 fn plugins_page(ui: &mut egui::Ui, model: &mut Model) {
     let palette = crate::theme::Palette::for_model(model);
     let mut toggle: Option<(String, bool)> = None;
-        ui.label(
-            egui::RichText::new(model.t("plugins.heading"))
-                .strong()
-                .color(palette.accent),
-        );
-        ui.label(
-            egui::RichText::new(model.t("plugins.hint"))
-                .small()
-                .color(palette.hidden),
-        );
-        ui.add_space(6.0);
-        if model.plugin_entries().is_empty() {
-            ui.label(model.t("plugins.none"));
-        }
-        // Collected first: the list borrows the model that the toggle needs.
-        let entries: Vec<(String, String, String, String, bool, bool, String)> = model
-            .plugin_entries()
-            .iter()
-            .map(|plugin| {
-                (
-                    plugin.id.clone(),
-                    plugin.name.clone(),
-                    plugin.version.clone(),
-                    plugin.description.clone(),
-                    plugin.enabled,
-                    plugin.is_read_only(),
-                    plugin.backend.to_string(),
-                )
-            })
-            .collect();
-        for (id, name, version, description, enabled, read_only, backend) in entries {
-            ui.separator();
-            ui.horizontal(|ui| {
-                let mut on = enabled;
-                // A checkbox, because the question is yes/no and the answer takes effect now.
-                if ui.checkbox(&mut on, model.t("plugins.enabled")).changed() {
-                    toggle = Some((id.clone(), on));
-                }
-                ui.label(egui::RichText::new(&name).strong());
+    ui.label(
+        egui::RichText::new(model.t("plugins.heading"))
+            .strong()
+            .color(palette.accent),
+    );
+    ui.label(
+        egui::RichText::new(model.t("plugins.hint"))
+            .small()
+            .color(palette.hidden),
+    );
+    ui.add_space(6.0);
+    if model.plugin_entries().is_empty() {
+        ui.label(model.t("plugins.none"));
+    }
+    // Collected first: the list borrows the model that the toggle needs.
+    let entries: Vec<(String, String, String, String, bool, bool, String)> = model
+        .plugin_entries()
+        .iter()
+        .map(|plugin| {
+            (
+                plugin.id.clone(),
+                plugin.name.clone(),
+                plugin.version.clone(),
+                plugin.description.clone(),
+                plugin.enabled,
+                plugin.is_read_only(),
+                plugin.backend.to_string(),
+            )
+        })
+        .collect();
+    for (id, name, version, description, enabled, read_only, backend) in entries {
+        ui.separator();
+        ui.horizontal(|ui| {
+            let mut on = enabled;
+            // A checkbox, because the question is yes/no and the answer takes effect now.
+            if ui.checkbox(&mut on, model.t("plugins.enabled")).changed() {
+                toggle = Some((id.clone(), on));
+            }
+            ui.label(egui::RichText::new(&name).strong());
+            ui.label(
+                egui::RichText::new(format!("{id}://"))
+                    .small()
+                    .color(palette.hidden),
+            );
+            if !version.trim().is_empty() {
                 ui.label(
-                    egui::RichText::new(format!("{id}://"))
+                    egui::RichText::new(format!("v{version}"))
                         .small()
                         .color(palette.hidden),
                 );
-                if !version.trim().is_empty() {
-                    ui.label(
-                        egui::RichText::new(format!("v{version}"))
-                            .small()
-                            .color(palette.hidden),
-                    );
-                }
-                ui.label(egui::RichText::new(backend).small().color(palette.hidden));
-            });
-            if !description.trim().is_empty() {
-                ui.label(egui::RichText::new(description).small());
             }
-            // What the place allows, said in words before the switch is touched.
-            let capabilities = if read_only {
-                model.t("plugins.capabilities.readonly")
-            } else {
-                model.t("plugins.capabilities.writable")
-            };
-            ui.label(
-                egui::RichText::new(capabilities)
-                    .small()
-                    .color(if read_only {
-                        palette.hidden
-                    } else {
-                        palette.readonly
-                    }),
-            );
+            ui.label(egui::RichText::new(backend).small().color(palette.hidden));
+        });
+        if !description.trim().is_empty() {
+            ui.label(egui::RichText::new(description).small());
         }
-        // A manifest that did not load is worth showing here: this is the page where somebody
-        // would come to look for the plugin that "does not appear".
-        if !model.plugin_problems.is_empty() {
-            ui.separator();
+        // What the place allows, said in words before the switch is touched.
+        let capabilities = if read_only {
+            model.t("plugins.capabilities.readonly")
+        } else {
+            model.t("plugins.capabilities.writable")
+        };
+        ui.label(
+            egui::RichText::new(capabilities)
+                .small()
+                .color(if read_only {
+                    palette.hidden
+                } else {
+                    palette.readonly
+                }),
+        );
+    }
+    // A manifest that did not load is worth showing here: this is the page where somebody
+    // would come to look for the plugin that "does not appear".
+    if !model.plugin_problems.is_empty() {
+        ui.separator();
+        ui.label(
+            egui::RichText::new(model.t("plugins.problems"))
+                .strong()
+                .color(palette.readonly),
+        );
+        for problem in &model.plugin_problems {
             ui.label(
-                egui::RichText::new(model.t("plugins.problems"))
-                    .strong()
+                egui::RichText::new(problem.to_string())
+                    .small()
                     .color(palette.readonly),
             );
-            for problem in &model.plugin_problems {
-                ui.label(
-                    egui::RichText::new(problem.to_string())
-                        .small()
-                        .color(palette.readonly),
-                );
-            }
         }
+    }
     if let Some((id, enabled)) = toggle {
         let summary = model.set_plugin_enabled(&id, enabled);
         model.report(summary);
@@ -2333,245 +2339,245 @@ fn plugins_page(ui: &mut egui::Ui, model: &mut Model) {
 
 fn security_page(ui: &mut egui::Ui, model: &mut Model, state: &mut OptionsState) {
     let palette = crate::theme::Palette::for_model(model);
-        // ---- the profile ----------------------------------------------------
-        ui.label(
-            egui::RichText::new(model.t("agent.security.profile"))
-                .strong()
-                .color(palette.accent),
-        );
-        ui.horizontal_wrapped(|ui| {
-            for (name, key) in [
-                ("sandbox", "agent.profile.sandbox"),
-                ("user", "agent.profile.user"),
-                ("privileged", "agent.profile.privileged"),
-            ] {
-                if ui
-                    .selectable_label(state.draft.agent.profile == name, model.t(key))
-                    .clicked()
-                {
-                    state.draft.agent.profile = name.to_string();
-                }
-            }
-        });
-        let profile_key = match state.draft.agent.profile.as_str() {
-            "user" => "agent.security.profile.user.help",
-            "privileged" => "agent.security.profile.privileged.help",
-            _ => "agent.security.profile.sandbox.help",
-        };
-        ui.label(
-            egui::RichText::new(model.t(profile_key))
-                .small()
-                .color(palette.hidden),
-        );
-        ui.separator();
-
-        // ---- what needs an approval -----------------------------------------
-        ui.label(
-            egui::RichText::new(model.t("agent.security.approvals"))
-                .strong()
-                .color(palette.accent),
-        );
-        ui.label(
-            egui::RichText::new(model.t("agent.security.approvals.help"))
-                .small()
-                .color(palette.hidden),
-        );
-        for operation in [
-            rc_core::policy::Operation::Execute,
-            rc_core::policy::Operation::Publish,
-            rc_core::policy::Operation::Network,
-            rc_core::policy::Operation::Privileged,
-            rc_core::policy::Operation::Delete,
-            rc_core::policy::Operation::Write,
+    // ---- the profile ----------------------------------------------------
+    ui.label(
+        egui::RichText::new(model.t("agent.security.profile"))
+            .strong()
+            .color(palette.accent),
+    );
+    ui.horizontal_wrapped(|ui| {
+        for (name, key) in [
+            ("sandbox", "agent.profile.sandbox"),
+            ("user", "agent.profile.user"),
+            ("privileged", "agent.profile.privileged"),
         ] {
-            let name = crate::model::policy::operation_name(operation);
-            let mut checked = state
+            if ui
+                .selectable_label(state.draft.agent.profile == name, model.t(key))
+                .clicked()
+            {
+                state.draft.agent.profile = name.to_string();
+            }
+        }
+    });
+    let profile_key = match state.draft.agent.profile.as_str() {
+        "user" => "agent.security.profile.user.help",
+        "privileged" => "agent.security.profile.privileged.help",
+        _ => "agent.security.profile.sandbox.help",
+    };
+    ui.label(
+        egui::RichText::new(model.t(profile_key))
+            .small()
+            .color(palette.hidden),
+    );
+    ui.separator();
+
+    // ---- what needs an approval -----------------------------------------
+    ui.label(
+        egui::RichText::new(model.t("agent.security.approvals"))
+            .strong()
+            .color(palette.accent),
+    );
+    ui.label(
+        egui::RichText::new(model.t("agent.security.approvals.help"))
+            .small()
+            .color(palette.hidden),
+    );
+    for operation in [
+        rc_core::policy::Operation::Execute,
+        rc_core::policy::Operation::Publish,
+        rc_core::policy::Operation::Network,
+        rc_core::policy::Operation::Privileged,
+        rc_core::policy::Operation::Delete,
+        rc_core::policy::Operation::Write,
+    ] {
+        let name = crate::model::policy::operation_name(operation);
+        let mut checked = state
+            .draft
+            .agent
+            .require_approval
+            .iter()
+            .any(|entry| entry == name);
+        if ui
+            .checkbox(&mut checked, model.t(operation.key()))
+            .changed()
+        {
+            state
                 .draft
                 .agent
                 .require_approval
-                .iter()
-                .any(|entry| entry == name);
-            if ui
-                .checkbox(&mut checked, model.t(operation.key()))
-                .changed()
-            {
-                state
-                    .draft
-                    .agent
-                    .require_approval
-                    .retain(|entry| entry != name);
-                if checked {
-                    state.draft.agent.require_approval.push(name.to_string());
-                }
+                .retain(|entry| entry != name);
+            if checked {
+                state.draft.agent.require_approval.push(name.to_string());
             }
         }
-        ui.separator();
+    }
+    ui.separator();
 
-        // ---- permanent pre-approvals ----------------------------------------
+    // ---- permanent pre-approvals ----------------------------------------
+    ui.label(
+        egui::RichText::new(model.t("agent.security.always"))
+            .strong()
+            .color(palette.accent),
+    );
+    ui.label(
+        egui::RichText::new(model.t("agent.security.always.help"))
+            .small()
+            .color(palette.hidden),
+    );
+    if state.draft.agent.preapproved.is_empty() {
         ui.label(
-            egui::RichText::new(model.t("agent.security.always"))
-                .strong()
-                .color(palette.accent),
-        );
-        ui.label(
-            egui::RichText::new(model.t("agent.security.always.help"))
-                .small()
+            egui::RichText::new(model.t("agent.security.always.none"))
+                .italics()
                 .color(palette.hidden),
         );
-        if state.draft.agent.preapproved.is_empty() {
-            ui.label(
-                egui::RichText::new(model.t("agent.security.always.none"))
-                    .italics()
-                    .color(palette.hidden),
-            );
-        }
-        let mut revoke: Option<String> = None;
-        for entry in &state.draft.agent.preapproved {
-            ui.horizontal(|ui| {
-                let name = rc_core::policy::parse_operation(&entry.operation)
-                    .map(|operation| model.t(operation.key()))
-                    .unwrap_or_else(|| entry.operation.clone());
-                ui.label(egui::RichText::new(name).strong());
-                if !entry.label.is_empty() {
+    }
+    let mut revoke: Option<String> = None;
+    for entry in &state.draft.agent.preapproved {
+        ui.horizontal(|ui| {
+            let name = rc_core::policy::parse_operation(&entry.operation)
+                .map(|operation| model.t(operation.key()))
+                .unwrap_or_else(|| entry.operation.clone());
+            ui.label(egui::RichText::new(name).strong());
+            if !entry.label.is_empty() {
+                ui.label(
+                    egui::RichText::new(&entry.label)
+                        .small()
+                        .color(palette.hidden),
+                );
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .button(
+                        egui::RichText::new(model.t("agent.security.always.revoke"))
+                            .color(palette.warning),
+                    )
+                    .clicked()
+                {
+                    revoke = Some(entry.operation.clone());
+                }
+                if entry.created > 0 {
                     ui.label(
-                        egui::RichText::new(&entry.label)
+                        egui::RichText::new(date_text(entry.created))
                             .small()
                             .color(palette.hidden),
                     );
                 }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .button(
-                            egui::RichText::new(model.t("agent.security.always.revoke"))
-                                .color(palette.warning),
-                        )
-                        .clicked()
-                    {
-                        revoke = Some(entry.operation.clone());
-                    }
-                    if entry.created > 0 {
-                        ui.label(
-                            egui::RichText::new(date_text(entry.created))
-                                .small()
-                                .color(palette.hidden),
-                        );
-                    }
-                });
             });
-        }
-        if let Some(operation) = revoke {
-            state
-                .draft
-                .agent
-                .preapproved
-                .retain(|entry| entry.operation != operation);
-            model.settings.agent.preapproved = state.draft.agent.preapproved.clone();
-            if let Some(parsed) = rc_core::policy::parse_operation(&operation) {
-                model.revoke_preapproval(parsed);
-            }
-        }
-        ui.separator();
-
-        // ---- the live controls ----------------------------------------------
-        ui.label(
-            egui::RichText::new(model.t("agent.security.session"))
-                .strong()
-                .color(palette.accent),
-        );
-        let session: Vec<String> = [
-            rc_core::policy::Operation::Read,
-            rc_core::policy::Operation::Write,
-            rc_core::policy::Operation::Create,
-            rc_core::policy::Operation::Delete,
-            rc_core::policy::Operation::Rename,
-            rc_core::policy::Operation::Execute,
-            rc_core::policy::Operation::Publish,
-            rc_core::policy::Operation::Network,
-            rc_core::policy::Operation::Privileged,
-        ]
-        .into_iter()
-        .filter(|operation| model.policy().is_approved_this_session(*operation))
-        .map(|operation| model.t(operation.key()))
-        .collect();
-        if session.is_empty() {
-            ui.label(
-                egui::RichText::new(model.t("agent.security.session.none"))
-                    .italics()
-                    .color(palette.hidden),
-            );
-        } else {
-            ui.horizontal_wrapped(|ui| {
-                for name in &session {
-                    ui.label(egui::RichText::new(name).strong());
-                }
-            });
-        }
-        ui.horizontal(|ui| {
-            if ui
-                .button(
-                    egui::RichText::new(model.t("agent.security.session.revoke"))
-                        .color(palette.warning),
-                )
-                .clicked()
-            {
-                let count = model.revoke_agent_grants();
-                let text = model.tf(
-                    "agent.security.session.revoked",
-                    &[("count", &count.to_string())],
-                );
-                model.report(text);
-            }
-            ui.checkbox(
-                &mut state.draft.agent.audit,
-                model.t("agent.security.audit"),
-            );
         });
-        ui.separator();
+    }
+    if let Some(operation) = revoke {
+        state
+            .draft
+            .agent
+            .preapproved
+            .retain(|entry| entry.operation != operation);
+        model.settings.agent.preapproved = state.draft.agent.preapproved.clone();
+        if let Some(parsed) = rc_core::policy::parse_operation(&operation) {
+            model.revoke_preapproval(parsed);
+        }
+    }
+    ui.separator();
 
-        // ---- the audit trail -------------------------------------------------
+    // ---- the live controls ----------------------------------------------
+    ui.label(
+        egui::RichText::new(model.t("agent.security.session"))
+            .strong()
+            .color(palette.accent),
+    );
+    let session: Vec<String> = [
+        rc_core::policy::Operation::Read,
+        rc_core::policy::Operation::Write,
+        rc_core::policy::Operation::Create,
+        rc_core::policy::Operation::Delete,
+        rc_core::policy::Operation::Rename,
+        rc_core::policy::Operation::Execute,
+        rc_core::policy::Operation::Publish,
+        rc_core::policy::Operation::Network,
+        rc_core::policy::Operation::Privileged,
+    ]
+    .into_iter()
+    .filter(|operation| model.policy().is_approved_this_session(*operation))
+    .map(|operation| model.t(operation.key()))
+    .collect();
+    if session.is_empty() {
         ui.label(
-            egui::RichText::new(model.t("agent.security.log"))
-                .strong()
-                .color(palette.accent),
+            egui::RichText::new(model.t("agent.security.session.none"))
+                .italics()
+                .color(palette.hidden),
         );
-        let chain = model.audit_state();
-        let events = model.audit().read();
+    } else {
+        ui.horizontal_wrapped(|ui| {
+            for name in &session {
+                ui.label(egui::RichText::new(name).strong());
+            }
+        });
+    }
+    ui.horizontal(|ui| {
+        if ui
+            .button(
+                egui::RichText::new(model.t("agent.security.session.revoke"))
+                    .color(palette.warning),
+            )
+            .clicked()
+        {
+            let count = model.revoke_agent_grants();
+            let text = model.tf(
+                "agent.security.session.revoked",
+                &[("count", &count.to_string())],
+            );
+            model.report(text);
+        }
+        ui.checkbox(
+            &mut state.draft.agent.audit,
+            model.t("agent.security.audit"),
+        );
+    });
+    ui.separator();
+
+    // ---- the audit trail -------------------------------------------------
+    ui.label(
+        egui::RichText::new(model.t("agent.security.log"))
+            .strong()
+            .color(palette.accent),
+    );
+    let chain = model.audit_state();
+    let events = model.audit().read();
+    ui.label(
+        egui::RichText::new(model.tf(
+            "agent.security.log.events",
+            &[("count", &events.len().to_string())],
+        ))
+        .small()
+        .color(palette.hidden),
+    );
+    let (text, colour) = match chain {
+        rc_core::audit::ChainState::Intact { events } => (
+            model.tf("agent.security.log.ok", &[("count", &events.to_string())]),
+            palette.foreground,
+        ),
+        rc_core::audit::ChainState::Broken { line } => (
+            model.tf("agent.security.log.broken", &[("line", &line.to_string())]),
+            palette.warning,
+        ),
+        rc_core::audit::ChainState::Empty => {
+            (model.t("agent.security.log.missing"), palette.hidden)
+        }
+    };
+    ui.label(egui::RichText::new(text).color(colour));
+    if let Some(event) = events.last() {
         ui.label(
-            egui::RichText::new(model.tf(
-                "agent.security.log.events",
-                &[("count", &events.len().to_string())],
+            egui::RichText::new(format!(
+                "{} · {} · {} · {}",
+                date_text(event.time),
+                event.origin,
+                event.operation,
+                event.verdict.as_str()
             ))
             .small()
+            .monospace()
             .color(palette.hidden),
         );
-        let (text, colour) = match chain {
-            rc_core::audit::ChainState::Intact { events } => (
-                model.tf("agent.security.log.ok", &[("count", &events.to_string())]),
-                palette.foreground,
-            ),
-            rc_core::audit::ChainState::Broken { line } => (
-                model.tf("agent.security.log.broken", &[("line", &line.to_string())]),
-                palette.warning,
-            ),
-            rc_core::audit::ChainState::Empty => {
-                (model.t("agent.security.log.missing"), palette.hidden)
-            }
-        };
-        ui.label(egui::RichText::new(text).color(colour));
-        if let Some(event) = events.last() {
-            ui.label(
-                egui::RichText::new(format!(
-                    "{} · {} · {} · {}",
-                    date_text(event.time),
-                    event.origin,
-                    event.operation,
-                    event.verdict.as_str()
-                ))
-                .small()
-                .monospace()
-                .color(palette.hidden),
-            );
-        }
+    }
 }
 
 /// A short local date for the audit and pre-approval rows.
@@ -2602,11 +2608,13 @@ struct SettingsKeys {
 impl SettingsKeys {
     fn capture(ctx: &Context) -> Self {
         let pressed = |wanted| {
-            ctx.input(|i| i.events.iter().any(|event| {
-                matches!(event, egui::Event::Key {
+            ctx.input(|i| {
+                i.events.iter().any(|event| {
+                    matches!(event, egui::Event::Key {
                     key, pressed: true, repeat: false, modifiers, ..
                 } if *key == wanted && modifiers.is_none())
-            }))
+                })
+            })
         };
         Self {
             enter: pressed(egui::Key::Enter),
@@ -2678,12 +2686,25 @@ fn options(
     ui.separator();
     settings_body(ui, state.tab.key(), |ui| match state.tab {
         OptionsTab::Display => {
-            ui.checkbox(&mut state.draft.display.show_hidden, model.t("settings.show_hidden"));
-            ui.checkbox(&mut state.draft.display.show_parent_entry, model.t("settings.show_parent"));
-            ui.checkbox(&mut state.draft.display.dirs_first, model.t("settings.dirs_first"));
-            ui.checkbox(&mut state.draft.display.natural_sort, model.t("settings.natural_sort"));
+            ui.checkbox(
+                &mut state.draft.display.show_hidden,
+                model.t("settings.show_hidden"),
+            );
+            ui.checkbox(
+                &mut state.draft.display.show_parent_entry,
+                model.t("settings.show_parent"),
+            );
+            ui.checkbox(
+                &mut state.draft.display.dirs_first,
+                model.t("settings.dirs_first"),
+            );
+            ui.checkbox(
+                &mut state.draft.display.natural_sort,
+                model.t("settings.natural_sort"),
+            );
             ui.add(
-                egui::Slider::new(&mut state.draft.display.font_size, 8.0..=28.0).text(model.t("settings.font_size")),
+                egui::Slider::new(&mut state.draft.display.font_size, 8.0..=28.0)
+                    .text(model.t("settings.font_size")),
             );
             ui.separator();
             ui.label(
@@ -2745,10 +2766,14 @@ fn options(
         }
         OptionsTab::Editor => {
             ui.add(
-                egui::Slider::new(&mut state.draft.editor.font_size, 8.0..=28.0).text(model.t("settings.font_size")),
+                egui::Slider::new(&mut state.draft.editor.font_size, 8.0..=28.0)
+                    .text(model.t("settings.font_size")),
             );
             ui.checkbox(&mut state.draft.editor.word_wrap, model.t("viewer.wrap"));
-            ui.add(egui::Slider::new(&mut state.draft.editor.tab_width, 1..=8).text(model.t("settings.tab_width")));
+            ui.add(
+                egui::Slider::new(&mut state.draft.editor.tab_width, 1..=8)
+                    .text(model.t("settings.tab_width")),
+            );
         }
         OptionsTab::Packer => {
             egui::ComboBox::from_label(model.t("archive.format"))
@@ -2765,7 +2790,10 @@ fn options(
                         "tar.gz",
                     );
                 });
-            ui.add(egui::Slider::new(&mut state.draft.packer.level, 0..=9).text(model.t("archive.level")));
+            ui.add(
+                egui::Slider::new(&mut state.draft.packer.level, 0..=9)
+                    .text(model.t("archive.level")),
+            );
         }
         OptionsTab::Ftp => {
             ui.checkbox(&mut state.draft.ftp.passive_mode, model.t("ftp.passive"));
@@ -3041,19 +3069,25 @@ fn ftp_password(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectStat
                 match result {
                     Ok(()) => {
                         state.wallet_passphrase = None;
-                        state.status = model.t(if state.password_session.as_ref()
-                            .is_some_and(|profile| model.saved_login_available(profile))
-                        {
-                            "session.wallet_ready"
-                        } else {
-                            "session.wallet_no_password"
-                        });
+                        state.status = model.t(
+                            if state
+                                .password_session
+                                .as_ref()
+                                .is_some_and(|profile| model.saved_login_available(profile))
+                            {
+                                "session.wallet_ready"
+                            } else {
+                                "session.wallet_no_password"
+                            },
+                        );
                     }
                     Err(message) => state.status = message,
                 }
             }
             // Enter in the wallet field must never submit the connection form.
-            if !state.status.is_empty() { ui.label(&state.status); }
+            if !state.status.is_empty() {
+                ui.label(&state.status);
+            }
             if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
                 state.wallet_passphrase = None;
             }
@@ -3061,7 +3095,10 @@ fn ftp_password(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectStat
         }
     }
     if !state.password_rejected
-        && state.password_session.as_ref().is_some_and(|profile| model.saved_login_available(profile))
+        && state
+            .password_session
+            .as_ref()
+            .is_some_and(|profile| model.saved_login_available(profile))
         && ui.button(model.t("session.wallet_use_password")).clicked()
     {
         let session = state.profile_for_connect();
@@ -3318,7 +3355,13 @@ fn mask_prompt(ui: &mut egui::Ui, model: &mut Model, state: &mut MaskPromptState
 }
 
 fn compare(ui: &mut egui::Ui, model: &mut Model, state: &mut CompareState) -> DialogAction {
-    ui.label(model.tf("dialog.compare.summary", &[("count", &state.different().to_string()), ("total", &state.rows.len().to_string())]));
+    ui.label(model.tf(
+        "dialog.compare.summary",
+        &[
+            ("count", &state.different().to_string()),
+            ("total", &state.rows.len().to_string()),
+        ],
+    ));
     egui::ScrollArea::vertical()
         .max_height(280.0)
         .id_salt("compare_scroll")
@@ -3400,118 +3443,118 @@ fn button_bar(
     keys: SettingsKeys,
 ) -> DialogAction {
     settings_body(ui, "button_bar_body", |ui| {
-    let buttons = model.settings.button_bar.buttons.clone();
-    ui.label(model.t("cmd.button_bar"));
-    egui::ScrollArea::vertical()
-        .max_height(200.0)
-        .id_salt("buttonbar_scroll")
-        .show(ui, |ui| {
-            for (index, button) in buttons.iter().enumerate() {
-                let selected = state.selected == Some(index);
-                if ui
-                    .selectable_label(
-                        selected,
-                        format!(
-                            "{} — {}",
-                            crate::model::actions::button_caption(model, button),
-                            button.command
-                        ),
-                    )
-                    .clicked()
-                {
-                    state.edit(index, button);
-                }
-            }
-        });
-    ui.separator();
-    ui.menu_button(model.t("toolbar.choose_action"), |ui| {
+        let buttons = model.settings.button_bar.buttons.clone();
+        ui.label(model.t("cmd.button_bar"));
         egui::ScrollArea::vertical()
-            .max_height(360.0)
+            .max_height(200.0)
+            .id_salt("buttonbar_scroll")
             .show(ui, |ui| {
-                for &(group, actions) in crate::model::actions::ACTION_GROUPS {
-                    ui.collapsing(model.t(group), |ui| {
-                        for &(command, key) in actions {
-                            if ui.button(model.t(key)).clicked() {
-                                state.edit_command = command.to_owned();
-                                state.edit_caption.clear();
-                                state.edit_parameters.clear();
-                                ui.close();
-                            }
-                        }
-                    });
+                for (index, button) in buttons.iter().enumerate() {
+                    let selected = state.selected == Some(index);
+                    if ui
+                        .selectable_label(
+                            selected,
+                            format!(
+                                "{} — {}",
+                                crate::model::actions::button_caption(model, button),
+                                button.command
+                            ),
+                        )
+                        .clicked()
+                    {
+                        state.edit(index, button);
+                    }
                 }
             });
-    });
-    egui::Grid::new("buttonbar_grid")
-        .num_columns(2)
-        .show(ui, |ui| {
-            ui.label(model.t("toolbar.caption"));
-            ui.add(egui::TextEdit::singleline(&mut state.edit_caption).desired_width(260.0));
-            ui.end_row();
-            ui.label(model.t("toolbar.command"));
-            ui.add(
-                egui::TextEdit::singleline(&mut state.edit_command)
-                    .desired_width(260.0)
-                    .hint_text("cm_Copy"),
-            );
-            ui.end_row();
-            ui.label(model.t("toolbar.parameters"));
-            ui.add(
-                egui::TextEdit::singleline(&mut state.edit_parameters)
-                    .desired_width(260.0)
-                    .hint_text("%P %N"),
-            );
-            ui.end_row();
+        ui.separator();
+        ui.menu_button(model.t("toolbar.choose_action"), |ui| {
+            egui::ScrollArea::vertical()
+                .max_height(360.0)
+                .show(ui, |ui| {
+                    for &(group, actions) in crate::model::actions::ACTION_GROUPS {
+                        ui.collapsing(model.t(group), |ui| {
+                            for &(command, key) in actions {
+                                if ui.button(model.t(key)).clicked() {
+                                    state.edit_command = command.to_owned();
+                                    state.edit_caption.clear();
+                                    state.edit_parameters.clear();
+                                    ui.close();
+                                }
+                            }
+                        });
+                    }
+                });
         });
-    ui.horizontal(|ui| {
-        if ui.button("+").clicked() {
-            state.start_add();
-        }
-        if ui.button(model.t("toolbar.apply")).clicked() {
-            let mut snapshot = state.clone();
-            if let crate::model::CommandOutcome::Failed(message) =
-                model.apply_button_bar(&mut snapshot)
-            {
-                model.report_error(message);
+        egui::Grid::new("buttonbar_grid")
+            .num_columns(2)
+            .show(ui, |ui| {
+                ui.label(model.t("toolbar.caption"));
+                ui.add(egui::TextEdit::singleline(&mut state.edit_caption).desired_width(260.0));
+                ui.end_row();
+                ui.label(model.t("toolbar.command"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.edit_command)
+                        .desired_width(260.0)
+                        .hint_text("cm_Copy"),
+                );
+                ui.end_row();
+                ui.label(model.t("toolbar.parameters"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.edit_parameters)
+                        .desired_width(260.0)
+                        .hint_text("%P %N"),
+                );
+                ui.end_row();
+            });
+        ui.horizontal(|ui| {
+            if ui.button("+").clicked() {
+                state.start_add();
             }
-            *state = snapshot;
-        }
-        if ui.button(model.t("toolbar.remove")).clicked() {
-            let mut snapshot = state.clone();
-            let _ = model.remove_button_bar(&mut snapshot);
-            *state = snapshot;
-        }
-        if ui.button(model.t("toolbar.up")).clicked() {
-            let mut snapshot = state.clone();
-            let _ = model.move_button_bar(&mut snapshot, true);
-            *state = snapshot;
-        }
-        if ui.button(model.t("toolbar.down")).clicked() {
-            let mut snapshot = state.clone();
-            let _ = model.move_button_bar(&mut snapshot, false);
-            *state = snapshot;
-        }
-    });
-    ui.horizontal_wrapped(|ui| {
-        if ui.button(model.t("toolbar.save_custom")).clicked() {
-            model.save_custom_button_bar();
-        }
-        if ui.button(model.t("toolbar.reset_default")).clicked() {
-            model.reset_button_bar();
-            *state = ButtonBarState::new();
-        }
-        let restore = model.t("toolbar.restore_custom");
-        if ui
-            .add_enabled(
-                model.settings.button_bar_custom.is_some(),
-                egui::Button::new(restore),
-            )
-            .clicked()
-        {
-            model.restore_custom_button_bar();
-            *state = ButtonBarState::new();
-        }
-    });
+            if ui.button(model.t("toolbar.apply")).clicked() {
+                let mut snapshot = state.clone();
+                if let crate::model::CommandOutcome::Failed(message) =
+                    model.apply_button_bar(&mut snapshot)
+                {
+                    model.report_error(message);
+                }
+                *state = snapshot;
+            }
+            if ui.button(model.t("toolbar.remove")).clicked() {
+                let mut snapshot = state.clone();
+                let _ = model.remove_button_bar(&mut snapshot);
+                *state = snapshot;
+            }
+            if ui.button(model.t("toolbar.up")).clicked() {
+                let mut snapshot = state.clone();
+                let _ = model.move_button_bar(&mut snapshot, true);
+                *state = snapshot;
+            }
+            if ui.button(model.t("toolbar.down")).clicked() {
+                let mut snapshot = state.clone();
+                let _ = model.move_button_bar(&mut snapshot, false);
+                *state = snapshot;
+            }
+        });
+        ui.horizontal_wrapped(|ui| {
+            if ui.button(model.t("toolbar.save_custom")).clicked() {
+                model.save_custom_button_bar();
+            }
+            if ui.button(model.t("toolbar.reset_default")).clicked() {
+                model.reset_button_bar();
+                *state = ButtonBarState::new();
+            }
+            let restore = model.t("toolbar.restore_custom");
+            if ui
+                .add_enabled(
+                    model.settings.button_bar_custom.is_some(),
+                    egui::Button::new(restore),
+                )
+                .clicked()
+            {
+                model.restore_custom_button_bar();
+                *state = ButtonBarState::new();
+            }
+        });
     });
     let (ok, cancel) = settings_buttons(ui, model, keys);
     if cancel {
@@ -3534,101 +3577,138 @@ fn view_modes(
     keys: SettingsKeys,
 ) -> DialogAction {
     settings_body(ui, "view_modes_body", |ui| {
-    ui.label(model.t("cmd.custom_column_view"));
-    // --- the active column list -------------------------------------
-    let columns = model.settings.display.columns.clone();
-    ui.horizontal_wrapped(|ui| {
-        for spec in &columns {
-            let label = spec
-                .label_key()
-                .map(|k| model.t(k))
-                .unwrap_or_else(|| spec.id.clone());
-            if ui
-                .button(format!("{label} ×"))
-                .on_hover_text(format!("{} — {} pt", spec.id, spec.width))
-                .clicked()
-            {
-                let _ = model.remove_column(&spec.id);
-            }
-        }
-    });
-    ui.horizontal_wrapped(|ui| {
-        for id in rc_core::config::ColumnSpec::known_ids() {
-            if columns.iter().any(|c| c.id == id) {
-                continue;
-            }
-            if ui.small_button(format!("+ {id}")).clicked()
-                && let crate::model::CommandOutcome::Failed(message) = model.add_column(id)
-            {
-                model.report_error(message);
-            }
-        }
-    });
-    ui.separator();
-    // --- saved view modes -------------------------------------------
-    let modes = model.settings.display.view_modes.clone();
-    egui::ScrollArea::vertical()
-        .max_height(140.0)
-        .id_salt("viewmode_scroll")
-        .show(ui, |ui| {
-            for (index, mode) in modes.iter().enumerate() {
-                ui.horizontal(|ui| {
-                    if ui
-                        .selectable_label(
-                            state.selected_mode == Some(index),
-                            format!("{} ({})", mode.name, mode.kind),
-                        )
-                        .clicked()
-                    {
-                        *state = ViewModeDialogState::from_mode(mode, index);
-                    }
-                    if ui.small_button(model.t("dialog.config.apply")).clicked() {
-                        let _ = model.apply_view_mode(&mode.name);
-                    }
-                    if ui.small_button("×").clicked() {
-                        let _ = model.remove_view_mode(&mode.name);
-                    }
-                });
-            }
-            if modes.is_empty() {
-                ui.label(model.t("panel.empty"));
+        ui.label(model.t("cmd.custom_column_view"));
+        // --- the active column list -------------------------------------
+        let columns = model.settings.display.columns.clone();
+        ui.horizontal_wrapped(|ui| {
+            for spec in &columns {
+                let label = spec
+                    .label_key()
+                    .map(|k| model.t(k))
+                    .unwrap_or_else(|| spec.id.clone());
+                if ui
+                    .button(format!("{label} ×"))
+                    .on_hover_text(format!("{} — {} pt", spec.id, spec.width))
+                    .clicked()
+                {
+                    let _ = model.remove_column(&spec.id);
+                }
             }
         });
-    egui::Grid::new("viewmode_grid")
-        .num_columns(2)
-        .show(ui, |ui| {
-            ui.label(model.t("col.name"));
-            ui.add(egui::TextEdit::singleline(&mut state.name).desired_width(200.0));
-            ui.end_row();
-            ui.label(model.t("dialog.viewmode.kind"));
-            egui::ComboBox::from_id_salt("viewmode_kind")
-                .selected_text(model.t(match state.kind.as_str() { "brief" => "cmd.view_short", "full" => "cmd.view_long", "comments" => "dialog.viewmode.comments", "thumbnails" => "toolbar.thumbnails", "tree" => "cmd.tree", _ => "dialog.viewmode.kind" }))
-                .show_ui(ui, |ui| {
-                    for kind in ["brief", "full", "comments", "thumbnails", "tree"] {
-                        ui.selectable_value(&mut state.kind, kind.to_string(), model.t(match kind { "brief" => "cmd.view_short", "full" => "cmd.view_long", "comments" => "dialog.viewmode.comments", "thumbnails" => "toolbar.thumbnails", "tree" => "cmd.tree", _ => "dialog.viewmode.kind" }));
-                    }
-                });
-            ui.end_row();
-            ui.label(model.t("dialog.viewmode.mask"));
-            ui.add(egui::TextEdit::singleline(&mut state.mask).desired_width(200.0));
-            ui.end_row();
-            ui.label(model.t("dialog.viewmode.sort"));
-            egui::ComboBox::from_id_salt("viewmode_sort")
-                .selected_text(model.t(match state.sort_field.as_str() { "name" => "cmd.sort_name", "ext" => "cmd.sort_ext", "size" => "cmd.sort_size", "date" => "cmd.sort_date", _ => "cmd.sort_unsorted" }))
-                .show_ui(ui, |ui| {
-                    for field in ["name", "ext", "size", "date", "unsorted"] {
-                        ui.selectable_value(&mut state.sort_field, field.to_string(), model.t(match field { "name" => "cmd.sort_name", "ext" => "cmd.sort_ext", "size" => "cmd.sort_size", "date" => "cmd.sort_date", _ => "cmd.sort_unsorted" }));
-                    }
-                });
-            ui.end_row();
+        ui.horizontal_wrapped(|ui| {
+            for id in rc_core::config::ColumnSpec::known_ids() {
+                if columns.iter().any(|c| c.id == id) {
+                    continue;
+                }
+                if ui.small_button(format!("+ {id}")).clicked()
+                    && let crate::model::CommandOutcome::Failed(message) = model.add_column(id)
+                {
+                    model.report_error(message);
+                }
+            }
         });
-    ui.checkbox(&mut state.sort_reversed, model.t("dialog.viewmode.reversed"));
-    if ui.button(model.t("dialog.config.apply")).clicked() {
-        match model.save_view_mode(state) {
-            crate::model::CommandOutcome::Failed(message) => model.report_error(message),
-            _ => model.report(model.t("status.done")),
+        ui.separator();
+        // --- saved view modes -------------------------------------------
+        let modes = model.settings.display.view_modes.clone();
+        egui::ScrollArea::vertical()
+            .max_height(140.0)
+            .id_salt("viewmode_scroll")
+            .show(ui, |ui| {
+                for (index, mode) in modes.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        if ui
+                            .selectable_label(
+                                state.selected_mode == Some(index),
+                                format!("{} ({})", mode.name, mode.kind),
+                            )
+                            .clicked()
+                        {
+                            *state = ViewModeDialogState::from_mode(mode, index);
+                        }
+                        if ui.small_button(model.t("dialog.config.apply")).clicked() {
+                            let _ = model.apply_view_mode(&mode.name);
+                        }
+                        if ui.small_button("×").clicked() {
+                            let _ = model.remove_view_mode(&mode.name);
+                        }
+                    });
+                }
+                if modes.is_empty() {
+                    ui.label(model.t("panel.empty"));
+                }
+            });
+        egui::Grid::new("viewmode_grid")
+            .num_columns(2)
+            .show(ui, |ui| {
+                ui.label(model.t("col.name"));
+                ui.add(egui::TextEdit::singleline(&mut state.name).desired_width(200.0));
+                ui.end_row();
+                ui.label(model.t("dialog.viewmode.kind"));
+                egui::ComboBox::from_id_salt("viewmode_kind")
+                    .selected_text(model.t(match state.kind.as_str() {
+                        "brief" => "cmd.view_short",
+                        "full" => "cmd.view_long",
+                        "comments" => "dialog.viewmode.comments",
+                        "thumbnails" => "toolbar.thumbnails",
+                        "tree" => "cmd.tree",
+                        _ => "dialog.viewmode.kind",
+                    }))
+                    .show_ui(ui, |ui| {
+                        for kind in ["brief", "full", "comments", "thumbnails", "tree"] {
+                            ui.selectable_value(
+                                &mut state.kind,
+                                kind.to_string(),
+                                model.t(match kind {
+                                    "brief" => "cmd.view_short",
+                                    "full" => "cmd.view_long",
+                                    "comments" => "dialog.viewmode.comments",
+                                    "thumbnails" => "toolbar.thumbnails",
+                                    "tree" => "cmd.tree",
+                                    _ => "dialog.viewmode.kind",
+                                }),
+                            );
+                        }
+                    });
+                ui.end_row();
+                ui.label(model.t("dialog.viewmode.mask"));
+                ui.add(egui::TextEdit::singleline(&mut state.mask).desired_width(200.0));
+                ui.end_row();
+                ui.label(model.t("dialog.viewmode.sort"));
+                egui::ComboBox::from_id_salt("viewmode_sort")
+                    .selected_text(model.t(match state.sort_field.as_str() {
+                        "name" => "cmd.sort_name",
+                        "ext" => "cmd.sort_ext",
+                        "size" => "cmd.sort_size",
+                        "date" => "cmd.sort_date",
+                        _ => "cmd.sort_unsorted",
+                    }))
+                    .show_ui(ui, |ui| {
+                        for field in ["name", "ext", "size", "date", "unsorted"] {
+                            ui.selectable_value(
+                                &mut state.sort_field,
+                                field.to_string(),
+                                model.t(match field {
+                                    "name" => "cmd.sort_name",
+                                    "ext" => "cmd.sort_ext",
+                                    "size" => "cmd.sort_size",
+                                    "date" => "cmd.sort_date",
+                                    _ => "cmd.sort_unsorted",
+                                }),
+                            );
+                        }
+                    });
+                ui.end_row();
+            });
+        ui.checkbox(
+            &mut state.sort_reversed,
+            model.t("dialog.viewmode.reversed"),
+        );
+        if ui.button(model.t("dialog.config.apply")).clicked() {
+            match model.save_view_mode(state) {
+                crate::model::CommandOutcome::Failed(message) => model.report_error(message),
+                _ => model.report(model.t("status.done")),
+            }
         }
-    }
     });
     let clicked = ui.button(model.t("dialog.config.ok")).clicked();
     let (enter, escape) = keys.resolve(ui);
@@ -3675,7 +3755,10 @@ fn split(ui: &mut egui::Ui, model: &mut Model, state: &mut SplitState) -> Dialog
 fn combine(ui: &mut egui::Ui, model: &mut Model, state: &mut CombineState) -> DialogAction {
     ui.label(&state.first_part);
     if state.discovered > 0 {
-        ui.label(model.tf("dialog.combine.parts", &[("count", &state.discovered.to_string())]));
+        ui.label(model.tf(
+            "dialog.combine.parts",
+            &[("count", &state.discovered.to_string())],
+        ));
     }
     ui.horizontal(|ui| {
         ui.label(model.t("dialog.copy.to"));
@@ -4774,19 +4857,47 @@ mod delete_confirmation_tests {
 
     #[test]
     fn settings_geometry_is_bounded_by_the_viewport() {
-        assert_eq!(settings_size(egui::vec2(1920.0, 1080.0)), egui::vec2(960.0, 620.0));
-        assert_eq!(settings_size(egui::vec2(640.0, 480.0)), egui::vec2(592.0, 416.0));
+        assert_eq!(
+            settings_size(egui::vec2(1920.0, 1080.0)),
+            egui::vec2(960.0, 620.0)
+        );
+        assert_eq!(
+            settings_size(egui::vec2(640.0, 480.0)),
+            egui::vec2(592.0, 416.0)
+        );
     }
 
     #[test]
     fn settings_keys_respect_focus_popups_and_cancel_priority() {
-        let enter = SettingsKeys { enter: true, escape: false, popup: false };
+        let enter = SettingsKeys {
+            enter: true,
+            escape: false,
+            popup: false,
+        };
         assert_eq!(enter.decisions(false, false), (true, false));
         assert_eq!(enter.decisions(true, false), (false, false));
         assert_eq!(enter.decisions(false, true), (false, false));
-        let escape = SettingsKeys { enter: false, escape: true, popup: false };
+        let escape = SettingsKeys {
+            enter: false,
+            escape: true,
+            popup: false,
+        };
         assert_eq!(escape.decisions(true, false), (false, true));
-        assert_eq!(SettingsKeys { popup: true, ..escape }.decisions(false, false), (false, false));
-        assert_eq!(SettingsKeys { enter: true, ..escape }.decisions(false, false), (false, true));
+        assert_eq!(
+            SettingsKeys {
+                popup: true,
+                ..escape
+            }
+            .decisions(false, false),
+            (false, false)
+        );
+        assert_eq!(
+            SettingsKeys {
+                enter: true,
+                ..escape
+            }
+            .decisions(false, false),
+            (false, true)
+        );
     }
 }

@@ -10,9 +10,18 @@ const MAX_DEPTH: usize = 16;
 
 #[derive(Debug)]
 pub(super) enum DataPreview {
-    Table { rows: Vec<Vec<String>>, limited: bool },
-    Subtitles { rows: Vec<Vec<String>>, limited: bool },
-    Tree { root: Node, limited: bool },
+    Table {
+        rows: Vec<Vec<String>>,
+        limited: bool,
+    },
+    Subtitles {
+        rows: Vec<Vec<String>>,
+        limited: bool,
+    },
+    Tree {
+        root: Node,
+        limited: bool,
+    },
     Unavailable,
 }
 
@@ -32,7 +41,11 @@ impl DataPreview {
                 while !text.is_char_boundary(end) {
                     end -= 1;
                 }
-                let delimiter = if mime == "text/tab-separated-values" { '\t' } else { ',' };
+                let delimiter = if mime == "text/tab-separated-values" {
+                    '\t'
+                } else {
+                    ','
+                };
                 let partial = truncated || end < text.len();
                 Some(match table(&text[..end], delimiter, partial) {
                     Ok((rows, limited)) => Self::Table { rows, limited },
@@ -130,7 +143,12 @@ impl DataPreview {
                         egui::Grid::new("data_table").striped(true).show(ui, |ui| {
                             if matches!(self, Self::Subtitles { .. }) {
                                 ui.label("#");
-                                for key in ["viewer.subtitle.id", "viewer.subtitle.start", "viewer.subtitle.end", "viewer.text"] {
+                                for key in [
+                                    "viewer.subtitle.id",
+                                    "viewer.subtitle.start",
+                                    "viewer.subtitle.end",
+                                    "viewer.text",
+                                ] {
                                     ui.label(RichText::new(model.t(key)).strong());
                                 }
                                 ui.end_row();
@@ -277,8 +295,12 @@ fn subtitle_rows(text: &str, vtt: bool, partial: bool) -> Result<(Vec<Vec<String
             continue;
         }
         let first = block[0].trim();
-        if vtt && (first == "NOTE" || first.starts_with("NOTE ") || first.starts_with("NOTE\t")
-            || first == "STYLE" || first == "REGION")
+        if vtt
+            && (first == "NOTE"
+                || first.starts_with("NOTE ")
+                || first.starts_with("NOTE\t")
+                || first == "STYLE"
+                || first == "REGION")
         {
             block.clear();
             continue;
@@ -338,8 +360,11 @@ fn subtitle_timestamp(text: &str, vtt: bool) -> Option<u64> {
         [minutes, seconds] if vtt => ("0", *minutes, *seconds),
         _ => return None,
     };
-    if minutes.len() != 2 || seconds.len() != 2
-        || ![hours, minutes, seconds].iter().all(|value| value.bytes().all(|byte| byte.is_ascii_digit()))
+    if minutes.len() != 2
+        || seconds.len() != 2
+        || ![hours, minutes, seconds]
+            .iter()
+            .all(|value| value.bytes().all(|byte| byte.is_ascii_digit()))
     {
         return None;
     }
@@ -349,7 +374,8 @@ fn subtitle_timestamp(text: &str, vtt: bool) -> Option<u64> {
     if minutes >= 60 || seconds >= 60 {
         return None;
     }
-    hours.checked_mul(3_600_000)?
+    hours
+        .checked_mul(3_600_000)?
         .checked_add(minutes * 60_000 + seconds * 1_000)?
         .checked_add(millis.parse().ok()?)
 }
@@ -406,7 +432,11 @@ fn node(
         }
         _ => shorten(value.to_string(), limited),
     };
-    Node { name, value: description, children }
+    Node {
+        name,
+        value: description,
+        children,
+    }
 }
 
 /// Each complete nonblank line is an independent JSON value. Preserve its
@@ -457,11 +487,20 @@ fn ini_tree(text: &str) -> Result<(Node, bool), ()> {
             continue;
         }
         if line.starts_with('[') {
-            let name = line.strip_prefix('[').and_then(|s| s.strip_suffix(']')).ok_or(())?.trim();
+            let name = line
+                .strip_prefix('[')
+                .and_then(|s| s.strip_suffix(']'))
+                .ok_or(())?
+                .trim();
             if name.is_empty() || name.contains(['[', ']']) {
                 return Err(());
             }
-            root.children.push(xml_node(format!("[{name}]"), String::new(), &mut budget, &mut limited)?);
+            root.children.push(xml_node(
+                format!("[{name}]"),
+                String::new(),
+                &mut budget,
+                &mut limited,
+            )?);
             section = Some(root.children.len() - 1);
             continue;
         }
@@ -470,7 +509,12 @@ fn ini_tree(text: &str) -> Result<(Node, bool), ()> {
         if key.is_empty() {
             return Err(());
         }
-        let entry = xml_node(key.to_owned(), value.trim().to_owned(), &mut budget, &mut limited)?;
+        let entry = xml_node(
+            key.to_owned(),
+            value.trim().to_owned(),
+            &mut budget,
+            &mut limited,
+        )?;
         if let Some(index) = section {
             root.children[index].children.push(entry);
         } else {
@@ -516,12 +560,24 @@ fn xml_tree(text: &str) -> Result<(Node, bool), ()> {
             Event::Text(text) => {
                 let value = std::str::from_utf8(text.as_ref()).map_err(|_| ())?;
                 if !value.trim().is_empty() {
-                    xml_leaf(&mut stack, "#text", value.to_owned(), &mut budget, &mut limited)?;
+                    xml_leaf(
+                        &mut stack,
+                        "#text",
+                        value.to_owned(),
+                        &mut budget,
+                        &mut limited,
+                    )?;
                 }
             }
             Event::CData(text) => {
                 let value = std::str::from_utf8(text.as_ref()).map_err(|_| ())?;
-                xml_leaf(&mut stack, "#CDATA", value.to_owned(), &mut budget, &mut limited)?;
+                xml_leaf(
+                    &mut stack,
+                    "#CDATA",
+                    value.to_owned(),
+                    &mut budget,
+                    &mut limited,
+                )?;
             }
             Event::GeneralRef(reference) => {
                 let name = std::str::from_utf8(reference.as_ref()).map_err(|_| ())?;
@@ -529,7 +585,13 @@ fn xml_tree(text: &str) -> Result<(Node, bool), ()> {
                 // consult a DTD, custom resolver, filesystem or network.
                 let escaped = format!("&{name};");
                 let value = quick_xml::escape::unescape(&escaped).map_err(|_| ())?;
-                xml_leaf(&mut stack, "#text", value.into_owned(), &mut budget, &mut limited)?;
+                xml_leaf(
+                    &mut stack,
+                    "#text",
+                    value.into_owned(),
+                    &mut budget,
+                    &mut limited,
+                )?;
             }
             Event::Comment(_) | Event::Decl(_) | Event::PI(_) => {
                 // Comments/declarations are available in the source; PIs
@@ -551,14 +613,21 @@ fn xml_element(
     budget: &mut usize,
     limited: &mut bool,
 ) -> Result<Node, ()> {
-    let name = std::str::from_utf8(tag.name().as_ref()).map_err(|_| ())?.to_owned();
+    let name = std::str::from_utf8(tag.name().as_ref())
+        .map_err(|_| ())?
+        .to_owned();
     let mut item = xml_node(name, String::new(), budget, limited)?;
     for attr in tag.attributes() {
         let attr = attr.map_err(|_| ())?;
         let key = std::str::from_utf8(attr.key.as_ref()).map_err(|_| ())?;
         let raw = std::str::from_utf8(attr.value.as_ref()).map_err(|_| ())?;
         let value = quick_xml::escape::unescape(raw).map_err(|_| ())?;
-        item.children.push(xml_node(format!("@{key}"), value.into_owned(), budget, limited)?);
+        item.children.push(xml_node(
+            format!("@{key}"),
+            value.into_owned(),
+            budget,
+            limited,
+        )?);
     }
     Ok(item)
 }
@@ -599,7 +668,9 @@ fn xml_leaf(
     limited: &mut bool,
 ) -> Result<(), ()> {
     let parent = stack.last_mut().ok_or(())?;
-    parent.children.push(xml_node(name.into(), value, budget, limited)?);
+    parent
+        .children
+        .push(xml_node(name.into(), value, budget, limited)?);
     Ok(())
 }
 
@@ -632,27 +703,37 @@ mod tests {
     #[test]
     fn srt_preview_preserves_identifiers_timestamps_and_multiline_text() {
         let input = "1\r\n00:00:01,000 --> 00:00:03,250\r\nPříliš žluťoučký\r\nkůň\r\n\r\n7\r\n00:00:04,000 --> 00:00:05,000\r\n<i>Hello</i>";
-        let Some(DataPreview::Subtitles { rows, limited }) = DataPreview::parse("srt", "", input, false) else {
+        let Some(DataPreview::Subtitles { rows, limited }) =
+            DataPreview::parse("srt", "", input, false)
+        else {
             panic!("subtitle table expected");
         };
         assert!(!limited);
-        assert_eq!(rows, vec![
-            vec!["1", "00:00:01,000", "00:00:03,250", "Příliš žluťoučký\nkůň"],
-            vec!["7", "00:00:04,000", "00:00:05,000", "<i>Hello</i>"],
-        ]);
+        assert_eq!(
+            rows,
+            vec![
+                vec!["1", "00:00:01,000", "00:00:03,250", "Příliš žluťoučký\nkůň"],
+                vec!["7", "00:00:04,000", "00:00:05,000", "<i>Hello</i>"],
+            ]
+        );
     }
 
     #[test]
     fn webvtt_handles_named_cues_settings_notes_and_short_timestamps() {
         let input = "WEBVTT - Lesson\nLanguage: en\n\nNOTE teacher note\nignore me\n\nSTYLE\n::cue { color: red }\n\nintro\n00:01.000 --> 00:02.500 align:start\nHello\n\n00:03.000 --> 00:04.000\nWorld";
-        let Some(DataPreview::Subtitles { rows, limited }) = DataPreview::parse("vtt", "", input, false) else {
+        let Some(DataPreview::Subtitles { rows, limited }) =
+            DataPreview::parse("vtt", "", input, false)
+        else {
             panic!("WebVTT table expected");
         };
         assert!(!limited);
-        assert_eq!(rows, vec![
-            vec!["intro", "00:01.000", "00:02.500", "Hello"],
-            vec!["", "00:03.000", "00:04.000", "World"],
-        ]);
+        assert_eq!(
+            rows,
+            vec![
+                vec!["intro", "00:01.000", "00:02.500", "Hello"],
+                vec!["", "00:03.000", "00:04.000", "World"],
+            ]
+        );
     }
 
     #[test]
@@ -663,14 +744,30 @@ mod tests {
             "1\n00:00:01.000 --> 00:00:02,000\nWrong",
             "one\n00:00:01,000 --> 00:00:02,000\nWrong",
         ] {
-            assert!(matches!(DataPreview::parse("srt", "", input, false), Some(DataPreview::Unavailable)));
+            assert!(matches!(
+                DataPreview::parse("srt", "", input, false),
+                Some(DataPreview::Unavailable)
+            ));
         }
-        assert!(matches!(DataPreview::parse("vtt", "", "not WEBVTT\n\n00:01.000 --> 00:02.000\nText", false), Some(DataPreview::Unavailable)));
+        assert!(matches!(
+            DataPreview::parse(
+                "vtt",
+                "",
+                "not WEBVTT\n\n00:01.000 --> 00:02.000\nText",
+                false
+            ),
+            Some(DataPreview::Unavailable)
+        ));
         let input = "1\n00:00:01,000 --> 00:00:02,000\nComplete\n\n2\n00:00:03,000 --> 00:00:04,000\nPartial\n";
         let (rows, limited) = subtitle_rows(input, false, true).unwrap();
         assert!(limited);
         assert_eq!(rows.len(), 1);
-        let (rows, limited) = subtitle_rows("1\n00:00:01,000 --> 00:00:02,000\nComplete\n\n", false, true).unwrap();
+        let (rows, limited) = subtitle_rows(
+            "1\n00:00:01,000 --> 00:00:02,000\nComplete\n\n",
+            false,
+            true,
+        )
+        .unwrap();
         assert!(limited);
         assert_eq!(rows.len(), 1);
         let input = "1\n00:00:01,000 --> 00:00:02,000\nText\n\n".repeat(MAX_ROWS + 1);
@@ -681,9 +778,21 @@ mod tests {
 
     #[test]
     fn csv_preserves_first_record_quotes_unicode_and_multiline_fields() {
-        let (rows, limited) = table("name,value\r\n\"žluťoučký, kůň\",\"a\"\"b\nc\"\r\nx,", ',', false).unwrap();
+        let (rows, limited) = table(
+            "name,value\r\n\"žluťoučký, kůň\",\"a\"\"b\nc\"\r\nx,",
+            ',',
+            false,
+        )
+        .unwrap();
         assert!(!limited);
-        assert_eq!(rows, vec![vec!["name", "value"], vec!["žluťoučký, kůň", "a\"b\nc"], vec!["x", ""]]);
+        assert_eq!(
+            rows,
+            vec![
+                vec!["name", "value"],
+                vec!["žluťoučký, kůň", "a\"b\nc"],
+                vec!["x", ""]
+            ]
+        );
     }
 
     #[test]
@@ -713,20 +822,32 @@ mod tests {
     #[test]
     fn json_and_toml_use_parsers_and_invalid_data_falls_back() {
         for (hint, text) in [("json", "{\"key\":42}"), ("toml", "key = 42")] {
-            let Some(DataPreview::Tree { root, limited }) = DataPreview::parse(hint, "", text, false) else { panic!("tree expected") };
+            let Some(DataPreview::Tree { root, limited }) =
+                DataPreview::parse(hint, "", text, false)
+            else {
+                panic!("tree expected")
+            };
             assert!(!limited);
             assert_eq!(root.children[0].name, "key");
             assert_eq!(root.children[0].value, "42");
         }
-        assert!(matches!(DataPreview::parse("json", "", "{", false), Some(DataPreview::Unavailable)));
-        assert!(matches!(DataPreview::parse("json", "", "{}", true), Some(DataPreview::Unavailable)));
+        assert!(matches!(
+            DataPreview::parse("json", "", "{", false),
+            Some(DataPreview::Unavailable)
+        ));
+        assert!(matches!(
+            DataPreview::parse("json", "", "{}", true),
+            Some(DataPreview::Unavailable)
+        ));
         assert!(DataPreview::parse("html", "", "<html>", false).is_none());
     }
 
     #[test]
     fn json_lines_preview_preserves_record_order_and_physical_line_numbers() {
         let input = "{\"event\":\"start\"}\r\n\n[1,2]\nnull\n\"žluťoučký\"";
-        let Some(DataPreview::Tree { root, limited }) = DataPreview::parse("jsonl", "", input, false) else {
+        let Some(DataPreview::Tree { root, limited }) =
+            DataPreview::parse("jsonl", "", input, false)
+        else {
             panic!("JSON Lines tree expected");
         };
         assert!(!limited);
@@ -745,7 +866,10 @@ mod tests {
         assert_eq!(root.children.len(), 1);
         assert!(json_lines_tree("{}\nnot json\n", true).is_err());
         assert!(json_lines_tree("{}\n{", false).is_err());
-        assert!(matches!(DataPreview::parse("jsonl", "", "not json", false), Some(DataPreview::Unavailable)));
+        assert!(matches!(
+            DataPreview::parse("jsonl", "", "not json", false),
+            Some(DataPreview::Unavailable)
+        ));
         let (root, limited) = json_lines_tree("{}\n", true).unwrap();
         assert!(limited);
         assert_eq!(root.children.len(), 1);
@@ -763,7 +887,9 @@ mod tests {
         assert_eq!(root.children.len(), 1);
         assert_eq!(root.children[0].children.len(), MAX_NODES - 2);
         let input = format!("{{}}\n\"{}\"", "ě".repeat(INPUT_LIMIT));
-        let Some(DataPreview::Tree { root, limited }) = DataPreview::parse("jsonl", "", &input, false) else {
+        let Some(DataPreview::Tree { root, limited }) =
+            DataPreview::parse("jsonl", "", &input, false)
+        else {
             panic!("bounded JSON Lines tree expected");
         };
         assert!(limited);
@@ -773,7 +899,8 @@ mod tests {
     #[test]
     fn ini_preview_preserves_order_duplicates_and_literal_values() {
         let input = "global = first\n; comment\n[server]\nkey = žluťoučký\nkey=second=part # literal\n[server]\nempty=\npath=${HOME}/file\n";
-        let Some(DataPreview::Tree { root, limited }) = DataPreview::parse("ini", "", input, false) else {
+        let Some(DataPreview::Tree { root, limited }) = DataPreview::parse("ini", "", input, false)
+        else {
             panic!("INI tree expected");
         };
         assert!(!limited);
@@ -790,14 +917,33 @@ mod tests {
 
     #[test]
     fn ini_preview_falls_back_for_unsupported_or_oversized_input() {
-        for input in ["[bad", "[]", "=value", "include other.ini", "[a][b]", "key: value"] {
-            assert!(matches!(DataPreview::parse("ini", "", input, false), Some(DataPreview::Unavailable)));
+        for input in [
+            "[bad",
+            "[]",
+            "=value",
+            "include other.ini",
+            "[a][b]",
+            "key: value",
+        ] {
+            assert!(matches!(
+                DataPreview::parse("ini", "", input, false),
+                Some(DataPreview::Unavailable)
+            ));
         }
         let wide = "key=value\n".repeat(MAX_NODES);
-        assert!(matches!(DataPreview::parse("ini", "", &wide, false), Some(DataPreview::Unavailable)));
+        assert!(matches!(
+            DataPreview::parse("ini", "", &wide, false),
+            Some(DataPreview::Unavailable)
+        ));
         let large = "x".repeat(INPUT_LIMIT + 1);
-        assert!(matches!(DataPreview::parse("ini", "", &large, false), Some(DataPreview::Unavailable)));
-        assert!(matches!(DataPreview::parse("ini", "", "key=value", true), Some(DataPreview::Unavailable)));
+        assert!(matches!(
+            DataPreview::parse("ini", "", &large, false),
+            Some(DataPreview::Unavailable)
+        ));
+        assert!(matches!(
+            DataPreview::parse("ini", "", "key=value", true),
+            Some(DataPreview::Unavailable)
+        ));
         let long = format!("key={}", "ě".repeat(300));
         let (root, limited) = ini_tree(&long).unwrap();
         assert!(limited);
@@ -837,6 +983,9 @@ mod tests {
         assert!(xml_tree(&deep).is_err());
         let wide = format!("<a>{}</a>", "<b/>".repeat(MAX_NODES));
         assert!(xml_tree(&wide).is_err());
-        assert!(matches!(DataPreview::parse("xml", "", "<a/>", true), Some(DataPreview::Unavailable)));
+        assert!(matches!(
+            DataPreview::parse("xml", "", "<a/>", true),
+            Some(DataPreview::Unavailable)
+        ));
     }
 }

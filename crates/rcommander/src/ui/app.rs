@@ -200,7 +200,10 @@ impl RCommanderApp {
         let theme_name = self.model.settings.colors.theme.clone();
         let font_size = self.model.settings.display.font_size;
         let rtl = self.model.direction().is_rtl();
-        let signature = format!("{}|rtl={rtl}", theme::font_signature(&self.model.settings.fonts, font_size));
+        let signature = format!(
+            "{}|rtl={rtl}",
+            theme::font_signature(&self.model.settings.fonts, font_size)
+        );
         if self.fonts_installed
             && self.applied_theme == theme_name
             && self.font_signature == signature
@@ -625,7 +628,16 @@ impl RCommanderApp {
             input.events.retain(|event| {
                 let is_rescue = matches!(event, egui::Event::Key { key: Key::L, modifiers, .. }
                     if modifiers.ctrl && !modifiers.shift && !modifiers.alt && !modifiers.mac_cmd);
-                if is_rescue && matches!(event, egui::Event::Key { pressed: true, repeat: false, .. }) {
+                if is_rescue
+                    && matches!(
+                        event,
+                        egui::Event::Key {
+                            pressed: true,
+                            repeat: false,
+                            ..
+                        }
+                    )
+                {
                     found = true;
                 }
                 !is_rescue
@@ -826,7 +838,13 @@ impl RCommanderApp {
                     crate::icons::for_command(&button.command)
                 };
                 let label = match icon {
-                    Some(icon) => icon_button_text(icon, &caption, font_size, ui.style().text_styles[&egui::TextStyle::Button].clone(), &palette),
+                    Some(icon) => icon_button_text(
+                        icon,
+                        &caption,
+                        font_size,
+                        ui.style().text_styles[&egui::TextStyle::Button].clone(),
+                        &palette,
+                    ),
                     None => egui::WidgetText::from(egui::RichText::new(&caption).size(font_size)),
                 };
                 let response = ui
@@ -1087,9 +1105,9 @@ impl RCommanderApp {
         for (side, action) in actions {
             match action {
                 PanelAction::Command(command) => {
-                        self.model.focus = side;
-                        self.pending_command = Some(command);
-                    }
+                    self.model.focus = side;
+                    self.pending_command = Some(command);
+                }
                 PanelAction::OpenFile(path) => self.open_viewer(path),
                 PanelAction::OpenExternal(path) => self.open_externally(path),
                 PanelAction::Enter => self.enter_pressed(),
@@ -1136,7 +1154,9 @@ impl RCommanderApp {
                         .color(palette.hidden),
                 );
                 self.quick_viewer.ensure_texture(ui.ctx());
-                if self.quick_viewer.markdown_preview(ui, &palette, &self.model, true)
+                if self
+                    .quick_viewer
+                    .markdown_preview(ui, &palette, &self.model, true)
                     || self.quick_viewer.data_preview(ui, &self.model, true)
                 {
                     return;
@@ -1196,7 +1216,9 @@ impl RCommanderApp {
                             });
                     }
                     _ => {
-                        ui.label(egui::RichText::new(rc_viewer::describe(loaded)).color(palette.hidden));
+                        ui.label(
+                            egui::RichText::new(rc_viewer::describe(loaded)).color(palette.hidden),
+                        );
                     }
                 }
             });
@@ -1452,7 +1474,10 @@ impl RCommanderApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if let Some(space) = self.model.free_space {
                     ui.label(
-                        egui::RichText::new(self.model.tf("panel.free_space", &[("size", &rc_core::format::format_size_unit(space.available))]))
+                        egui::RichText::new(self.model.tf(
+                            "panel.free_space",
+                            &[("size", &rc_core::format::format_size_unit(space.available))],
+                        ))
                         .small()
                         .color(palette.hidden),
                     );
@@ -1522,7 +1547,9 @@ impl eframe::App for RCommanderApp {
         }
         self.poll_approval_bridge();
         self.handle_shortcuts(ctx);
-        if self.model.viewer.is_none() { self.viewer_ui.cancel_pdf(); }
+        if self.model.viewer.is_none() {
+            self.viewer_ui.cancel_pdf();
+        }
 
         egui::Panel::top("menu").show(root_ui, |ui| self.menu_bar(ui));
         if self.model.settings.layout.show_button_bar {
