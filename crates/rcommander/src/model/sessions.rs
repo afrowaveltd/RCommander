@@ -764,6 +764,60 @@ mod tests {
     }
 
     #[test]
+    fn rejected_interactive_password_reopens_only_the_original_account_and_panel() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        let sender = staged_attempt(&mut model);
+        let job = model.connect_job.as_mut().unwrap();
+        job.session = Session::new("work", "example.test", "sftp");
+        job.session.user = "alice".into();
+        job.session.port = 2222;
+        job.connection = job.session.to_connection();
+        job.connection.password = "rejected-fixture".into();
+        job.retry_password = true;
+        job.remember_password = true;
+        job.side = Side::Left;
+        model.focus = Side::Right;
+        sender.send(ConnectEvent::Done(Err(ConnectFailure::from_remote(
+            rc_remote::RemoteError::Authentication("rejected".into())
+        )))).unwrap();
+        assert!(model.poll_connect());
+        assert!(!model.is_connecting());
+        assert!(model.secrets.accounts().is_empty());
+        let Some(crate::model::Dialog::FtpConnect(state)) = model.top_dialog() else {
+            panic!("password prompt expected");
+        };
+        assert_eq!(state.profile_for_connect().user, "alice");
+        assert_eq!(state.profile_for_connect().port, 2222);
+        assert_eq!(state.target_side, Some(Side::Left));
+        assert!(state.password_rejected);
+        assert!(state.connection.password.is_empty());
+        assert!(!state.save_password);
+    }
+
+    #[test]
+    fn non_authentication_and_headless_failures_do_not_prompt() {
+        for (interactive, error) in [
+            (true, rc_remote::RemoteError::Protocol("host key changed".into())),
+            (true, rc_remote::RemoteError::Timeout("network".into())),
+            (false, rc_remote::RemoteError::Authentication("rejected".into())),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut model = model_in(dir.path());
+            let sender = staged_attempt(&mut model);
+            let job = model.connect_job.as_mut().unwrap();
+            job.session = Session::new("work", "example.test", "sftp");
+            job.session.user = "alice".into();
+            job.connection = job.session.to_connection();
+            job.retry_password = interactive;
+            sender.send(ConnectEvent::Done(Err(ConnectFailure::from_remote(error)))).unwrap();
+            assert!(model.poll_connect());
+            assert!(model.top_dialog().is_none());
+            assert!(!model.is_connecting());
+        }
+    }
+
+    #[test]
     fn progress_is_not_a_completed_connection() {
         let dir = tempfile::tempdir().unwrap();
         let mut model = model_in(dir.path());
