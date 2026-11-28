@@ -560,6 +560,10 @@ impl Model {
                 self.open_dialog(Dialog::ButtonBar(ButtonBarState::new()));
                 CommandOutcome::Ok
             }
+            "cm_language" => {
+                self.open_language_picker();
+                CommandOutcome::Ok
+            }
             "cm_config" => self.open_options_on(OptionsTab::Display),
             // The options pages that grew into features of their own deserve a way in that does
             // not make the user find the page first.
