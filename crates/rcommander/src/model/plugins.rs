@@ -382,7 +382,10 @@ impl PluginSummary {
 /// Read a plugin's own translations, never insert them into the host dictionary.
 /// Priority is the exact UI language, its base language, English, then the
 /// manifest's original label. Missing/invalid packs must not disable a source.
-fn plugin_locales(directory: &std::path::Path, language: &str) -> (Vec<rc_i18n::Locale>, Vec<String>) {
+fn plugin_locales(
+    directory: &std::path::Path,
+    language: &str,
+) -> (Vec<rc_i18n::Locale>, Vec<String>) {
     let mut packs = Vec::new();
     let mut problems = Vec::new();
     let language = language.to_ascii_lowercase();
@@ -393,7 +396,8 @@ fn plugin_locales(directory: &std::path::Path, language: &str) -> (Vec<rc_i18n::
     codes.push("en");
     let mut seen = std::collections::BTreeSet::new();
     for code in codes {
-        if !seen.insert(code) || code.is_empty()
+        if !seen.insert(code)
+            || code.is_empty()
             || !code.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
         {
             continue;
@@ -408,7 +412,10 @@ fn plugin_locales(directory: &std::path::Path, language: &str) -> (Vec<rc_i18n::
             }
         };
         if !metadata.is_file() || metadata.len() > 1024 * 1024 {
-            problems.push(format!("{}: invalid or oversized locale file", path.display()));
+            problems.push(format!(
+                "{}: invalid or oversized locale file",
+                path.display()
+            ));
             continue;
         }
         match rc_i18n::Locale::load(&path) {
@@ -421,15 +428,23 @@ fn plugin_locales(directory: &std::path::Path, language: &str) -> (Vec<rc_i18n::
 }
 
 fn localized_label(packs: &[rc_i18n::Locale], key: &str, fallback: &str) -> String {
-    packs.iter().find_map(|pack| pack.get(key)).unwrap_or(fallback).to_owned()
+    packs
+        .iter()
+        .find_map(|pack| pack.get(key))
+        .unwrap_or(fallback)
+        .to_owned()
 }
 
 /// The manifest remains authoritative for identity, operations and command
 /// arguments. Only these explicitly display-only fields can be translated.
-fn localize_manifest(manifest: &mut PluginManifest, language: &str) -> (Vec<rc_i18n::Locale>, Vec<String>) {
+fn localize_manifest(
+    manifest: &mut PluginManifest,
+    language: &str,
+) -> (Vec<rc_i18n::Locale>, Vec<String>) {
     let (packs, problems) = plugin_locales(&manifest.directory, language);
     manifest.plugin.name = localized_label(&packs, "plugin.name", &manifest.plugin.name);
-    manifest.plugin.description = localized_label(&packs, "plugin.description", &manifest.plugin.description);
+    manifest.plugin.description =
+        localized_label(&packs, "plugin.description", &manifest.plugin.description);
     manifest.source.name = localized_label(&packs, "source.name", &manifest.source.name);
     for column in &mut manifest.source.columns {
         let key = format!("column.{}.label", column.id);
@@ -442,14 +457,21 @@ impl Model {
     /// Resolve arbitrary plugin-owned UI strings without exposing them to the
     /// host translator or any other plugin.
     pub fn plugin_t(&self, plugin_id: &str, key: &str, fallback: &str) -> String {
-        self.plugin_strings.get(plugin_id)
+        self.plugin_strings
+            .get(plugin_id)
             .map(|packs| localized_label(packs, key, fallback))
             .unwrap_or_else(|| fallback.to_owned())
     }
 
     /// Resolve a plugin-owned template with the same named placeholders as
     /// the application language packs.
-    pub fn plugin_tf(&self, plugin_id: &str, key: &str, fallback: &str, args: &[(&str, &str)]) -> String {
+    pub fn plugin_tf(
+        &self,
+        plugin_id: &str,
+        key: &str,
+        fallback: &str,
+        args: &[(&str, &str)],
+    ) -> String {
         rc_i18n::substitute(&self.plugin_t(plugin_id, key, fallback), args)
     }
 
@@ -490,7 +512,8 @@ impl Model {
             for mut manifest in discovery.plugins {
                 let (packs, issues) = localize_manifest(&mut manifest, &language);
                 locale_problems.extend(issues);
-                self.plugin_strings.insert(manifest.plugin.id.clone(), packs);
+                self.plugin_strings
+                    .insert(manifest.plugin.id.clone(), packs);
                 // Kept before the manifest is moved into the source, for the problem's path.
                 let manifest_path = manifest.directory.join("plugin.toml");
                 match ManifestSource::from_manifest(manifest, &settings) {
@@ -976,14 +999,20 @@ label = "Title"
         let dir = tempfile::tempdir().unwrap();
         let locales = dir.path().join("locales");
         std::fs::create_dir_all(&locales).unwrap();
-        std::fs::write(locales.join("en.toml"), r#"
+        std::fs::write(
+            locales.join("en.toml"),
+            r#"
 [meta]
 code = "en"
 [strings]
 "plugin.name" = "Notes EN"
 "column.words.label" = "Word count"
-"#).unwrap();
-        std::fs::write(locales.join("cs.toml"), r#"
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            locales.join("cs.toml"),
+            r#"
 [meta]
 code = "cs"
 [strings]
@@ -991,13 +1020,18 @@ code = "cs"
 "source.name" = "Moje poznámky"
 "column.title.label" = "Název"
 "cmd.delete" = "Do not override host"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let mut manifest = parse(MANIFEST, "notes").unwrap();
         manifest.directory = dir.path().to_path_buf();
         let original = manifest.clone();
         let (packs, issues) = localize_manifest(&mut manifest, "cs-CZ");
         assert!(issues.is_empty());
-        assert_eq!(localized_label(&packs, "cmd.delete", "fallback"), "Do not override host");
+        assert_eq!(
+            localized_label(&packs, "cmd.delete", "fallback"),
+            "Do not override host"
+        );
         assert_eq!(manifest.plugin.name, "Poznámky");
         assert_eq!(manifest.source.name, "Moje poznámky");
         assert_eq!(manifest.source.columns[0].label, "Název");

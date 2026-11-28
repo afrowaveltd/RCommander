@@ -77,9 +77,14 @@ impl ChromeLabels {
     #[cfg(test)]
     fn english() -> Self {
         Self {
-            close: "Close".into(), pin: "Pin".into(), unpin: "Unpin".into(),
-            cover: "Cover the panels while you work".into(), maximize: "Maximize".into(),
-            restore: "Restore".into(), minimize: "Minimize".into(), expand: "Expand".into(),
+            close: "Close".into(),
+            pin: "Pin".into(),
+            unpin: "Unpin".into(),
+            cover: "Cover the panels while you work".into(),
+            maximize: "Maximize".into(),
+            restore: "Restore".into(),
+            minimize: "Minimize".into(),
+            expand: "Expand".into(),
         }
     }
 }
@@ -87,16 +92,21 @@ impl ChromeLabels {
 /// Height of the title row we draw ourselves.
 const TITLE_HEIGHT: f32 = 30.0;
 
+/// The window's identity, visible title and the panel area it can cover.
+pub struct WindowSpec<'a> {
+    pub id: &'a str,
+    pub title: &'a str,
+    pub workspace: Rect,
+}
+
 /// Draw a workspace window with minimize/maximize/pin/close and the given contents.
-///
-/// `workspace` is the rectangle the two panels occupy, captured by the caller before the window is
-/// drawn; using it instead of the screen rect is what makes "cover the panels" mean the panels and
-/// not the whole screen, menu bar included.
 pub fn show(
     ctx: &Context,
-    id: &str,
-    title: &str,
-    workspace: Rect,
+    WindowSpec {
+        id,
+        title,
+        workspace,
+    }: WindowSpec<'_>,
     chrome: &mut Chrome,
     palette: &Palette,
     labels: &ChromeLabels,
@@ -151,7 +161,11 @@ pub fn show(
                 if ui.small_button("x").on_hover_text(&labels.close).clicked() {
                     action = ChromeAction::Close;
                 }
-                let pin_label = if chrome.pinned { labels.unpin.as_str() } else { labels.pin.as_str() };
+                let pin_label = if chrome.pinned {
+                    labels.unpin.as_str()
+                } else {
+                    labels.pin.as_str()
+                };
                 if ui
                     .small_button(pin_label)
                     .on_hover_text(&labels.cover)
@@ -163,7 +177,11 @@ pub fn show(
                         chrome.collapsed = false;
                     }
                 }
-                let max_label = if chrome.maximized { labels.restore.as_str() } else { labels.maximize.as_str() };
+                let max_label = if chrome.maximized {
+                    labels.restore.as_str()
+                } else {
+                    labels.maximize.as_str()
+                };
                 if ui.small_button(max_label).clicked() {
                     chrome.maximized = !chrome.maximized;
                     if chrome.maximized {
@@ -171,7 +189,11 @@ pub fn show(
                         chrome.collapsed = false;
                     }
                 }
-                let min_label = if chrome.collapsed { labels.expand.as_str() } else { labels.minimize.as_str() };
+                let min_label = if chrome.collapsed {
+                    labels.expand.as_str()
+                } else {
+                    labels.minimize.as_str()
+                };
                 if ui.small_button(min_label).clicked() {
                     chrome.collapsed = !chrome.collapsed;
                     if chrome.collapsed {
@@ -276,9 +298,11 @@ mod tests {
         let ctx = egui::Context::default();
         let action = show(
             &ctx,
-            "test",
-            "Title",
-            Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(800.0, 600.0)),
+            WindowSpec {
+                id: "test",
+                title: "Title",
+                workspace: Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(800.0, 600.0)),
+            },
             &mut chrome,
             &Palette::light(),
             &ChromeLabels::english(),
@@ -299,9 +323,11 @@ mod tests {
             let ctx = ui.ctx().clone();
             let action = show(
                 &ctx,
-                "buttons",
-                "Chat",
-                workspace,
+                WindowSpec {
+                    id: "buttons",
+                    title: "Chat",
+                    workspace,
+                },
                 &mut chrome,
                 &palette,
                 &ChromeLabels::english(),

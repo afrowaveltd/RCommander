@@ -169,15 +169,32 @@ fn pressing_tab_switches_the_active_panel() {
 fn ctrl_l_opens_language_picker_even_above_an_existing_dialog() {
     let (left, right) = fixture();
     let mut harness = harness(app(left.path(), right.path()));
+    // Language names can use scripts unavailable in the harness's fonts.
+    // Match the application's default rendering policy for those glyphs.
+    harness
+        .ctx
+        .set_missing_glyph_policy(egui::MissingGlyphPolicy::Tofu);
     harness.key_press(egui::Key::F7);
     harness.run();
-    harness.key_press_modifiers(egui::Modifiers { ctrl: true, ..Default::default() }, egui::Key::L);
+    harness.key_press_modifiers(
+        egui::Modifiers {
+            ctrl: true,
+            ..Default::default()
+        },
+        egui::Key::L,
+    );
     harness.run();
-    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::LanguagePicker)));
+    assert!(matches!(
+        harness.state().dialog(),
+        Some(rcommander::model::Dialog::LanguagePicker)
+    ));
     assert_eq!(harness.state().model.dialogs.len(), 2);
     harness.key_press(egui::Key::Escape);
     harness.run();
-    assert!(matches!(harness.state().dialog(), Some(rcommander::model::Dialog::MakeDir(_))));
+    assert!(matches!(
+        harness.state().dialog(),
+        Some(rcommander::model::Dialog::MakeDir(_))
+    ));
 }
 
 #[test]
@@ -485,19 +502,11 @@ fn the_column_editor_opens_and_hides_a_column() {
         "the editor opens"
     );
     let before = harness.state().model.settings.display.columns.len();
-    // Every current column is offered as a removable chip.
-    {
-        // The chip in the dialog, not the header button behind it.
-        let node = harness
-            .root()
-            .query_all_by_label_contains("col.attrs")
-            .max_by(|a, b| a.rect().top().total_cmp(&b.rect().top()))
-            .expect("the attrs chip in the editor");
-        node.click();
-    }
+    harness.root().get_by_label("col.attrs ×").click();
     harness.run();
-    let after = harness.state().model.settings.display.columns.len();
-    assert_eq!(after, before - 1, "clicking a column chip removes it");
+    let columns = &harness.state().model.settings.display.columns;
+    assert_eq!(columns.len(), before - 1);
+    assert!(columns.iter().all(|column| column.id != "attrs"));
 }
 
 #[test]
@@ -758,24 +767,45 @@ fn parent_row_and_history_buttons_navigate_the_same_panel() {
     application.model.settings.display.show_parent_entry = true;
     application.model.navigate(Location::local(&child)).unwrap();
     let mut harness = harness(application);
-    harness.root().query_all_by_label("..")
+    harness
+        .root()
+        .query_all_by_label("..")
         .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
-        .expect("parent row").click();
+        .expect("parent row")
+        .click();
     harness.run();
     harness.key_press(egui::Key::Enter);
     harness.run();
-    assert_eq!(harness.state().model.left.location(), &Location::local(left.path()));
-    harness.root().query_all_by_label("cmd.go_back")
+    assert_eq!(
+        harness.state().model.left.location(),
+        &Location::local(left.path())
+    );
+    harness
+        .root()
+        .query_all_by_label("cmd.go_back")
         .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
-        .expect("back button").click();
+        .expect("back button")
+        .click();
     harness.run();
-    assert_eq!(harness.state().model.left.location(), &Location::local(&child));
-    harness.root().query_all_by_label("cmd.go_forward")
+    assert_eq!(
+        harness.state().model.left.location(),
+        &Location::local(&child)
+    );
+    harness
+        .root()
+        .query_all_by_label("cmd.go_forward")
         .min_by(|a, b| a.rect().left().total_cmp(&b.rect().left()))
-        .expect("forward button").click();
+        .expect("forward button")
+        .click();
     harness.run();
-    assert_eq!(harness.state().model.left.location(), &Location::local(left.path()));
-    assert_eq!(harness.state().model.right.location(), &Location::local(right.path()));
+    assert_eq!(
+        harness.state().model.left.location(),
+        &Location::local(left.path())
+    );
+    assert_eq!(
+        harness.state().model.right.location(),
+        &Location::local(right.path())
+    );
 }
 
 #[test]
@@ -2812,7 +2842,9 @@ fn a_prompt_with_a_variable_the_program_cannot_fill_says_so_in_the_preview() {
 #[test]
 fn the_prompt_page_edits_a_copy_and_resets_it_to_the_shipped_text() {
     let (left, right) = fixture();
-    let app = app(left.path(), right.path());
+    let config = tempfile::tempdir().unwrap();
+    let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
     let mut harness = harness(app);
     harness.state_mut().execute("cm_Prompts");
     harness.run();
@@ -3085,7 +3117,9 @@ fn a_held_modifier_turns_the_bar_into_the_other_function() {
 #[test]
 fn processing_with_the_agent_opens_a_chat_about_a_copy() {
     let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
     let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
     // A file to hand over, created before the model reads the directory.
     std::fs::write(left.path().join("handover.txt"), b"the original").unwrap();
     app.model.refresh_all();
@@ -3134,7 +3168,9 @@ fn processing_with_the_agent_opens_a_chat_about_a_copy() {
 #[test]
 fn the_workspace_review_shows_the_diff_and_writes_only_what_is_ticked() {
     let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
     let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
     std::fs::write(left.path().join("a.txt"), b"one\ntwo\nthree\n").unwrap();
     std::fs::write(left.path().join("b.txt"), b"keep this\n").unwrap();
     app.model.refresh_all();
@@ -3203,7 +3239,9 @@ fn the_workspace_review_shows_the_diff_and_writes_only_what_is_ticked() {
 #[test]
 fn the_review_blocks_a_file_with_a_syntax_error_and_offers_hunks() {
     let (left, right) = fixture();
+    let config = tempfile::tempdir().unwrap();
     let mut app = app(left.path(), right.path());
+    app.model.config_dir_override = Some(config.path().to_path_buf());
     std::fs::write(left.path().join("data.json"), "{\n  \"a\": 1\n}\n").unwrap();
     app.model.refresh_all();
     let mut harness = harness(app);
@@ -3710,7 +3748,10 @@ fn settings_keyboard_confirm_and_cancel_the_draft() {
     let mut harness = harness(app(left.path(), right.path()));
     let original = harness.state().model.settings.display.show_hidden;
     for (key, expected) in [(egui::Key::Escape, original), (egui::Key::Enter, !original)] {
-        harness.state_mut().model.open_options_on(OptionsTab::Display);
+        harness
+            .state_mut()
+            .model
+            .open_options_on(OptionsTab::Display);
         harness.run();
         let Some(Dialog::Options(state)) = harness.state_mut().model.top_dialog_mut() else {
             panic!("settings dialog expected");
@@ -3719,7 +3760,10 @@ fn settings_keyboard_confirm_and_cancel_the_draft() {
         harness.run();
         harness.key_press(key);
         harness.run();
-        assert!(harness.state().dialog().is_none(), "{key:?} closes the dialog");
+        assert!(
+            harness.state().dialog().is_none(),
+            "{key:?} closes the dialog"
+        );
         assert_eq!(harness.state().model.settings.display.show_hidden, expected);
     }
 }

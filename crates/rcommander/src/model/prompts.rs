@@ -107,7 +107,8 @@ impl Model {
                 }
             }
             if category.is_none_or(|wanted| entry.category == wanted)
-                && (original_matches || entry.prompt.title.to_lowercase().contains(&needle)
+                && (original_matches
+                    || entry.prompt.title.to_lowercase().contains(&needle)
                     || entry.prompt.about.to_lowercase().contains(&needle))
             {
                 matches.push(entry.clone());

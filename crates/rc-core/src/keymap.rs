@@ -420,9 +420,18 @@ mod tests {
     #[test]
     fn language_rescue_shortcut_survives_old_overrides() {
         let mut map = KeyMap::defaults();
-        map.apply_overrides(&BTreeMap::from([("ctrl+l".into(), "cm_GetFileSpace".into())]));
-        assert_eq!(map.lookup(&Shortcut::parse("ctrl+l").unwrap()), Some("cm_Language"));
-        assert_eq!(map.lookup(&Shortcut::parse("ctrl+shift+l").unwrap()), Some("cm_GetFileSpace"));
+        map.apply_overrides(&BTreeMap::from([(
+            "ctrl+l".into(),
+            "cm_GetFileSpace".into(),
+        )]));
+        assert_eq!(
+            map.lookup(&Shortcut::parse("ctrl+l").unwrap()),
+            Some("cm_Language")
+        );
+        assert_eq!(
+            map.lookup(&Shortcut::parse("ctrl+shift+l").unwrap()),
+            Some("cm_GetFileSpace")
+        );
     }
 
     #[test]

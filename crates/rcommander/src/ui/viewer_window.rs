@@ -21,15 +21,21 @@ struct PdfPreview {
 
 impl Drop for PdfPreview {
     fn drop(&mut self) {
-        self.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.cancel
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
 impl PdfPreview {
     fn new(path: std::path::PathBuf) -> Self {
         Self {
-            path, page: 1, pages: None, pending: None,
-            cancel: Default::default(), texture: None, error: None,
+            path,
+            page: 1,
+            pages: None,
+            pending: None,
+            cancel: Default::default(),
+            texture: None,
+            error: None,
         }
     }
 
@@ -44,16 +50,20 @@ impl PdfPreview {
         let pages = self.pages;
         let cancel = self.cancel.clone();
         let (tx, rx) = std::sync::mpsc::channel();
-        match std::thread::Builder::new().name("pdf-preview".into()).spawn(move || {
-            let _ = tx.send(rc_viewer::render_pdf_page(&path, page, pages, &cancel));
-        }) {
+        match std::thread::Builder::new()
+            .name("pdf-preview".into())
+            .spawn(move || {
+                let _ = tx.send(rc_viewer::render_pdf_page(&path, page, pages, &cancel));
+            }) {
             Ok(_) => self.pending = Some(rx),
             Err(_) => self.error = Some(rc_viewer::PdfError::Render),
         }
     }
 
     fn poll(&mut self, ctx: &Context) {
-        let Some(rx) = &self.pending else { return; };
+        let Some(rx) = &self.pending else {
+            return;
+        };
         let result = match rx.try_recv() {
             Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => {
@@ -68,9 +78,11 @@ impl PdfPreview {
                 self.pages = Some(result.pages);
                 let image = result.image;
                 let color = egui::ColorImage::from_rgba_unmultiplied(
-                    [image.width as usize, image.height as usize], &image.rgba,
+                    [image.width as usize, image.height as usize],
+                    &image.rgba,
                 );
-                self.texture = Some(ctx.load_texture("pdf-page", color, egui::TextureOptions::LINEAR));
+                self.texture =
+                    Some(ctx.load_texture("pdf-page", color, egui::TextureOptions::LINEAR));
             }
             Err(error) => self.error = Some(error),
         }
@@ -83,26 +95,61 @@ impl PdfPreview {
         }
         let busy = self.pending.is_some();
         ui.horizontal_wrapped(|ui| {
-            if ui.add_enabled(!busy && self.page > 1, egui::Button::new("←"))
-                .on_hover_text(model.t("viewer.pdf.previous")).clicked() {
+            if ui
+                .add_enabled(!busy && self.page > 1, egui::Button::new("←"))
+                .on_hover_text(model.t("viewer.pdf.previous"))
+                .clicked()
+            {
                 self.request(self.page - 1);
             }
-            ui.label(model.tf("viewer.pdf.page", &[
-                ("page", &self.page.to_string()),
-                ("total", &self.pages.map(|n| n.to_string()).unwrap_or_else(|| "?".into())),
-            ]));
-            if ui.add_enabled(!busy && self.pages.is_some_and(|n| self.page < n), egui::Button::new("→"))
-                .on_hover_text(model.t("viewer.pdf.next")).clicked() {
+            ui.label(
+                model.tf(
+                    "viewer.pdf.page",
+                    &[
+                        ("page", &self.page.to_string()),
+                        (
+                            "total",
+                            &self
+                                .pages
+                                .map(|n| n.to_string())
+                                .unwrap_or_else(|| "?".into()),
+                        ),
+                    ],
+                ),
+            );
+            if ui
+                .add_enabled(
+                    !busy && self.pages.is_some_and(|n| self.page < n),
+                    egui::Button::new("→"),
+                )
+                .on_hover_text(model.t("viewer.pdf.next"))
+                .clicked()
+            {
                 self.request(self.page + 1);
             }
-            if ui.button("−").clicked() { *zoom = if *zoom <= 0.0 { 0.75 } else { (*zoom * 0.8).max(0.05) }; }
-            if ui.button("+").clicked() { *zoom = if *zoom <= 0.0 { 1.0 } else { (*zoom * 1.25).min(8.0) }; }
-            if ui.button(model.t("viewer.fit")).clicked() { *zoom = 0.0; }
+            if ui.button("−").clicked() {
+                *zoom = if *zoom <= 0.0 {
+                    0.75
+                } else {
+                    (*zoom * 0.8).max(0.05)
+                };
+            }
+            if ui.button("+").clicked() {
+                *zoom = if *zoom <= 0.0 {
+                    1.0
+                } else {
+                    (*zoom * 1.25).min(8.0)
+                };
+            }
+            if ui.button(model.t("viewer.fit")).clicked() {
+                *zoom = 0.0;
+            }
         });
         if self.pending.is_some() {
             ui.spinner();
             ui.label(model.t("viewer.pdf.loading"));
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(50));
         } else if let Some(error) = self.error {
             let key = match error {
                 rc_viewer::PdfError::MissingRenderer => "viewer.pdf.missing",
@@ -112,16 +159,25 @@ impl PdfPreview {
                 rc_viewer::PdfError::Cancelled => "viewer.pdf.cancelled",
             };
             ui.label(model.t(key));
-            if ui.button(model.t("cmd.refresh")).clicked() { self.request(self.page); }
+            if ui.button(model.t("cmd.refresh")).clicked() {
+                self.request(self.page);
+            }
         } else if let Some(texture) = &self.texture {
             let size = texture.size_vec2();
             let available = ui.available_size();
             let scale = if *zoom <= 0.0 {
-                (available.x / size.x).min(available.y / size.y).clamp(0.01, 1.0)
-            } else { *zoom };
-            egui::ScrollArea::both().id_salt("pdf-page-scroll").auto_shrink([false, false]).show(ui, |ui| {
-                ui.image((texture.id(), size * scale));
-            });
+                (available.x / size.x)
+                    .min(available.y / size.y)
+                    .clamp(0.01, 1.0)
+            } else {
+                *zoom
+            };
+            egui::ScrollArea::both()
+                .id_salt("pdf-page-scroll")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    ui.image((texture.id(), size * scale));
+                });
         }
     }
 }
@@ -166,7 +222,10 @@ impl ViewerUi {
                 }
                 if let ViewerContent::Text(text) = &loaded.content {
                     self.data = super::data_preview::DataPreview::parse(
-                        &loaded.format.format_hint, &loaded.format.mime, &text.text, text.truncated,
+                        &loaded.format.format_hint,
+                        &loaded.format.mime,
+                        &text.text,
+                        text.truncated,
                     );
                 }
                 if loaded.format.format_hint == "pdf" {
@@ -184,13 +243,21 @@ impl ViewerUi {
     }
 
     /// Cancel an outstanding PDF worker when the viewer closes.
-    pub fn cancel_pdf(&mut self) { self.pdf = None; }
+    pub fn cancel_pdf(&mut self) {
+        self.pdf = None;
+    }
 
     /// Reuse the chat/help renderer. Links are displayed, never opened automatically.
     pub fn markdown_preview(
-        &mut self, ui: &mut egui::Ui, palette: &Palette, model: &Model, compact: bool,
+        &mut self,
+        ui: &mut egui::Ui,
+        palette: &Palette,
+        model: &Model,
+        compact: bool,
     ) -> bool {
-        let Some(blocks) = &self.markdown else { return false };
+        let Some(blocks) = &self.markdown else {
+            return false;
+        };
         let limit = if compact { 32 } else { 2048 };
         if self.markdown_limited || blocks.len() > limit {
             ui.label(model.t("viewer.preview.limited"));
@@ -204,7 +271,10 @@ impl ViewerUi {
             .show(ui, |ui| {
                 ui.set_max_width((viewport.x - 20.0).max(1.0));
                 crate::ui::markdown_view::render_blocks(
-                    ui, &blocks[..blocks.len().min(limit)], palette, &mut self.link_target,
+                    ui,
+                    &blocks[..blocks.len().min(limit)],
+                    palette,
+                    &mut self.link_target,
                 );
                 if let Some(target) = &self.link_target {
                     ui.separator();
@@ -216,7 +286,9 @@ impl ViewerUi {
     }
 
     pub fn data_preview(&self, ui: &mut egui::Ui, model: &Model, compact: bool) -> bool {
-        self.data.as_ref().is_some_and(|data| data.render(ui, model, compact))
+        self.data
+            .as_ref()
+            .is_some_and(|data| data.render(ui, model, compact))
     }
 
     /// Build a GPU texture for the decoded image, once.
@@ -286,7 +358,10 @@ fn render(
                 ("viewer.mode.hex", ViewerMode::Hex),
                 ("viewer.mode.image", ViewerMode::Image),
             ] {
-                if ui.selectable_label(state.mode == mode, model.t(label)).clicked() {
+                if ui
+                    .selectable_label(state.mode == mode, model.t(label))
+                    .clicked()
+                {
                     state.mode = mode;
                 }
             }
@@ -303,11 +378,11 @@ fn render(
         });
         ui.separator();
         ui_state.ensure_texture(ctx);
-        if state.mode == ViewerMode::Auto {
-            if let Some(pdf) = &mut ui_state.pdf {
-                pdf.show(ui, model, &mut state.zoom);
-                return;
-            }
+        if state.mode == ViewerMode::Auto
+            && let Some(pdf) = &mut ui_state.pdf
+        {
+            pdf.show(ui, model, &mut state.zoom);
+            return;
         }
         if state.mode == ViewerMode::Auto
             && (ui_state.markdown_preview(ui, palette, model, false)
@@ -317,7 +392,11 @@ fn render(
         }
         let mode = effective_mode(state.mode, ui_state);
         if mode == ViewerMode::Hex && ui_state.loaded.is_some() {
-            if let Some(LoadedViewer { content: ViewerContent::Hex(doc), .. }) = &ui_state.loaded {
+            if let Some(LoadedViewer {
+                content: ViewerContent::Hex(doc),
+                ..
+            }) = &ui_state.loaded
+            {
                 show_hex(ui, &mut state, doc, palette, model);
             } else {
                 let options = ui_state.options;
@@ -327,16 +406,26 @@ fn render(
                 });
                 match dump {
                     Ok(doc) => show_hex(ui, &mut state, doc, palette, model),
-                    Err(error) => { ui.label(error.as_str()); }
+                    Err(error) => {
+                        ui.label(error.as_str());
+                    }
                 }
             }
             return;
         }
         match (&ui_state.loaded, mode) {
-            (Some(LoadedViewer { content: ViewerContent::Image(_), .. }), ViewerMode::Image) => {
+            (
+                Some(LoadedViewer {
+                    content: ViewerContent::Image(_),
+                    ..
+                }),
+                ViewerMode::Image,
+            ) => {
                 show_image(ui, &mut state, ui_state, model);
             }
-            (Some(loaded), ViewerMode::Text) if matches!(&loaded.content, ViewerContent::Text(_)) => {
+            (Some(loaded), ViewerMode::Text)
+                if matches!(&loaded.content, ViewerContent::Text(_)) =>
+            {
                 show_text(ui, &mut state, loaded, palette, model);
             }
             (Some(loaded), ViewerMode::Auto) => {
@@ -350,7 +439,12 @@ fn render(
                 ui.label(model.t("viewer.preview.mode_unavailable"));
             }
             (None, _) => {
-                ui.label(ui_state.error.clone().unwrap_or_else(|| model.t("panel.empty")));
+                ui.label(
+                    ui_state
+                        .error
+                        .clone()
+                        .unwrap_or_else(|| model.t("panel.empty")),
+                );
             }
         }
     };
@@ -365,7 +459,9 @@ fn render(
             .show(ctx, contents);
     }
     open = open && !close_requested;
-    if !open { ui_state.cancel_pdf(); }
+    if !open {
+        ui_state.cancel_pdf();
+    }
     model.viewer = if open { Some(state) } else { None };
     !open
 }
@@ -404,7 +500,11 @@ fn show_text(
             ui.label(RichText::new("RTL").small().color(palette.directory));
         }
         if text.truncated {
-            ui.label(RichText::new(model.t("viewer.truncated")).small().color(palette.readonly));
+            ui.label(
+                RichText::new(model.t("viewer.truncated"))
+                    .small()
+                    .color(palette.readonly),
+            );
         }
         ui.checkbox(&mut state.wraps, model.t("viewer.wrap"));
     });
@@ -423,7 +523,11 @@ fn show_text(
             let path = state.path.as_str();
             let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, width: f32| {
                 let mut job = crate::ui::markdown_view::source_layout(
-                    path, buffer.as_str(), palette, font.clone(), true,
+                    path,
+                    buffer.as_str(),
+                    palette,
+                    font.clone(),
+                    true,
                 );
                 job.wrap.max_width = if wraps { width } else { f32::INFINITY };
                 ui.fonts_mut(|fonts| fonts.layout_job(job))
@@ -461,12 +565,19 @@ fn show_hex(
     let mut width = state.hex_bytes.clamp(1, 64);
     ui.horizontal_wrapped(|ui| {
         ui.label(
-            RichText::new(model.tf("viewer.total_bytes", &[("count", &doc.total_bytes.to_string())]))
-                .small()
-                .color(palette.hidden),
+            RichText::new(model.tf(
+                "viewer.total_bytes",
+                &[("count", &doc.total_bytes.to_string())],
+            ))
+            .small()
+            .color(palette.hidden),
         );
         if doc.truncated {
-            ui.label(RichText::new(model.t("viewer.truncated")).small().color(palette.readonly));
+            ui.label(
+                RichText::new(model.t("viewer.truncated"))
+                    .small()
+                    .color(palette.readonly),
+            );
         }
         if ui
             .add(egui::Slider::new(&mut width, 1..=64).text(model.t("viewer.bytes_per_line")))
@@ -508,7 +619,14 @@ fn show_hex(
         .show(ui, |ui| {
             if let Some(line) = view.lines.get(selected) {
                 ui.label(
-                    RichText::new(model.tf("viewer.hex_detail", &[("offset", &line.offset.to_string()), ("hex", &format!("{:x}", line.offset)), ("count", &line.bytes.len().to_string())]))
+                    RichText::new(model.tf(
+                        "viewer.hex_detail",
+                        &[
+                            ("offset", &line.offset.to_string()),
+                            ("hex", &format!("{:x}", line.offset)),
+                            ("count", &line.bytes.len().to_string()),
+                        ],
+                    ))
                     .small()
                     .color(palette.hidden),
                 );
@@ -628,7 +746,12 @@ fn describe_u32(bytes: &[u8]) -> String {
         .join(" ")
 }
 
-fn show_image(ui: &mut egui::Ui, state: &mut crate::model::ViewerState, ui_state: &ViewerUi, model: &Model) {
+fn show_image(
+    ui: &mut egui::Ui,
+    state: &mut crate::model::ViewerState,
+    ui_state: &ViewerUi,
+    model: &Model,
+) {
     let Some(texture) = &ui_state.image_texture else {
         ui.label(
             ui_state

@@ -32,7 +32,11 @@ pub enum PdfError {
 }
 
 fn program(name: &str) -> Option<PathBuf> {
-    let file = if cfg!(windows) { format!("{name}.exe") } else { name.to_owned() };
+    let file = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_owned()
+    };
     std::env::var_os("PATH").and_then(|path| {
         std::env::split_paths(&path)
             .filter(|dir| dir.is_absolute())
@@ -42,9 +46,14 @@ fn program(name: &str) -> Option<PathBuf> {
 }
 
 fn run(command: &mut Command, deadline: Instant, cancel: &AtomicBool) -> Result<(), PdfError> {
-    if cancel.load(Ordering::Relaxed) { return Err(PdfError::Cancelled); }
-    let mut child = command.stdin(Stdio::null()).stderr(Stdio::null())
-        .spawn().map_err(|_| PdfError::Render)?;
+    if cancel.load(Ordering::Relaxed) {
+        return Err(PdfError::Cancelled);
+    }
+    let mut child = command
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|_| PdfError::Render)?;
     loop {
         let error = if cancel.load(Ordering::Relaxed) {
             Some(PdfError::Cancelled)
@@ -52,7 +61,13 @@ fn run(command: &mut Command, deadline: Instant, cancel: &AtomicBool) -> Result<
             Some(PdfError::Timeout)
         } else {
             match child.try_wait() {
-                Ok(Some(status)) => return if status.success() { Ok(()) } else { Err(PdfError::Render) },
+                Ok(Some(status)) => {
+                    return if status.success() {
+                        Ok(())
+                    } else {
+                        Err(PdfError::Render)
+                    };
+                }
                 Ok(None) => None,
                 Err(_) => Some(PdfError::Render),
             }
@@ -67,9 +82,11 @@ fn run(command: &mut Command, deadline: Instant, cancel: &AtomicBool) -> Result<
 }
 
 fn page_count(info: &str) -> Option<u32> {
-    info.lines().find_map(|line| line.strip_prefix("Pages:")
-        .and_then(|value| value.trim().parse::<u32>().ok())
-        .filter(|count| *count > 0))
+    info.lines().find_map(|line| {
+        line.strip_prefix("Pages:")
+            .and_then(|value| value.trim().parse::<u32>().ok())
+            .filter(|count| *count > 0)
+    })
 }
 
 /// Render one local PDF page (1-based), with an optional already known page
@@ -77,7 +94,12 @@ fn page_count(info: &str) -> Option<u32> {
 /// Call from a worker, not the UI thread. The subprocess is terminated on
 /// cancellation or after 15 seconds. The pixel output is capped to a 1600px
 /// square; this is not an OS sandbox or a subprocess memory limit.
-pub fn render_pdf_page(path: &Path, page: u32, known_pages: Option<u32>, cancel: &AtomicBool) -> Result<PdfPage, PdfError> {
+pub fn render_pdf_page(
+    path: &Path,
+    page: u32,
+    known_pages: Option<u32>,
+    cancel: &AtomicBool,
+) -> Result<PdfPage, PdfError> {
     let path = path.canonicalize().map_err(|_| PdfError::Input)?;
     let meta = path.metadata().map_err(|_| PdfError::Input)?;
     if !meta.is_file() || meta.len() > 256 * 1024 * 1024 || page == 0 {
@@ -92,19 +114,40 @@ pub fn render_pdf_page(path: &Path, page: u32, known_pages: Option<u32>, cancel:
         let info = program("pdfinfo").ok_or(PdfError::MissingRenderer)?;
         let info_path = dir.path().join("info");
         let output = std::fs::File::create(&info_path).map_err(|_| PdfError::Input)?;
-        run(Command::new(info).current_dir(dir.path()).env("LC_ALL", "C")
-            .arg(&path).stdout(Stdio::from(output)), deadline, cancel)?;
+        run(
+            Command::new(info)
+                .current_dir(dir.path())
+                .env("LC_ALL", "C")
+                .arg(&path)
+                .stdout(Stdio::from(output)),
+            deadline,
+            cancel,
+        )?;
         let mut bytes = Vec::new();
-        std::fs::File::open(info_path).map_err(|_| PdfError::Input)?
-            .take(64 * 1024).read_to_end(&mut bytes).map_err(|_| PdfError::Input)?;
+        std::fs::File::open(info_path)
+            .map_err(|_| PdfError::Input)?
+            .take(64 * 1024)
+            .read_to_end(&mut bytes)
+            .map_err(|_| PdfError::Input)?;
         page_count(&String::from_utf8_lossy(&bytes)).ok_or(PdfError::Render)?
     };
-    if page > pages { return Err(PdfError::Render); }
+    if page > pages {
+        return Err(PdfError::Render);
+    }
     let prefix = dir.path().join("page");
-    run(Command::new(renderer).current_dir(dir.path())
-        .args(["-png", "-singlefile", "-scale-to", "1600", "-f"])
-        .arg(page.to_string()).arg("-l").arg(page.to_string())
-        .arg(&path).arg(&prefix).stdout(Stdio::null()), deadline, cancel)?;
+    run(
+        Command::new(renderer)
+            .current_dir(dir.path())
+            .args(["-png", "-singlefile", "-scale-to", "1600", "-f"])
+            .arg(page.to_string())
+            .arg("-l")
+            .arg(page.to_string())
+            .arg(&path)
+            .arg(&prefix)
+            .stdout(Stdio::null()),
+        deadline,
+        cancel,
+    )?;
     let output = prefix.with_extension("png");
     if output.metadata().map_err(|_| PdfError::Render)?.len() > 16 * 1024 * 1024 {
         return Err(PdfError::Render);
@@ -128,9 +171,15 @@ mod tests {
     fn missing_file_and_zero_page_are_refused() {
         let cancel = AtomicBool::new(false);
         let dir = tempfile::tempdir().unwrap();
-        assert!(matches!(render_pdf_page(&dir.path().join("missing.pdf"), 1, None, &cancel), Err(PdfError::Input)));
+        assert!(matches!(
+            render_pdf_page(&dir.path().join("missing.pdf"), 1, None, &cancel),
+            Err(PdfError::Input)
+        ));
         let path = dir.path().join("file.pdf");
         std::fs::write(&path, b"%PDF-1.4").unwrap();
-        assert!(matches!(render_pdf_page(&path, 0, None, &cancel), Err(PdfError::Input)));
+        assert!(matches!(
+            render_pdf_page(&path, 0, None, &cancel),
+            Err(PdfError::Input)
+        ));
     }
 }

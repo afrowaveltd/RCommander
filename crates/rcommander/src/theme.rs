@@ -429,12 +429,22 @@ pub fn install_user_fonts(
 
 /// Pick an installed Arabic-capable face by conventional family name.
 fn arabic_fallback(discovered: &[rc_core::font::FontFile]) -> Option<&rc_core::font::FontFile> {
-    let candidates = ["notosansarabic", "notonaskharabic", "amiri", "dejavusans", "tahoma", "arial"];
+    let candidates = [
+        "notosansarabic",
+        "notonaskharabic",
+        "amiri",
+        "dejavusans",
+        "tahoma",
+        "arial",
+    ];
     candidates.iter().find_map(|candidate| {
         discovered.iter().find(|font| {
-            let normalized: String = font.family.chars()
+            let normalized: String = font
+                .family
+                .chars()
                 .filter(|ch| ch.is_ascii_alphanumeric())
-                .map(|ch| ch.to_ascii_lowercase()).collect();
+                .map(|ch| ch.to_ascii_lowercase())
+                .collect();
             normalized == *candidate && font.regular
         })
     })
@@ -448,13 +458,17 @@ pub fn install_arabic_fallback(
     installed: &[&'static str],
 ) -> bool {
     use egui::{FontData, FontFamily, FontPriority};
-    let Some(file) = arabic_fallback(discovered) else { return false; };
+    let Some(file) = arabic_fallback(discovered) else {
+        return false;
+    };
     if !std::fs::metadata(&file.path).is_ok_and(|meta| meta.len() <= 16 * 1024 * 1024)
         || !rc_core::font::looks_like_font(&file.path)
     {
         return false;
     }
-    let Ok(bytes) = std::fs::read(&file.path) else { return false; };
+    let Ok(bytes) = std::fs::read(&file.path) else {
+        return false;
+    };
     let mut families = vec![FontFamily::Proportional, FontFamily::Monospace];
     families.extend(installed.iter().map(|role| family(role)));
     for (index, family) in families.into_iter().enumerate() {
@@ -772,8 +786,10 @@ mod icon_fallback_tests {
     #[test]
     fn arabic_fallback_prefers_a_dedicated_face() {
         let font = |family: &str| rc_core::font::FontFile {
-            family: family.into(), path: std::path::PathBuf::from("unused.ttf"),
-            mono: false, regular: true,
+            family: family.into(),
+            path: std::path::PathBuf::from("unused.ttf"),
+            mono: false,
+            regular: true,
         };
         let fonts = vec![font("Arial"), font("Noto Sans Arabic"), font("DejaVu Sans")];
         assert_eq!(arabic_fallback(&fonts).unwrap().family, "Noto Sans Arabic");

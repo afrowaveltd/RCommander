@@ -161,7 +161,13 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut AgentUi, palette: &
             ui.horizontal(|ui| {
                 ui.label(model.t("agent.tools"));
                 ui.label(
-                    RichText::new(model.tf("mcp.servers.summary", &[("configured", &ui_state.pending.len().to_string()), ("connected", &ui_state.servers.len().to_string())]))
+                    RichText::new(model.tf(
+                        "mcp.servers.summary",
+                        &[
+                            ("configured", &ui_state.pending.len().to_string()),
+                            ("connected", &ui_state.servers.len().to_string()),
+                        ],
+                    ))
                     .small()
                     .color(palette.hidden),
                 );
@@ -185,9 +191,12 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut AgentUi, palette: &
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(&server.name).strong());
                             ui.label(
-                                RichText::new(model.tf("mcp.tools.count", &[("count", &server.tools.len().to_string())]))
-                                    .small()
-                                    .color(palette.hidden),
+                                RichText::new(model.tf(
+                                    "mcp.tools.count",
+                                    &[("count", &server.tools.len().to_string())],
+                                ))
+                                .small()
+                                .color(palette.hidden),
                             );
                         });
                         ui.horizontal(|ui| {
@@ -344,11 +353,9 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut AgentUi, palette: &
                     if ui_state.servers.is_empty() {
                         ui.label(model.t("agent.panel"));
                         ui.label(
-                            RichText::new(
-                                model.t("mcp.servers.empty"),
-                            )
-                            .small()
-                            .color(palette.hidden),
+                            RichText::new(model.t("mcp.servers.empty"))
+                                .small()
+                                .color(palette.hidden),
                         );
                     }
                 });

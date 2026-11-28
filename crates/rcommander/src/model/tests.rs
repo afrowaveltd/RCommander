@@ -62,9 +62,17 @@ fn parent_row_enter_navigates_the_selected_panel_and_restores_cursor() {
     model.settings.display.show_parent_entry = true;
     let child = left.path().join("sub");
     model.navigate(Location::local(&child)).unwrap();
-    let row = model.left.entries().iter().position(|e| e.name == "..").expect("parent row");
+    let row = model
+        .left
+        .entries()
+        .iter()
+        .position(|e| e.name == "..")
+        .expect("parent row");
     model.left.set_cursor(row);
-    assert!(model.left.current().is_none(), "parent is not a file operation target");
+    assert!(
+        model.left.current().is_none(),
+        "parent is not a file operation target"
+    );
     assert_eq!(model.enter(), CommandOutcome::Ok);
     assert_eq!(model.left.location(), &Location::local(left.path()));
     assert_eq!(model.left.cursor_entry().unwrap().name, "sub");
@@ -94,7 +102,10 @@ fn navigation_history_is_chronological_and_panel_local() {
     assert!(!model.left.can_go_forward());
     assert_eq!(model.go_history(Side::Left, false), CommandOutcome::Ok);
     model.navigate(a.clone()).unwrap();
-    assert!(!model.left.can_go_forward(), "new visit clears forward history");
+    assert!(
+        !model.left.can_go_forward(),
+        "new visit clears forward history"
+    );
     assert_eq!(model.right.location(), &Location::local(right.path()));
 }
 
@@ -105,7 +116,10 @@ fn failed_history_navigation_does_not_consume_the_target() {
     model.navigate(Location::local(&b)).unwrap();
     model.navigate(Location::local(left.path())).unwrap();
     fs::remove_dir(&b).unwrap();
-    assert!(matches!(model.go_history(Side::Left, false), CommandOutcome::Failed(_)));
+    assert!(matches!(
+        model.go_history(Side::Left, false),
+        CommandOutcome::Failed(_)
+    ));
     assert!(model.left.can_go_back());
     assert_eq!(model.left.location(), &Location::local(left.path()));
     fs::create_dir(&b).unwrap();

@@ -76,9 +76,11 @@ pub fn show(
     let chrome_labels = crate::ui::workspace_window::ChromeLabels::new(model);
     let action = crate::ui::workspace_window::show(
         ctx,
-        "chat_window",
-        &title,
-        workspace,
+        crate::ui::workspace_window::WindowSpec {
+            id: "chat_window",
+            title: &title,
+            workspace,
+        },
         &mut chrome,
         palette,
         &chrome_labels,

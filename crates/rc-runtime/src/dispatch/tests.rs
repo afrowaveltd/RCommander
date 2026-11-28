@@ -75,7 +75,10 @@ impl FakeBackend {
 
 impl Backend for FakeBackend {
     fn chat(&self, resolved: &ResolvedModel, request: &ChatRequest) -> Result<ChatReply, LlmError> {
-        self.output_limits.lock().unwrap().push(request.max_output_tokens);
+        self.output_limits
+            .lock()
+            .unwrap()
+            .push(request.max_output_tokens);
         self.calls.lock().unwrap().push((
             resolved.connection_id.clone(),
             resolved.provider_model.clone(),
@@ -514,12 +517,20 @@ fn dispatch_passes_the_reserved_output_limit_to_the_backend() {
         let req = request("tiny");
         let result = if streaming {
             dispatcher.dispatch_stream(
-                &catalog, &mut ledger, &req, &rc_llm::StreamControl::default(), &mut |_| {}, NOON,
+                &catalog,
+                &mut ledger,
+                &req,
+                &rc_llm::StreamControl::default(),
+                &mut |_| {},
+                NOON,
             )
         } else {
             dispatcher.dispatch(&catalog, &mut ledger, &req, NOON)
         };
         assert!(matches!(result, DispatchOutcome::Answered { .. }));
-        assert_eq!(*dispatcher.backend().output_limits.lock().unwrap(), vec![Some(50)]);
+        assert_eq!(
+            *dispatcher.backend().output_limits.lock().unwrap(),
+            vec![Some(50)]
+        );
     }
 }

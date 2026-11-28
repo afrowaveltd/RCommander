@@ -497,7 +497,10 @@ pub fn chat_body(request: &ChatRequest) -> String {
 // Ollama's num_predict is a positive signed integer. In particular, do not let
 // zero or a wrapped negative value mean "generate without a limit".
 fn validate_output_limit(request: &ChatRequest) -> Result<(), LlmError> {
-    if request.max_output_tokens.is_some_and(|n| n == 0 || n > i32::MAX as u64) {
+    if request
+        .max_output_tokens
+        .is_some_and(|n| n == 0 || n > i32::MAX as u64)
+    {
         return Err(LlmError::new("invalid output token limit"));
     }
     Ok(())
