@@ -3856,6 +3856,38 @@ port scanning, importing secrets or automatically trusting project manifests.
 The public MCP Registry is a catalogue, not an inventory of local installs.
 Reuse the RC capability catalogue rather than a second discovery system.
 
+#### MCP registration wizard and agent-facing capability lookup
+
+Extend the existing `[agent] clients` configuration, MCP agent panel and
+remembered tool catalogue (see Docs/MCP agents/en.md); do not replace them.
+Expose Settings > MCP > Add application with Manual (stdio executable and
+arguments or HTTP URL), By name/known recipe (resolve against reviewed
+catalogue and confirm installed path/endpoint), Local discovery (inert
+registration descriptors and OS application candidates), Import configuration
+(explicit selected entries from supported MCP client formats, no secrets or
+automatic execution), and Online catalogue (official MCP Registry or approved
+sources, distinguish available from installed). Provide a connection-test
+action which explicitly approves launching/connecting, verifies protocol and
+lists tools/resources/prompts, then stores the local registration and cached
+capabilities with trust/activation choices. If only an application name is
+known and no verified recipe exists, ask for the documented command/endpoint;
+do not fabricate flags. Import or discovery results are candidates until
+reviewed. Show unverified, stopped, ready, disabled and failed states and
+allow edit/remove/refresh. Remember verified entries across restarts.
+
+Expose a small scoped catalogue-search capability to the ordinary chat
+agent and RCHarness (proposed `capabilities.search`, `capabilities.describe`
+and broker-controlled activation). An agent searches by task intent/category,
+receives compact matching records including cached-versus-live status, then
+requests an authorized tool binding or activation. Do not inject every tool
+schema from every installed application into every model prompt. Retrieve
+exact live schemas before execution, expose only role/task-relevant granted
+tools, and handle no match or denied activation with a clear explanation.
+A newly registered application becomes discoverable without changing an
+agent prompt. Test discovery without process launch, manual/import/name
+registration, unknown recipes, persistence, compact lookup, stale cache,
+denied activation and missing capabilities. No implementation claimed.
+
 Proposed optional local application descriptor: stable application/server ID,
 publisher/version, executable or registered service identity, explicit argv
 (not shell commands), supported platform, stdio or Streamable HTTP endpoint,
