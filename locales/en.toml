@@ -985,3 +985,14 @@ authors = ["RCommander contributors"]
 "window.restore" = "Restore"
 "window.minimize" = "Minimize"
 "window.expand" = "Expand"
+
+# PDF preview
+"viewer.pdf.page" = "Page {page} / {total}"
+"viewer.pdf.previous" = "Previous page"
+"viewer.pdf.next" = "Next page"
+"viewer.pdf.loading" = "Rendering PDF page…"
+"viewer.pdf.missing" = "PDF renderer unavailable. Install Poppler utilities (pdfinfo and pdftoppm) on PATH."
+"viewer.pdf.input" = "PDF unavailable or larger than the 256 MiB preview limit."
+"viewer.pdf.failed" = "Cannot render this page. The PDF may be damaged or password-protected."
+"viewer.pdf.timeout" = "PDF rendering timed out."
+"viewer.pdf.cancelled" = "PDF rendering cancelled."
