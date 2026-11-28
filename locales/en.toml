@@ -996,3 +996,11 @@ authors = ["RCommander contributors"]
 "viewer.pdf.failed" = "Cannot render this page. The PDF may be damaged or password-protected."
 "viewer.pdf.timeout" = "PDF rendering timed out."
 "viewer.pdf.cancelled" = "PDF rendering cancelled."
+
+# Saved connection credential recovery
+"session.wallet_unlock" = "Unlock saved credentials"
+"session.wallet_passphrase_required" = "Enter the wallet passphrase."
+"session.wallet_unlock_failed" = "Could not unlock the existing credential store. Check the passphrase or the store file."
+"session.wallet_ready" = "A saved password is available for this account. Choose whether to use it or enter a different password."
+"session.wallet_no_password" = "Store unlocked. No password is saved for this account."
+"session.wallet_use_password" = "Connect using saved password"
