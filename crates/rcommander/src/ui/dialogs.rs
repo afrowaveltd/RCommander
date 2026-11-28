@@ -3016,6 +3016,64 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
 fn ftp_password(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> DialogAction {
     ui.label(egui::RichText::new(&state.session_name).strong());
     ui.label(state.summary());
+    if model.secrets_exist() && !model.secrets_unlocked() {
+        if state.wallet_passphrase.is_none()
+            && ui.button(model.t("session.wallet_unlock")).clicked()
+        {
+            state.wallet_passphrase = Some(String::new());
+        }
+        if let Some(passphrase) = &mut state.wallet_passphrase {
+            ui.label(model.t("dialog.secrets.passphrase"));
+            let field = ui.add(egui::TextEdit::singleline(passphrase).password(true));
+            let enter = field.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
+            let mut unlock = enter;
+            let mut dismiss = false;
+            ui.horizontal(|ui| {
+                unlock |= ui.button(model.t("session.wallet_unlock")).clicked();
+                dismiss = ui.button(model.t("dialog.config.cancel")).clicked();
+            });
+            if dismiss {
+                state.wallet_passphrase = None;
+            } else if unlock {
+                let mut secret = std::mem::take(passphrase);
+                let result = model.unlock_existing_secrets(&secret);
+                secret.clear();
+                match result {
+                    Ok(()) => {
+                        state.wallet_passphrase = None;
+                        state.status = model.t(if state.password_session.as_ref()
+                            .is_some_and(|profile| model.saved_login_available(profile))
+                        {
+                            "session.wallet_ready"
+                        } else {
+                            "session.wallet_no_password"
+                        });
+                    }
+                    Err(message) => state.status = message,
+                }
+            }
+            // Enter in the wallet field must never submit the connection form.
+            if !state.status.is_empty() { ui.label(&state.status); }
+            if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
+                state.wallet_passphrase = None;
+            }
+            return DialogAction::None;
+        }
+    }
+    if state.password_session.as_ref().is_some_and(|profile| model.saved_login_available(profile))
+        && ui.button(model.t("session.wallet_use_password")).clicked()
+    {
+        let session = state.profile_for_connect();
+        let connection = session.to_connection();
+        match model.start_connect(&connection, &session) {
+            CommandOutcome::Ok => {
+                state.connection.password.clear();
+                return DialogAction::Close;
+            }
+            CommandOutcome::Failed(message) => state.status = message,
+            _ => {}
+        }
+    }
     ui.label(model.t("ftp.password"));
     let response = ui.add(
         egui::TextEdit::singleline(&mut state.connection.password)
