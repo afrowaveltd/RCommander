@@ -253,6 +253,50 @@ mod tests {
     }
 
     #[test]
+    fn cleanup_preserves_mismatched_record_for_fail_closed_validation() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        let path = attempt(p, 1000).path.clone();
+        let mismatched = Record {
+            account: Account::new("other.test", 22, "alice"),
+            failures: vec![1000],
+            blocked_until: 0,
+        };
+        save(&path, &mismatched).unwrap();
+
+        // An expired but mismatched record is not a valid cleanup candidate.
+        Attempt::begin_at(p, "unrelated.test", 22, "bob", 1900)
+            .unwrap()
+            .finish_at(true, false, 1900)
+            .unwrap();
+        assert!(path.exists());
+        assert!(matches!(
+            Attempt::begin_at(p, "example.test", 22, "alice", 1900),
+            Err(GuardError::Storage(_))
+        ));
+    }
+
+    #[test]
+    fn cleanup_removes_only_expired_valid_records() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        let expired = attempt(p, 1000);
+        let expired_path = expired.path.clone();
+        expired.finish_at(false, true, 1000).unwrap();
+        let active = Attempt::begin_at(p, "example.test", 22, "bob", 1800).unwrap();
+        let active_path = active.path.clone();
+        active.finish_at(false, true, 1800).unwrap();
+
+        Attempt::begin_at(p, "unrelated.test", 22, "carol", 1900)
+            .unwrap()
+            .finish_at(true, false, 1900)
+            .unwrap();
+        assert!(!expired_path.exists());
+        assert!(active_path.exists());
+        assert_eq!(load(&active_path).unwrap().unwrap().failures, vec![1800]);
+    }
+
+    #[test]
     fn corrupt_record_fails_closed() {
         let dir = tempfile::tempdir().unwrap();
         let path = attempt(dir.path(), 1000).path.clone();
