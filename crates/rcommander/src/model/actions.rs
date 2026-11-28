@@ -180,6 +180,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn all_menu_and_factory_toolbar_labels_exist_in_shipped_locales() {
+        for (code, text) in [
+            ("en", include_str!("../../../../locales/en.toml")),
+            ("cs", include_str!("../../../../locales/cs.toml")),
+            ("ar", include_str!("../../../../locales/ar.toml")),
+        ] {
+            let locale = rc_i18n::Locale::parse(code, text).expect("valid locale");
+            for &(group, actions) in ACTION_GROUPS {
+                assert!(locale.contains(group), "{code}: {group}");
+                for &(_, key) in actions {
+                    assert!(locale.contains(key), "{code}: {key}");
+                }
+            }
+            for &(_, _, key) in DEFAULT_CAPTIONS {
+                assert!(locale.contains(key), "{code}: {key}");
+            }
+        }
+    }
+
+    #[test]
     fn action_catalogue_has_unique_commands() {
         let mut seen = std::collections::HashSet::new();
         for &(_, actions) in ACTION_GROUPS {
