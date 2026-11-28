@@ -141,3 +141,7 @@ aliasy (SSH, FTPES, FTP+TLS) sdílejí identitu s příslušným protokolem. FTP
 zůstávají oddělené i na stejném portu. Starší záznamy uložené pod chybným portem
 nebo aliasem mohou vyžadovat nové zadání a uložení hesla; jiná pověření se
 automaticky nezkoušejí ani nepřesouvají.
+
+### Odemknutí existujícího úložiště
+
+Pokud je při otevření uloženého připojení šifrované úložiště zamčené, zvolte **Odemknout uložené přihlašovací údaje** a zadejte jeho přístupovou frázi. Odemknutí samo nevyvolá připojení. Pokud je pro daný účet uloženo heslo, použijte **Připojit pomocí uloženého hesla**, nebo zadejte jiné heslo ručně. Uložené heslo se nezobrazuje. Chybějící či neplatné úložiště se v tomto dialogu nevytváří ani nemaže.
