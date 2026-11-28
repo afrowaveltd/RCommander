@@ -69,6 +69,7 @@ fn render(
     let mut chrome = state.chrome;
     let occupied = model.viewer.as_ref().map(|s| s.placement);
     let mut discard_requested = false;
+    let chrome_labels = crate::ui::workspace_window::ChromeLabels::new(model);
     let mut contents = |ui: &mut egui::Ui| {
         ui.label(&title);
         if crate::ui::workspace_window::document_controls(ui, model, &mut state.placement, occupied)
@@ -199,6 +200,7 @@ fn render(
             workspace,
             &mut chrome,
             palette,
+            &chrome_labels,
             contents,
         )
     };
