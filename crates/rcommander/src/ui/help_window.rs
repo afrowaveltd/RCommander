@@ -120,7 +120,7 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut HelpUi, palette: &P
                 ui.separator();
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut ui_state.search)
-                        .hint_text("search")
+                        .hint_text(model.t("viewer.find"))
                         .desired_width(160.0),
                 );
                 if response.changed() {
