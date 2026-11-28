@@ -992,3 +992,11 @@ authors = ["RCommander contributors"]
 "viewer.pdf.failed" = "Stránku nelze vykreslit. PDF může být poškozené nebo chráněné heslem."
 "viewer.pdf.timeout" = "Vypršel časový limit vykreslování PDF."
 "viewer.pdf.cancelled" = "Vykreslování PDF zrušeno."
+
+# Saved connection credential recovery
+"session.wallet_unlock" = "Odemknout uložené přihlašovací údaje"
+"session.wallet_passphrase_required" = "Zadejte přístupovou frázi úložiště."
+"session.wallet_unlock_failed" = "Existující úložiště nelze odemknout. Zkontrolujte přístupovou frázi nebo soubor úložiště."
+"session.wallet_ready" = "Pro tento účet je dostupné uložené heslo. Použijte je, nebo zadejte jiné heslo."
+"session.wallet_no_password" = "Úložiště je odemčeno. Pro tento účet není uloženo heslo."
+"session.wallet_use_password" = "Připojit pomocí uloženého hesla"
