@@ -318,8 +318,9 @@ Stage A handoff (2026-11-28): the focused saved-session password-only
 prompt is implemented in main with model/UI tests pending execution.
 It preserves the captured profile, uses masked input and optional
 remember-on-success; normal editable connection form is unchanged.
-Existing-wallet unlock is now implemented in main, verification pending;
-rejected-authentication retry and live acceptance remain open.
+Existing-wallet unlock and interactive saved-session password authentication
+retry are implemented in main; build/test verification and live acceptance
+remain open. No automatic retry; preserve original profile and panel.
 
 Today the FTP/SFTP engine exists (`rc-remote`) and FTP is wired into the panels, but
 two things are not acceptable for SSH use: the SFTP transport is untested against a
