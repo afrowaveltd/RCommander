@@ -152,6 +152,40 @@ A manifest that names a server nobody configured is reported once at load — *n
 "mailcraft", which is not configured* — and skipped, rather than becoming a panel that fails on every
 keystroke.
 
+## Plugin localization
+
+A plugin can ship its own language packs in `plugins/<id>/locales/`, using
+exactly the application's TOML format. No manifest change is required.
+Example: `plugins/notes/locales/cs.toml`:
+
+```toml
+[meta]
+code = "cs"
+name = "Czech"
+native_name = "Čeština"
+direction = "ltr"
+version = 1
+
+[strings]
+"plugin.name" = "Poznámky"
+"plugin.description" = "Správa poznámek"
+"source.name" = "Moje poznámky"
+"column.title.label" = "Název"
+"column.words.label" = "Počet slov"
+```
+
+The loader reads the current language, its base language (for a regional
+code), then English. Fallback is per key, finally to the original manifest
+label. Plugin dictionaries are scoped by plugin id, never merged over host
+or other plugin keys. Only display names, descriptions and column labels
+are mapped automatically; additional keys are available through
+`Model::plugin_t` and `Model::plugin_tf` for future UI integrations.
+Identifiers, command arguments, data fields and capabilities remain unchanged.
+Malformed/oversized packs report a problem but do not disable a valid
+manifest. Re-reading plugins replaces their locale data; after switching
+the UI language, use Reload plugins to update existing plugin labels.
+The host UI language and RTL direction remain authoritative.
+
 ## What is not possible yet
 
 - **Row verbs** (a *Reply* or *Export* entry in the right-click menu) are supported by compiled-in
