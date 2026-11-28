@@ -1459,6 +1459,71 @@ usable. Measure actual context usage on reference workloads, separately
 from provider-reported cost. Live integrations and production acceptance
 remain unverified until executed.
 
+#### RCHarness — conversational discovery and beginner-first project launch (owner direction, 2026-11-28)
+
+Make the ordinary chat agent a natural entry point to optional project
+creation workflows. It discovers installed, enabled plugins and versioned
+workload capabilities through the existing Phase 18/27 catalogue; it
+classifies the user's intent and proposes the appropriate RCHarness workload
+(e.g. software/game development, education, publishing, research, creative
+work or server deployment). Preserve the original request, explicit
+constraints and selected project/workspace references in a structured
+handoff; never silently replace user intent with the classification.
+Reuse the same plugin/runtime interfaces as explicit GUI/CLI launch.
+For ambiguous classification ask only consequential questions; simple
+questions or file operations need not start a project. If RCHarness or the
+requested workload is unavailable, explain the limitation and offer an
+available alternative without silently installing or activating anything.
+
+Beginner-first launch: ask how the team should be organized, with
+Automatic first and recommended when configured resources are available.
+Offer Assisted and Manual as alternatives, and optional experimental
+Collective self-organization as a separately identified mode. Automatic
+maps to the existing Adaptive allocator within user-approved provider,
+capability, data-destination, cost and concurrency limits; users who have
+already configured a suitable project/profile need not repeatedly answer
+the same questions. Resolve missing required resources or approval once
+through the existing assignment/budget/permission workflow. One model is
+enough for multi-role execution when qualified; use ordinary deterministic
+tools when sufficient. Do not imply unavailable independent review.
+No unbounded spending, undisclosed cloud use, deployment or publication
+is authorized by selecting Automatic. Expose an advanced configuration
+view without making it a prerequisite for ordinary use.
+
+The Manager receives the full brief, selects or proposes a workload
+template and acceptance criteria, organizes teams, creates the durable
+project plan and proceeds through bounded execution, tests and review.
+Ask the human only for consequential ambiguities, material scope changes,
+required authorization or a genuine blocker. Surface progress, spending,
+artifacts, failures and the user controls for pause, stop, inspect or
+override through the existing workspace/Blackboard. The user can switch
+from Automatic to manual management without losing project state.
+Save reusable choices in the existing project/instance bindings; do not
+create a separate permission store or scheduler.
+
+Reference beginner flow: "I want a 2D game inspired by Super Mario Bros.,
+working on mobile devices." Chat recognizes application/game creation,
+routes to the software/game workload, presents team-management choice
+with Automatic first and uses the configured resource envelope. The
+team produces an original platform game with original or appropriately
+licensed assets/code, defines touch input and responsive layout,
+runs actual supported build and browser/device acceptance tests, and
+presents a playable artifact and honest verification report. Do not copy
+protected game assets, characters or branding or imply real-device
+verification when only emulation was run. Choose reasonable reversible
+implementation defaults, disclose them and ask only when a decision is
+material. Keep external publication separately authorized.
+
+Acceptance extensions (16.27–30/18/25/26/27/30/32): mock chat routing from
+natural-language briefs, correct original-intent handoff, explicit versus
+automatic launch parity, ambiguous/missing/disabled workload handling,
+default Automatic selection with existing approval envelope, first-use
+missing provider/budget handling, one-model fallback, cancellation and
+switch to manual mode without state loss; no implicit installation,
+provider disclosure or publication. Verify the beginner game example
+with an original fixture and real supported acceptance evidence before
+claiming it works. No implementation or live game creation claimed.
+
 #### RCHarness — adaptive team composition and Agent Pool (owner direction, 2026-11-28)
 
 Support user-controlled team formation modes: Manual (fixed user assignments),
