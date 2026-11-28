@@ -2455,6 +2455,38 @@ packs identical. Cargo unavailable; Rust compilation, tests and actual
 FTP/SFTP rejection/retry acceptance pending. Editable quick-connect form
 retry and key-passphrase retry remain separate potential enhancements.
 
+## Handoff — persistent authentication throttling (2026-11-28)
+
+Owner-required default protection integrated directly in main. All connections
+through the shared Model connection worker (GUI, saved sessions and headless)
+check a per-profile auth-guard directory before network activity. Five
+password authentication failures in a rolling 900-second window block the
+same normalized host, effective port and case-sensitive user for 900 seconds
+from the fifth failure; success and non-authentication failures do not reset
+the rolling window. FTP/FTPS aliases using the same endpoint share a counter;
+anonymous FTP names are normalized. SSH key/agent attempts respect an
+existing ban, but their failures do not increment the password counter.
+The protocol's Authentication category is used; local spec validation runs
+first. The fifth failure reports a localized ban instead of opening a retry
+prompt. No automatic retry and no disabled-by-default preference.
+
+JSON records contain host, port, user, failure timestamps and ban expiry,
+never passwords. SHA-256 filenames avoid unsafe path characters. Expired
+records are removed before checks; empty OS lock files remain as stable lock
+identities. Unix flock / Windows exclusive sharing serialize a target across
+instances; worker holds the lock until completion and persists even if its
+UI receiver was cancelled. Guard storage errors refuse the connection.
+Local wall-clock time, application profile and target spelling scope the
+protection; aliases, a modified client, external tools, alternate profiles,
+and process termination before a result is recorded are not covered. This
+is defense in depth, not a substitute for server rate limits.
+
+Added deterministic core tests for expiry, isolation, rolling window,
+non-auth failures, success, concurrent same-account refusal and corrupted
+storage; model regressions for refusal before worker start and suppression of
+retry prompt. EN/CS/AR messages mirrored. Cargo/build/real-server acceptance
+pending in this environment.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
