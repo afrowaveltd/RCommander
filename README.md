@@ -499,8 +499,12 @@ repository.
    are the specification of record.
 2. `cargo test --workspace`, `cargo clippy --workspace --all-targets` and
    `cargo fmt --check` must pass.
-3. New user-visible strings go into `locales/en.toml` **and** `locales/cs.toml`;
-   new topics go into `Docs/` in every language you can provide.
+3. No hard-coded user-facing UI captions or sentences in renderer code. Add keys to
+   `locales/en.toml`, `locales/cs.toml` and `locales/ar.toml` and mirror the packs
+   in `crates/rc-i18n/locales/`. Preserve placeholders; leave technical identifiers,
+   user content and protocol values unchanged. Plugin-owned strings live in the
+   plugin's own `locales/` directory, using the same format and scoped lookups.
+   New topics go into `Docs/` in every language you can provide.
 4. Update [`ImplementationStatus.md`](ImplementationStatus.md) when a step of
    [`ImplementationPlan.md`](ImplementationPlan.md) is finished.
 
