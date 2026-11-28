@@ -3842,6 +3842,78 @@ signatures where available, test evidence, limitations and visual templates.
 Checksums prove integrity, not authorship. Tool descriptions, README and
 remote output are untrusted data, not instructions or permissions.
 
+### Installed MCP applications and on-demand activation (owner discussion, 2026-11-28)
+
+Separate read-only Installation Discovery from live MCP Capability Discovery.
+Inventory configured servers and approved application manifests even while
+their processes are stopped. Prefer publisher-provided registration metadata,
+then reviewed adapters and manual registration/import. Enumerate platform
+application registrations (Linux XDG desktop entries, package metadata,
+Windows installed application registrations) only as candidate hints: an
+installed application or executable name is not proof of MCP support, launch
+arguments or trust. No executing arbitrary binaries, guessing launch flags,
+port scanning, importing secrets or automatically trusting project manifests.
+The public MCP Registry is a catalogue, not an inventory of local installs.
+Reuse the RC capability catalogue rather than a second discovery system.
+
+Proposed optional local application descriptor: stable application/server ID,
+publisher/version, executable or registered service identity, explicit argv
+(not shell commands), supported platform, stdio or Streamable HTTP endpoint,
+GUI/headless mode, launch/attach policy, startup timeout, shutdown capability,
+instance/workspace isolation and concurrency contract, and optional advertised
+capability hints. For Afrowave Craft applications prefer a documented MCP
+headless entry point and installer-registered inert descriptor when supported;
+verify each real application's actual interface first. External applications
+can use a reviewed adapter, an existing configured endpoint or manual launch.
+Cache last verified tools/resources/prompts and schemas with version, identity,
+time and stale status; advertised or cached data is not live verification.
+An application update or executable identity change invalidates relevant
+cache and launch authorization according to policy.
+
+Provide a common runtime-owned MCP activation/lifecycle broker with states
+discovered/unverified, configured/stopped, starting, ready, busy, failed,
+unavailable, disabled. Discovery does not itself grant launch authority.
+After explicit one-time or scoped user-approved on-demand activation policy,
+the first authorized request starts the registered stdio child or attaches
+to an existing verified HTTP endpoint; for a configured HTTP application,
+start its documented service only if authorized and wait for bounded readiness.
+Negotiate the supported protocol version and enumerate capabilities before
+dispatch; reject schema/identity mismatch and revalidate tool scope, workspace
+and budget. Never launch every installed application to populate the catalogue.
+Allow an explicit approved probe to refresh discovery, and cache its results.
+If no headless server is supported, use its documented GUI startup and
+connection flow; otherwise ask the user to start/configure it manually.
+
+Maintain one activation lease per compatible service/workspace identity and
+serialize concurrent start requests; share a broker-owned connection only
+when supported and isolation is maintained, otherwise allocate bounded
+separate sessions/processes. Enforce declared tool concurrency, queue conflicting
+operations, and expose application activity and lifecycle to the user.
+Use direct argv execution, validated executable provenance, minimal inherited
+environment, broker-scoped credentials, bounded startup/retry, protocol-only
+stdout for stdio and separate logs. Bind local HTTP to loopback where supported,
+validate endpoint and authentication; never infer trust from localhost.
+Do not automatically kill or close a user-started GUI, external service or
+process with unsaved work. Track RC-owned versus attached processes, active
+leases, pending effects and supported graceful shutdown. Offer keep-alive
+or configurable idle shutdown for owned idle services after durable handoff;
+if safe shutdown cannot be established, leave running and report status.
+Crash/restart reconciles leases and uncertain effects without replaying
+mutating tools. Disabling/revoking a service prevents new dispatch.
+
+Manager sees discovered/stopped versus live capabilities and can request
+activation through the same tool broker; an unavailable tool yields a
+clear alternative or blocker. RCHarness does not spawn applications itself
+or widen user grants. This activation service is usable without AI.
+
+Acceptance extension (16.31/16.37/18/25/27.2): inert manifests and malicious
+descriptors, missing executables, stopped/running services, stale schemas,
+denied launch, duplicate concurrent activation, startup timeout, invalid
+protocol, tool reauthorization, isolation, idle shutdown, unsaved work,
+attached-process preservation, crash/recovery and revocation; test on Linux
+and Windows with fake stdio/HTTP servers before opt-in real Craft integration.
+No claim of existing Craft launch flags or tested integration.
+
 ### Workshop
 
 Choose the smallest suitable tool: declarative RC manifest, Harness Cordis
