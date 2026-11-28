@@ -123,3 +123,7 @@ schvalovací dialog a audit stejně jako u místního souboru.
 
 Panel, jehož zdroj je nedostupný, to napíše do panelu. Nikdy neukáže prázdný seznam, protože
 „server neodpověděl" a „tato složka je prázdná" nesmí vypadat stejně.
+
+## Záchranný výběr jazyka
+
+Stiskněte **Ctrl+L** kdekoli v GUI RCommanderu, i v otevřeném dialogu nebo editoru. Jazyk vyberete podle jeho vlastního názvu a kódu; použije se okamžitě. Escape zavře pouze výběr jazyka. Ctrl+L je vyhrazená zkratka i při starším nastavení kláves. Výpočet velikosti má nově výchozí zkratku Ctrl+Shift+L.
