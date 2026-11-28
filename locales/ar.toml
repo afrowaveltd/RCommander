@@ -928,3 +928,14 @@ authors = ["RCommander contributors"]
 "window.restore" = "استعادة"
 "window.minimize" = "تصغير النافذة"
 "window.expand" = "توسيع"
+
+# PDF preview
+"viewer.pdf.page" = "الصفحة {page} / {total}"
+"viewer.pdf.previous" = "الصفحة السابقة"
+"viewer.pdf.next" = "الصفحة التالية"
+"viewer.pdf.loading" = "جارٍ عرض صفحة PDF…"
+"viewer.pdf.missing" = "عارض PDF غير متاح. ثبّت أدوات Poppler (pdfinfo وpdftoppm) في PATH."
+"viewer.pdf.input" = "ملف PDF غير متاح أو يتجاوز حد المعاينة البالغ 256 MiB."
+"viewer.pdf.failed" = "تعذر عرض الصفحة. قد يكون ملف PDF تالفاً أو محمياً بكلمة مرور."
+"viewer.pdf.timeout" = "انتهت مهلة عرض PDF."
+"viewer.pdf.cancelled" = "أُلغي عرض PDF."
