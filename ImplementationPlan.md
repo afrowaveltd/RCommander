@@ -1666,6 +1666,62 @@ standard Manager contract applies if elected. If a proposed structure cannot
 be represented safely by the existing scheduler, stop or ask for human
 selection. Ordinary project execution remains unaffected.
 
+##### Constituent assembly, role inauguration and scoped offices
+
+The Collective must organize before it executes. Freedom of organizational
+choice does not mean unstructured execution: every participating agent must
+have an explicit meaningful role (including an explicitly justified reserve
+or supporting role), every required responsibility must have an accountable
+owner, and shared work must have declared coordination and conflict-resolution
+rules. A fixed, elected, rotating or decentralized leadership structure is
+permitted; unmanaged all-to-all work with no ownership is not. Do not require
+artificially equal token use or continuous activity: dependency waiting and
+specialization are legitimate, but nominal membership with all work silently
+assigned to one agent is not the intended collective mode.
+
+Start in a formation/constituent-assembly state with only the bounded
+communication, planning, approved capability catalogue and qualification
+evidence needed for organization. No project mutation, deployment, arbitrary
+shell or other execution authority follows from participation. Agents submit
+a structured organization charter containing stable role/agent identifiers,
+responsibilities, task ownership, decision protocol, handoff and coordination
+rules, requested tool/resource scopes and change procedure. The deterministic
+runtime validates coverage, role assignments, capability compatibility,
+separation-of-duty requirements, budget, conflicts and existing grants.
+If invalid, return concrete errors for revision; bound the formation rounds
+and pause for human input if no valid structure emerges.
+
+Only after validation and any required human authorization, inaugurate the
+roles and activate their scoped working environments (the office keys and
+toolbox metaphor): role-specific prompt, private context, task queue,
+authorized workspace views, tools and budget references. Use broker-mediated
+opaque capability handles, not raw passwords/API keys or transferable grants.
+Role assignment alone is not authorization; permissions remain the intersection
+of existing user grants, role/task scope and runtime policy. The scheduler
+owns exclusive mutation claims/leases and coordinates shared resources;
+agents cannot seize another agent's tools, overwrite its work or expand
+their own authority through a collective vote. Read-only evidence sharing
+is allowed within approved scopes.
+
+Permit reorganization through a versioned charter amendment at a safe
+handoff boundary: reconcile in-flight effects, preserve artifacts, contracts,
+receipts and unresolved findings, retire or revoke previous role-scoped
+handles, validate replacements and activate the updated assignments.
+Changing leadership or role must not silently transfer credentials, old
+approvals or active write leases. Record formation decisions, participation,
+responsibility coverage, role changes, blocked resource conflicts and actual
+work distribution in the existing Blackboard/ledger.
+
+Acceptance: formation-only agents cannot execute project mutations; reject
+missing responsibility owners, incompatible grants and unmanaged overlapping
+writes; accept explicit structured decentralized and rotating leadership;
+activate only authorized role tool subsets after charter validation; detect
+nominal idle membership without penalizing valid dependency waits; verify
+exclusive claims, denied tool access, stale handles after reassignment,
+failed handoff, bounded non-convergence and cancellation. A collective with
+one qualified executor can still use ordinary single-model multi-role mode,
+but must not be misreported as successful multi-agent self-organization.
+
 Study observable cooperation, task decomposition, correction of errors,
 coordination overhead, and ability to use available tools under clear,
 practical rules. The objective is useful constructive work, not evasion
