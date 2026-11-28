@@ -955,6 +955,46 @@ label = "Title"
     }
 
     #[test]
+    fn plugin_locale_is_scoped_and_falls_back_per_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let locales = dir.path().join("locales");
+        std::fs::create_dir_all(&locales).unwrap();
+        std::fs::write(locales.join("en.toml"), r#"
+[meta]
+code = "en"
+[strings]
+"plugin.name" = "Notes EN"
+"column.words.label" = "Word count"
+"#).unwrap();
+        std::fs::write(locales.join("cs.toml"), r#"
+[meta]
+code = "cs"
+[strings]
+"plugin.name" = "Poznámky"
+"source.name" = "Moje poznámky"
+"column.title.label" = "Název"
+"cmd.delete" = "Do not override host"
+"#).unwrap();
+        let mut manifest = parse(MANIFEST, "notes").unwrap();
+        manifest.directory = dir.path().to_path_buf();
+        let original = manifest.clone();
+        assert!(localize_manifest(&mut manifest, "cs-CZ").is_empty());
+        assert_eq!(manifest.plugin.name, "Poznámky");
+        assert_eq!(manifest.source.name, "Moje poznámky");
+        assert_eq!(manifest.source.columns[0].label, "Název");
+        assert_eq!(manifest.source.columns[1].label, "Word count");
+        assert_eq!(manifest.plugin.id, original.plugin.id);
+        assert_eq!(manifest.source.list, original.source.list);
+        assert_eq!(manifest.source.operations, original.source.operations);
+        std::fs::write(locales.join("ar.toml"), "invalid TOML").unwrap();
+        let mut fallback = original.clone();
+        assert_eq!(localize_manifest(&mut fallback, "ar").len(), 1);
+        assert_eq!(fallback.plugin.name, "Notes EN");
+        assert_eq!(fallback.source.name, original.source.name);
+        assert_eq!(rc_i18n::english().get("cmd.delete"), Some("Delete"));
+    }
+
+    #[test]
     fn a_manifest_in_the_plugin_directory_becomes_a_panel_source() {
         let dir = tempfile::tempdir().unwrap();
         let notes = dir.path().join("plugins").join("notes");
@@ -976,7 +1016,7 @@ label = "Title"
             "{}",
             model.plugin_problems[0]
         );
-        assert_eq!(summary, "1 plugin(s), 1 could not be loaded");
+        assert_eq!(summary, "plugins.status.active, plugins.status.failed");
         // The loaded plugin is a real source as far as the rest of the application is concerned.
         let location = Location::plugin("notes", "");
         let source = model.sources.source_of(&location).expect("registered");
@@ -1004,7 +1044,7 @@ label = "Title"
 
         // Off: the source is gone, the plugin is still known, and the settings remember why.
         let summary = model.set_plugin_enabled("notes", false);
-        assert_eq!(summary, "1 switched off", "nothing is registered now");
+        assert_eq!(summary, "plugins.status.off", "nothing is registered now");
         assert!(model.sources.source_of(&location).is_none());
         assert_eq!(
             model.plugin_entries().len(),
@@ -1026,7 +1066,7 @@ label = "Title"
 
         // On again: registered, and the settings no longer claim otherwise.
         let summary = model.set_plugin_enabled("notes", true);
-        assert_eq!(summary, "1 plugin(s)");
+        assert_eq!(summary, "plugins.status.active");
         assert!(model.sources.source_of(&location).is_some());
         assert!(model.settings.plugins.disabled.is_empty());
         assert!(model.plugin_entries()[0].enabled);
@@ -1112,7 +1152,7 @@ label = "Title"
         std::fs::write(plugin_dir.join("plugin.toml"), manifest).unwrap();
 
         let mut model = model_with_config(config.path());
-        assert_eq!(model.load_plugins(), "1 plugin(s)");
+        assert_eq!(model.load_plugins(), "plugins.status.active");
         model.focus = crate::model::Side::Left;
         model
             .open_in(crate::model::Side::Left, Location::plugin("notes", ""))
@@ -1355,7 +1395,7 @@ allow = ["view"]
             command: "mailcraft-mcp".to_string(),
             ..Default::default()
         }];
-        assert_eq!(model.load_plugins(), "1 plugin(s)");
+        assert_eq!(model.load_plugins(), "plugins.status.active");
         assert_eq!(
             model.plugin_sources(),
             &[("mail".to_string(), "Mail".to_string())]
