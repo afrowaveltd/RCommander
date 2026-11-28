@@ -1005,3 +1005,8 @@ authors = ["RCommander contributors"]
 "session.wallet_no_password" = "Store unlocked. No password is saved for this account."
 "session.wallet_use_password" = "Connect using saved password"
 "session.password_rejected" = "Authentication failed. Enter a new password to retry this saved connection. No automatic retry was made."
+
+# Local authentication throttling
+"session.auth_guard_blocked" = "Authentication temporarily blocked for this account. Try again in {seconds} seconds."
+"session.auth_guard_busy" = "Another connection attempt for this account is running."
+"session.auth_guard_storage" = "Authentication protection storage is unavailable. Connection refused."
