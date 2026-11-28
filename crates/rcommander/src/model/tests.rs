@@ -429,6 +429,18 @@ fn key_bindings_dispatch_commands() {
 }
 
 #[test]
+fn language_picker_preserves_underlying_dialog_and_is_idempotent() {
+    let (_l, _r, mut model) = fixture();
+    model.open_dialog(Dialog::MakeDir(MakeDirState::default()));
+    model.open_language_picker();
+    model.open_language_picker();
+    assert_eq!(model.dialogs.len(), 2);
+    assert!(matches!(model.top_dialog(), Some(Dialog::LanguagePicker)));
+    model.close_top_dialog();
+    assert!(matches!(model.top_dialog(), Some(Dialog::MakeDir(_))));
+}
+
+#[test]
 fn dialogs_stack_and_block_input() {
     let (_l, _r, mut model) = fixture();
     assert!(!model.modal());
