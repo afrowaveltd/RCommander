@@ -1380,6 +1380,15 @@ fn loading_a_saved_session_fills_the_connect_dialog() {
 
 #[test]
 fn connecting_runs_in_the_background_and_reports_the_failure() {
+    use std::io::{ErrorKind, Write};
+    use std::net::TcpListener;
+    use std::time::{Duration, Instant};
+
+    const REJECTION: &str = "FTP smoke test fixture refused access";
+    let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap();
+
     let (left, right) = fixture();
     let config = tempfile::tempdir().unwrap();
     let mut app = app(left.path(), right.path());
@@ -1388,38 +1397,57 @@ fn connecting_runs_in_the_background_and_reports_the_failure() {
     let mut harness = harness(app);
     harness.state_mut().execute("cm_FtpConnect");
     harness.run();
-    if let Some(rcommander::model::Dialog::FtpConnect(state)) =
+    let Some(rcommander::model::Dialog::FtpConnect(state)) =
         harness.state_mut().model.top_dialog_mut()
-    {
-        // Nothing listens on this port, so the attempt fails at once instead of
-        // blocking the window. The password is typed because a named FTP account
-        // without a secret is stopped before any network access by design (see
-        // `missing_password_stops_before_starting_a_worker`); this test is about
-        // the background attempt, not about the credential gate.
-        state.connection.host = "127.0.0.1".to_string();
-        state.connection.port = 65_533;
-        state.connection.user = "nobody".to_string();
-        state.connection.password = "not-a-real-password".to_string();
-    }
+    else {
+        panic!("expected the FTP connect dialog");
+    };
+    state.connection.host = address.ip().to_string();
+    state.connection.port = address.port();
+    state.connection.user = "nobody".to_string();
+    // A named FTP account needs a nonempty password to start the worker.
+    state.connection.password = "not-a-real-password".to_string();
     harness.run();
     harness.root().get_by_label("dialog.config.ok").click();
-    harness.run();
+    harness.step();
     assert!(
         harness.state().model.top_dialog().is_none(),
         "the dialog closes immediately and the attempt continues in the background"
     );
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-    while std::time::Instant::now() < deadline && harness.state().model.is_connecting() {
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        harness.run();
+    assert!(
+        harness.state().model.is_connecting(),
+        "the worker stays active while the fixture withholds the greeting"
+    );
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut socket = loop {
+        match listener.accept() {
+            Ok((socket, _)) => break socket,
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                assert!(
+                    Instant::now() < deadline,
+                    "the worker did not contact the fixture"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("could not accept the FTP control connection: {error}"),
+        }
+    };
+    writeln!(socket, "421 {REJECTION}\r").unwrap();
+    drop(socket);
+
+    while Instant::now() < deadline && harness.state().model.is_connecting() {
+        std::thread::sleep(Duration::from_millis(10));
+        harness.step();
     }
     assert!(
         !harness.state().model.is_connecting(),
         "the attempt finished"
     );
+    let error = harness.state().model.last_error.as_deref();
     assert!(
-        harness.state().model.last_error.is_some(),
-        "the failure is reported in the window"
+        error.is_some_and(|message| message.contains(REJECTION)),
+        "the window reports the fixture's rejection, got {error:?}"
     );
 }
 
