@@ -1565,6 +1565,47 @@ where required. Do not let a candidate's self-rating or its own generated tests
 alone establish qualification. Keep evaluation answers and hidden tests out of
 candidate context. Treat candidate output as untrusted data, not instructions.
 
+##### Reusable qualification library and economical examiner
+
+Recommend the strongest reliable available reasoning model as qualification
+Manager/examiner, subject to the user's budget, privacy policy and measured
+qualification evidence. This is a recommendation, not a hard vendor/model
+requirement. Qualifying the examiner itself requires reference outcomes or
+independent review rather than self-certification.
+
+Ship an original, editable, versioned Qualification Library of role-specific
+test packs with fixed task contracts, fixture variants, reference outcomes,
+hidden checks, rubrics, scoring templates, mandatory gates and bounded
+execution settings. Include programming languages, debugging, mathematics,
+tool use, security, architecture, translation, education, management and
+context efficiency. The normal qualification path selects and reuses these
+packs; it does not regenerate tasks or scoring rules for each candidate.
+A Manager may prepare a validated project-specific pack once and reuse it.
+Freeze pack/version and scoring criteria before comparative trials; changes
+produce a new version, not silently altered historical scores. Use controlled
+fixture variants and held-out tasks to reduce memorization and report when
+results from different versions are not directly comparable.
+
+Keep examiner traffic small: choose a suite, dispatch bounded attempts, read
+structured result summaries and inspect evidence only when needed. The
+deterministic runner performs compilation, assertions, reference comparisons,
+timing, usage accounting, policy checks and aggregate calculations. The
+examiner applies the same versioned rubric to qualitative outputs and resolves
+ambiguous evidence, rather than receiving complete transcripts by default.
+Retain per-check receipts and original artifacts; missing or failed checks
+remain visible. Never replace evidence with a model's favorable judgment.
+Separate worker and examiner usage/cost in the tuning report. Measure examiner
+overhead and quality before claiming savings.
+
+Acceptance: verify repeat runs use the same pinned suite and rubric without
+test-generation calls; deterministic suites require no per-check LLM judge;
+qualitative evaluation uses a fixed rubric; changed fixtures/rubrics are
+versioned; held-out answers are unavailable to workers; missing evidence and
+examiner disagreement cannot bypass mandatory gates; examiner and candidate
+costs are reported separately. The library is reusable across projects only
+within approved data scopes. No live qualification or performance result
+is claimed by this specification.
+
 Run tests as ordinary scoped attempts through the shared scheduler, ContextBuilder,
 broker, SessionStore and toolchain adapters. Use disposable working copies,
 synthetic data, local fixture services or explicitly approved test environments.
