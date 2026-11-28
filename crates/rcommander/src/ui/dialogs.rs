@@ -462,7 +462,7 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::FtpConnect(state) if state.password_session.is_some() => "session.password_title",
         Dialog::FtpConnect(_) => "ftp.connect",
         Dialog::Synchronize(_) => "cmd.sync_dirs",
-        Dialog::LanguagePicker => return "Language / 🌐 (Ctrl+L)".to_string(),
+        Dialog::LanguagePicker => return "Language (Ctrl+L)".to_string(),
         Dialog::About => "cmd.about",
         Dialog::Confirm { title_key, .. } => title_key.as_str(),
         Dialog::Progress(state) => state.title_key.as_str(),
