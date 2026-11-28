@@ -426,7 +426,7 @@ fn localized_label(packs: &[rc_i18n::Locale], key: &str, fallback: &str) -> Stri
 
 /// The manifest remains authoritative for identity, operations and command
 /// arguments. Only these explicitly display-only fields can be translated.
-fn localize_manifest(manifest: &mut PluginManifest, language: &str) -> Vec<String> {
+fn localize_manifest(manifest: &mut PluginManifest, language: &str) -> (Vec<rc_i18n::Locale>, Vec<String>) {
     let (packs, problems) = plugin_locales(&manifest.directory, language);
     manifest.plugin.name = localized_label(&packs, "plugin.name", &manifest.plugin.name);
     manifest.plugin.description = localized_label(&packs, "plugin.description", &manifest.plugin.description);
@@ -435,10 +435,24 @@ fn localize_manifest(manifest: &mut PluginManifest, language: &str) -> Vec<Strin
         let key = format!("column.{}.label", column.id);
         column.label = localized_label(&packs, &key, &column.label);
     }
-    problems
+    (packs, problems)
 }
 
 impl Model {
+    /// Resolve arbitrary plugin-owned UI strings without exposing them to the
+    /// host translator or any other plugin.
+    pub fn plugin_t(&self, plugin_id: &str, key: &str, fallback: &str) -> String {
+        self.plugin_strings.get(plugin_id)
+            .map(|packs| localized_label(packs, key, fallback))
+            .unwrap_or_else(|| fallback.to_owned())
+    }
+
+    /// Resolve a plugin-owned template with the same named placeholders as
+    /// the application language packs.
+    pub fn plugin_tf(&self, plugin_id: &str, key: &str, fallback: &str, args: &[(&str, &str)]) -> String {
+        rc_i18n::substitute(&self.plugin_t(plugin_id, key, fallback), args)
+    }
+
     /// The directory manifests are read from: `<config>/plugins/<id>/plugin.toml`.
     pub fn plugin_dir(&self) -> PathBuf {
         self.config_dir().join("plugins")
@@ -470,10 +484,13 @@ impl Model {
         // Rebuilt from disk every time, so switching a plugin off is a removal and switching it back
         // on is a re-registration — no second source of truth to drift.
         self.sources.clear();
+        self.plugin_strings.clear();
         for root in roots {
             let discovery = rc_core::plugin::discover_in(&root);
             for mut manifest in discovery.plugins {
-                locale_problems.extend(localize_manifest(&mut manifest, &language));
+                let (packs, issues) = localize_manifest(&mut manifest, &language);
+                locale_problems.extend(issues);
+                self.plugin_strings.insert(manifest.plugin.id.clone(), packs);
                 // Kept before the manifest is moved into the source, for the problem's path.
                 let manifest_path = manifest.directory.join("plugin.toml");
                 match ManifestSource::from_manifest(manifest, &settings) {
@@ -978,7 +995,9 @@ code = "cs"
         let mut manifest = parse(MANIFEST, "notes").unwrap();
         manifest.directory = dir.path().to_path_buf();
         let original = manifest.clone();
-        assert!(localize_manifest(&mut manifest, "cs-CZ").is_empty());
+        let (packs, issues) = localize_manifest(&mut manifest, "cs-CZ");
+        assert!(issues.is_empty());
+        assert_eq!(localized_label(&packs, "cmd.delete", "fallback"), "Do not override host");
         assert_eq!(manifest.plugin.name, "Poznámky");
         assert_eq!(manifest.source.name, "Moje poznámky");
         assert_eq!(manifest.source.columns[0].label, "Název");
@@ -988,7 +1007,7 @@ code = "cs"
         assert_eq!(manifest.source.operations, original.source.operations);
         std::fs::write(locales.join("ar.toml"), "invalid TOML").unwrap();
         let mut fallback = original.clone();
-        assert_eq!(localize_manifest(&mut fallback, "ar").len(), 1);
+        assert_eq!(localize_manifest(&mut fallback, "ar").1.len(), 1);
         assert_eq!(fallback.plugin.name, "Notes EN");
         assert_eq!(fallback.source.name, original.source.name);
         assert_eq!(rc_i18n::english().get("cmd.delete"), Some("Delete"));
