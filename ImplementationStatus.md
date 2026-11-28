@@ -30,7 +30,7 @@ cargo test --workspace
 | 10 | egui user interface | **partial** — dual panels, thumbnails, dialogs, configurable button bar, editor/viewer/help, Git UI and background jobs are reported working; inline tree, search result views and thumbnail controls still need refinement |
 | 11 | Platforms | **partial** — historical live Linux and Windows checks; Windows MSVC portable build #7 succeeded at 351baeaa; Linux UI regression #1 succeeded at 482618a; #8 is a separate revision; current Android APK unverified |
 | 12 | Verification | **partial** — Linux: `cargo test --workspace --all-targets` 1687 passed / 0 failed / 2 ignored, `cargo clippy --workspace --all-targets` and `cargo fmt --all --check` clean, `cargo build --release --workspace` green (2026-11-27, local, newly available toolchain; the previously failing `connecting_runs_in_the_background_and_reports_the_failure` is fixed and now registered in CI). Windows/Android and live-server acceptance still need their own evidence |
-| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; focused saved-session password prompt and existing-wallet unlock implemented, verification pending; authentication retry and live acceptance remain |
+| 13 | Secure remote access (SFTP/SSH, sessions, credentials) | **partial** — 13.1 (host keys), 13.2 (key file / agent / password), 13.4 (encrypted store, migration) and 13.3 (saved session profiles with `ssh_config` import), 13.5 (SFTP in the panel, verified against a real OpenSSH server) and 13.7 (the confirmed factory-reset page that makes a lost passphrase recoverable) are done; focused saved-session password prompt, existing-wallet unlock and interactive authentication retry implemented; verification and live acceptance remain |
 | 14 | Colour themes and surface controls | **partial** — base themes/editor, fonts/chrome and surface-aware F-key row recorded; modifier row implemented, menu audit and advanced effects remain |
 | 15 | Git repositories as panels | **partial** — repository panels, revision copy-out, clone, branch switching, staging/committing, fetch/pull/push/merge have recorded implementation; remaining credential and live-integration coverage needs review |
 | 16 | Interactive AI workspace | **partial** — chat/streaming, panel, providers, prompt catalogue/editor/pins, copy/review/hunks/backup, policy engine and MCP catalogue recorded; model catalogue, durable token ledger, admission control, provider connections/discovery provenance (`model_catalog`, `quota`, `admission`, `providers`), the **deterministic router** (`routing`), the headless dispatch vertical (`rc-runtime`), routed chat with a metered receipt, and a **routing wizard** (connections, discovery, model classification, quotas, ordered routes with a live preview) recorded; model-to-MCP calls, per-route fallback budgets, provider counters, checklist, workload/runtime, durable sessions and teams/Commons and typed resolution/custodian delegation (16.0f–h) open |
@@ -2433,6 +2433,27 @@ exact account/port and no connection on unlock. New EN/CS/AR keys
 and mirrored packs. Cargo and GUI/live-server acceptance not run here;
 authentication rejection retry remains open. The vault unlock itself
 uses the existing synchronous crypto path.
+
+## Handoff — interactive saved-session authentication retry (2026-11-28)
+
+Stage A / 7 / 13, integrated in main; verification pending.
+Preserve the remote authentication error category across the background
+worker rather than parsing message text. Interactive saved-session password
+attempts reopen a focused credential prompt on Authentication failure,
+with the captured profile and destination panel, empty password and
+remember disabled. The user must explicitly submit another password;
+no automatic retry, no reuse of a previously stored password in that
+retry dialog, no deletion of the stored credential. Successful login
+remains the prerequisite for optional persistence. Ordinary typed network,
+timeout and host-key/protocol failures, anonymous/key/agent authentication
+and headless calls do not take this retry path. The underlying protocol's
+Authentication classification is authoritative (not proof of an incorrect
+password). Added simulated worker regressions for retry, original panel,
+no credential persistence and non-retry failures. EN/CS/AR static key and
+placeholder parity: 928 keys each, zero mismatches/duplicates, mirrored
+packs identical. Cargo unavailable; Rust compilation, tests and actual
+FTP/SFTP rejection/retry acceptance pending. Editable quick-connect form
+retry and key-passphrase retry remain separate potential enhancements.
 
 ## Next steps (dependency-ordered)
 
