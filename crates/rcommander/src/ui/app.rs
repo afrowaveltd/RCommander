@@ -1522,6 +1522,7 @@ impl eframe::App for RCommanderApp {
         }
         self.poll_approval_bridge();
         self.handle_shortcuts(ctx);
+        if self.model.viewer.is_none() { self.viewer_ui.cancel_pdf(); }
 
         egui::Panel::top("menu").show(root_ui, |ui| self.menu_bar(ui));
         if self.model.settings.layout.show_button_bar {
