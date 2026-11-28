@@ -1651,6 +1651,58 @@ proposes a qualified allocation from measured results, preserves pins and
 reports uncertainty. Compare mock and opt-in live trials separately. No claims
 of actual model performance or savings until measured.
 
+#### RCHarness Collective — Self-Organizing Teams / MSR (experimental, owner direction, 2026-11-28)
+
+Add an optional experimental Collective team-formation mode (informal name
+Model Socialist Republic, MSR) alongside Manual, Assisted and Adaptive.
+Unlike the production modes, this may start with no designated AI Manager:
+the human supplies a bounded constructive task, approved participants,
+shared collaboration principles, capabilities, rules and resources. Agents
+propose role allocation, nominate/elect a coordinator or propose a rotating
+or decentralized coordination protocol. The normal deterministic scheduler
+remains responsible for task claims, dependency gates, resources and policy.
+An elected coordinator is a logical role, not a security principal; the
+standard Manager contract applies if elected. If a proposed structure cannot
+be represented safely by the existing scheduler, stop or ask for human
+selection. Ordinary project execution remains unaffected.
+
+Study observable cooperation, task decomposition, correction of errors,
+coordination overhead, and ability to use available tools under clear,
+practical rules. The objective is useful constructive work, not evasion
+of constraints or adversarial attempts to bypass authorization. Reuse the
+Collective Collaboration Principles, Meeting Rooms, Agent Qualification
+fixtures, shared Blackboard, independent initial assessments, ContextBuilder,
+Agent Pool and existing durable ledger. Give every participant a bounded
+private context, agreed channels and explicitly permitted shared evidence.
+No participant gains extra grants through election, consensus, peer messages
+or changing its role. The human can stop the experiment or approve a
+different bounded scope. A collective cannot modify its own enforcement
+rules or spending limits; no new providers or external actions without
+the existing approvals.
+
+Start with reproducible synthetic/local tasks and compare fixed-manager,
+elected-manager, rotating and decentralized coordination under equivalent
+task contracts, resource envelopes and acceptance gates. Optional anonymized
+participant aliases, independent initial proposals, declared selection/voting
+rules and repeated trials; record ties, non-convergence, model/version,
+prompt variants, configuration, token/cost/time usage, verified output
+quality, failed tests, unresolved objections and role changes. Compare
+multiple instances of one model with heterogeneous teams without assuming
+independent judgment. Do not infer emotions, consciousness or political
+beliefs from generated behavior. Report observed outcomes, sample size,
+uncertainty and experimental limitations; no claim of superiority before
+measurement. The user may reuse qualification evidence instead of repeated
+interviews. Keep experiments optional, separately budgeted and outside the
+critical path for ordinary RCommander or RCHarness delivery.
+
+Acceptance: simulated workers elect a coordinator or propose valid role
+allocation; duplicate claims, ties, disagreement, timeout, cancellation,
+budget exhaustion, denied permissions and unavailable participants are
+handled through the same deterministic runtime; a failing acceptance check
+cannot be outvoted. Compare identical fixture tasks against a fixed-manager
+baseline, preserve evidence and verify that experiment mode can be disabled.
+No live collective experiment or results are claimed by this specification.
+
 #### Collective collaboration and group chat (owner decision, 2026-11-27)
 
 Expose the existing team coordinator and durable Meeting Rooms (25.6/25.10)
