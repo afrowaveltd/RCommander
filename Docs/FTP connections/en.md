@@ -156,3 +156,7 @@ connection. The regular connection editor remains available for editing profiles
 ### Unlock an existing credential store
 
 If the saved-session password prompt opens while an encrypted credential store is locked, choose **Unlock saved credentials**, enter its passphrase and confirm. Unlocking does not connect to the server. If the exact account has a saved password, choose **Connect using saved password**, or enter a different password instead. No password is displayed. A missing or invalid store is not created or reset by this dialog.
+
+### Retry a saved password connection
+
+If a saved password-based connection fails with an authentication error, the focused password prompt reopens for the original server/account and panel. Type a password and explicitly submit to retry, or cancel. The failed password is not automatically retried or saved; the previous stored credential is not deleted. Remember is off by default. Network, timeout and host-key/protocol failures keep their normal error handling. An authentication failure does not necessarily prove the password is incorrect.
