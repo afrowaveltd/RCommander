@@ -4583,6 +4583,37 @@ RCSnake and its activation briefly near the very end of the detailed user
 help, not in prominent feature lists, menus or README.md. Preserve the
 Easter egg character; do not advertise the game before it works.
 
+#### Randomized Easter egg rotation (later polish, owner direction, 2026-11-28)
+
+After the initial Snake implementation is verified, add a total of three
+small original offline retro games. Proposed candidates: RCSnake (grid
+movement and growth), RCBounce (paddle and brick clearing), and RCFall
+(falling-block puzzle). Names and mechanics are provisional; use original
+code/assets, a common game host and the same hidden About gesture.
+
+Choose exactly one game per installation with an unbiased local random draw
+on initial installation and on each successfully applied application-version
+upgrade. The same game may legitimately be drawn again. Do not reroll on
+ordinary launch, restart, opening the game or repair of the same version.
+No game selection menu or public README feature. Prefer installing only the
+selected bundled game component; include all three in the offline installer
+or package source as needed, not as active installed games. For platforms
+where package ownership or single-binary distribution prevents selective
+installation, use exactly one persistently enabled game and explicitly
+document that packaging limitation rather than mutate package-managed files.
+Portable distributions initialize the draw on first launch for each version.
+Use local installation/version state, not device fingerprints, network
+services or telemetry. Failed upgrades and rollback must preserve/reconcile
+the last successful selection without touching unrelated user data.
+Keep optional high scores separate per game; rotation resets selection, not
+scores. Reuse keyboard/focus/pause/exit isolation and headless tests from
+RCSnake; inject RNG for selection tests covering all three outcomes,
+same-version stability, upgrade reroll (including repeated game), exactly
+one installed/active variant, offline install, failed upgrade and rollback.
+Only briefly mention the shared hidden gesture in detailed help after
+verification, without revealing which game a user receives. Keep this
+optional polish outside the main delivery critical path.
+
 ## Working rules
 
 1. **Tests first.** A step's tests exist before its implementation; a step is done
