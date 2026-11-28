@@ -3492,10 +3492,10 @@ fn view_modes(
             ui.end_row();
             ui.label(model.t("dialog.viewmode.kind"));
             egui::ComboBox::from_id_salt("viewmode_kind")
-                .selected_text(state.kind.clone())
+                .selected_text(model.t(match state.kind.as_str() { "brief" => "cmd.view_short", "full" => "cmd.view_long", "comments" => "dialog.viewmode.comments", "thumbnails" => "toolbar.thumbnails", "tree" => "cmd.tree", _ => "dialog.viewmode.kind" }))
                 .show_ui(ui, |ui| {
                     for kind in ["brief", "full", "comments", "thumbnails", "tree"] {
-                        ui.selectable_value(&mut state.kind, kind.to_string(), kind);
+                        ui.selectable_value(&mut state.kind, kind.to_string(), model.t(match kind { "brief" => "cmd.view_short", "full" => "cmd.view_long", "comments" => "dialog.viewmode.comments", "thumbnails" => "toolbar.thumbnails", "tree" => "cmd.tree", _ => "dialog.viewmode.kind" }));
                     }
                 });
             ui.end_row();
@@ -3504,10 +3504,10 @@ fn view_modes(
             ui.end_row();
             ui.label(model.t("dialog.viewmode.sort"));
             egui::ComboBox::from_id_salt("viewmode_sort")
-                .selected_text(state.sort_field.clone())
+                .selected_text(model.t(match state.sort_field.as_str() { "name" => "cmd.sort_name", "ext" => "cmd.sort_ext", "size" => "cmd.sort_size", "date" => "cmd.sort_date", _ => "cmd.sort_unsorted" }))
                 .show_ui(ui, |ui| {
                     for field in ["name", "ext", "size", "date", "unsorted"] {
-                        ui.selectable_value(&mut state.sort_field, field.to_string(), field);
+                        ui.selectable_value(&mut state.sort_field, field.to_string(), model.t(match field { "name" => "cmd.sort_name", "ext" => "cmd.sort_ext", "size" => "cmd.sort_size", "date" => "cmd.sort_date", _ => "cmd.sort_unsorted" }));
                     }
                 });
             ui.end_row();
@@ -3751,7 +3751,7 @@ fn decode_dialog(ui: &mut egui::Ui, model: &mut Model, state: &mut DecodeState) 
         ui.add(
             egui::TextEdit::singleline(&mut state.target_name)
                 .desired_width(280.0)
-                .hint_text("from the envelope"),
+                .hint_text(model.t("dialog.decode.envelope")),
         );
     });
     if state.decoded_bytes > 0 {
