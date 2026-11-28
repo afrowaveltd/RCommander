@@ -1373,7 +1373,7 @@ allow = ["view"]
         std::fs::write(dir.join("plugin.toml"), MCP_MANIFEST).unwrap();
         let mut model = model_with_config(config.path());
         // No MCP server is configured, so this manifest cannot become a source.
-        assert_eq!(model.load_plugins(), "1 could not be loaded");
+        assert_eq!(model.load_plugins(), "plugins.status.failed");
         assert!(model.plugin_sources().is_empty());
         assert_eq!(model.plugin_problems.len(), 1);
         let message = model.plugin_problems[0].to_string();
