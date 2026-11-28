@@ -156,3 +156,35 @@ při každém stisku klávesy.
 - **Zápis** přes MCP backend; deklarované akce řádku; řazení uvnitř zdroje.
 - **Zápis**: manifestový zdroj neumí vytvářet, přesouvat ani mazat; `allow` jen říká, co by mělo
   smysl, kdyby mohl.
+
+## Lokalizace pluginů
+
+Plugin může obsahovat vlastní slovníky v `plugins/<id>/locales/`, ve
+stejném formátu TOML jako hlavní aplikace. Například
+`plugins/notes/locales/cs.toml`:
+
+```toml
+[meta]
+code = "cs"
+name = "Czech"
+native_name = "Čeština"
+direction = "ltr"
+version = 1
+
+[strings]
+"plugin.name" = "Poznámky"
+"plugin.description" = "Správa poznámek"
+"source.name" = "Moje poznámky"
+"column.title.label" = "Název"
+"column.words.label" = "Počet slov"
+```
+
+Slovníky se načítají automaticky při načtení pluginu. Pro každý klíč
+se zkouší aktuální jazyk, jeho základní varianta, angličtina a nakonec
+původní popisek z manifestu. Každý plugin má vlastní překladový prostor,
+takže nepřepisuje hlavní slovník ani jiný plugin. Automaticky se překládají
+názvy, popis a hlavičky sloupců; další klíče jsou dostupné přes
+`Model::plugin_t` a `Model::plugin_tf`. Identifikátory, příkazy a oprávnění
+se nemění. Chybný slovník nezablokuje platný plugin. Po změně jazyka
+použijte Znovu načíst pluginy. Směr rozhraní určuje hlavní aplikace.
+
