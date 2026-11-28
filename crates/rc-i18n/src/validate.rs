@@ -198,6 +198,25 @@ authors = ["Somebody"]
     }
 
     #[test]
+    fn czech_pack_matches_reference_keys_and_placeholders() {
+        assert_eq!(BUILTIN_CS, include_str!("../../../locales/cs.toml"));
+        let cs = Locale::parse("cs", BUILTIN_CS).expect("Czech TOML");
+        let en = english();
+        assert_eq!(cs.len(), en.len());
+        fn placeholders(text: &str) -> Vec<&str> {
+            let mut tokens: Vec<&str> = text.split('{').skip(1)
+                .filter_map(|tail| tail.split_once('}').map(|(key, _)| key))
+                .collect();
+            tokens.sort_unstable();
+            tokens
+        }
+        for (key, original) in en.iter() {
+            let translated = cs.get(key).unwrap_or_else(|| panic!("missing Czech key: {key}"));
+            assert_eq!(placeholders(original), placeholders(translated), "{key}");
+        }
+    }
+
+    #[test]
     fn bundled_packs_validate() {
         let english_meta = validate_pack(BUILTIN_EN).expect("built-in English is valid");
         assert_eq!(english_meta.code, "en");
