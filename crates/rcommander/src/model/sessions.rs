@@ -116,12 +116,12 @@ impl Model {
         let resolved = self.resolve_connection_credentials(&connection);
         if Self::requires_password(&resolved) && resolved.password.is_empty() {
             let status = self.tf("session.needs_password", &[("name", name)]);
-            self.open_dialog(super::Dialog::FtpConnect(
-                super::dialogs::FtpConnectState::for_password(session, status),
-            ));
+            let mut state = super::dialogs::FtpConnectState::for_password(session, status);
+            state.target_side = Some(self.focus);
+            self.open_dialog(super::Dialog::FtpConnect(state));
             return CommandOutcome::Ok;
         }
-        self.start_connect(&connection, &session)
+        self.start_saved_session_connection(&connection, &session, false, self.focus)
     }
 
     /// Only password authentication for a known protocol uses the account password.
@@ -209,6 +209,29 @@ impl Model {
         session: &Session,
         remember: bool,
     ) -> CommandOutcome {
+        self.start_connect_inner(connection, session, remember, self.focus, false)
+    }
+
+    /// Interactive saved-session attempt with a captured destination panel.
+    /// Headless callers use start_connect instead and never open retry dialogs.
+    pub fn start_saved_session_connection(
+        &mut self,
+        connection: &rc_core::config::SavedConnection,
+        session: &Session,
+        remember: bool,
+        side: super::Side,
+    ) -> CommandOutcome {
+        self.start_connect_inner(connection, session, remember, side, true)
+    }
+
+    fn start_connect_inner(
+        &mut self,
+        connection: &rc_core::config::SavedConnection,
+        session: &Session,
+        remember: bool,
+        side: super::Side,
+        interactive: bool,
+    ) -> CommandOutcome {
         if self.connect_job.is_some() {
             let message = self.t("session.busy");
             self.report_error(&message);
@@ -227,18 +250,21 @@ impl Model {
         }
         let remember_password =
             remember && Self::requires_password(&resolved) && !connection.password.is_empty();
+        let retry_password = interactive && Self::requires_password(&resolved)
+            && !resolved.user.trim().is_empty();
         let mut spec = super::remote::connection_spec(&resolved, None);
         spec.timeout =
             std::time::Duration::from_secs(self.settings.ftp.timeout_seconds.clamp(3, 120));
         let (sender, receiver) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let stage_sender = sender.clone();
-            let result = super::remote::RcRemoteBackend::connect_reporting(&spec, &mut |stage| {
+            let result = super::remote::RcRemoteBackend::connect_reporting_typed(&spec, &mut |stage| {
                 // A closed receiver means the user gave up; the connect then finishes into
                 // nothing, which is fine.
                 let _ = stage_sender.send(ConnectEvent::Stage(stage));
             })
-            .map(|backend| Box::new(backend) as Box<dyn super::remote::RemoteBackend>);
+            .map(|backend| Box::new(backend) as Box<dyn super::remote::RemoteBackend>)
+            .map_err(ConnectFailure::from_remote);
             let _ = sender.send(ConnectEvent::Done(result));
         });
         let mut connection = resolved;
@@ -250,7 +276,8 @@ impl Model {
             session: session.clone(),
             connection,
             remember_password,
-            side: self.focus,
+            retry_password,
+            side,
             stage: None,
             started: std::time::Instant::now(),
             receiver,
@@ -275,7 +302,7 @@ impl Model {
         // waits, and a stage alone is a state change worth a repaint.
         let session_name = job.session.name.clone();
         let mut progressed: Option<(String, &'static str)> = None;
-        let mut outcome: Option<Result<Box<dyn super::remote::RemoteBackend>, String>> = None;
+        let mut outcome: Option<Result<Box<dyn super::remote::RemoteBackend>, ConnectFailure>> = None;
         loop {
             match job.receiver.try_recv() {
                 Ok(ConnectEvent::Stage(stage)) => {
@@ -291,7 +318,7 @@ impl Model {
                 Err(std::sync::mpsc::TryRecvError::Empty) => break,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     outcome = Some(Err(
-                        "the connection attempt stopped unexpectedly".to_string()
+                        ConnectFailure { message: "the connection attempt stopped unexpectedly".to_string(), authentication: false }
                     ));
                     break;
                 }
@@ -350,7 +377,17 @@ impl Model {
                     }
                 }
             }
-            Err(message) => {
+            Err(error) => {
+                let message = if error.authentication && job.retry_password {
+                    let status = self.t("session.password_rejected");
+                    let mut state = super::dialogs::FtpConnectState::for_password(job.session.clone(), status.clone());
+                    state.target_side = Some(job.side);
+                    state.password_rejected = true;
+                    self.open_dialog(super::Dialog::FtpConnect(state));
+                    status
+                } else {
+                    error.message
+                };
                 self.report_error(&message);
                 CommandOutcome::Failed(message)
             }
@@ -411,6 +448,8 @@ pub struct ConnectJob {
     pub connection: rc_core::config::SavedConnection,
     /// True only for a newly entered password with explicit user consent.
     pub remember_password: bool,
+    /// Whether the interactive saved-session caller permits a password retry prompt.
+    pub retry_password: bool,
     /// Panel that will receive the connection, captured when it started.
     pub side: super::Side,
     /// Step the attempt has reached, so the status line can say what is happening.
@@ -425,7 +464,20 @@ enum ConnectEvent {
     /// A step was reached.
     Stage(rc_remote::ConnectStage),
     /// The attempt finished.
-    Done(Result<Box<dyn super::remote::RemoteBackend>, String>),
+    Done(Result<Box<dyn super::remote::RemoteBackend>, ConnectFailure>),
+}
+
+/// Retain the authentication category instead of searching error text.
+struct ConnectFailure {
+    message: String,
+    authentication: bool,
+}
+
+impl ConnectFailure {
+    fn from_remote(error: rc_remote::RemoteError) -> Self {
+        let authentication = matches!(&error, rc_remote::RemoteError::Authentication(_));
+        Self { message: error.to_string(), authentication }
+    }
 }
 
 #[cfg(test)]
@@ -755,6 +807,7 @@ mod tests {
             session,
             connection,
             remember_password: false,
+            retry_password: false,
             side: Side::Left,
             stage: None,
             started: std::time::Instant::now(),
@@ -828,7 +881,7 @@ mod tests {
         assert_eq!(model.poll_connect_result(), (true, None));
         assert!(model.is_connecting());
         sender
-            .send(ConnectEvent::Done(Err("fixture failure".into())))
+            .send(ConnectEvent::Done(Err(ConnectFailure { message: "fixture failure".into(), authentication: false })))
             .unwrap();
         assert_eq!(
             model.wait_for_connect(std::time::Duration::from_secs(1)),
@@ -851,7 +904,7 @@ mod tests {
         assert!(!model.is_connecting());
         assert!(
             sender
-                .send(ConnectEvent::Done(Err("late failure".into())))
+                .send(ConnectEvent::Done(Err(ConnectFailure { message: "late failure".into(), authentication: false })))
                 .is_err()
         );
     }
