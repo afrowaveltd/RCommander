@@ -74,3 +74,13 @@ levého či pravého panelu nebo do plovoucího okna uvnitř hlavní aplikace.
 Přesun nemění otevřený soubor ani rozepsaný text. Druhý panel zůstává
 použitelný; kliknutím jej aktivujete. Samostatné okno operačního systému
 ani integrovaný terminál zatím nejsou součástí této změny.
+
+## Náhled PDF (volitelný systémový renderer)
+
+F3 v režimu Náhled vykresluje skutečné stránky místních PDF, pokud jsou
+v PATH dostupné nástroje `pdfinfo` a `pdftoppm`. Na Debianu:
+`sudo apt install poppler-utils`. Podporuje přechod mezi stránkami,
+přiblížení a přizpůsobení oknu. Hex zůstává dostupný. Poppler není přibalen
+ani přilinkován. Externí proces má časový limit a lze jej zrušit zavřením
+prohlížeče. Nejde o sandbox. Výběr textu, vzdálené PDF, zadávání hesel
+a rychlý náhled zatím nejsou podporovány.
