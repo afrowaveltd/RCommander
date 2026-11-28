@@ -159,6 +159,14 @@ impl Model {
         resolved
     }
 
+    /// Check the exact saved login without exposing the password to the UI.
+    pub fn saved_login_available(&self, session: &Session) -> bool {
+        let mut connection = self.resolve_connection_credentials(&session.to_connection());
+        let available = Self::requires_password(&connection) && !connection.password.is_empty();
+        connection.password.clear();
+        available
+    }
+
     /// True while a connection attempt is running in the background.
     pub fn is_connecting(&self) -> bool {
         self.connect_job.is_some()
