@@ -1000,3 +1000,4 @@ authors = ["RCommander contributors"]
 "session.wallet_ready" = "Pro tento účet je dostupné uložené heslo. Použijte je, nebo zadejte jiné heslo."
 "session.wallet_no_password" = "Úložiště je odemčeno. Pro tento účet není uloženo heslo."
 "session.wallet_use_password" = "Připojit pomocí uloženého hesla"
+"session.password_rejected" = "Ověření identity selhalo. Zadejte nové heslo pro opakování tohoto uloženého připojení. Automatický pokus nebyl proveden."
