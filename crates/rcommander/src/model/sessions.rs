@@ -864,6 +864,42 @@ mod tests {
     }
 
     #[test]
+    fn lockout_refuses_interactive_and_headless_connection_before_worker_starts() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        let mut session = Session::new("work", "example.test", "sftp");
+        session.user = "alice".into();
+        let mut connection = session.to_connection();
+        connection.password = "fixture".into();
+        for _ in 0..5 {
+            rc_core::auth_guard::Attempt::begin(
+                &dir.path().join("auth-guard"), "example.test", 22, "alice",
+            ).unwrap().finish(false, true).unwrap();
+        }
+        assert!(matches!(model.start_connect(&connection, &session), CommandOutcome::Failed(_)));
+        assert!(!model.is_connecting());
+        assert!(matches!(model.start_saved_session_connection(
+            &connection, &session, false, Side::Right
+        ), CommandOutcome::Failed(_)));
+        assert!(!model.is_connecting());
+        assert!(model.top_dialog().is_none());
+    }
+
+    #[test]
+    fn fifth_failure_does_not_open_another_password_prompt() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_in(dir.path());
+        let sender = staged_attempt(&mut model);
+        model.connect_job.as_mut().unwrap().retry_password = true;
+        sender.send(ConnectEvent::Done(Err(ConnectFailure::from_guard(
+            rc_core::auth_guard::GuardError::Blocked(900)
+        )))).unwrap();
+        assert!(model.poll_connect());
+        assert!(!model.is_connecting());
+        assert!(model.top_dialog().is_none());
+    }
+
+    #[test]
     fn rejected_interactive_password_reopens_only_the_original_account_and_panel() {
         let dir = tempfile::tempdir().unwrap();
         let mut model = model_in(dir.path());
