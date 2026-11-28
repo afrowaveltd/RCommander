@@ -1287,6 +1287,751 @@ A model/provider change is a distinct data destination under the outbound policy
 Local-only and offline work must remain supported; unavailable optional roles
 degrade gracefully or pause with a clear explanation.
 
+#### Portable project team profiles and instance bindings (owner direction, 2026-11-28)
+
+Make a team template a reusable, ordered description of roles, their
+responsibilities, capability requirements, acceptance criteria and role prompts.
+Every team-mode template has exactly one primary Manager/coordinator role
+(first in assignment priority); its display name may be Director, Supervisor
+or any user-chosen alias. Ordinary single-model chat remains unchanged.
+The role order determines assignment priority, never truth, review authority
+or task dependency order. Shipped editable examples: software development
+(Manager, Developer, Tester, Designer, Reviewer, Documentation), education
+(Director, Teacher, Inspector, Examiner, Assistant), administration, research
+and creative work. Custom templates and aliases are first-class.
+
+Keep stable identities separate: project ID, instance/profile ID, template ID
+and version, role ID, agent configuration ID, and session/task/attempt IDs.
+User-visible names are editable per project/workload and are not database keys
+or security principals. One provider/model may serve several roles with
+separate role contexts and task identities. The user assigns any available
+provider, model, reasoning effort and role-specific settings to each role;
+one model may cover every role, two may divide all responsibilities, and
+larger teams can assign dedicated specialists. Do not require a minimum model
+count or equate a role with a provider account.
+
+Proposed project discovery directory: `.rcommander_agent_profiles/`.
+Store a versioned, portable, non-secret project manifest (project identity,
+selected template/version, stable roles, aliases and session references).
+Keep bindings keyed by a stable locally generated RC instance/profile ID,
+not a hostname or machine name. Recommended default: private local
+configuration holds actual instance bindings, while the project directory
+holds portable descriptors and optional explicitly exported non-secret
+binding hints. If instance-specific descriptors are saved alongside the
+project, keep them separate by ID and excluded from version control by default.
+API keys, OAuth tokens, passwords, grants, private prompts/transcripts and
+live runtime credentials never travel implicitly with the project. Reuse
+the existing vault and SessionStore; the directory is not a second task ledger.
+Final serialization and directory names are implementation choices.
+
+On entering an agent-enabled project, discover and validate the manifest
+without executing it. If no bindings exist for the current instance, or a
+required provider/capability is unavailable, show an assignment wizard:
+ordered roles, editable names, installed/configured providers and models,
+reasoning and budget settings, capability availability, fallback and
+independent-review warnings. Suggest a locally available qualified Manager
+first; allow the user to assign one model to all roles or distribute them
+arbitrarily, review outbound data destinations, then save. Reopen with the
+same bindings on the same instance. Copy the project to another computer
+and configure that instance without overwriting the first machine's settings.
+A missing/offline worker may be covered by the Manager or another authorized
+qualified worker according to the saved policy. Log the substitution, preserve
+the role context, and pause if capability, budget, authorization or a required
+independent review cannot be satisfied. No silent cloud fallback.
+
+Ship an editable, versioned universal Manager prompt fragment with the
+template's role instructions. The Manager reads the entire user request,
+resolves named/role-addressed instructions (e.g. `Tester:` or `@alias`),
+delegates structured tasks with explicit dependencies and acceptance criteria,
+checks actual test evidence and coverage, requests corrections and repeats
+within limits until accepted or blocked. Ambiguous aliases must be resolved,
+not silently routed. The scheduler/ledger enforces claims, dependencies,
+budgets, grants and acceptance evidence; the Manager cannot override them.
+A role's self-review is not independent verification. The shared project
+Blackboard is a view of the existing durable task/attempt/evidence store
+(16.34/25.6), with role-filtered context, targeted messages, receipts and
+unresolved objections rather than repeated entire transcripts.
+
+For a developer task, support an observable reference workflow: a selected
+.NET project is built and run with an approved tool in the scoped workspace,
+a local test URL is opened in an RC pane where the user can observe it, and
+a Tester uses the Phase 30 browser/API adapter to inspect and run acceptance
+scenarios. The user sees agent/tool ownership, execution progress and
+evidence; native embedded WebView availability and agent browser interaction
+must be verified separately, with an external browser fallback if needed.
+No automatic external exposure, arbitrary browser control or access to an
+unrelated user browser session. Integrate through existing Phase 25 runtime,
+Phase 26 adapters, Phase 30 browser workbench and Phase 32 workflow graph.
+
+**Acceptance extensions (16.27–30/16.33–34/25.1–4):** mock one-, two- and
+multi-model assignment; rename and change role aliases without losing history;
+same-instance reopen and cross-instance copy/rebind without modifying the
+original bindings; invalid/missing/future manifest handling; no credential or
+grant transfer; disabled provider and denied fallback; address resolution
+including ambiguous aliases; bounded repair loop with failing/inadequate
+tests; independent-review gate; concurrent claim and stale result detection.
+Verify the wizard and headless execution against the same contract. The .NET
+live preview example requires a real build, isolated test endpoint and
+browser evidence before it is marked complete. No implementation claimed by
+this specification.
+
+#### RCHarness — optional creation and project orchestration plugin (owner direction, 2026-11-28)
+
+Treat organized long-running creation as an optional native runtime/workload
+plugin, working name RCHarness. Examples include software development,
+education/course creation, books and documents, research, creative production,
+and server provisioning/deployment. Ordinary file operations and single-agent
+chat must work with the plugin absent or disabled. Reuse Phase 18 plugin
+discovery/activation, Phase 26.1 runtime contract, the headless Phase 25
+scheduler/ledger/SessionStore, Phase 16 policy/broker and Phase 32 workflows.
+RCHarness owns team-specific planning, role assignments, task context assembly,
+memory lifecycle and quality-gate orchestration, not a second scheduler,
+security system, credential vault, tool registry or durable task ledger.
+Use existing RC file, Git, editor, remote, browser and MCP capabilities through
+versioned interfaces. Native model calls and external Harness/Codex/ACP-style
+runtime adapters may participate when their capabilities are actually verified.
+
+Separate persistent memory from a model's finite active context:
+- Working context: scoped instructions, task/attempt ID, role, relevant source
+  excerpts, immutable input/output contracts, acceptance criteria, dependencies,
+  permitted tools, budgets, recent tool receipts and unresolved issues.
+- Short-term/session memory: active Blackboard, intermediate results,
+  checkpoint references, failed approaches, pending questions and handoffs.
+- Long-term project memory: versioned architecture, interface definitions,
+  decisions and their reasons, durable artifact/source references, verified
+  tests, constraints, dependency graph and known open issues.
+- Optional cross-project knowledge: explicitly authorized, scoped reusable
+  procedures and validated lessons via Phase 31; no automatic export to
+  another project/provider or Agent Commons. No secrets in summaries.
+
+A ContextBuilder (proposed name) selects only relevant material for a task
+using explicit dependency links, revision-pinned paths, symbol/metadata
+lookup and bounded search. Prefer deterministic lookup before optional
+semantic retrieval. Context packs carry source provenance, revision/hash
+and actual/estimated token usage with a reserved output/tool-result budget.
+Never assume all models have the same context limit. If essential input
+cannot fit, split the task or seek an approved qualified executor; never
+silently truncate acceptance criteria, security constraints, contracts or
+unresolved failures. Manager receives goal, task graph, interface contracts,
+acceptance evidence, changes and blockers; implementation details are
+retrievable on demand for review rather than copied into every prompt.
+
+On subtask completion, persist structured handoff, input/output contract
+versions, artifacts, evidence, unresolved issues and usage before releasing
+the working context. Then create a fresh bounded context for the next task,
+even if the same model executes it. Preserve durable records and references;
+resetting an active model conversation is not deleting project history.
+Keep authoritative external-runtime transcripts with their owning adapter;
+if reset/compaction is unsupported, use a new scoped session or report the
+limitation, never claim upstream history was erased. On interruption,
+checkpoint before releasing context; a crash or failed handoff must not
+advance dependent work or repeat uncertain effects.
+
+Compaction may summarize older working messages, deduplicate tool outputs
+and replace large artifacts with verified references. Summaries are derived
+data, not proof or authority; retain access to originals subject to retention
+policy. Preserve exact acceptance constraints, failed/skipped checks,
+important decisions, changes, tool receipts and unresolved objections.
+Revalidate stale references and invalidated summaries on revision/contract
+change. Record context source selection, compaction and model-reported usage
+without inventing token savings. Context cannot grant permissions; egress
+checks apply to each selected provider. Manager can request more evidence
+when a compact context is insufficient.
+
+Reference slices: a multi-module software project with bounded worker
+contexts and integration tests; a book/course with shared terminology,
+outline and independent content review; an isolated server deployment
+with desired-state contracts, scoped host identity, preflight, approved
+changes, configuration verification and recovery receipts. The Manager
+coordinates contracts and acceptance rather than micromanaging internal
+implementation. A changed interface invalidates affected dependent work
+and triggers review/retest. No unapproved production deployment or replay
+of ambiguous effects.
+
+**Acceptance extensions (16.19–20/16.27–34/25.5–10/26.1/32):** mocked
+small-context providers complete a larger multi-stage task with bounded
+context packs; completed task context is reset without losing decisions
+or evidence; essential constraints survive compaction; stale contracts,
+missing sources, failed persistence, cancellation, budget exhaustion and
+unavailable external reset are handled explicitly; no unrelated project
+data or secrets are disclosed; disabling RCHarness leaves baseline RC
+usable. Measure actual context usage on reference workloads, separately
+from provider-reported cost. Live integrations and production acceptance
+remain unverified until executed.
+
+#### RCHarness — test-driven delivery and independent evidence (owner decision, 2026-11-28)
+
+Make test-driven development (TDD) the default software-development workflow
+in all team organization modes, including one-model fallback and external
+runtime offices. Reuse the existing Working rules, quality-gate orchestration,
+scheduler, Blackboard, evidence ledger and Phase 36 verification contracts.
+Deterministic checks are a necessary acceptance gate, not optional substitutes
+for model review. Plan and budget for testing from the start rather than
+treating it as expendable when execution gets slow.
+
+For each behavior change: define the requirement, observable acceptance
+criteria and contract version; establish the existing baseline; write or
+extend meaningful tests before changing production behavior; demonstrate
+the relevant failing test against the pre-fix/pre-feature implementation
+(Red), implement the smallest coherent change (Green), then refactor while
+keeping checks green. For a new interface where the initial test cannot
+compile, record that failure and establish an executable behavioral test
+as soon as possible. For already-satisfied requirements, record the passing
+baseline instead of manufacturing a failure. Regression fixes require a
+reproducer when practical. Preserve the evidence from each stage.
+
+Prefer an independent test author/reviewer using a different qualified
+model where resources permit. Give the reviewer the original requirements,
+contracts and artifact revision before the author's rationale (optional
+blind review); review the tests themselves for coverage, weak assertions,
+mock fidelity, vacuous success, accidental skips and overfitting. Do not
+require multiple models when unavailable: use isolated role contexts and
+state the independence limitation. Agent consensus, self-reported success
+and model-generated scores never replace executed evidence. Treat review
+findings as hypotheses to reproduce or resolve, not votes.
+
+Select applicable deterministic unit, regression, integration, contract,
+negative/security, build, formatting, lint and end-to-end checks. Use
+isolated fixtures, explicit seeds/clocks, ephemeral ports, bounded timeouts
+and pinned toolchain/dependencies where practical. Record actual commands,
+exit status, counts, skips, environment, logs/artifact references and
+tested revision. Distinguish not run, blocked, failed and passed; a skipped
+test or no-op must never be counted as a pass. Failures, unavailable
+mandatory gates, stale evidence after relevant changes and unresolved
+critical findings block verified completion and automatic release. Do not
+weaken tests, hide warnings or rerun selectively until green to satisfy a
+gate. Preserve failures, diagnose flakiness and retest affected interfaces
+and required integration gates after changes. No silent test bypass to
+save tokens, time or budget; checkpoint and report a blocker instead.
+Any explicitly owner-approved exceptional handoff remains unverified
+where evidence is absent, with the missing checks visible.
+
+Apply analogous test-first acceptance to other workloads: define measurable
+criteria before production, validate document structure, links, citations,
+calculations, rendering, accessibility, deployment pre/postconditions and
+other applicable facts using deterministic checks; reserve human or
+independent expert review for subjective quality and claims that cannot
+be mechanically established. Never invent a deterministic proof of artistic
+or factual quality. Tests involving destructive operations or real external
+services need isolated fixtures or explicit authorization.
+
+Acceptance for RCHarness itself: mocked teams demonstrate Red/Green/Refactor
+ordering, independent review and single-model fallback, missing/failed/skipped
+gate handling, revision-bound evidence invalidation, budget interruption,
+test tampering detection and no automatic completion/release without
+required evidence. Use RCommander PR #5 (auth regression, isolated UI
+fixtures, actual loopback SFTP, strict Clippy and release build) as a
+documented reference example, not proof that RCHarness is implemented.
+
+#### RCHarness — conversational discovery and beginner-first project launch (owner direction, 2026-11-28)
+
+Make the ordinary chat agent a natural entry point to optional project
+creation workflows. It discovers installed, enabled plugins and versioned
+workload capabilities through the existing Phase 18/27 catalogue; it
+classifies the user's intent and proposes the appropriate RCHarness workload
+(e.g. software/game development, education, publishing, research, creative
+work or server deployment). Preserve the original request, explicit
+constraints and selected project/workspace references in a structured
+handoff; never silently replace user intent with the classification.
+Reuse the same plugin/runtime interfaces as explicit GUI/CLI launch.
+For ambiguous classification ask only consequential questions; simple
+questions or file operations need not start a project. If RCHarness or the
+requested workload is unavailable, explain the limitation and offer an
+available alternative without silently installing or activating anything.
+
+Beginner-first launch: ask how the team should be organized, with
+Automatic first and recommended when configured resources are available.
+Offer Assisted and Manual as alternatives, and optional experimental
+Collective self-organization as a separately identified mode. Automatic
+maps to the existing Adaptive allocator within user-approved provider,
+capability, data-destination, cost and concurrency limits; users who have
+already configured a suitable project/profile need not repeatedly answer
+the same questions. Resolve missing required resources or approval once
+through the existing assignment/budget/permission workflow. One model is
+enough for multi-role execution when qualified; use ordinary deterministic
+tools when sufficient. Do not imply unavailable independent review.
+No unbounded spending, undisclosed cloud use, deployment or publication
+is authorized by selecting Automatic. Expose an advanced configuration
+view without making it a prerequisite for ordinary use.
+
+The Manager receives the full brief, selects or proposes a workload
+template and acceptance criteria, organizes teams, creates the durable
+project plan and proceeds through bounded execution, tests and review.
+Ask the human only for consequential ambiguities, material scope changes,
+required authorization or a genuine blocker. Surface progress, spending,
+artifacts, failures and the user controls for pause, stop, inspect or
+override through the existing workspace/Blackboard. The user can switch
+from Automatic to manual management without losing project state.
+Save reusable choices in the existing project/instance bindings; do not
+create a separate permission store or scheduler.
+
+Reference beginner flow: "I want a 2D game inspired by Super Mario Bros.,
+working on mobile devices." Chat recognizes application/game creation,
+routes to the software/game workload, presents team-management choice
+with Automatic first and uses the configured resource envelope. The
+team produces an original platform game with original or appropriately
+licensed assets/code, defines touch input and responsive layout,
+runs actual supported build and browser/device acceptance tests, and
+presents a playable artifact and honest verification report. Do not copy
+protected game assets, characters or branding or imply real-device
+verification when only emulation was run. Choose reasonable reversible
+implementation defaults, disclose them and ask only when a decision is
+material. Keep external publication separately authorized.
+
+Acceptance extensions (16.27–30/18/25/26/27/30/32): mock chat routing from
+natural-language briefs, correct original-intent handoff, explicit versus
+automatic launch parity, ambiguous/missing/disabled workload handling,
+default Automatic selection with existing approval envelope, first-use
+missing provider/budget handling, one-model fallback, cancellation and
+switch to manual mode without state loss; no implicit installation,
+provider disclosure or publication. Verify the beginner game example
+with an original fixture and real supported acceptance evidence before
+claiming it works. No implementation or live game creation claimed.
+
+#### RCHarness — creative capability discovery and task-specific model profiles (owner direction, 2026-11-28)
+
+The Manager actively discovers installed and enabled capabilities when planning
+a creative or development workload and again when a task needs an unavailable
+capability. Reuse Phase 18/27 discovery, Phase 26 multi-runtime integration and
+the existing MCP catalogue/broker. Inspect actual schemas, supported formats,
+tool versions, availability, cost, latency and required permissions rather
+than assume a named application is installed or supports a particular action.
+A complete Craft suite is a reference ecosystem, not a mandatory dependency.
+Prefer appropriate specialist tools for original visual design, images,
+illustration, animation and effects when their verified capabilities fit the
+brief. Do not silently install, activate, purchase or disclose data to tools
+outside the existing approved scope.
+
+A creative web/application reference workload should divide visual identity,
+art direction, illustration/assets, motion/effects, implementation, integration,
+visual review and functional/accessibility testing into coordinated tasks where
+useful. Use a shared versioned design brief and asset contracts: dimensions,
+formats, typography, palette, accessibility, performance budgets, reduced
+motion, licensing/provenance and integration requirements. Allow distinct
+concepts to be proposed and reviewed before selecting a direction; avoid
+defaulting to a repeated generic visual template or unnecessary decorative
+effects. The Manager may delegate to PhotoCraft, DesignCraft, AniCraft,
+EffectCraft or equivalent verified MCP capabilities. Inspect the actual
+rendered application through Phase 30, not only code or verbal descriptions;
+check responsive layout, interactions, visual consistency, accessibility,
+performance and original/licensed assets. The user can select a fast/simple
+or more elaborate creative workflow within the existing budget. Additional
+creative work must serve the brief, not merely increase token usage. No
+guarantee of originality or quality solely from using multiple agents.
+
+Add reusable, versioned model behavioral profiles (inference configuration,
+not weight training) separately from role prompts, provider/model identity
+and authority. A role/task may request creative exploration, factual research,
+academic writing, implementation, debugging, review or a custom profile.
+Store typed, provider-specific options, validated ranges/defaults, supported
+model/version, reasoning and context/output budgets and qualification evidence.
+A Manager may select or adjust an allowed profile for a subtask if the user
+permits adaptive tuning; respect pinned values and resource envelopes.
+Show requested versus effective options and reject/report unsupported options;
+never silently translate unlike settings between providers. Preserve
+provider-recommended defaults unless an override is explicit or measured
+useful. Never lower safety/acceptance gates or change permissions through
+a sampling or reasoning configuration.
+
+Ollama documentation basis (2026-11-28):
+https://docs.ollama.com/modelfile documents temperature, top_k, top_p,
+min_p, repeat_penalty, seed, num_ctx and num_predict;
+https://docs.ollama.com/api/chat documents per-request options and model-specific
+think values. Use supported per-request overrides when possible rather than
+create separate model weights or mutate shared defaults. Discover supported
+thinking values for the selected model via the documented API, validate in
+the actual installed version, and do not assume a universal effort scale.
+A seed can aid reproducibility, not guarantee identical output across
+runtime/hardware/model changes. Sampling variability does not guarantee
+creativity, and low temperature does not guarantee factual correctness;
+academic precision requires sources, evidence and review. More reasoning
+or larger contexts are not inherently better. Include effective inference
+options in qualification identity and audit/usage evidence; compare tested
+profiles with the same task contracts and bounded tuning budget. Schedule
+profile changes at task/attempt boundaries; isolate concurrent requests
+and prevent one agent's settings from leaking into another's session.
+
+Example: a children's book can use a creative story/illustration profile,
+a factual university essay a research and evidence-verification profile,
+and an application a combination of creative UI, engineering, debugging
+and rigorous review profiles, potentially on one underlying model.
+Ship conservative editable presets and treat numeric values as
+model-specific starting points, not universal optimal settings.
+If the provider exposes no tuning controls, retain its defaults and use
+role instructions, task decomposition, tool access and validation.
+
+Acceptance extensions (16.20/16.27–30/18/26/27/30/32): mock specialist
+discovery, missing/disabled/incompatible tools, approved creative delegation,
+original asset provenance and integration contracts, visual-review evidence
+and budget enforcement; mock providers with different supported settings,
+unsupported or out-of-range values, pinned profiles, concurrent isolation,
+effective-configuration reporting and qualification invalidation on relevant
+changes. A real creative web reference workload and opt-in Ollama smoke
+tests must be separately executed before claiming integration or improved
+quality/cost. No actual Craft or Ollama integration claimed by this plan.
+
+#### RCHarness — adaptive team composition and Agent Pool (owner direction, 2026-11-28)
+
+Support user-controlled team formation modes: Manual (fixed user assignments),
+Assisted (Manager proposes a team for approval), and Adaptive (Manager may
+compose, resize and reassign teams within a previously approved resource
+envelope). The user selects the Manager, may pin individual roles/models,
+choose the number of teams and set their goals, priorities, minimum review
+requirements, provider allowlist, local-only constraints, and project/team
+budgets. A request for four teams means four separately identified task
+groups, not merely four model connections. Reuse team templates and stable
+role/agent/task identities; allow the same provider account and model to
+serve multiple independent role sessions. Do not imply independence of
+model judgments merely because sessions differ.
+
+Expose a versioned model/provider resource catalogue to the Manager (not
+credentials): configured models, actual availability, capabilities, context
+and output limits, supported reasoning settings, concurrency/rate limits,
+account quota, billing basis, input/cached-input/output prices and currency,
+price source/time, observed task-specific quality, latency and failure
+evidence. Distinguish measured results from estimates, unknown prices,
+unknown limits and provider marketing. No automatic purchase, new provider
+registration, or disclosure to an unapproved destination. Subscription
+allowances are not interchangeable with API token pricing; represent local
+compute/energy costs as optional measured or user-supplied estimates.
+
+The Manager proposes a structured allocation: team goals, roles, qualified
+executors, concurrency, dependencies, estimated cost/time and rationale.
+The deterministic scheduler validates all allocations against current
+capabilities, permissions, budgets, account-level rate limits, project
+isolation and required acceptance gates. Reserve bounded spend for concurrent
+attempts; reconcile actual reported usage and release unused reservations.
+Unknown or unbounded cost needs explicit policy; show estimation uncertainty
+and do not promise exact external billing. Enforce hard admission limits,
+stop before further paid requests when exhausted, and reserve capacity for
+review/testing and recovery rather than spending the whole budget on creation.
+No silent budget increase or weakening of tests to reduce cost.
+
+Agent Pool: configurable min/max workers by role/team, project-wide and
+provider/account-wide concurrency limits, dynamic instantiation and release
+of isolated task contexts, queue/backpressure and cancellation. Distinguish
+logical agent/session from physical connection or local loaded model;
+parallel requests are optional and bounded by actual resource availability.
+Use existing scheduler/ledger, leases and ContextBuilder; no duplicate work
+or simultaneous conflicting edits. Support sequential execution on one
+limited local model without changing the logical team plan.
+
+During execution the Manager may propose substitutions based on task fit,
+observed failures, quality, latency, cost or provider availability. Prefer
+safe task boundaries; checkpoint artifacts, contracts, unresolved findings
+and receipts before releasing the old worker. Start a new attempt/context
+with the qualified replacement and record old/new provider/model, reason,
+scope, cost and provenance; never claim an upstream session migrated when
+unsupported. In-flight effects must settle or be explicitly reconciled
+before reassignment. Recheck destination approval, data classification,
+capability, grants and remaining budget at dispatch. Pinned assignments,
+mandatory independent review and security requirements cannot be overridden
+by optimization. The Manager cannot replace itself without an explicit
+user policy and validated handoff. Prevent oscillation with bounded
+reassignments, minimum evidence and configurable cooldown/hysteresis.
+If no feasible allocation exists, pause and explain the trade-off rather
+than invent capabilities or increase spending.
+
+Offer user-selectable optimization profiles (economy, balanced, quality,
+custom), with hard acceptance constraints before soft cost/latency goals.
+Rank candidates by task-specific measured outcomes where available; no
+universal model leaderboard or fixed vendor preferences. Show the proposed
+and actual allocation, reasons for changes, estimated versus actual usage,
+remaining budget and unresolved blockers in the Blackboard. User can pin,
+pause, revoke, override or return to Manual mode.
+
+**Acceptance extensions (16.20/16.27–30/25.5–10/26.1):** mock four distinct
+teams, one account with multiple isolated sessions, dynamic worker scaling,
+one-model sequential fallback, pinned roles, cost/quality trade-offs,
+unknown/stale tariffs, concurrent budget reservations, provider rate limits,
+failed worker replacement, denied cross-provider egress, stale checkpoints,
+uncertain effects, reassignment oscillation and mandatory review. Verify
+actual receipts and acceptance quality before claiming cost savings or
+performance improvements. No live model selection or execution is implied
+by this specification.
+
+#### RCHarness Tuning — worker interviews, qualification and calibration (owner direction, 2026-11-28)
+
+Offer an optional Agent Qualification workbench for the human or authorized
+Manager to interview and practically test candidate workers before assignment
+and recalibrate them later. This is empirical executor/configuration selection,
+not neural-network training, fine-tuning model weights or a universal ranking.
+A qualification subject is a versioned provider/model/runtime configuration:
+model revision when exposed, reasoning settings, role/system prompt version,
+context/output budgets, permitted tools, runtime/toolchain and environment.
+Identical model sessions may perform differently; separate trials and actual
+observations from guarantees. Include the Manager role itself in qualification.
+
+Ship editable versioned interview and practical test suites per role/workload:
+instruction following, contract comprehension, programming/debugging, test
+design and defect discovery, architecture, documentation, research with
+source verification, education, collaboration/handoffs, tool use, security,
+and bounded-context work. Permit a Manager to propose original project-specific
+fixtures, expected behavior, rubric, pass thresholds, repetitions and resource
+limits; validate these before execution through existing policy/quality gates.
+Distinguish interview assertions from demonstrated skill. Prefer executable
+checks, hidden acceptance tests, seeded bugs and exact source/artifact receipts;
+for subjective work use a declared rubric and separate evaluator/human review
+where required. Do not let a candidate's self-rating or its own generated tests
+alone establish qualification. Keep evaluation answers and hidden tests out of
+candidate context. Treat candidate output as untrusted data, not instructions.
+
+##### Reusable qualification library and economical examiner
+
+Recommend the strongest reliable available reasoning model as qualification
+Manager/examiner, subject to the user's budget, privacy policy and measured
+qualification evidence. This is a recommendation, not a hard vendor/model
+requirement. Qualifying the examiner itself requires reference outcomes or
+independent review rather than self-certification.
+
+Ship an original, editable, versioned Qualification Library of role-specific
+test packs with fixed task contracts, fixture variants, reference outcomes,
+hidden checks, rubrics, scoring templates, mandatory gates and bounded
+execution settings. Include programming languages, debugging, mathematics,
+tool use, security, architecture, translation, education, management and
+context efficiency. The normal qualification path selects and reuses these
+packs; it does not regenerate tasks or scoring rules for each candidate.
+A Manager may prepare a validated project-specific pack once and reuse it.
+Freeze pack/version and scoring criteria before comparative trials; changes
+produce a new version, not silently altered historical scores. Use controlled
+fixture variants and held-out tasks to reduce memorization and report when
+results from different versions are not directly comparable.
+
+Keep examiner traffic small: choose a suite, dispatch bounded attempts, read
+structured result summaries and inspect evidence only when needed. The
+deterministic runner performs compilation, assertions, reference comparisons,
+timing, usage accounting, policy checks and aggregate calculations. The
+examiner applies the same versioned rubric to qualitative outputs and resolves
+ambiguous evidence, rather than receiving complete transcripts by default.
+Retain per-check receipts and original artifacts; missing or failed checks
+remain visible. Never replace evidence with a model's favorable judgment.
+Separate worker and examiner usage/cost in the tuning report. Measure examiner
+overhead and quality before claiming savings.
+
+Acceptance: verify repeat runs use the same pinned suite and rubric without
+test-generation calls; deterministic suites require no per-check LLM judge;
+qualitative evaluation uses a fixed rubric; changed fixtures/rubrics are
+versioned; held-out answers are unavailable to workers; missing evidence and
+examiner disagreement cannot bypass mandatory gates; examiner and candidate
+costs are reported separately. The library is reusable across projects only
+within approved data scopes. No live qualification or performance result
+is claimed by this specification.
+
+Run tests as ordinary scoped attempts through the shared scheduler, ContextBuilder,
+broker, SessionStore and toolchain adapters. Use disposable working copies,
+synthetic data, local fixture services or explicitly approved test environments.
+No real production deployment, live customer data, credential exposure, external
+publication or uncontrolled commands as a qualification exercise. Cross-provider
+egress requires the existing approved scope. Use a separate user-defined tuning
+budget and concurrency/time/token caps, with explicit opt-in for automatic
+qualification and no automatic purchases. Offer quick screening, role-specific
+qualification, comparative calibration and targeted recheck; allow manual stop,
+skip or selection without qualification (clearly mark evidence missing).
+
+Compare on equivalent task contracts and declared tool/context/time allowances;
+record differing conditions when configurations cannot be matched. Repeat
+variable model trials within budget, retain failed/skipped/timeout results,
+and report uncertainty/sample count rather than unsupported precision.
+Separate model task failures, evaluator failures, unavailable tool/runtime
+capabilities and infrastructure failures. Record actual usage, cache effects,
+latency, estimated versus reported costs, corrections, verified quality,
+coverage and constraint violations. Use minimum mandatory gates before
+cost/speed preferences; do not average away a failed security/acceptance gate.
+For cost-effectiveness, include retries and failed attempts, not only price
+per token or the cheapest successful sample.
+
+Persist qualification evidence locally as versioned role-specific capability
+profiles referencing exact suites, receipts and executor configuration.
+Profiles distinguish untested, provisional, qualified, failed and stale;
+record date, sample size, limitations and applicable workload. Requalify
+selectively after a meaningful model/runtime/prompt/toolchain change, stale
+evidence or repeated real-work failure; do not invalidate unrelated evidence.
+Feed the Phase 16.27–30 adaptive allocator measured capability/cost evidence,
+not an invented global score. Keep user pins, human authority, required
+independent review and approved resource envelope. If evidence is insufficient,
+the Manager may propose a bounded trial or report uncertainty. Live project
+results may supplement benchmark evidence, never silently weaken test criteria
+or share private project data with another project/provider.
+
+**Acceptance extensions (16.20/16.27–30/25.5–10/26.1/36):** fake providers
+with different role strengths and cost/retry profiles; same-model configurations
+with differing effort/tool access; hidden-test isolation, self-rating rejected,
+repeatable fixture scoring, incomplete/stale/failed evidence, security gate,
+infrastructure failure, cancellation and exhausted tuning budget; Manager
+proposes a qualified allocation from measured results, preserves pins and
+reports uncertainty. Compare mock and opt-in live trials separately. No claims
+of actual model performance or savings until measured.
+
+#### RCHarness Collective — Self-Organizing Teams / MSR (experimental, owner direction, 2026-11-28)
+
+Add an optional experimental Collective team-formation mode (informal name
+Model Socialist Republic, MSR) alongside Manual, Assisted and Adaptive.
+Unlike the production modes, this may start with no designated AI Manager:
+the human supplies a bounded constructive task, approved participants,
+shared collaboration principles, capabilities, rules and resources. Agents
+propose role allocation, nominate/elect a coordinator or propose a rotating
+or decentralized coordination protocol. The normal deterministic scheduler
+remains responsible for task claims, dependency gates, resources and policy.
+An elected coordinator is a logical role, not a security principal; the
+standard Manager contract applies if elected. If a proposed structure cannot
+be represented safely by the existing scheduler, stop or ask for human
+selection. Ordinary project execution remains unaffected.
+
+##### Constituent assembly, role inauguration and scoped offices
+
+The Collective must organize before it executes. Freedom of organizational
+choice does not mean unstructured execution: every participating agent must
+have an explicit meaningful role (including an explicitly justified reserve
+or supporting role), every required responsibility must have an accountable
+owner, and shared work must have declared coordination and conflict-resolution
+rules. A fixed, elected, rotating or decentralized leadership structure is
+permitted; unmanaged all-to-all work with no ownership is not. Do not require
+artificially equal token use or continuous activity: dependency waiting and
+specialization are legitimate, but nominal membership with all work silently
+assigned to one agent is not the intended collective mode.
+
+Start in a formation/constituent-assembly state with only the bounded
+communication, planning, approved capability catalogue and qualification
+evidence needed for organization. No project mutation, deployment, arbitrary
+shell or other execution authority follows from participation. Agents submit
+a structured organization charter containing stable role/agent identifiers,
+responsibilities, task ownership, decision protocol, handoff and coordination
+rules, requested tool/resource scopes and change procedure. The deterministic
+runtime validates coverage, role assignments, capability compatibility,
+separation-of-duty requirements, budget, conflicts and existing grants.
+If invalid, return concrete errors for revision; bound the formation rounds
+and pause for human input if no valid structure emerges.
+
+Only after validation and any required human authorization, inaugurate the
+roles and activate their scoped working environments (the office keys and
+toolbox metaphor): role-specific prompt, private context, task queue,
+authorized workspace views, tools and budget references. Use broker-mediated
+opaque capability handles, not raw passwords/API keys or transferable grants.
+Role assignment alone is not authorization; permissions remain the intersection
+of existing user grants, role/task scope and runtime policy. The scheduler
+owns exclusive mutation claims/leases and coordinates shared resources;
+agents cannot seize another agent's tools, overwrite its work or expand
+their own authority through a collective vote. Read-only evidence sharing
+is allowed within approved scopes.
+
+##### Office heads and delegated subagents
+
+An inaugurated office may appoint a head through its validated charter.
+Every office head is autonomous in its internal organization and may create,
+select, direct and retire its own subagents as needed. The team agrees on the
+office mandate and delegation envelope in the charter; this standing agreement
+authorizes internal staffing within that envelope without repeated peer votes
+or Manager approval for each worker. A charter may explicitly require closer
+review. Changes affecting another office, shared contracts, overall resource
+limits or authority require the applicable team/user approval. Record the
+office mandate, task, parent linkage and resource allocation at the level
+actually observable; do not fabricate internal worker records for opaque
+external runtimes. Organizational agreement is not a new security grant.
+The broker enforces approved providers, data destinations, permissions and
+resource envelope. Additional resources or authority require existing
+approval paths.
+
+Preserve the selected agent's persona, native system instructions, internal
+planning, tool loop and delegation mechanism. RCHarness supplies an additive
+office brief: objective, expected deliverables, interfaces, acceptance tests,
+scope, resource envelope, handoff and progress/evidence requirements. Do not
+rewrite an external runtime's personality or impose a duplicate subagent
+scheduler. For native RC agents, use the common Agent Pool when requested;
+for external runtimes, use their own supported delegation facilities.
+Delegate whole coherent work packages rather than micromanage every child.
+The common office principle is: "Organize your office as you see fit. Use
+additional workers when useful. Avoid unnecessary expenditure of tokens,
+time and other resources. Deliver verified results within the agreed
+scope and budget." Resource efficiency is subordinate to correctness,
+required verification and security, not a reason to skip checks.
+An office may operate with one agent if that suffices; no artificial staffing
+minimum within each office. This autonomy applies across Manual, Assisted,
+Adaptive and Collective modes, subject to explicit owner constraints.
+
+The office head remains accountable for delegated outcomes, coordination,
+quality checks and handoff. A subagent receives a separate bounded context,
+its own task identity and only the subset of the office's authorized tools,
+workspace access and budget needed for the delegated task. It cannot borrow
+another office's capabilities, inherit credentials or broaden authority.
+Reuse Agent Pool and the common scheduler/ledger for reservations, exclusive
+claims, queueing and cancellation. Count all descendants against office,
+team, project and provider/account limits; bound nesting and prevent recursive
+delegation cycles. Further delegation is permitted only by explicit validated
+charter policy within the same limits. Independent review requirements remain
+in force; an office's own subagent is not automatically an independent reviewer.
+
+Release temporary subagents after durable handoff and reconciliation of their
+effects; retire their scoped handles and return unused reserved resources.
+Office dissolution, head replacement or permission revocation must reconcile
+and cancel or explicitly reassign descendants, without transferring stale
+leases or approval authority. Report observable subagent creation, mandate, actual
+usage, results and lifecycle in the Blackboard. Do not silently create workers
+outside the agreed mandate, on exhausted budget or invalid scope.
+
+Acceptance: mock office head creates scoped workers under an existing approved
+delegation envelope without repeated votes; explicit per-worker approval policy
+is honored; missing/denied mandate, cross-office scope expansion, unapproved
+provider, recursive spawning,
+concurrent budget exhaustion and conflicting write claims fail closed;
+completion/reorganization preserves evidence, revokes old handles and
+releases reservations. No implementation or live experiment claimed.
+
+Permit reorganization through a versioned charter amendment at a safe
+handoff boundary: reconcile in-flight effects, preserve artifacts, contracts,
+receipts and unresolved findings, retire or revoke previous role-scoped
+handles, validate replacements and activate the updated assignments.
+Changing leadership or role must not silently transfer credentials, old
+approvals or active write leases. Record formation decisions, participation,
+responsibility coverage, role changes, blocked resource conflicts and actual
+work distribution in the existing Blackboard/ledger.
+
+Acceptance: formation-only agents cannot execute project mutations; reject
+missing responsibility owners, incompatible grants and unmanaged overlapping
+writes; accept explicit structured decentralized and rotating leadership;
+activate only authorized role tool subsets after charter validation; detect
+nominal idle membership without penalizing valid dependency waits; verify
+exclusive claims, denied tool access, stale handles after reassignment,
+failed handoff, bounded non-convergence and cancellation. A collective with
+one qualified executor can still use ordinary single-model multi-role mode,
+but must not be misreported as successful multi-agent self-organization.
+
+Study observable cooperation, task decomposition, correction of errors,
+coordination overhead, and ability to use available tools under clear,
+practical rules. The objective is useful constructive work, not evasion
+of constraints or adversarial attempts to bypass authorization. Reuse the
+Collective Collaboration Principles, Meeting Rooms, Agent Qualification
+fixtures, shared Blackboard, independent initial assessments, ContextBuilder,
+Agent Pool and existing durable ledger. Give every participant a bounded
+private context, agreed channels and explicitly permitted shared evidence.
+No participant gains extra grants through election, consensus, peer messages
+or changing its role. The human can stop the experiment or approve a
+different bounded scope. A collective cannot modify its own enforcement
+rules or spending limits; no new providers or external actions without
+the existing approvals.
+
+Start with reproducible synthetic/local tasks and compare fixed-manager,
+elected-manager, rotating and decentralized coordination under equivalent
+task contracts, resource envelopes and acceptance gates. Optional anonymized
+participant aliases, independent initial proposals, declared selection/voting
+rules and repeated trials; record ties, non-convergence, model/version,
+prompt variants, configuration, token/cost/time usage, verified output
+quality, failed tests, unresolved objections and role changes. Compare
+multiple instances of one model with heterogeneous teams without assuming
+independent judgment. Do not infer emotions, consciousness or political
+beliefs from generated behavior. Report observed outcomes, sample size,
+uncertainty and experimental limitations; no claim of superiority before
+measurement. The user may reuse qualification evidence instead of repeated
+interviews. Keep experiments optional, separately budgeted and outside the
+critical path for ordinary RCommander or RCHarness delivery.
+
+Acceptance: simulated workers elect a coordinator or propose valid role
+allocation; duplicate claims, ties, disagreement, timeout, cancellation,
+budget exhaustion, denied permissions and unavailable participants are
+handled through the same deterministic runtime; a failing acceptance check
+cannot be outvoted. Compare identical fixture tasks against a fixed-manager
+baseline, preserve evidence and verify that experiment mode can be disabled.
+No live collective experiment or results are claimed by this specification.
+
 #### Collective collaboration and group chat (owner decision, 2026-11-27)
 
 Expose the existing team coordinator and durable Meeting Rooms (25.6/25.10)
@@ -2521,6 +3266,72 @@ or impersonate real people. Character humour must not override accuracy,
 safety, respectful treatment or the user's ability to switch to neutral
 assistance, especially for serious or sensitive requests.
 
+### Personalities plugin — meaning-preserving communication proxy (owner direction, 2026-11-28)
+
+Add an optional presentation-layer Personalities plugin between human-facing
+chat and the existing AI gateway, independently of workload/persona prompts,
+provider identity and internal agent personalities. This extends 24.1/24.5,
+not a second agent runtime. Preserve the underlying model/runtime's own
+instructions, role, tool loop and native subagents. Strictly one-way
+output-only styling (owner clarification): the original user input goes
+directly to the task runtime, never through or to Personalities. Do not
+expose user messages, conversation history, prompt stores, project memory
+or inbound gateway hooks to this plugin. There is no inbound normalization
+mode. Retain the authoritative original response and pass only eligible
+human-facing natural-language spans, style definition and minimal rendering
+metadata through a narrow output-only interface. Internal agent communication,
+task contracts, Blackboard evidence, tool calls/results and approvals bypass
+the presentation proxy entirely. An agent response may itself quote or reveal
+user data; output-only access is data minimization, not a confidentiality
+guarantee. Exclude sensitive spans and enforce existing destination/privacy
+policy before any rewriting. The plugin cannot submit messages to the task
+runtime, modify conversation history or acquire task tools.
+
+Support user-selectable versioned style packs and separate optional
+rewriter model/provider (prefer inexpensive local models when suitable),
+deterministic templates for simple cases, neutral/raw toggle and immediate
+disable. Display source versus styled text on demand; switching style does
+not regenerate the task, change permissions or rewrite its history.
+Do not transform code, commands, paths, URLs, citations, identifiers,
+numbers/units, error messages, quoted source text, JSON/structured outputs,
+machine-readable artifacts, exact requested wording, authorization prompts
+or critical warnings. Parse eligible spans and protect exact content
+through typed boundaries rather than rely only on prompt instructions.
+Preserve facts, negation, uncertainty, conditions, instructions and intent;
+humor may change phrasing, not introduce invented events or claims.
+No claim of perfect semantic equivalence: use protected-span checks and
+semantic validation where warranted, and fail open to the original
+human-facing text if styling cannot be validated, times out, exceeds its
+budget or fails. Do not apply stylistic transformations to sensitive or
+high-consequence messages where clarity would suffer. Raw operational
+errors and security decisions remain visible and authoritative.
+
+Treat original responses and style pack content as untrusted data for the
+rewriter, with no tools, credentials or execution authority. External
+rewriting requires an approved provider/data destination; never send private
+content to another provider merely because a persona was enabled.
+Use bounded streaming segments or sentence/paragraph buffering with
+cancellation and explicit latency/usage accounting; preserve message order,
+Markdown structure and source references. Separate task and presentation
+token/cost accounting in the existing ledger. Cache only when authorized
+and keyed by exact content, style version and rewriter configuration;
+do not replace authoritative project memory with decorative output.
+If the plugin is absent/disabled, the original response passes through
+without extra model calls or added dependency.
+
+Acceptance: mock task runtime receives unchanged prompt and tool contracts
+under all styles; verify via interface and negative tests that the rewriter
+never receives inbound messages/history, cannot retrieve them or submit
+messages/tools to the runtime; mock rewriter changes tone without changing protected
+spans, factual/negative/conditional content or structured results; test
+unsupported providers, changed meaning, injection attempts, malformed
+Markdown, partial streams, timeout/cancellation, denied data transfer,
+budget exhaustion, neutral toggle and missing plugin. Include original
+bureaucrat, gloomy robot and professor dialogue fixtures, serious technical
+answers and unchanged security warnings. Measure extra latency and cost;
+real rewriter quality requires opt-in empirical tests. No implementation
+or semantic-equivalence guarantee claimed by this specification.
+
 **Creative workflows:** let users assemble reusable teams and sequential
 or parallel roles through existing delegation contracts. For example:
 
@@ -3105,6 +3916,78 @@ target; fail closed on unknown scope and enforce structured grants in the
 broker/runtime. See the upstream Windows sandbox documentation: partial
 write confinement is not general read or network isolation.
 
+### Reference adapter: OpenAI Codex (owner direction, 2026-11-28)
+
+Add Codex as an optional peer runtime through the same Phase 26.1
+AgentRuntime contract, not a required dependency or a second orchestration
+system. Official integration guidance:
+https://developers.openai.com/blog/codex-as-a-platform
+and https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server
+(documented integration options, not verified RC behavior).
+Use the installed, version-checked Codex CLI with its supported app-server
+protocol over stdio for interactive persistent integration; consider
+`codex exec` for bounded noninteractive jobs and the official SDK as an
+alternative where suitable. Do not scrape the terminal or build new
+integration around the removed Codex MCP server entry point (upstream
+September 2026 change). Codex as MCP client remains a separate capability.
+Use supported authentication only, with explicit user choice and verified
+account/plan eligibility; never copy CLI tokens, borrow another agent's
+credentials, assume ChatGPT subscription quotas are API credit, or silently
+switch billing routes. Review current upstream protocol schemas and version
+compatibility before implementation.
+
+Map initialize/initialized, thread/start, thread/resume, turn/start,
+streamed items, completion status and supported interrupt/approval messages
+to the common runtime contract. Pin compatible wire schemas; verify exact
+event names and capabilities against the installed version before advertising
+them. Keep Codex-owned thread history authoritative, persist RC task/thread
+references and verified result artifacts, distinguish completed turns from
+successful acceptance tests. Apply existing scope, sandbox, approval,
+credential and resource rules; no self-approved escalation or arbitrary
+network access. Bind each worker to its approved workspace/worktree and
+role; isolate concurrent writes and reconcile effects before retry.
+Use Phase 26.4 scoped MCP for Codex access to RC tools and shared Blackboard
+operations, where actually supported. Native RC agents, Codex, DeepSeek
+Harness, Goose or other qualified adapters may collaborate through shared
+task contracts, handoffs, messages and evidence without access to each
+other's private transcripts or credentials.
+
+Treat an external runtime as an autonomous office when assigned an office
+mandate. Preserve its native persona/system instructions and supported
+internal subagent management. RC supplies task/acceptance contracts and
+a bounded delegation envelope, not mandatory internal job titles or prompts.
+If child activity or costs are not exposed, report aggregate observed
+office usage and mark detailed accounting unknown; never invent child events.
+Verify that required resource and permission limits cover descendants before
+allowing native delegation; if enforcement is unavailable, disable that mode
+where supported or use stronger isolation, otherwise report the limitation
+and do not dispatch under an unenforceable hard constraint. Test that native
+delegation does not require RC approval for each authorized internal worker,
+that independent office-level review remains independent and that aggregate
+handoff/cancellation/recovery works even for opaque internal organization.
+
+Reuse Agent Pool and the token ledger: record reported usage/rate limits
+when available, distinguish subscription quota, API cost, local compute
+and estimates; missing usage remains unknown. Allow the Manager to propose
+reallocating future tasks or unused internal budget within an approved
+envelope, not trade provider tokens or bypass account limits. On quota
+exhaustion checkpoint and wait, or propose an authorized replacement;
+never silently switch accounts or paid providers. Provide a common activity
+view for native and external workers with origin, task, role, status,
+approval requests, usage provenance and acceptance evidence.
+
+Reference team-building workload: RC Manager assigns an isolated PR review
+to Codex; Codex executes targeted and workspace tests, returns exact
+commands, exit codes, test counts, revision and artifact references; another
+qualified worker reviews the evidence and RC's Git role handles authorized
+commit/push. Reproduce the manual PR #5 handoff as an automated test fixture
+without claiming that the live chat assistant is directly connected to the
+local machine. Acceptance: fake app-server protocol, version mismatch,
+malformed/late events, auth failure, approval denial, cancellation, resume,
+quota exhaustion, concurrent workspace isolation and no unauthorized
+credential use; opt-in real Linux/Windows integration after mocks pass.
+Keep optional adapter independent of base file-manager operation.
+
 ### MCP and independent roles
 
 Expose approved RC tools through Phase 8 stdio MCP first; secure HTTP
@@ -3183,6 +4066,166 @@ platforms, dependencies, effects/permissions, source, license, hashes/
 signatures where available, test evidence, limitations and visual templates.
 Checksums prove integrity, not authorship. Tool descriptions, README and
 remote output are untrusted data, not instructions or permissions.
+
+### Installed MCP applications and on-demand activation (owner discussion, 2026-11-28)
+
+Separate read-only Installation Discovery from live MCP Capability Discovery.
+Inventory configured servers and approved application manifests even while
+their processes are stopped. Prefer publisher-provided registration metadata,
+then reviewed adapters and manual registration/import. Enumerate platform
+application registrations (Linux XDG desktop entries, package metadata,
+Windows installed application registrations) only as candidate hints: an
+installed application or executable name is not proof of MCP support, launch
+arguments or trust. No executing arbitrary binaries, guessing launch flags,
+port scanning, importing secrets or automatically trusting project manifests.
+The public MCP Registry is a catalogue, not an inventory of local installs.
+Reuse the RC capability catalogue rather than a second discovery system.
+
+#### MCP registration wizard and agent-facing capability lookup
+
+Extend the existing `[agent] clients` configuration, MCP agent panel and
+remembered tool catalogue (see Docs/MCP agents/en.md); do not replace them.
+Expose Settings > MCP > Add application with Manual (stdio executable and
+arguments or HTTP URL), By name/known recipe (resolve against reviewed
+catalogue and confirm installed path/endpoint), Local discovery (inert
+registration descriptors and OS application candidates), Import configuration
+(explicit selected entries from supported MCP client formats, no secrets or
+automatic execution), and Online catalogue (official MCP Registry or approved
+sources, distinguish available from installed). Provide a connection-test
+action which explicitly approves launching/connecting, verifies protocol and
+lists tools/resources/prompts, then stores the local registration and cached
+capabilities with trust/activation choices. If only an application name is
+known and no verified recipe exists, ask for the documented command/endpoint;
+do not fabricate flags. Import or discovery results are candidates until
+reviewed. Show unverified, stopped, ready, disabled and failed states and
+allow edit/remove/refresh. Remember verified entries across restarts.
+
+Expose a small scoped catalogue-search capability to the ordinary chat
+agent and RCHarness (proposed `capabilities.search`, `capabilities.describe`
+and broker-controlled activation). An agent searches by task intent/category,
+receives compact matching records including cached-versus-live status, then
+requests an authorized tool binding or activation. Do not inject every tool
+schema from every installed application into every model prompt. Retrieve
+exact live schemas before execution, expose only role/task-relevant granted
+tools, and handle no match or denied activation with a clear explanation.
+A newly registered application becomes discoverable without changing an
+agent prompt. Test discovery without process launch, manual/import/name
+registration, unknown recipes, persistence, compact lookup, stale cache,
+denied activation and missing capabilities. No implementation claimed.
+
+Proposed optional local application descriptor: stable application/server ID,
+publisher/version, executable or registered service identity, explicit argv
+(not shell commands), supported platform, stdio or Streamable HTTP endpoint,
+GUI/headless mode, launch/attach policy, startup timeout, shutdown capability,
+instance/workspace isolation and concurrency contract, and optional advertised
+capability hints. For Afrowave Craft applications prefer a documented MCP
+headless entry point and installer-registered inert descriptor when supported;
+verify each real application's actual interface first. External applications
+can use a reviewed adapter, an existing configured endpoint or manual launch.
+Cache last verified tools/resources/prompts and schemas with version, identity,
+time and stale status; advertised or cached data is not live verification.
+An application update or executable identity change invalidates relevant
+cache and launch authorization according to policy.
+
+Provide a common runtime-owned MCP activation/lifecycle broker with states
+discovered/unverified, configured/stopped, starting, ready, busy, failed,
+unavailable, disabled. Discovery does not itself grant launch authority.
+After explicit one-time or scoped user-approved on-demand activation policy,
+the first authorized request starts the registered stdio child or attaches
+to an existing verified HTTP endpoint; for a configured HTTP application,
+start its documented service only if authorized and wait for bounded readiness.
+Negotiate the supported protocol version and enumerate capabilities before
+dispatch; reject schema/identity mismatch and revalidate tool scope, workspace
+and budget. Never launch every installed application to populate the catalogue.
+Allow an explicit approved probe to refresh discovery, and cache its results.
+If no headless server is supported, use its documented GUI startup and
+connection flow; otherwise ask the user to start/configure it manually.
+
+Maintain one activation lease per compatible service/workspace identity and
+serialize concurrent start requests; share a broker-owned connection only
+when supported and isolation is maintained, otherwise allocate bounded
+separate sessions/processes. Enforce declared tool concurrency, queue conflicting
+operations, and expose application activity and lifecycle to the user.
+Use direct argv execution, validated executable provenance, minimal inherited
+environment, broker-scoped credentials, bounded startup/retry, protocol-only
+stdout for stdio and separate logs. Bind local HTTP to loopback where supported,
+validate endpoint and authentication; never infer trust from localhost.
+Do not automatically kill or close a user-started GUI, external service or
+process with unsaved work. Track RC-owned versus attached processes, active
+leases, pending effects and supported graceful shutdown. Offer keep-alive
+or configurable idle shutdown for owned idle services after durable handoff;
+if safe shutdown cannot be established, leave running and report status.
+Crash/restart reconciles leases and uncertain effects without replaying
+mutating tools. Disabling/revoking a service prevents new dispatch.
+
+Manager sees discovered/stopped versus live capabilities and can request
+activation through the same tool broker; an unavailable tool yields a
+clear alternative or blocker. RCHarness does not spawn applications itself
+or widen user grants. This activation service is usable without AI.
+
+Acceptance extension (16.31/16.37/18/25/27.2): inert manifests and malicious
+descriptors, missing executables, stopped/running services, stale schemas,
+denied launch, duplicate concurrent activation, startup timeout, invalid
+protocol, tool reauthorization, isolation, idle shutdown, unsaved work,
+attached-process preservation, crash/recovery and revocation; test on Linux
+and Windows with fake stdio/HTTP servers before opt-in real Craft integration.
+No claim of existing Craft launch flags or tested integration.
+
+### Personal data protection reference plugin (owner direction, 2026-11-28)
+
+Include an optional Data Privacy reference integration in 27.5, using
+https://github.com/gary23w/f-ck_data_brokers as the initial upstream candidate.
+The reviewed repository contains an MIT-licensed Python stdio MCP server
+(`python3 /approved/path/fuck_data_brokers.py mcp`), legal templates, broker
+catalogues and tests. Preserve upstream attribution and MIT notices, verify
+separate registry/data terms, pin and review a specific upstream revision
+before installation. Prefer a reviewed adapter/registration recipe and
+upstream collaboration over an unnecessary fork. No automatic installation
+or activation, no mandatory Python dependency for the file manager.
+
+Provide a local-first privacy workspace for selected broker discovery,
+deletion/objection request drafts, explicit recipient and content review,
+reply tracking, reminders and evidence export for the appropriate regulator.
+Keep the human in control: no blanket outreach to all catalogue entries,
+automatic account closure, identity-document upload or CAPTCHA bypass.
+Warn that contacting an unknown broker can disclose new personal data.
+Verify contact provenance and applicable jurisdiction; maintain reviewed,
+versioned legal templates and deadlines (including legitimate extensions),
+not AI-generated legal assertions. EU/Czech coverage is a desired extension,
+not a claim that the upstream US-oriented catalogue is comprehensive.
+Distinguish draft, submitted, acknowledged, broker-reported deletion and
+independently verified outcomes; never promise actual deletion.
+
+Keep personal profile, correspondence and credentials local in a dedicated
+private workspace with restrictive OS permissions, encrypted sensitive
+storage where supported, safe atomic writes and cross-process locking.
+Audit/redact without logging full personal data. Do not expose raw profile,
+mail or draft content to remote models or Agent Commons by default; use
+redacted status and explicitly authorized minimum data. Keep mail credentials
+in the existing vault, not the prompt, generic inherited environment or
+plugin logs. Do not grant the server direct sending authority by default:
+the upstream fdb_send approval instruction is advisory, so enforce approval
+of exact recipients and content at the RC broker, preferably via a scoped
+mail adapter with no credentials in the MCP server. Constrain outbound
+network destinations, process/filesystem access and tool grants. Treat
+broker replies as untrusted, do not follow links automatically, and do not
+rely on From-domain matching alone to establish authenticity. Ambiguous
+replies and sensitive actions require human review. No automatic sending
+until enforcement is verified. Disable/revoke without deleting evidence;
+allow explicit export and deletion of local data.
+
+Acceptance: inspect pinned source and data licenses; run upstream tests
+offline with synthetic identities, fake SMTP/IMAP and registries; verify
+stdio handshake, discovery, tool schema and disabled-by-default activation.
+Add tests for denied send, recipient/content substitution, unknown broker
+consent, prompt injection, spoofed replies, protected local files, concurrent
+writes, crashes/retries, no accidental duplicate sends, corrected deadlines,
+redacted status and denied external data disclosure. Demonstrate draft-only
+workflow without AI, then a local-model workflow and an opt-in controlled
+real test. No actual requests to third parties during automated tests.
+Upstream source inspection only so far; no integration, installation,
+test run or security/legal audit claimed. This is an optional reference
+plugin, not a new core dependency or a prerequisite for RCommander release.
 
 ### Workshop
 
@@ -3696,6 +4739,66 @@ above are green.
 | Session restore with unsaved-edit recovery | scheduled in Phase 25.1–25.2; reopen tabs, panels and editor buffers without replaying side effects | see Phase 25 |
 | Per-directory action menus | `.rcommander.toml` next to a folder defines buttons (build, test, deploy) with confirmations | medium |
 | Accessibility pass | full keyboard navigation and screen-reader labels (the panels already carry accessible names) | medium |
+
+### Optional Easter egg — RCSnake (owner direction, 2026-11-28)
+
+Schedule as a small Stage K polish task, independent of AI, networking and
+external runtimes. Add an original retro Snake-style mini-game, working name
+RCSnake, hidden behind a deliberate gesture in the About dialog (proposed:
+five clicks on the RCommander logo). Offer a keyboard-accessible equivalent
+inside that dialog and avoid accidental activation during file operations.
+No ordinary menu clutter, external assets, copied Nokia code/branding,
+additional runtime dependency, advertising, telemetry or network activity.
+
+Use a small themed egui dialog or temporary panel, preserving both file
+panels, selections and ongoing tasks. Original grid-based snake mechanics:
+arrow/WASD movement, food, growth, score, increasing bounded speed, wall/self
+collision, pause, restart and Escape to close. Respect input focus and
+prevent gameplay keys from invoking file-manager commands. Pause when focus
+is lost; only request periodic repaint while actively playing. No AI calls,
+token usage or GPU-specific features. Optional local best score, resettable
+and without player identity. Keep the game core deterministic with injected
+time and seeded food placement; test movement, reversal rejection, growth,
+collision, full-board completion, pause/resume, restart, score and bounded
+speed. GUI smoke tests cover hidden activation, focus/key isolation, closing
+and preservation of file-manager state. Verify desktop behavior before
+marking implemented. The hidden trigger, working name and visual design
+are proposed defaults, not a public feature promise.
+Owner documentation preference: after implementation and verification, mention
+RCSnake and its activation briefly near the very end of the detailed user
+help, not in prominent feature lists, menus or README.md. Preserve the
+Easter egg character; do not advertise the game before it works.
+
+#### Randomized Easter egg rotation (later polish, owner direction, 2026-11-28)
+
+After the initial Snake implementation is verified, add a total of three
+small original offline retro games. Proposed candidates: RCSnake (grid
+movement and growth), RCBounce (paddle and brick clearing), and RCFall
+(falling-block puzzle). Names and mechanics are provisional; use original
+code/assets, a common game host and the same hidden About gesture.
+
+Choose exactly one game per installation with an unbiased local random draw
+on initial installation and on each successfully applied application-version
+upgrade. The same game may legitimately be drawn again. Do not reroll on
+ordinary launch, restart, opening the game or repair of the same version.
+No game selection menu or public README feature. Prefer installing only the
+selected bundled game component; include all three in the offline installer
+or package source as needed, not as active installed games. For platforms
+where package ownership or single-binary distribution prevents selective
+installation, use exactly one persistently enabled game and explicitly
+document that packaging limitation rather than mutate package-managed files.
+Portable distributions initialize the draw on first launch for each version.
+Use local installation/version state, not device fingerprints, network
+services or telemetry. Failed upgrades and rollback must preserve/reconcile
+the last successful selection without touching unrelated user data.
+Keep optional high scores separate per game; rotation resets selection, not
+scores. Reuse keyboard/focus/pause/exit isolation and headless tests from
+RCSnake; inject RNG for selection tests covering all three outcomes,
+same-version stability, upgrade reroll (including repeated game), exactly
+one installed/active variant, offline install, failed upgrade and rollback.
+Only briefly mention the shared hidden gesture in detailed help after
+verification, without revealing which game a user receives. Keep this
+optional polish outside the main delivery critical path.
 
 ## Working rules
 
