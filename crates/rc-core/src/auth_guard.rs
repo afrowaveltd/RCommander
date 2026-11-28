@@ -142,6 +142,12 @@ fn cleanup(dir: &Path, now: u64) -> io::Result<()> {
         // Never remove a record while another process is updating that account.
         let Ok(_lock) = lock(&path.with_extension("lock")) else { continue; };
         if let Ok(Some(mut record)) = load(&path) {
+            // Only prune records whose account matches the filename. Preserve
+            // mismatched records so begin_at can reject them rather than
+            // silently turning a damaged record into a fresh attempt.
+            if record.account.key() != key {
+                continue;
+            }
             record.prune(now);
             if record.empty() { remove(&path)?; }
         }
