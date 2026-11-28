@@ -161,11 +161,7 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut AgentUi, palette: &
             ui.horizontal(|ui| {
                 ui.label(model.t("agent.tools"));
                 ui.label(
-                    RichText::new(format!(
-                        "{} server(s) configured, {} connected",
-                        ui_state.pending.len(),
-                        ui_state.servers.len()
-                    ))
+                    RichText::new(model.tf("mcp.servers.summary", &[("configured", &ui_state.pending.len().to_string()), ("connected", &ui_state.servers.len().to_string())]))
                     .small()
                     .color(palette.hidden),
                 );
@@ -189,7 +185,7 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut AgentUi, palette: &
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(&server.name).strong());
                             ui.label(
-                                RichText::new(format!("{} tool(s)", server.tools.len()))
+                                RichText::new(model.tf("mcp.tools.count", &[("count", &server.tools.len().to_string())]))
                                     .small()
                                     .color(palette.hidden),
                             );
@@ -223,7 +219,7 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut AgentUi, palette: &
                             egui::TextEdit::multiline(&mut server.args)
                                 .desired_rows(2)
                                 .desired_width(f32::INFINITY)
-                                .hint_text("JSON arguments"),
+                                .hint_text(model.t("mcp.arguments")),
                         );
                         // What the model may call, decided per tool. The list comes from the
                         // remembered catalogue, so a second connection shows the same answers.
@@ -349,7 +345,7 @@ pub fn show(ctx: &Context, model: &mut Model, ui_state: &mut AgentUi, palette: &
                         ui.label(model.t("agent.panel"));
                         ui.label(
                             RichText::new(
-                                "Add MCP servers under [agent] clients in settings.toml.",
+                                model.t("mcp.servers.empty"),
                             )
                             .small()
                             .color(palette.hidden),
