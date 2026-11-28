@@ -152,3 +152,7 @@ not available, RCommander asks for the password in a focused dialog. The
 account and server remain fixed; enter the masked password or cancel. The
 optional remember checkbox is off by default and saves only after a successful
 connection. The regular connection editor remains available for editing profiles.
+
+### Unlock an existing credential store
+
+If the saved-session password prompt opens while an encrypted credential store is locked, choose **Unlock saved credentials**, enter its passphrase and confirm. Unlocking does not connect to the server. If the exact account has a saved password, choose **Connect using saved password**, or enter a different password instead. No password is displayed. A missing or invalid store is not created or reset by this dialog.
