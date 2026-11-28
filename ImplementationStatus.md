@@ -2487,6 +2487,27 @@ storage; model regressions for refusal before worker start and suppression of
 retry prompt. EN/CS/AR messages mirrored. Cargo/build/real-server acceptance
 pending in this environment.
 
+## Handoff — authentication guard cleanup identity (2026-11-28)
+
+Stage A / 7 / 13. In the follow-up branch, expired-record cleanup checks
+the SHA-256 account identity against the JSON filename before pruning or
+deleting it. Previously an expired record with a mismatched identity
+could disappear before the target-specific fail-closed check. Preserve
+invalid records for that check; an unrelated account is not blocked by
+the malformed record. The five-failure threshold, 900-second rolling
+window and 900-second ban are unchanged.
+
+Test-first commits add regressions for expired mismatched records,
+unrelated account access, and cleanup of expired valid records while
+retaining a different active account. Source review only; the editing
+environment has no Rust toolchain and cannot resolve GitHub for cloning.
+At baseline d829f81, the available GitHub status queries returned no
+checks; earlier green runs are not current evidence. Required before
+acceptance: cargo test --locked -p rc-core auth_guard, cargo test --locked
+--workspace, cargo fmt --check, cargo clippy --locked --workspace
+--all-targets, and real desktop/server verification on supported platforms.
+No new dependencies, locale changes or completion claim.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
