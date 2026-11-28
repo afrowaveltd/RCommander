@@ -3202,6 +3202,65 @@ or impersonate real people. Character humour must not override accuracy,
 safety, respectful treatment or the user's ability to switch to neutral
 assistance, especially for serious or sensitive requests.
 
+### Personalities plugin — meaning-preserving communication proxy (owner direction, 2026-11-28)
+
+Add an optional presentation-layer Personalities plugin between human-facing
+chat and the existing AI gateway, independently of workload/persona prompts,
+provider identity and internal agent personalities. This extends 24.1/24.5,
+not a second agent runtime. Preserve the underlying model/runtime's own
+instructions, role, tool loop and native subagents. Default to output-only
+styling: forward the original user input unchanged to the task runtime,
+retain the authoritative original response and transform only eligible
+human-facing natural-language spans into the selected dialect. Optional
+inbound normalization, if ever enabled, must be explicit, preserve the
+original input and require confirmation on material ambiguity; never
+silently reinterpret a user request. Internal agent communication, task
+contracts, Blackboard evidence, tool calls/results and approvals bypass
+the presentation proxy entirely.
+
+Support user-selectable versioned style packs and separate optional
+rewriter model/provider (prefer inexpensive local models when suitable),
+deterministic templates for simple cases, neutral/raw toggle and immediate
+disable. Display source versus styled text on demand; switching style does
+not regenerate the task, change permissions or rewrite its history.
+Do not transform code, commands, paths, URLs, citations, identifiers,
+numbers/units, error messages, quoted source text, JSON/structured outputs,
+machine-readable artifacts, exact requested wording, authorization prompts
+or critical warnings. Parse eligible spans and protect exact content
+through typed boundaries rather than rely only on prompt instructions.
+Preserve facts, negation, uncertainty, conditions, instructions and intent;
+humor may change phrasing, not introduce invented events or claims.
+No claim of perfect semantic equivalence: use protected-span checks and
+semantic validation where warranted, and fail open to the original
+human-facing text if styling cannot be validated, times out, exceeds its
+budget or fails. Do not apply stylistic transformations to sensitive or
+high-consequence messages where clarity would suffer. Raw operational
+errors and security decisions remain visible and authoritative.
+
+Treat original responses and style pack content as untrusted data for the
+rewriter, with no tools, credentials or execution authority. External
+rewriting requires an approved provider/data destination; never send private
+content to another provider merely because a persona was enabled.
+Use bounded streaming segments or sentence/paragraph buffering with
+cancellation and explicit latency/usage accounting; preserve message order,
+Markdown structure and source references. Separate task and presentation
+token/cost accounting in the existing ledger. Cache only when authorized
+and keyed by exact content, style version and rewriter configuration;
+do not replace authoritative project memory with decorative output.
+If the plugin is absent/disabled, the original response passes through
+without extra model calls or added dependency.
+
+Acceptance: mock task runtime receives unchanged prompt and tool contracts
+under all styles; mock rewriter changes tone without changing protected
+spans, factual/negative/conditional content or structured results; test
+unsupported providers, changed meaning, injection attempts, malformed
+Markdown, partial streams, timeout/cancellation, denied data transfer,
+budget exhaustion, neutral toggle and missing plugin. Include original
+bureaucrat, gloomy robot and professor dialogue fixtures, serious technical
+answers and unchanged security warnings. Measure extra latency and cost;
+real rewriter quality requires opt-in empirical tests. No implementation
+or semantic-equivalence guarantee claimed by this specification.
+
 **Creative workflows:** let users assemble reusable teams and sequential
 or parallel roles through existing delegation contracts. For example:
 
