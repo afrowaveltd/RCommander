@@ -186,7 +186,7 @@ fn render(
         let mode = effective_mode(state.mode, ui_state);
         if mode == ViewerMode::Hex && ui_state.loaded.is_some() {
             if let Some(LoadedViewer { content: ViewerContent::Hex(doc), .. }) = &ui_state.loaded {
-                show_hex(ui, &mut state, doc, palette);
+                show_hex(ui, &mut state, doc, palette, model);
             } else {
                 let options = ui_state.options;
                 let dump = ui_state.hex.get_or_insert_with(|| {
@@ -194,7 +194,7 @@ fn render(
                         .map_err(|e| e.to_string())
                 });
                 match dump {
-                    Ok(doc) => show_hex(ui, &mut state, doc, palette),
+                    Ok(doc) => show_hex(ui, &mut state, doc, palette, model),
                     Err(error) => { ui.label(error.as_str()); }
                 }
             }
@@ -202,10 +202,10 @@ fn render(
         }
         match (&ui_state.loaded, mode) {
             (Some(LoadedViewer { content: ViewerContent::Image(_), .. }), ViewerMode::Image) => {
-                show_image(ui, &mut state, ui_state);
+                show_image(ui, &mut state, ui_state, model);
             }
             (Some(loaded), ViewerMode::Text) if matches!(&loaded.content, ViewerContent::Text(_)) => {
-                show_text(ui, &mut state, loaded, palette);
+                show_text(ui, &mut state, loaded, palette, model);
             }
             (Some(loaded), ViewerMode::Auto) => {
                 ui.label(rc_viewer::describe(loaded));
@@ -255,6 +255,7 @@ fn show_text(
     state: &mut crate::model::ViewerState,
     loaded: &LoadedViewer,
     palette: &Palette,
+    model: &Model,
 ) {
     let ViewerContent::Text(text) = &loaded.content else {
         ui.label(rc_viewer::describe(loaded));
@@ -262,7 +263,7 @@ fn show_text(
     };
     ui.horizontal(|ui| {
         ui.label(
-            RichText::new(format!("{}: {}", "encoding", text.encoding))
+            RichText::new(format!("{}: {}", model.t("viewer.encoding"), text.encoding))
                 .small()
                 .color(palette.hidden),
         );
@@ -270,9 +271,9 @@ fn show_text(
             ui.label(RichText::new("RTL").small().color(palette.directory));
         }
         if text.truncated {
-            ui.label(RichText::new("truncated").small().color(palette.readonly));
+            ui.label(RichText::new(model.t("viewer.truncated")).small().color(palette.readonly));
         }
-        ui.checkbox(&mut state.wraps, "wrap");
+        ui.checkbox(&mut state.wraps, model.t("viewer.wrap"));
     });
     let viewport = ui.available_size().max(egui::vec2(1.0, 1.0));
     egui::ScrollArea::both()
@@ -321,27 +322,28 @@ fn show_hex(
     state: &mut crate::model::ViewerState,
     doc: &rc_viewer::HexDocument,
     palette: &Palette,
+    model: &Model,
 ) {
     // The slider edits a request; the dump is rebuilt when it differs from what is on screen.
     let mut width = state.hex_bytes.clamp(1, 64);
     ui.horizontal_wrapped(|ui| {
         ui.label(
-            RichText::new(format!("{} bytes", doc.total_bytes))
+            RichText::new(model.tf("viewer.total_bytes", &[("count", &doc.total_bytes.to_string())]))
                 .small()
                 .color(palette.hidden),
         );
         if doc.truncated {
-            ui.label(RichText::new("truncated").small().color(palette.readonly));
+            ui.label(RichText::new(model.t("viewer.truncated")).small().color(palette.readonly));
         }
         if ui
-            .add(egui::Slider::new(&mut width, 1..=64).text(model_bytes_label()))
+            .add(egui::Slider::new(&mut width, 1..=64).text(model.t("viewer.bytes_per_line")))
             .changed()
         {
             state.hex_bytes = width;
         }
         // Jumping to an offset is how a person reads a file format: the header says "at 0x200".
         ui.label(RichText::new("|").color(palette.hidden));
-        ui.label("go to");
+        ui.label(model.t("viewer.goto"));
         ui.add(
             egui::TextEdit::singleline(&mut state.hex_goto)
                 .desired_width(90.0)
@@ -373,12 +375,7 @@ fn show_hex(
         .show(ui, |ui| {
             if let Some(line) = view.lines.get(selected) {
                 ui.label(
-                    RichText::new(format!(
-                        "offset {} (0x{:x}) · {} bytes",
-                        line.offset,
-                        line.offset,
-                        line.bytes.len()
-                    ))
+                    RichText::new(model.tf("viewer.hex_detail", &[("offset", &line.offset.to_string()), ("hex", &format!("{:x}", line.offset)), ("count", &line.bytes.len().to_string())]))
                     .small()
                     .color(palette.hidden),
                 );
@@ -498,17 +495,13 @@ fn describe_u32(bytes: &[u8]) -> String {
         .join(" ")
 }
 
-fn model_bytes_label() -> String {
-    "bytes/line".to_string()
-}
-
-fn show_image(ui: &mut egui::Ui, state: &mut crate::model::ViewerState, ui_state: &ViewerUi) {
+fn show_image(ui: &mut egui::Ui, state: &mut crate::model::ViewerState, ui_state: &ViewerUi, model: &Model) {
     let Some(texture) = &ui_state.image_texture else {
         ui.label(
             ui_state
                 .error
                 .clone()
-                .unwrap_or_else(|| "image not available".to_string()),
+                .unwrap_or_else(|| model.t("viewer.image_unavailable")),
         );
         return;
     };
@@ -526,7 +519,7 @@ fn show_image(ui: &mut egui::Ui, state: &mut crate::model::ViewerState, ui_state
         if ui.button("+").clicked() {
             state.zoom = (if state.zoom <= 0.0 { scale } else { state.zoom } * 1.25).min(16.0);
         }
-        if ui.button("fit").clicked() {
+        if ui.button(model.t("viewer.fit")).clicked() {
             state.zoom = 0.0;
         }
         ui.label(format!("{:.0}%", scale * 100.0));
