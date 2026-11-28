@@ -972,3 +972,16 @@ authors = ["RCommander contributors"]
 "plugins.status.none" = "No plugins found"
 "dialog.decode.envelope" = "From the envelope"
 "dialog.viewmode.comments" = "Comments"
+
+# MCP and window controls
+"mcp.servers.summary" = "Configured servers: {configured}; connected: {connected}"
+"mcp.tools.count" = "Tools: {count}"
+"mcp.arguments" = "JSON arguments"
+"mcp.servers.empty" = "Add MCP servers under [agent] clients in settings.toml."
+"window.pin" = "Pin"
+"window.unpin" = "Unpin"
+"window.cover_panels" = "Cover the panels while you work"
+"window.maximize" = "Maximize"
+"window.restore" = "Restore"
+"window.minimize" = "Minimize"
+"window.expand" = "Expand"
