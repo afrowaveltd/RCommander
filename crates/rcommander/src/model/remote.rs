@@ -58,8 +58,16 @@ impl RcRemoteBackend {
         spec: &rc_remote::ConnectionSpec,
         on_stage: rc_remote::StageReporter<'_>,
     ) -> Result<Self, String> {
+        Self::connect_reporting_typed(spec, on_stage).map_err(|e| e.to_string())
+    }
+
+    /// Keep the protocol's error category for interactive credential recovery.
+    pub fn connect_reporting_typed(
+        spec: &rc_remote::ConnectionSpec,
+        on_stage: rc_remote::StageReporter<'_>,
+    ) -> Result<Self, rc_remote::RemoteError> {
         let description = rc_remote::describe(spec);
-        let inner = rc_remote::connect_send_reporting(spec, on_stage).map_err(|e| e.to_string())?;
+        let inner = rc_remote::connect_send_reporting(spec, on_stage)?;
         Ok(RcRemoteBackend { inner, description })
     }
 }
