@@ -1375,6 +1375,90 @@ live preview example requires a real build, isolated test endpoint and
 browser evidence before it is marked complete. No implementation claimed by
 this specification.
 
+#### RCHarness — optional creation and project orchestration plugin (owner direction, 2026-11-28)
+
+Treat organized long-running creation as an optional native runtime/workload
+plugin, working name RCHarness. Examples include software development,
+education/course creation, books and documents, research, creative production,
+and server provisioning/deployment. Ordinary file operations and single-agent
+chat must work with the plugin absent or disabled. Reuse Phase 18 plugin
+discovery/activation, Phase 26.1 runtime contract, the headless Phase 25
+scheduler/ledger/SessionStore, Phase 16 policy/broker and Phase 32 workflows.
+RCHarness owns team-specific planning, role assignments, task context assembly,
+memory lifecycle and quality-gate orchestration, not a second scheduler,
+security system, credential vault, tool registry or durable task ledger.
+Use existing RC file, Git, editor, remote, browser and MCP capabilities through
+versioned interfaces. Native model calls and external Harness/Codex/ACP-style
+runtime adapters may participate when their capabilities are actually verified.
+
+Separate persistent memory from a model's finite active context:
+- Working context: scoped instructions, task/attempt ID, role, relevant source
+  excerpts, immutable input/output contracts, acceptance criteria, dependencies,
+  permitted tools, budgets, recent tool receipts and unresolved issues.
+- Short-term/session memory: active Blackboard, intermediate results,
+  checkpoint references, failed approaches, pending questions and handoffs.
+- Long-term project memory: versioned architecture, interface definitions,
+  decisions and their reasons, durable artifact/source references, verified
+  tests, constraints, dependency graph and known open issues.
+- Optional cross-project knowledge: explicitly authorized, scoped reusable
+  procedures and validated lessons via Phase 31; no automatic export to
+  another project/provider or Agent Commons. No secrets in summaries.
+
+A ContextBuilder (proposed name) selects only relevant material for a task
+using explicit dependency links, revision-pinned paths, symbol/metadata
+lookup and bounded search. Prefer deterministic lookup before optional
+semantic retrieval. Context packs carry source provenance, revision/hash
+and actual/estimated token usage with a reserved output/tool-result budget.
+Never assume all models have the same context limit. If essential input
+cannot fit, split the task or seek an approved qualified executor; never
+silently truncate acceptance criteria, security constraints, contracts or
+unresolved failures. Manager receives goal, task graph, interface contracts,
+acceptance evidence, changes and blockers; implementation details are
+retrievable on demand for review rather than copied into every prompt.
+
+On subtask completion, persist structured handoff, input/output contract
+versions, artifacts, evidence, unresolved issues and usage before releasing
+the working context. Then create a fresh bounded context for the next task,
+even if the same model executes it. Preserve durable records and references;
+resetting an active model conversation is not deleting project history.
+Keep authoritative external-runtime transcripts with their owning adapter;
+if reset/compaction is unsupported, use a new scoped session or report the
+limitation, never claim upstream history was erased. On interruption,
+checkpoint before releasing context; a crash or failed handoff must not
+advance dependent work or repeat uncertain effects.
+
+Compaction may summarize older working messages, deduplicate tool outputs
+and replace large artifacts with verified references. Summaries are derived
+data, not proof or authority; retain access to originals subject to retention
+policy. Preserve exact acceptance constraints, failed/skipped checks,
+important decisions, changes, tool receipts and unresolved objections.
+Revalidate stale references and invalidated summaries on revision/contract
+change. Record context source selection, compaction and model-reported usage
+without inventing token savings. Context cannot grant permissions; egress
+checks apply to each selected provider. Manager can request more evidence
+when a compact context is insufficient.
+
+Reference slices: a multi-module software project with bounded worker
+contexts and integration tests; a book/course with shared terminology,
+outline and independent content review; an isolated server deployment
+with desired-state contracts, scoped host identity, preflight, approved
+changes, configuration verification and recovery receipts. The Manager
+coordinates contracts and acceptance rather than micromanaging internal
+implementation. A changed interface invalidates affected dependent work
+and triggers review/retest. No unapproved production deployment or replay
+of ambiguous effects.
+
+**Acceptance extensions (16.19–20/16.27–34/25.5–10/26.1/32):** mocked
+small-context providers complete a larger multi-stage task with bounded
+context packs; completed task context is reset without losing decisions
+or evidence; essential constraints survive compaction; stale contracts,
+missing sources, failed persistence, cancellation, budget exhaustion and
+unavailable external reset are handled explicitly; no unrelated project
+data or secrets are disclosed; disabling RCHarness leaves baseline RC
+usable. Measure actual context usage on reference workloads, separately
+from provider-reported cost. Live integrations and production acceptance
+remain unverified until executed.
+
 #### Collective collaboration and group chat (owner decision, 2026-11-27)
 
 Expose the existing team coordinator and durable Meeting Rooms (25.6/25.10)
