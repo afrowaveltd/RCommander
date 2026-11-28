@@ -1459,6 +1459,70 @@ usable. Measure actual context usage on reference workloads, separately
 from provider-reported cost. Live integrations and production acceptance
 remain unverified until executed.
 
+#### RCHarness — test-driven delivery and independent evidence (owner decision, 2026-11-28)
+
+Make test-driven development (TDD) the default software-development workflow
+in all team organization modes, including one-model fallback and external
+runtime offices. Reuse the existing Working rules, quality-gate orchestration,
+scheduler, Blackboard, evidence ledger and Phase 36 verification contracts.
+Deterministic checks are a necessary acceptance gate, not optional substitutes
+for model review. Plan and budget for testing from the start rather than
+treating it as expendable when execution gets slow.
+
+For each behavior change: define the requirement, observable acceptance
+criteria and contract version; establish the existing baseline; write or
+extend meaningful tests before changing production behavior; demonstrate
+the relevant failing test against the pre-fix/pre-feature implementation
+(Red), implement the smallest coherent change (Green), then refactor while
+keeping checks green. For a new interface where the initial test cannot
+compile, record that failure and establish an executable behavioral test
+as soon as possible. For already-satisfied requirements, record the passing
+baseline instead of manufacturing a failure. Regression fixes require a
+reproducer when practical. Preserve the evidence from each stage.
+
+Prefer an independent test author/reviewer using a different qualified
+model where resources permit. Give the reviewer the original requirements,
+contracts and artifact revision before the author's rationale (optional
+blind review); review the tests themselves for coverage, weak assertions,
+mock fidelity, vacuous success, accidental skips and overfitting. Do not
+require multiple models when unavailable: use isolated role contexts and
+state the independence limitation. Agent consensus, self-reported success
+and model-generated scores never replace executed evidence. Treat review
+findings as hypotheses to reproduce or resolve, not votes.
+
+Select applicable deterministic unit, regression, integration, contract,
+negative/security, build, formatting, lint and end-to-end checks. Use
+isolated fixtures, explicit seeds/clocks, ephemeral ports, bounded timeouts
+and pinned toolchain/dependencies where practical. Record actual commands,
+exit status, counts, skips, environment, logs/artifact references and
+tested revision. Distinguish not run, blocked, failed and passed; a skipped
+test or no-op must never be counted as a pass. Failures, unavailable
+mandatory gates, stale evidence after relevant changes and unresolved
+critical findings block verified completion and automatic release. Do not
+weaken tests, hide warnings or rerun selectively until green to satisfy a
+gate. Preserve failures, diagnose flakiness and retest affected interfaces
+and required integration gates after changes. No silent test bypass to
+save tokens, time or budget; checkpoint and report a blocker instead.
+Any explicitly owner-approved exceptional handoff remains unverified
+where evidence is absent, with the missing checks visible.
+
+Apply analogous test-first acceptance to other workloads: define measurable
+criteria before production, validate document structure, links, citations,
+calculations, rendering, accessibility, deployment pre/postconditions and
+other applicable facts using deterministic checks; reserve human or
+independent expert review for subjective quality and claims that cannot
+be mechanically established. Never invent a deterministic proof of artistic
+or factual quality. Tests involving destructive operations or real external
+services need isolated fixtures or explicit authorization.
+
+Acceptance for RCHarness itself: mocked teams demonstrate Red/Green/Refactor
+ordering, independent review and single-model fallback, missing/failed/skipped
+gate handling, revision-bound evidence invalidation, budget interruption,
+test tampering detection and no automatic completion/release without
+required evidence. Use RCommander PR #5 (auth regression, isolated UI
+fixtures, actual loopback SFTP, strict Clippy and release build) as a
+documented reference example, not proof that RCHarness is implemented.
+
 #### RCHarness — conversational discovery and beginner-first project launch (owner direction, 2026-11-28)
 
 Make the ordinary chat agent a natural entry point to optional project
