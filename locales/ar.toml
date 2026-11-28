@@ -948,3 +948,8 @@ authors = ["RCommander contributors"]
 "session.wallet_no_password" = "فُتح قفل المخزن. لا توجد كلمة مرور محفوظة لهذا الحساب."
 "session.wallet_use_password" = "الاتصال باستخدام كلمة المرور المحفوظة"
 "session.password_rejected" = "فشلت المصادقة. أدخل كلمة مرور جديدة لإعادة محاولة هذا الاتصال المحفوظ. لم تُجرَ محاولة تلقائية."
+
+# Local authentication throttling
+"session.auth_guard_blocked" = "المصادقة لهذا الحساب محظورة مؤقتاً. أعد المحاولة بعد {seconds} ثانية."
+"session.auth_guard_busy" = "تجري محاولة اتصال أخرى لهذا الحساب."
+"session.auth_guard_storage" = "مخزن حماية المصادقة غير متاح. رُفض الاتصال."
