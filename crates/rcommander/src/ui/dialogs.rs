@@ -86,6 +86,7 @@ pub fn show(ctx: &Context, model: &mut Model) -> DialogAction {
                 Dialog::Decode(state) => decode_dialog(ui, model, state),
                 Dialog::SaveSelection(state) => save_selection(ui, model, state),
                 Dialog::LoadSelection(state) => load_selection(ui, model, state),
+                Dialog::LanguagePicker => language_picker(ui, model),
                 Dialog::About => about(ui, model),
                 Dialog::Confirm {
                     message,
@@ -461,11 +462,53 @@ fn title_for(model: &Model, dialog: &Dialog) -> String {
         Dialog::FtpConnect(state) if state.password_session.is_some() => "session.password_title",
         Dialog::FtpConnect(_) => "ftp.connect",
         Dialog::Synchronize(_) => "cmd.sync_dirs",
+        Dialog::LanguagePicker => return "Language / 🌐 (Ctrl+L)".to_string(),
         Dialog::About => "cmd.about",
         Dialog::Confirm { title_key, .. } => title_key.as_str(),
         Dialog::Progress(state) => state.title_key.as_str(),
     };
     model.t(key)
+}
+
+/// This is a recovery surface: native language names, explicit language codes,
+/// and a stable English heading do not depend on the broken/unknown locale.
+fn language_picker(ui: &mut egui::Ui, model: &mut Model) -> DialogAction {
+    let mut languages = std::collections::BTreeMap::new();
+    let english = rc_i18n::english();
+    languages.insert("en".to_owned(), english.meta().selector_label());
+    if let Ok(locales) = rc_i18n::Translator::load_dir(&crate::paths::locales_dir()) {
+        for locale in locales {
+            languages.insert(locale.code().to_owned(), locale.meta().selector_label());
+        }
+    }
+    let current = model.strings.language();
+    let mut chosen = None;
+    egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
+        for (code, name) in languages {
+            if ui.selectable_label(current == code, format!("{name} [{code}]")).clicked() {
+                chosen = Some(code);
+            }
+        }
+    });
+    if let Some(code) = chosen {
+        if model.set_language(&code) {
+            // An options draft below the picker must not undo the rescue on OK.
+            for dialog in &mut model.dialogs {
+                if let Dialog::Options(state) = dialog {
+                    state.language_choice = code.clone();
+                    state.draft.language = code.clone();
+                }
+            }
+            return DialogAction::Close;
+        }
+    }
+    ui.separator();
+    if ui.button(format!("{} / Esc", model.t("dialog.config.cancel"))).clicked()
+        || ui.input(|input| input.key_pressed(egui::Key::Escape))
+    {
+        return DialogAction::Close;
+    }
+    DialogAction::None
 }
 
 fn buttons(ui: &mut egui::Ui, model: &Model) -> (bool, bool) {
