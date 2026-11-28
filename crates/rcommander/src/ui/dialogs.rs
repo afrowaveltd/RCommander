@@ -3016,7 +3016,7 @@ fn ftp(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> Dia
 fn ftp_password(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectState) -> DialogAction {
     ui.label(egui::RichText::new(&state.session_name).strong());
     ui.label(state.summary());
-    if model.secrets_exist() && !model.secrets_unlocked() {
+    if !state.password_rejected && model.secrets_exist() && !model.secrets_unlocked() {
         if state.wallet_passphrase.is_none()
             && ui.button(model.t("session.wallet_unlock")).clicked()
         {
@@ -3060,12 +3060,14 @@ fn ftp_password(ui: &mut egui::Ui, model: &mut Model, state: &mut FtpConnectStat
             return DialogAction::None;
         }
     }
-    if state.password_session.as_ref().is_some_and(|profile| model.saved_login_available(profile))
+    if !state.password_rejected
+        && state.password_session.as_ref().is_some_and(|profile| model.saved_login_available(profile))
         && ui.button(model.t("session.wallet_use_password")).clicked()
     {
         let session = state.profile_for_connect();
         let connection = session.to_connection();
-        match model.start_connect(&connection, &session) {
+        let side = state.target_side.unwrap_or(model.focus);
+        match model.start_saved_session_connection(&connection, &session, false, side) {
             CommandOutcome::Ok => {
                 state.connection.password.clear();
                 return DialogAction::Close;
@@ -3123,14 +3125,21 @@ fn ftp_start(model: &mut Model, state: &mut FtpConnectState) -> DialogAction {
     }
     let mut connection = state.connection_for_connect();
     let session = state.profile_for_connect();
-    let outcome = model.start_connect_with_remember(&connection, &session, state.save_password);
+    let outcome = if state.password_session.is_some() {
+        let side = state.target_side.unwrap_or(model.focus);
+        model.start_saved_session_connection(&connection, &session, state.save_password, side)
+    } else {
+        model.start_connect_with_remember(&connection, &session, state.save_password)
+    };
     connection.password.clear();
     connection.key_passphrase.clear();
     match outcome {
         crate::model::CommandOutcome::Ok => {
             state.connection.password.clear();
             state.connection.key_passphrase.clear();
-            model.close_dialogs();
+            if state.password_session.is_none() {
+                model.close_dialogs();
+            }
             DialogAction::Close
         }
         crate::model::CommandOutcome::Failed(message) => {
