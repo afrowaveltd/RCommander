@@ -1459,6 +1459,86 @@ usable. Measure actual context usage on reference workloads, separately
 from provider-reported cost. Live integrations and production acceptance
 remain unverified until executed.
 
+#### RCHarness — adaptive team composition and Agent Pool (owner direction, 2026-11-28)
+
+Support user-controlled team formation modes: Manual (fixed user assignments),
+Assisted (Manager proposes a team for approval), and Adaptive (Manager may
+compose, resize and reassign teams within a previously approved resource
+envelope). The user selects the Manager, may pin individual roles/models,
+choose the number of teams and set their goals, priorities, minimum review
+requirements, provider allowlist, local-only constraints, and project/team
+budgets. A request for four teams means four separately identified task
+groups, not merely four model connections. Reuse team templates and stable
+role/agent/task identities; allow the same provider account and model to
+serve multiple independent role sessions. Do not imply independence of
+model judgments merely because sessions differ.
+
+Expose a versioned model/provider resource catalogue to the Manager (not
+credentials): configured models, actual availability, capabilities, context
+and output limits, supported reasoning settings, concurrency/rate limits,
+account quota, billing basis, input/cached-input/output prices and currency,
+price source/time, observed task-specific quality, latency and failure
+evidence. Distinguish measured results from estimates, unknown prices,
+unknown limits and provider marketing. No automatic purchase, new provider
+registration, or disclosure to an unapproved destination. Subscription
+allowances are not interchangeable with API token pricing; represent local
+compute/energy costs as optional measured or user-supplied estimates.
+
+The Manager proposes a structured allocation: team goals, roles, qualified
+executors, concurrency, dependencies, estimated cost/time and rationale.
+The deterministic scheduler validates all allocations against current
+capabilities, permissions, budgets, account-level rate limits, project
+isolation and required acceptance gates. Reserve bounded spend for concurrent
+attempts; reconcile actual reported usage and release unused reservations.
+Unknown or unbounded cost needs explicit policy; show estimation uncertainty
+and do not promise exact external billing. Enforce hard admission limits,
+stop before further paid requests when exhausted, and reserve capacity for
+review/testing and recovery rather than spending the whole budget on creation.
+No silent budget increase or weakening of tests to reduce cost.
+
+Agent Pool: configurable min/max workers by role/team, project-wide and
+provider/account-wide concurrency limits, dynamic instantiation and release
+of isolated task contexts, queue/backpressure and cancellation. Distinguish
+logical agent/session from physical connection or local loaded model;
+parallel requests are optional and bounded by actual resource availability.
+Use existing scheduler/ledger, leases and ContextBuilder; no duplicate work
+or simultaneous conflicting edits. Support sequential execution on one
+limited local model without changing the logical team plan.
+
+During execution the Manager may propose substitutions based on task fit,
+observed failures, quality, latency, cost or provider availability. Prefer
+safe task boundaries; checkpoint artifacts, contracts, unresolved findings
+and receipts before releasing the old worker. Start a new attempt/context
+with the qualified replacement and record old/new provider/model, reason,
+scope, cost and provenance; never claim an upstream session migrated when
+unsupported. In-flight effects must settle or be explicitly reconciled
+before reassignment. Recheck destination approval, data classification,
+capability, grants and remaining budget at dispatch. Pinned assignments,
+mandatory independent review and security requirements cannot be overridden
+by optimization. The Manager cannot replace itself without an explicit
+user policy and validated handoff. Prevent oscillation with bounded
+reassignments, minimum evidence and configurable cooldown/hysteresis.
+If no feasible allocation exists, pause and explain the trade-off rather
+than invent capabilities or increase spending.
+
+Offer user-selectable optimization profiles (economy, balanced, quality,
+custom), with hard acceptance constraints before soft cost/latency goals.
+Rank candidates by task-specific measured outcomes where available; no
+universal model leaderboard or fixed vendor preferences. Show the proposed
+and actual allocation, reasons for changes, estimated versus actual usage,
+remaining budget and unresolved blockers in the Blackboard. User can pin,
+pause, revoke, override or return to Manual mode.
+
+**Acceptance extensions (16.20/16.27–30/25.5–10/26.1):** mock four distinct
+teams, one account with multiple isolated sessions, dynamic worker scaling,
+one-model sequential fallback, pinned roles, cost/quality trade-offs,
+unknown/stale tariffs, concurrent budget reservations, provider rate limits,
+failed worker replacement, denied cross-provider egress, stale checkpoints,
+uncertain effects, reassignment oscillation and mandatory review. Verify
+actual receipts and acceptance quality before claiming cost savings or
+performance improvements. No live model selection or execution is implied
+by this specification.
+
 #### Collective collaboration and group chat (owner decision, 2026-11-27)
 
 Expose the existing team coordinator and durable Meeting Rooms (25.6/25.10)
