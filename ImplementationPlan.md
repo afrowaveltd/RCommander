@@ -4107,6 +4107,62 @@ attached-process preservation, crash/recovery and revocation; test on Linux
 and Windows with fake stdio/HTTP servers before opt-in real Craft integration.
 No claim of existing Craft launch flags or tested integration.
 
+### Personal data protection reference plugin (owner direction, 2026-11-28)
+
+Include an optional Data Privacy reference integration in 27.5, using
+https://github.com/gary23w/f-ck_data_brokers as the initial upstream candidate.
+The reviewed repository contains an MIT-licensed Python stdio MCP server
+(`python3 /approved/path/fuck_data_brokers.py mcp`), legal templates, broker
+catalogues and tests. Preserve upstream attribution and MIT notices, verify
+separate registry/data terms, pin and review a specific upstream revision
+before installation. Prefer a reviewed adapter/registration recipe and
+upstream collaboration over an unnecessary fork. No automatic installation
+or activation, no mandatory Python dependency for the file manager.
+
+Provide a local-first privacy workspace for selected broker discovery,
+deletion/objection request drafts, explicit recipient and content review,
+reply tracking, reminders and evidence export for the appropriate regulator.
+Keep the human in control: no blanket outreach to all catalogue entries,
+automatic account closure, identity-document upload or CAPTCHA bypass.
+Warn that contacting an unknown broker can disclose new personal data.
+Verify contact provenance and applicable jurisdiction; maintain reviewed,
+versioned legal templates and deadlines (including legitimate extensions),
+not AI-generated legal assertions. EU/Czech coverage is a desired extension,
+not a claim that the upstream US-oriented catalogue is comprehensive.
+Distinguish draft, submitted, acknowledged, broker-reported deletion and
+independently verified outcomes; never promise actual deletion.
+
+Keep personal profile, correspondence and credentials local in a dedicated
+private workspace with restrictive OS permissions, encrypted sensitive
+storage where supported, safe atomic writes and cross-process locking.
+Audit/redact without logging full personal data. Do not expose raw profile,
+mail or draft content to remote models or Agent Commons by default; use
+redacted status and explicitly authorized minimum data. Keep mail credentials
+in the existing vault, not the prompt, generic inherited environment or
+plugin logs. Do not grant the server direct sending authority by default:
+the upstream fdb_send approval instruction is advisory, so enforce approval
+of exact recipients and content at the RC broker, preferably via a scoped
+mail adapter with no credentials in the MCP server. Constrain outbound
+network destinations, process/filesystem access and tool grants. Treat
+broker replies as untrusted, do not follow links automatically, and do not
+rely on From-domain matching alone to establish authenticity. Ambiguous
+replies and sensitive actions require human review. No automatic sending
+until enforcement is verified. Disable/revoke without deleting evidence;
+allow explicit export and deletion of local data.
+
+Acceptance: inspect pinned source and data licenses; run upstream tests
+offline with synthetic identities, fake SMTP/IMAP and registries; verify
+stdio handshake, discovery, tool schema and disabled-by-default activation.
+Add tests for denied send, recipient/content substitution, unknown broker
+consent, prompt injection, spoofed replies, protected local files, concurrent
+writes, crashes/retries, no accidental duplicate sends, corrected deadlines,
+redacted status and denied external data disclosure. Demonstrate draft-only
+workflow without AI, then a local-model workflow and an opt-in controlled
+real test. No actual requests to third parties during automated tests.
+Upstream source inspection only so far; no integration, installation,
+test run or security/legal audit claimed. This is an optional reference
+plugin, not a new core dependency or a prerequisite for RCommander release.
+
 ### Workshop
 
 Choose the smallest suitable tool: declarative RC manifest, Harness Cordis
