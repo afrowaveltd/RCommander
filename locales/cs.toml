@@ -954,3 +954,17 @@ authors = ["RCommander contributors"]
 "prompt.catalogue.general.review_this.about" = "Nesouhlas je dovolen"
 "prompt.catalogue.general.teach_me.title" = "Nauč mě to"
 "prompt.catalogue.general.teach_me.about" = "Od toho, co vím, k tomu, co potřebuji"
+
+# Viewer and plugin status
+"viewer.truncated" = "Zkráceno"
+"viewer.goto" = "Přejít na pozici"
+"viewer.bytes_per_line" = "Bajtů na řádek"
+"viewer.total_bytes" = "{count} bajtů"
+"viewer.image_unavailable" = "Obrázek není dostupný"
+"viewer.hex_detail" = "Pozice {offset} (0x{hex}) · {count} bajtů"
+"plugins.status.active" = "Aktivní pluginy: {count}"
+"plugins.status.off" = "Vypnuté: {count}"
+"plugins.status.failed" = "Nepodařilo se načíst: {count}"
+"plugins.status.none" = "Nebyly nalezeny žádné pluginy"
+"dialog.decode.envelope" = "Z obálky"
+"dialog.viewmode.comments" = "Komentáře"
