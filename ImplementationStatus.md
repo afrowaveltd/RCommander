@@ -2357,6 +2357,20 @@ font measurement regression. Build/test and real Arabic rendering remain
 unverified here; no Cargo toolchain available. Arbitrary fallback glyphs
 in individual filenames are not exhaustively measured.
 
+## Handoff — missing GUI translations found in Arabic screenshots (2026-11-28)
+
+Integrated in main: replace hard-coded English settings/utility dialog
+captions with locale keys (display, editor, archive, FTP, agent transport,
+multi-rename, comparison counts, permissions, SSH settings and related
+dialogs). All three locale packs and their crate copies updated. Built-in
+prompt catalogue display titles/descriptions for all 29 shipped entries
+localized and searchable; user content, original editable prompts and
+actual prompt instructions remain unchanged. Technical format/protocol
+names remain invariant. Static key/placeholder and duplicate checks
+performed; Rust compilation and visual verification pending. This is not
+a whole-application localization audit. The screenshot also shows an audit
+hash-chain warning; do not reset or rewrite the log as part of localization.
+
 ## Next steps (dependency-ordered)
 
 The [authoritative delivery roadmap](ImplementationPlan.md#dependency-ordered-delivery-roadmap-authoritative-2026-11-27)
