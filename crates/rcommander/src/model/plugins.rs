@@ -379,6 +379,65 @@ impl PluginSummary {
     }
 }
 
+/// Read a plugin's own translations, never insert them into the host dictionary.
+/// Priority is the exact UI language, its base language, English, then the
+/// manifest's original label. Missing/invalid packs must not disable a source.
+fn plugin_locales(directory: &std::path::Path, language: &str) -> (Vec<rc_i18n::Locale>, Vec<String>) {
+    let mut packs = Vec::new();
+    let mut problems = Vec::new();
+    let language = language.to_ascii_lowercase();
+    let mut codes = vec![language.as_str()];
+    if let Some((base, _)) = language.split_once('-') {
+        codes.push(base);
+    }
+    codes.push("en");
+    let mut seen = std::collections::BTreeSet::new();
+    for code in codes {
+        if !seen.insert(code) || code.is_empty()
+            || !code.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        {
+            continue;
+        }
+        let path = directory.join("locales").join(format!("{code}.toml"));
+        let metadata = match std::fs::metadata(&path) {
+            Ok(meta) => meta,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                problems.push(format!("{}: {error}", path.display()));
+                continue;
+            }
+        };
+        if !metadata.is_file() || metadata.len() > 1024 * 1024 {
+            problems.push(format!("{}: invalid or oversized locale file", path.display()));
+            continue;
+        }
+        match rc_i18n::Locale::load(&path) {
+            Ok(locale) if locale.code() == code => packs.push(locale),
+            Ok(_) => problems.push(format!("{}: locale code mismatch", path.display())),
+            Err(error) => problems.push(format!("{}: {error}", path.display())),
+        }
+    }
+    (packs, problems)
+}
+
+fn localized_label(packs: &[rc_i18n::Locale], key: &str, fallback: &str) -> String {
+    packs.iter().find_map(|pack| pack.get(key)).unwrap_or(fallback).to_owned()
+}
+
+/// The manifest remains authoritative for identity, operations and command
+/// arguments. Only these explicitly display-only fields can be translated.
+fn localize_manifest(manifest: &mut PluginManifest, language: &str) -> Vec<String> {
+    let (packs, problems) = plugin_locales(&manifest.directory, language);
+    manifest.plugin.name = localized_label(&packs, "plugin.name", &manifest.plugin.name);
+    manifest.plugin.description = localized_label(&packs, "plugin.description", &manifest.plugin.description);
+    manifest.source.name = localized_label(&packs, "source.name", &manifest.source.name);
+    for column in &mut manifest.source.columns {
+        let key = format!("column.{}.label", column.id);
+        column.label = localized_label(&packs, &key, &column.label);
+    }
+    problems
+}
+
 impl Model {
     /// The directory manifests are read from: `<config>/plugins/<id>/plugin.toml`.
     pub fn plugin_dir(&self) -> PathBuf {
@@ -403,6 +462,8 @@ impl Model {
             roots.push(user);
         }
         let mut problems = Vec::new();
+        let mut locale_problems = Vec::new();
+        let language = self.strings.language();
         let mut loaded: std::collections::BTreeMap<String, PluginSummary> =
             std::collections::BTreeMap::new();
         let settings = self.settings.clone();
@@ -411,7 +472,8 @@ impl Model {
         self.sources.clear();
         for root in roots {
             let discovery = rc_core::plugin::discover_in(&root);
-            for manifest in discovery.plugins {
+            for mut manifest in discovery.plugins {
+                locale_problems.extend(localize_manifest(&mut manifest, &language));
                 // Kept before the manifest is moved into the source, for the problem's path.
                 let manifest_path = manifest.directory.join("plugin.toml");
                 match ManifestSource::from_manifest(manifest, &settings) {
@@ -445,6 +507,9 @@ impl Model {
             self.report_error(problem.to_string());
         }
         self.plugin_problems = problems;
+        for problem in locale_problems {
+            self.report_error(problem);
+        }
         self.plugin_summary()
     }
 
@@ -462,16 +527,16 @@ impl Model {
         let broken = self.plugin_problems.len();
         let mut parts: Vec<String> = Vec::new();
         if enabled > 0 {
-            parts.push(format!("{enabled} plugin(s)"));
+            parts.push(self.tf("plugins.status.active", &[("count", &enabled.to_string())]));
         }
         if off > 0 {
-            parts.push(format!("{off} switched off"));
+            parts.push(self.tf("plugins.status.off", &[("count", &off.to_string())]));
         }
         if broken > 0 {
-            parts.push(format!("{broken} could not be loaded"));
+            parts.push(self.tf("plugins.status.failed", &[("count", &broken.to_string())]));
         }
         if parts.is_empty() {
-            return "No plugins found".to_string();
+            return self.t("plugins.status.none");
         }
         parts.join(", ")
     }
