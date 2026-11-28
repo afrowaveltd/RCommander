@@ -255,6 +255,30 @@ impl Model {
         let mut spec = super::remote::connection_spec(&resolved, None);
         spec.timeout =
             std::time::Duration::from_secs(self.settings.ftp.timeout_seconds.clamp(3, 120));
+        // Validate before reserving the account: malformed local settings are
+        // not rejected server credentials.
+        if let Err(error) = spec.validate() {
+            let message = error.to_string();
+            self.report_error(&message);
+            return CommandOutcome::Failed(message);
+        }
+        let user = if spec.protocol != rc_remote::Protocol::Sftp && spec.is_anonymous() {
+            "anonymous"
+        } else {
+            spec.user.as_str()
+        };
+        let attempt = match rc_core::auth_guard::Attempt::begin(
+            &self.config_dir().join("auth-guard"), &spec.host, spec.effective_port(), user,
+        ) {
+            Ok(attempt) => attempt,
+            Err(error) => {
+                let message = self.auth_guard_message(&error);
+                self.report_error(&message);
+                return CommandOutcome::Failed(message);
+            }
+        };
+        let password_auth = spec.protocol != rc_remote::Protocol::Sftp
+            || matches!(&spec.auth, rc_remote::AuthMethod::Password);
         let (sender, receiver) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let stage_sender = sender.clone();
@@ -263,8 +287,15 @@ impl Model {
                 // nothing, which is fine.
                 let _ = stage_sender.send(ConnectEvent::Stage(stage));
             })
-            .map(|backend| Box::new(backend) as Box<dyn super::remote::RemoteBackend>)
-            .map_err(ConnectFailure::from_remote);
+            .map(|backend| Box::new(backend) as Box<dyn super::remote::RemoteBackend>);
+            let rejected = password_auth && matches!(&result, Err(rc_remote::RemoteError::Authentication(_)));
+            // Persist before sending the event, even if the UI cancelled its
+            // receiver. Hold the account lock throughout the network attempt.
+            let result = match attempt.finish(result.is_ok(), rejected) {
+                Ok(Some(seconds)) => Err(ConnectFailure::from_guard(rc_core::auth_guard::GuardError::Blocked(seconds))),
+                Ok(None) => result.map_err(ConnectFailure::from_remote),
+                Err(error) => Err(ConnectFailure::from_guard(error)),
+            };
             let _ = sender.send(ConnectEvent::Done(result));
         });
         let mut connection = resolved;
@@ -285,6 +316,15 @@ impl Model {
         let message = self.tf("session.connecting", &[("name", &session.name)]);
         self.report(message);
         CommandOutcome::Ok
+    }
+
+    fn auth_guard_message(&self, error: &rc_core::auth_guard::GuardError) -> String {
+        use rc_core::auth_guard::GuardError;
+        match error {
+            GuardError::Blocked(seconds) => self.tf("session.auth_guard_blocked", &[("seconds", &seconds.to_string())]),
+            GuardError::Busy => self.t("session.auth_guard_busy"),
+            GuardError::Storage(_) => self.t("session.auth_guard_storage"),
+        }
     }
 
     /// Pick up a finished connection attempt; returns true when the state changed
@@ -318,7 +358,7 @@ impl Model {
                 Err(std::sync::mpsc::TryRecvError::Empty) => break,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     outcome = Some(Err(
-                        ConnectFailure { message: "the connection attempt stopped unexpectedly".to_string(), authentication: false }
+                        ConnectFailure { message: "the connection attempt stopped unexpectedly".to_string(), authentication: false, guard: None }
                     ));
                     break;
                 }
@@ -378,7 +418,9 @@ impl Model {
                 }
             }
             Err(error) => {
-                let message = if error.authentication && job.retry_password {
+                let message = if let Some(guard) = &error.guard {
+                    self.auth_guard_message(guard)
+                } else if error.authentication && job.retry_password {
                     let status = self.t("session.password_rejected");
                     let mut state = super::dialogs::FtpConnectState::for_password(job.session.clone(), status.clone());
                     state.target_side = Some(job.side);
@@ -471,12 +513,17 @@ enum ConnectEvent {
 struct ConnectFailure {
     message: String,
     authentication: bool,
+    guard: Option<rc_core::auth_guard::GuardError>,
 }
 
 impl ConnectFailure {
+    fn from_guard(error: rc_core::auth_guard::GuardError) -> Self {
+        Self { message: String::new(), authentication: false, guard: Some(error) }
+    }
+
     fn from_remote(error: rc_remote::RemoteError) -> Self {
         let authentication = matches!(&error, rc_remote::RemoteError::Authentication(_));
-        Self { message: error.to_string(), authentication }
+        Self { message: error.to_string(), authentication, guard: None }
     }
 }
 
@@ -881,7 +928,7 @@ mod tests {
         assert_eq!(model.poll_connect_result(), (true, None));
         assert!(model.is_connecting());
         sender
-            .send(ConnectEvent::Done(Err(ConnectFailure { message: "fixture failure".into(), authentication: false })))
+            .send(ConnectEvent::Done(Err(ConnectFailure { message: "fixture failure".into(), authentication: false, guard: None })))
             .unwrap();
         assert_eq!(
             model.wait_for_connect(std::time::Duration::from_secs(1)),
@@ -904,7 +951,7 @@ mod tests {
         assert!(!model.is_connecting());
         assert!(
             sender
-                .send(ConnectEvent::Done(Err(ConnectFailure { message: "late failure".into(), authentication: false })))
+                .send(ConnectEvent::Done(Err(ConnectFailure { message: "late failure".into(), authentication: false, guard: None })))
                 .is_err()
         );
     }
