@@ -293,7 +293,8 @@ impl KeyMap {
         bind("ctrl+b", "cm_DirBranch");
         bind("ctrl+q", "cm_SrcQuickView");
         bind("ctrl+d", "cm_DirectoryHotlist");
-        bind("ctrl+l", "cm_GetFileSpace");
+        bind("ctrl+l", "cm_Language");
+        bind("ctrl+shift+l", "cm_GetFileSpace");
         bind("ctrl+m", "cm_MultiRenameFiles");
         bind("ctrl+z", "cm_EditComment");
         bind("alt+enter", "cm_VersionInfo");
